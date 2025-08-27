@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TeamG Play TV</title>
+    
+    <!-- TV-specific meta tags -->
+    <meta name="description" content="TeamG Play - La mejor experiencia de streaming para Smart TV" />
+    <meta name="keywords" content="streaming, smart tv, movies, series, entertainment" />
+    <meta name="author" content="TeamG" />
+    
+    <!-- Disable zoom and scaling for TV -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- TV-specific optimizations -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/TeamG Play.png" as="image" />
+    <link rel="preload" href="/fondo.png" as="image" />
+    
+    <!-- Favicon and app icons -->
+    <link rel="icon" type="image/png" href="/TeamG Play.png" />
+    <link rel="apple-touch-icon" href="/TeamG Play.png" />
+    
+    <!-- TV-specific CSS -->
+    <style>
+        /* Critical CSS for TV - loaded immediately */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #root {
+            width: 100%;
+            height: 100%;
+            min-height: 100vh;
+        }
+        
+        /* Loading screen */
+        .tv-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .tv-loading-logo {
+            width: 200px;
+            height: auto;
+            margin-bottom: 40px;
+            filter: drop-shadow(0 0 30px rgba(0,255,255,0.6)) drop-shadow(0 0 15px rgba(255,0,255,0.4));
+            animation: pulse 2s infinite;
+        }
+        
+        .tv-loading-text {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #00ffff, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+        }
+        
+        .tv-loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(0,255,255,0.3);
+            border-top: 4px solid #00ffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .tv-loading-hint {
+            margin-top: 30px;
+            font-size: 1.2rem;
+            color: #888;
+            text-align: center;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Hide loading when app is ready */
+        .app-ready .tv-loading {
+            display: none;
+        }
+        
+        /* TV-safe area */
+        .tv-safe-area {
+            padding: 2% 5%;
+        }
+        
+        /* Platform-specific styles */
+        .platform-webos {
+            --tv-scale: 1.0;
+        }
+        
+        .platform-tizen {
+            --tv-scale: 1.0;
+        }
+        
+        .platform-smarttv {
+            --tv-scale: 1.1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="tv-loading" id="tvLoading">
+        <img src="/TeamG Play.png" alt="TeamG Play" class="tv-loading-logo" />
+        <div class="tv-loading-text">TeamG Play TV</div>
+        <div class="tv-loading-spinner"></div>
+        <div class="tv-loading-hint">
+            🎮 Preparando tu experiencia de entretenimiento...<br>
+            Usa el control remoto para navegar
+        </div>
+    </div>
+    
+    <!-- Main App Container -->
+    <div id="root"></div>
+    
+    <!-- TV-specific scripts -->
+    <script>
+        // Platform detection and initialization
+        window.TVPlatform = {
+            isWebOS: function() {
+                return typeof webOS !== 'undefined' || 
+                       navigator.userAgent.includes('webOS') || 
+                       navigator.userAgent.includes('LG Browser');
+            },
+            isTizen: function() {
+                return typeof tizen !== 'undefined' || 
+                       navigator.userAgent.includes('Tizen') || 
+                       navigator.userAgent.includes('Samsung');
+            },
+            isSmartTV: function() {
+                return this.isWebOS() || this.isTizen() || this.isGenericTV();
+            },
+            isGenericTV: function() {
+                const ua = navigator.userAgent.toLowerCase();
+                const tvIndicators = ['smart-tv', 'smarttv', 'googletv', 'appletv', 'hbbtv'];
+                return tvIndicators.some(indicator => ua.includes(indicator)) ||
+                       (screen.width >= 1920 && screen.height >= 1080);
+            }
+        };
+        
+        // Initialize platform
+        const platform = window.TVPlatform.isWebOS() ? 'webos' : 
+                         window.TVPlatform.isTizen() ? 'tizen' : 
+                         window.TVPlatform.isSmartTV() ? 'smarttv' : 'desktop';
+        
+        document.body.classList.add('platform-' + platform);
+        document.body.classList.add('tv-interface');
+        
+        console.log('[TV] Platform detected:', platform);
+        
+        // WebOS specific initialization
+        if (window.TVPlatform.isWebOS() && typeof webOS !== 'undefined') {
+            try {
+                // Enable WebOS features
+                if (webOS.platformBack) {
+                    webOS.platformBack = function() {
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            window.close();
+                        }
+                    };
+                }
+            } catch (error) {
+                console.warn('[TV] WebOS initialization error:', error);
+            }
+        }
+        
+        // Tizen specific initialization
+        if (window.TVPlatform.isTizen() && typeof tizen !== 'undefined') {
+            try {
+                // Register Tizen keys
+                if (tizen.tvinputdevice) {
+                    const keys = ['MediaPlay', 'MediaPause', 'MediaStop', 'MediaRewind', 'MediaFastForward'];
+                    tizen.tvinputdevice.registerKeyBatch(keys);
+                }
+                
+                // Handle Tizen back button
+                window.addEventListener('tizenhwkey', function(e) {
+                    if (e.keyName === 'back') {
+                        if (window.history.length > 1) {
+                            window.history.back();
+                        } else {
+                            tizen.application.getCurrentApplication().exit();
+                        }
+                    }
+                });
+            } catch (error) {
+                console.warn('[TV] Tizen initialization error:', error);
+            }
+        }
+        
+        // Hide loading screen when app is ready
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.body.classList.add('app-ready');
+                const loading = document.getElementById('tvLoading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(function() {
+                        loading.style.display = 'none';
+                    }, 500);
+                }
+            }, 2000); // Show loading for at least 2 seconds
+        });
+        
+        // Global error handler
+        window.addEventListener('error', function(event) {
+            console.error('[TV] Global error:', event.error);
+        });
+        
+        // Performance optimization for TV
+        if (window.TVPlatform.isSmartTV()) {
+            // Disable some features that might slow down TV browsers
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    registrations.forEach(function(registration) {
+                        registration.unregister();
+                    });
+                });
+            }
+        }
+        
+        console.log('[TV] TeamG Play TV initialization complete');
+    </script>
+    
+    <!-- Load the TV-optimized React app -->
+    <script type="module" src="/src/mainTV.jsx"></script>
+</body>
+</html>

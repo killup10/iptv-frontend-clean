@@ -1,0 +1,59 @@
+{
+  "id": "com.teamg.play.tv",
+  "version": "1.0.0",
+  "vendor": "TeamG",
+  "type": "web",
+  "main": "index.html",
+  "title": "TeamG Play TV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "splashBackground": "splashBackground.png",
+  "transparent": false,
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": false,
+  "bgImage": "background.png",
+  "iconColor": "#00FFFF",
+  "handlesRelaunch": true,
+  "requestedWindowOrientation": "landscape",
+  "supportGlobalSearch": true,
+  "category": {
+    "main": "Entertainment",
+    "sub": ["Video", "Streaming"]
+  },
+  "keywords": ["streaming", "movies", "series", "tv", "entertainment"],
+  "requiredPermissions": [
+    "time.query",
+    "activities.read",
+    "activities.write",
+    "activities.operation",
+    "mediaevents.operation"
+  ],
+  "optionalPermissions": [
+    "network.operation",
+    "storage.operation"
+  ],
+  "supportedDevices": [
+    "webOSTV"
+  ],
+  "minWebOSVersion": "4.0.0",
+  "uiRevision": "2",
+  "accessibility": {
+    "supportsAudioGuidance": false,
+    "supportsHighContrast": false
+  },
+  "localization": {
+    "defaultLanguage": "es-ES",
+    "supportedLanguages": ["es-ES", "en-US"]
+  },
+  "deepLinkingParams": "contentId",
+  "mediaCapabilities": {
+    "video": {
+      "codecs": ["h264", "h265", "vp9"],
+      "formats": ["mp4", "hls", "dash"]
+    },
+    "audio": {
+      "codecs": ["aac", "mp3", "ac3"],
+      "formats": ["mp4", "hls"]
+    }
+  }
+}

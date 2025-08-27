@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Electron App Protocol</title>
+</head>
+<body>
+    <h1>¡Hola desde el archivo de prueba!</h1>
+    <p>Si ves esto, Electron cargó este HTML básico.</p>
+    <script type="module">
+        // Intenta una importación de módulo ES simple
+        try {
+            const { testFunction } = await import('./test-module.js'); // Ruta relativa
+            testFunction();
+        } catch (e) {
+            console.error('Error importando test-module.js:', e);
+            document.body.innerHTML += '<p style="color:red;">FALLO al cargar módulo ES.</p>';
+        }
+    </script>
+</body>
+</html>

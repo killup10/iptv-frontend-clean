@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="theme-color" content="#E50914" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TeamG Play" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="La mejor plataforma de streaming para disfrutar de canales en vivo, películas, series y más." />
+    
+    <!-- NetCast Specific Meta Tags -->
+    <meta name="format-detection" content="telephone=no" />
+    
+    <title>TeamG Play TV - Media Station X</title>
+    
+    <!-- Media Station X Integration -->
+    <script src="install.js"></script>
+    
+    <!-- TV Optimized Styles -->
+    <style>
+      /* Media Station X Optimizations */
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0f0f23;
+        font-family: Arial, sans-serif;
+        overflow: hidden;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+      
+      /* Focus indicators for TV navigation */
+      *:focus {
+        outline: 3px solid #00ff88 !important;
+        outline-offset: 2px;
+      }
+      
+      /* Loading screen for Media Station X */
+      .mediastation-loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #0f0f23;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      }
+      
+      .mediastation-loading.hidden {
+        display: none;
+      }
+      
+      .loading-content {
+        text-align: center;
+        color: white;
+      }
+      
+      .loading-logo {
+        width: 200px;
+        height: auto;
+        margin-bottom: 20px;
+        animation: pulse 2s infinite;
+      }
+      
+      @keyframes pulse {
+        0% { opacity: 0.8; }
+        50% { opacity: 1; }
+        100% { opacity: 0.8; }
+      }
+    </style>
+    
+    <script type="module" crossorigin src="./assets/index-C5YhT-2a.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Bv5h5Cy2.css">
+  </head>
+  <body>
+    <!-- Loading screen for Media Station X -->
+    <div id="mediastation-loading" class="mediastation-loading">
+      <div class="loading-content">
+        <img src="TeamG Play.png" alt="TeamG Play" class="loading-logo" />
+        <h2>Cargando TeamG Play...</h2>
+        <p>Optimizado para LG NetCast via Media Station X</p>
+        <div style="margin-top: 20px;">
+          <div style="width: 200px; height: 4px; background: #333; border-radius: 2px; margin: 0 auto;">
+            <div style="width: 0%; height: 100%; background: #00ff88; border-radius: 2px; animation: loading 3s ease-in-out infinite;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="root"></div>
+    
+    <!-- NetCast specific scripts -->
+    <script>
+      // Media Station X initialization
+      window.addEventListener('load', function() {
+        console.log('TeamG Play loading for Media Station X...');
+        
+        // Hide loading screen after app loads
+        setTimeout(function() {
+          const loading = document.getElementById('mediastation-loading');
+          if (loading) {
+            loading.classList.add('hidden');
+          }
+          console.log('TeamG Play loaded successfully');
+        }, 3000);
+        
+        // NetCast event handlers
+        if (typeof NetCastBack !== 'undefined') {
+          console.log('NetCast platform detected - Media Station X ready');
+          
+          // Handle NetCast back button
+          window.NetCastBack = function() {
+            console.log('NetCast Back button pressed');
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              NetCastExit();
+            }
+          };
+          
+          // Handle NetCast exit
+          window.NetCastExit = function() {
+            console.log('NetCast Exit requested');
+            if (confirm('¿Deseas salir de TeamG Play?')) {
+              window.close();
+            }
+          };
+        } else {
+          console.log('NetCast functions not available - running in web mode');
+        }
+        
+        // Media Station X specific optimizations
+        if (typeof MediaStationAPI !== 'undefined') {
+          console.log('Media Station X API available');
+          
+          // Register app with Media Station X
+          try {
+            MediaStationAPI.setAppInfo({
+              name: 'TeamG Play TV',
+              version: '1.0.0',
+              description: 'Streaming optimizado para LG NetCast'
+            });
+            console.log('App registered with Media Station X');
+          } catch (e) {
+            console.error('Error registering with Media Station X:', e);
+          }
+        } else {
+          console.log('Media Station X API not available');
+        }
+        
+        // TV remote key handling
+        document.addEventListener('keydown', function(e) {
+          console.log('Key pressed:', e.keyCode);
+          
+          switch(e.keyCode) {
+            case 8: // Back key
+            case 27: // Escape key
+              if (typeof NetCastBack !== 'undefined') {
+                NetCastBack();
+              }
+              break;
+            case 461: // Back key on some LG remotes
+              if (typeof NetCastBack !== 'undefined') {
+                NetCastBack();
+              }
+              break;
+            case 412: // Exit key
+              if (typeof NetCastExit !== 'undefined') {
+                NetCastExit();
+              }
+              break;
+          }
+        });
+      });
+      
+      // Error handling for Media Station X
+      window.addEventListener('error', function(e) {
+        console.error('Media Station X Error:', e.error);
+      });
+      
+      // Prevent context menu on TV
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+      });
+      
+      // Loading animation
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes loading {
+          0% { width: 0%; }
+          50% { width: 70%; }
+          100% { width: 100%; }
+        }
+      `;
+      document.head.appendChild(style);
+    </script>
+  </body>
+</html>

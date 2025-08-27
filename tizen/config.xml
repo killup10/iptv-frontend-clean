@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" 
+        xmlns:tizen="http://tizen.org/ns/widgets" 
+        id="http://teamg.play.tv" 
+        version="1.0.0" 
+        viewmodes="maximized">
+    
+    <tizen:application id="teamgplay.TeamGPlayTV" package="teamgplay" required_version="6.0"/>
+    
+    <content src="index.html"/>
+    
+    <name>TeamG Play TV</name>
+    <description>La mejor experiencia de streaming para Smart TV Samsung</description>
+    
+    <author href="https://teamgplay.com" email="info@teamgplay.com">TeamG</author>
+    
+    <icon src="icon.png"/>
+    
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="endpoint_URL"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/prelaunch.support" value="true"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/drminfo.value" value="none"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/education.age.rating" value="all"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/category" value="entertainment"/>
+    
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.display"/>
+    
+    <tizen:profile name="tv-samsung"/>
+    
+    <tizen:setting screen-orientation="landscape" 
+                   context-menu="enable" 
+                   background-support="disable" 
+                   encryption="disable" 
+                   install-location="auto"/>
+    
+    <access origin="*" subdomains="true"/>
+    
+    <tizen:content-security-policy>
+        default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline';
+        style-src 'self' 'unsafe-inline';
+        media-src *;
+        img-src 'self' data: content:;
+    </tizen:content-security-policy>
+    
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <feature name="http://tizen.org/feature/tv.inputdevice"/>
+    
+</widget>

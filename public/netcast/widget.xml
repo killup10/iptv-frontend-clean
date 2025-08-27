@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" 
+        xmlns:lge="http://www.lge.com/ns/widgets" 
+        id="com.teamg.play.netcast" 
+        version="1.0.0">
+    
+    <name>TeamG Play TV</name>
+    <description>La mejor experiencia de streaming para LG NetCast via Media Station X</description>
+    
+    <author href="https://teamgplay.com" email="info@teamgplay.com">TeamG</author>
+    
+    <icon src="TeamG Play.png"/>
+    
+    <!-- NetCast specific metadata for Media Station X -->
+    <lge:metadata>
+        <lge:category>Entertainment</lge:category>
+        <lge:resolution>1920x1080</lge:resolution>
+        <lge:type>web</lge:type>
+        <lge:bgImage>fondo.png</lge:bgImage>
+        <lge:bgColor>#0f0f23</lge:bgColor>
+        <lge:bgMusic>false</lge:bgMusic>
+        <lge:childLock>false</lge:childLock>
+        <lge:adult>false</lge:adult>
+        <lge:mediastation>true</lge:mediastation>
+    </lge:metadata>
+    
+    <!-- NetCast privileges -->
+    <lge:privilege name="network"/>
+    <lge:privilege name="storage"/>
+    <lge:privilege name="audio"/>
+    <lge:privilege name="video"/>
+    <lge:privilege name="mediastation"/>
+    
+    <!-- Content source -->
+    <content src="index.html"/>
+    
+    <!-- Feature requirements -->
+    <feature name="http://www.lge.com/feature/network" required="true"/>
+    <feature name="http://www.lge.com/feature/storage" required="false"/>
+    <feature name="http://www.lge.com/feature/mediastation" required="true"/>
+    
+    <!-- Access permissions -->
+    <access origin="*" subdomains="true"/>
+    
+    <!-- NetCast specific settings for Media Station X -->
+    <lge:settings>
+        <lge:resolution>1920x1080</lge:resolution>
+        <lge:orientation>landscape</lge:orientation>
+        <lge:transparent>false</lge:transparent>
+        <lge:ime>false</lge:ime>
+        <lge:audio>true</lge:audio>
+        <lge:video>true</lge:video>
+        <lge:mediastation>enabled</lge:mediastation>
+    </lge:settings>
+    
+</widget>
