@@ -45,7 +45,7 @@ export default function BulkUploadForm() {
         throw new Error('No estás autenticado');
       }
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const response = await fetch(`${API_URL}/api/m3u/bulk-upload`, {
         method: 'POST',
         headers: {
