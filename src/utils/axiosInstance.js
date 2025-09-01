@@ -1,6 +1,24 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://iptv-backend-w6hf.onrender.com';
+// Función para determinar la URL base de la API
+const getApiBaseUrl = () => {
+  const webUrl = import.meta.env.VITE_API_URL || 'https://iptv-backend-w6hf.onrender.com';
+  
+  if (Capacitor.isNativePlatform()) {
+    // Para Android, podrías necesitar una URL específica.
+    // Si tu backend está en la misma máquina durante el desarrollo, usa 'http://10.0.2.2:PUERTO'.
+    // Para producción, debe ser la URL de tu backend público.
+    const nativeUrl = 'https://iptv-backend-w6hf.onrender.com';
+    console.log(`Plataforma nativa detectada. Usando API URL: ${nativeUrl}`);
+    return nativeUrl;
+  }
+  
+  console.log(`Plataforma web detectada. Usando API URL: ${webUrl}`);
+  return webUrl;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

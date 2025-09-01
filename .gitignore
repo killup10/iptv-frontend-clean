@@ -5,7 +5,10 @@ node_modules/
 .env
 
 # Ignorar binarios de MPV para la build de Electron
-mpv/
+mpv-binaries/
 
 # Ignorar compilaciones de Electron
 release_electron/
+
+# Ignorar directorio de build
+/dist/

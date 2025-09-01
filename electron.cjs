@@ -210,12 +210,28 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds }) => {
         
         // Verificar DLLs necesarias
         const requiredDlls = ['D3DCompiler_47.dll', 'libmpv-2.dll'];
+        const missing = [];
         for (const dll of requiredDlls) {
           const dllPath = path.join(mpvDir, dll);
           if (!require('fs').existsSync(dllPath)) {
-            console.error(`[MPV] DLL requerida no encontrada: ${dll} en ${dllPath}`);
-            throw new Error(`DLL requerida no encontrada: ${dll}`);
+            missing.push({ name: dll, path: dllPath });
           }
+        }
+
+        if (missing.length > 0) {
+          const missingList = missing.map(m => `${m.name} (expected: ${m.path})`).join(', ');
+          const helpMsg = `Faltan archivos necesarios en el directorio mpv: ${missingList}.\n` +
+            `Por favor coloca los archivos en ${mpvDir} antes de iniciar el reproductor. ` +
+            `Puedes obtener 'libmpv-2.dll' y otros binarios desde una build oficial de mpv para Windows y 'D3DCompiler_47.dll' desde Microsoft (DirectX).`;
+          console.error('[MPV] ' + helpMsg);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            try {
+              mainWindow.webContents.send('mpv-error', helpMsg);
+            } catch (e) {
+              console.error('[MPV] Error al enviar mpv-error al renderer:', e);
+            }
+          }
+          throw new Error(helpMsg);
         }
         
         console.log('[MPV] Usando ejecutable:', mpvBinPath);
