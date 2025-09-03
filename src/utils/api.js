@@ -46,14 +46,19 @@ export async function fetchChannelForPlayback(channelId) {
 }
 
 /* =================== VOD - USUARIO =================== */
-export async function fetchUserMovies() {
+export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, genre = null) {
   const relativePath = "/api/videos";
-  const params = { tipo: "pelicula", page: 1, limit: 5000 };
+  const params = { tipo: "pelicula", page, limit };
+  if (mainSection) {
+    params.mainSection = mainSection;
+  }
+  if (genre && genre !== 'Todas') {
+    params.genre = genre;
+  }
   console.log(`API (fetchUserMovies - axios): GET ${relativePath} con params:`, params);
   try {
     const response = await axiosInstance.get(relativePath, { params });
-    // CORRECCIÓN: Faltaba devolver los datos en esta función
-    return response.data?.videos || []; 
+    return response.data; 
   } catch (error) {
     const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener películas.";
     console.error(`API Error (fetchUserMovies - axios): ${errorMsg}`, error.response?.data);
@@ -61,24 +66,21 @@ export async function fetchUserMovies() {
   }
 }
 
-export async function fetchUserSeries() {
-  const relativePath = "/api/videos";
-  const params = { tipo: "serie", page: 1, limit: 1000 };
-  console.log(`API (fetchUserSeries - axios): GET ${relativePath} con params:`, params);
-  try {
-    const response = await axiosInstance.get(relativePath, { params });
-    const seriesData = Array.isArray(response.data?.videos) ? response.data.videos : Array.isArray(response.data) ? response.data : [];
-    console.log('Series cargadas:', seriesData);
-    return seriesData.map(serie => ({
-      ...serie,
-      // No asignar valor por defecto "Netflix" para animes
-      subcategoria: (serie.tipo === "anime" || (serie.tipo === "serie" && serie.subtipo === "anime")) ? undefined : (serie.subcategoria || "Netflix")
-    }));
-  } catch (error) {
-    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener series.";
-    console.error(`API Error (fetchUserSeries - axios): ${errorMsg}`, error.response?.data);
-    throw new Error(errorMsg);
-  }
+export async function fetchUserSeries(page = 1, limit = 20, subcategoria = "TODOS") {
+  const relativePath = "/api/videos";
+  const params = { tipo: "serie", page, limit };
+  if (subcategoria && subcategoria !== "TODOS") {
+    params.subcategoria = subcategoria;
+  }
+  console.log(`API (fetchUserSeries - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener series.";
+    console.error(`API Error (fetchUserSeries - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
 }
 
 export async function fetchVideoById(id) {

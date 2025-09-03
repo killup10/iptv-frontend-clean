@@ -43,7 +43,8 @@ export default function ZonaKids() {
       setIsLoading(true);
       try {
         // Por ahora usamos fetchUserMovies, pero se puede crear una función específica para contenido kids
-        const userContent = await fetchUserMovies();
+        const response = await fetchUserMovies();
+        const userContent = response.videos; // Acceder al array de videos
         // Filtrar solo contenido apropiado para niños (puedes ajustar esta lógica)
         const kidsContent = userContent?.filter(item => 
           item.subcategoria && SUBCATEGORIAS_KIDS.includes(item.subcategoria)

@@ -20,8 +20,8 @@ import Animes from './pages/Animes.jsx';
 import Documentales from './pages/Documentales.jsx';
 import Doramas from './pages/Doramas.jsx';
 import Novelas from './pages/Novelas.jsx';
-import ZonaKids from './pages/ZonaKids.jsx';
 import Colecciones from './pages/Colecciones.jsx';
+import ZonaKids from './pages/ZonaKids.jsx';
 import BulkUploadPage from './pages/BulkUploadPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import TestPlayer from './pages/TestPlayer.jsx';
@@ -111,7 +111,7 @@ const router = createHashRouter([
         ),
       },
       {
-        path: "zona-kids",
+        path: "kids",
         element: (
           <ProtectedRoute>
             <ZonaKids />

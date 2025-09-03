@@ -51,11 +51,14 @@ export default function Colecciones() {
       setIsLoading(true);
       try {
         // Cargar tanto películas como series
-        const [movies, series] = await Promise.all([
-          fetchUserMovies(),
-          fetchUserSeries()
+        const [moviesResponse, seriesResponse] = await Promise.all([
+          fetchUserMovies(1, 5000),
+          fetchUserSeries(1, 5000)
         ]);
         
+        const movies = moviesResponse.videos;
+        const series = seriesResponse.videos;
+
         // Combinar y filtrar contenido que pertenezca a colecciones
         const allContent = [...(movies || []), ...(series || [])];
         const collectionContent = allContent.filter(item => 
@@ -192,7 +195,9 @@ export default function Colecciones() {
                     </h2>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {items.map(item => (
+                    {items.map(item => {
+                      console.log('Item in Colecciones:', item);
+                      return (
                       <div
                         key={item.id || item._id}
                         onClick={() => handleContentClick(item)}
@@ -205,6 +210,11 @@ export default function Colecciones() {
                             className="w-full h-full object-cover"
                             onError={(e) => e.currentTarget.src = '/placeholder-thumbnail.png'}
                           />
+                          {item.mainSection === 'CINE_4K' && (
+                            <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-md">
+                              4K
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <div className="absolute bottom-0 p-4">
                               <h3 className="text-white text-sm font-semibold line-clamp-2">{item.name}</h3>
@@ -217,7 +227,8 @@ export default function Colecciones() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}

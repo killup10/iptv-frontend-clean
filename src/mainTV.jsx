@@ -15,8 +15,8 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 
 // TV-optimized pages (you can create these or reuse existing ones with TV styling)
-import Movies from './pages/Movies.jsx';
-import Series from './pages/Series.jsx';
+import { Movies } from './pages/Movies.jsx';
+import { Series } from './pages/Series.jsx';
 import Animes from './pages/Animes.jsx';
 import Doramas from './pages/Doramas.jsx';
 import Novelas from './pages/Novelas.jsx';

@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext.jsx';
-import { fetchUserMovies, fetchMainMovieSections, fetchAdminVideos } from '@/utils/api.js';
+import { fetchUserMovies, fetchMainMovieSections } from '@/utils/api.js';
 import Card from '@/components/Card.jsx';
 import MovieSectionCard from '@/components/MovieSectionCard.jsx';
 import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
-
 import { useContentAccess } from '@/hooks/useContentAccess.js';
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import TrailerModal from '@/components/TrailerModal.jsx';
-
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -21,13 +19,11 @@ const getUniqueValuesFromArray = (items, field) => {
     return ['Todas', ...new Set(values.sort((a,b) => a.localeCompare(b)))];
 };
 
-// Normaliza cadenas para comparaciones: trim, lowercase y quitar diacríticos
 const normalizeString = (str) => {
     if (!str && str !== 0) return '';
     try {
         return String(str).normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
     } catch (e) {
-        // Fallback si normalize no está soportado
         return String(str).replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     }
 };
@@ -45,10 +41,15 @@ const isSectionAllowedForPlan = (sectionKey, userPlan) => {
 };
 
 export default function MoviesPage() {
-    const [specialEvents, setSpecialEvents] = useState([]);
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [allUserMovies, setAllUserMovies] = useState([]);
+
+    const [movies, setMovies] = useState([]);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     const [mainSections, setMainSections] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -59,101 +60,87 @@ export default function MoviesPage() {
     const gridOptions = [5, 4, 3, 1];
     const [gridCols, setGridCols] = useState(gridOptions[0]);
 
-
-    // Estados para el modal de tráiler
-
     const [showTrailerModal, setShowTrailerModal] = useState(false);
     const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
 
-    // Hook para verificación de acceso al contenido
+    const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
 
-    const {
-        checkContentAccess,
-        showAccessModal,
-        accessModalData,
-        closeAccessModal,
-        proceedWithTrial
-    } = useContentAccess();
+    const observer = useRef();
+    const lastMovieElementRef = useCallback(node => {
+        if (isLoading || loadingMore) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                loadMoreMovies();
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [isLoading, loadingMore, hasMore]);
 
-    const shouldShowSpecialsSection = () => specialEvents.length > 0;
-    const getSpecialEventName = () => specialEvents[0]?.specialEventName || "Especial";
+    const loadMovies = async (currentPage, mainSection, genre) => {
+        if (!user?.token) {
+            setError("Por favor, inicia sesión para acceder al contenido.");
+            setIsLoading(false);
+            return;
+        }
+        
+        setLoadingMore(true);
+        setError(null);
+
+        try {
+            const data = await fetchUserMovies(currentPage, 20, mainSection, genre);
+            setMovies(prevMovies => currentPage === 1 ? data.videos : [...prevMovies, ...data.videos]);
+            setTotalPages(data.totalPages);
+            setPage(data.page);
+            setHasMore(data.page < data.totalPages);
+
+            if (currentPage === 1) {
+                setGenresForSelectedSection(getUniqueValuesFromArray(data.videos, 'genres'));
+            }
+
+        } catch (err) {
+            console.error("MoviesPage: Error cargando películas:", err);
+            setError(err.message || "No se pudieron cargar las películas.");
+        } finally {
+            setIsLoading(false);
+            setLoadingMore(false);
+        }
+    };
+
+    const loadMoreMovies = () => {
+        if (page < totalPages) {
+            loadMovies(page + 1, selectedMainSectionKey, selectedGenre);
+        }
+    };
 
     useEffect(() => {
         const loadInitialData = async () => {
-            if (!user?.token) {
-                setError("Por favor, inicia sesión para acceder al contenido.");
-                setIsLoading(false);
-                return;
-            }
             setIsLoading(true);
-            setError(null);
             try {
-                // Si el usuario es admin, pedir la vista de admin para obtener todos los VODs (incluye los recientemente editados)
-                const moviesPromise = user?.role === 'admin' ? fetchAdminVideos() : fetchUserMovies();
-                const [moviesData, sectionsDataFromAPI] = await Promise.all([
-                    moviesPromise,
-                    fetchMainMovieSections()
-                ]);
-                // fetchAdminVideos devuelve un objeto { videos, total, page, pages }
-                if (user?.role === 'admin' && moviesData && moviesData.videos) {
-                    console.log('MoviesPage (admin): datos recibidos de fetchAdminVideos:', moviesData);
-                    // Asegurarse de usar solo películas en esta página
-                    const onlyMovies = (moviesData.videos || []).filter(v => v.tipo === 'pelicula' || v.tipo === undefined || v.tipo === null);
-                    setAllUserMovies(onlyMovies);
-                } else {
-                    console.log('MoviesPage: datos recibidos de fetchUserMovies:', moviesData?.length || 0);
-                    setAllUserMovies(moviesData || []);
-                }
-                let filteredSections = sectionsDataFromAPI || [];
-                if (!shouldShowSpecialsSection()) {
-                    filteredSections = filteredSections.filter(section => section.key !== "ESPECIALES");
-                }
-                setMainSections(filteredSections);
+                const sectionsDataFromAPI = await fetchMainMovieSections();
+                setMainSections(sectionsDataFromAPI || []);
             } catch (err) {
-                console.error("MoviesPage: Error cargando datos iniciales:", err);
-                setError(err.message || "No se pudieron cargar los datos de películas.");
-            } finally {
-                setIsLoading(false);
+                console.error("MoviesPage: Error cargando secciones:", err);
+                setError(err.message || "No se pudieron cargar las secciones.");
             }
+            setIsLoading(false);
         };
+
         loadInitialData();
     }, [user?.token]);
 
     useEffect(() => {
-        if (!selectedMainSectionKey || !allUserMovies.length) {
-            setGenresForSelectedSection(['Todas']);
-            setSelectedGenre('Todas');
-            return;
+        if (selectedMainSectionKey) {
+            setMovies([]);
+            setPage(1);
+            setTotalPages(0);
+            setHasMore(true);
+            loadMovies(1, selectedMainSectionKey, selectedGenre);
         }
-        const moviesForGenreExtraction = allUserMovies.filter(m =>
-            selectedMainSectionKey === "POR_GENERO"
-                ? m.mainSection === "POR_GENERO" || !m.mainSection
-                : m.mainSection === selectedMainSectionKey
-        );
-        setGenresForSelectedSection(getUniqueValuesFromArray(moviesForGenreExtraction, 'genres'));
-        setSelectedGenre('Todas');
-        setSearchTerm('');
-    }, [selectedMainSectionKey, allUserMovies]);
+    }, [selectedMainSectionKey, selectedGenre, user?.token]);
 
     const displayedMovies = useMemo(() => {
-        let filtered = [...allUserMovies];
-        if (selectedMainSectionKey) {
-            filtered = filtered.filter(m =>
-                selectedMainSectionKey === "POR_GENERO"
-                    ? m.mainSection === "POR_GENERO" || !m.mainSection
-                    : m.mainSection === selectedMainSectionKey
-            );
-        }
-        if (selectedGenre !== 'Todas') {
-            const normalizedSelected = normalizeString(selectedGenre);
-            filtered = filtered.filter(m => {
-                if (!m.genres) return false;
-                if (Array.isArray(m.genres)) {
-                    return m.genres.some(g => normalizeString(g) === normalizedSelected);
-                }
-                return normalizeString(m.genres) === normalizedSelected;
-            });
-        }
+        let filtered = [...movies];
         if (searchTerm) {
             const term = searchTerm.toLowerCase().trim();
             filtered = filtered.filter(m =>
@@ -162,14 +149,7 @@ export default function MoviesPage() {
             );
         }
         return filtered;
-    }, [allUserMovies, selectedMainSectionKey, selectedGenre, searchTerm]);
-
-    // Debug: log counts to help troubleshooting why items might not appear
-    useEffect(() => {
-        try {
-            console.log(`MoviesPage: allUserMovies=${allUserMovies.length} | displayedMovies=${displayedMovies.length} | selectedMainSection=${selectedMainSectionKey} | selectedGenre=${selectedGenre} | searchTerm='${searchTerm}'`);
-        } catch (e) {}
-    }, [allUserMovies, displayedMovies.length, selectedMainSectionKey, selectedGenre, searchTerm]);
+    }, [movies, searchTerm]);
 
     const handleMovieClick = (movie) => {
         const movieId = movie.id || movie._id;
@@ -177,45 +157,36 @@ export default function MoviesPage() {
             console.error("MoviesPage: Clic en película sin ID válido.", movie);
             return;
         }
-
-        // Función para navegar después de verificar acceso
-        const navigateToMovie = () => {
-            navigate(`/watch/movie/${movieId}`);
-        };
-
-        // Verificar acceso antes de navegar
+        const navigateToMovie = () => navigate(`/watch/movie/${movieId}`);
         checkContentAccess(movie, navigateToMovie);
     };
 
-  const handleProceedWithTrial = () => {
-    // El hook maneja la navegación internamente
-    proceedWithTrial();
-  };
-
-  const toggleGridView = () => {
-    const currentIndex = gridOptions.indexOf(gridCols);
-    const nextIndex = (currentIndex + 1) % gridOptions.length;
-    setGridCols(gridOptions[nextIndex]);
-  };
-
-
-  const getGridClass = () => {
-      switch (gridCols) {
-        case 1: return 'grid-cols-1';
-        case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-        case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
-        case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
-        default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
-      }
+    const handleProceedWithTrial = () => {
+        proceedWithTrial();
     };
 
+    const toggleGridView = () => {
+        const currentIndex = gridOptions.indexOf(gridCols);
+        const nextIndex = (currentIndex + 1) % gridOptions.length;
+        setGridCols(gridOptions[nextIndex]);
+    };
 
-  const handlePlayTrailerClick = (trailerUrl) => {
-    if (trailerUrl) {
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-    }
-  };
+    const getGridClass = () => {
+        switch (gridCols) {
+            case 1: return 'grid-cols-1';
+            case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+            case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+            case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+            default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
+        }
+    };
+
+    const handlePlayTrailerClick = (trailerUrl) => {
+        if (trailerUrl) {
+            setCurrentTrailerUrl(trailerUrl);
+            setShowTrailerModal(true);
+        }
+    };
 
     const handleSelectMainSection = (sectionKey) => {
         const planUsuario = user?.plan || "gratuito";
@@ -230,8 +201,9 @@ export default function MoviesPage() {
         setSearchTerm('');
     };
 
-    if (isLoading)
+    if (isLoading && page === 1) {
         return <div className="flex justify-center items-center min-h-[calc(100vh-128px)]"><div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div></div>;
+    }
 
     if (error)
         return <p className="text-center text-red-400 p-6 text-lg bg-gray-800 rounded-md mx-auto max-w-md">{error}</p>;
@@ -245,27 +217,14 @@ export default function MoviesPage() {
                 <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 text-center sm:text-left">Explorar Películas</h1>
                 {mainSections.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        {mainSections.map(section => {
-                            if (section.key === "ESPECIALES" && !shouldShowSpecialsSection()) return null;
-                            const sectionData = section.key === "ESPECIALES"
-                                ? { ...section, displayName: getSpecialEventName() }
-                                : section;
-                            return (
-                                <MovieSectionCard
-                                    key={sectionData.key}
-                                    section={sectionData}
-                                    onClick={handleSelectMainSection}
-                                    userPlan={user.plan || 'gratuito'}
-                                    moviesInSection={allUserMovies.filter(movie => {
-                                        if (section.key === "POR_GENERO") {
-                                            return movie.mainSection === "POR_GENERO" || !movie.mainSection;
-                                        }
-                                        return movie.mainSection === section.key;
-                                    })}
-                                />
-
-                            );
-                        })}
+                        {mainSections.map(section => (
+                            <MovieSectionCard
+                                key={section.key}
+                                section={section}
+                                onClick={handleSelectMainSection}
+                                userPlan={user.plan || 'gratuito'}
+                            />
+                        ))}
                     </div>
                 ) : (
                     <p className="text-center text-gray-500 mt-10 text-lg">No hay secciones de películas disponibles.</p>
@@ -292,24 +251,22 @@ export default function MoviesPage() {
                     </h1>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button
-                    onClick={toggleGridView}
-                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
-                    aria-label="Cambiar vista de cuadrícula"
-                  >
-                    <Squares2X2Icon className="w-5 h-5" />
-                  </button>
-                  <input
-                      type="text"
-                      placeholder={`Buscar...`}
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full md:w-auto px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
-                  />
+                    <button
+                        onClick={toggleGridView}
+                        className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                        aria-label="Cambiar vista de cuadrícula"
+                    >
+                        <Squares2X2Icon className="w-5 h-5" />
+                    </button>
+                    <input
+                        type="text"
+                        placeholder={`Buscar...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full md:w-auto px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
+                    />
                 </div>
-
             </div>
-
 
             {genresForSelectedSection.length > 1 && (
                 <div className="flex flex-wrap gap-2 mb-8 pb-4 border-b border-gray-700">
@@ -327,22 +284,41 @@ export default function MoviesPage() {
 
             {displayedMovies.length > 0 ? (
                 <div className={`grid ${getGridClass()} gap-6`}>
-                    {displayedMovies.map(movie => (
-                        <Card
-                            key={movie.id || movie._id}
-                            item={movie}
-                            onClick={() => handleMovieClick(movie)}
-                            itemType="movie"
-                            onPlayTrailer={handlePlayTrailerClick}
-
-                        />
-                    ))}
+                    {displayedMovies.map((movie, index) => {
+                        if (displayedMovies.length === index + 1) {
+                            return (
+                                <div ref={lastMovieElementRef} key={movie.id || movie._id}>
+                                    <Card
+                                        item={movie}
+                                        onClick={() => handleMovieClick(movie)}
+                                        itemType="movie"
+                                        onPlayTrailer={handlePlayTrailerClick}
+                                    />
+                                </div>
+                            );
+                        } else {
+                            return (
+                                <Card
+                                    key={movie.id || movie._id}
+                                    item={movie}
+                                    onClick={() => handleMovieClick(movie)}
+                                    itemType="movie"
+                                    onPlayTrailer={handlePlayTrailerClick}
+                                />
+                            );
+                        }
+                    })}
                 </div>
-
             ) : (
                 <p className="text-center text-gray-400 mt-12 text-lg">
                     {`No se encontraron películas para "${selectedGenre}" en ${currentMainSection?.displayName || 'la sección actual'}.`}
                 </p>
+            )}
+
+            {loadingMore && (
+                <div className="flex justify-center items-center mt-8">
+                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
+                </div>
             )}
 
             <ContentAccessModal
@@ -353,13 +329,13 @@ export default function MoviesPage() {
             />
 
             {showTrailerModal && currentTrailerUrl && (
-              <TrailerModal
-                trailerUrl={currentTrailerUrl}
-                onClose={() => {
-                  setShowTrailerModal(false);
-                  setCurrentTrailerUrl('');
-                }}
-              />
+                <TrailerModal
+                    trailerUrl={currentTrailerUrl}
+                    onClose={() => {
+                        setShowTrailerModal(false);
+                        setCurrentTrailerUrl('');
+                    }}
+                />
             )}
         </div>
     );

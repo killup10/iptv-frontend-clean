@@ -102,7 +102,12 @@ export function Home() {
               if (!progressItem.video) return null;
               return {
                 ...progressItem.video,
-                watchProgress: { lastTime: progressItem.progress }
+                                watchProgress: { 
+                  lastTime: progressItem.progress,
+                  lastSeason: progressItem.lastSeason,
+                  lastChapter: progressItem.lastChapter
+                }
+
               };
             })
             .filter(Boolean);
@@ -543,7 +548,8 @@ export function Home() {
             featuredDoramas.length === 0 &&
             featuredNovelas.length === 0 &&
             featuredDocumentales.length === 0 &&
-            continueWatchingItems.length === 0 && (
+            continueWatchingSeries.length === 0 &&
+            continueWatchingAnimes.length === 0 && (
             <p className="text-center text-gray-500 py-10 text-lg px-4">
               No hay contenido destacado disponible en este momento. ¡Vuelve pronto!
             </p>
