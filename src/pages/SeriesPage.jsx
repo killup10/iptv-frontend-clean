@@ -64,7 +64,7 @@ export default function SeriesPage() {
       setError(null);
 
       try {
-          const data = await fetchUserSeries(currentPage, 20, subcategoria);
+                    const data = await fetchUserSeries(currentPage, 3000, subcategoria);
           setSeries(prevSeries => currentPage === 1 ? data.videos : [...prevSeries, ...data.videos]);
           setTotalPages(data.totalPages);
           setPage(data.page);

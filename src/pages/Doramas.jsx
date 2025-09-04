@@ -23,6 +23,7 @@ export function Doramas() {
         const response = await axiosInstance.get('/api/videos', {
           params: {
             tipo: 'dorama',
+            limit: 3000
           }
         });
         setDoramas(response.data.videos || []);

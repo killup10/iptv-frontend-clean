@@ -47,14 +47,14 @@ export function Animes() {
           axiosInstance.get('/api/videos', {
             params: {
               tipo: 'anime',
-              limit: 100
+                            limit: 3000
             }
           }).catch(() => ({ data: { videos: [] } })),
           axiosInstance.get('/api/videos', {
             params: {
               tipo: 'serie',
               subtipo: 'anime',
-              limit: 100
+                            limit: 3000
             }
           }).catch(() => ({ data: { videos: [] } }))
         ]);

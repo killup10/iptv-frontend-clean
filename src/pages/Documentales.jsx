@@ -23,6 +23,7 @@ export function Documentales() {
         const response = await axiosInstance.get('/api/videos', {
           params: {
             tipo: 'documental',
+            limit: 3000
           }
         });
         setDocumentales(response.data.videos || []);

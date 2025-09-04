@@ -54,14 +54,14 @@ const router = createHashRouter([
           </ProtectedRoute>
         ),
       },
-      {
-        path: "tv",
+            {
+        path: "live-tv",
         element: (
           <ProtectedRoute>
             <LiveTVPage />
           </ProtectedRoute>
         ),
-      },
+      },,
       {
         path: "peliculas",
         element: (

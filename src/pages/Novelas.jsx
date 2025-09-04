@@ -23,6 +23,7 @@ export function Novelas() {
         const response = await axiosInstance.get('/api/videos', {
           params: {
             tipo: 'novela',
+            limit: 3000
           }
         });
         setNovelas(response.data.videos || []);

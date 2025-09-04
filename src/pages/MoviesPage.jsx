@@ -88,7 +88,7 @@ export default function MoviesPage() {
         setError(null);
 
         try {
-            const data = await fetchUserMovies(currentPage, 20, mainSection, genre);
+                        const data = await fetchUserMovies(currentPage, 3000, mainSection, genre);
             setMovies(prevMovies => currentPage === 1 ? data.videos : [...prevMovies, ...data.videos]);
             setTotalPages(data.totalPages);
             setPage(data.page);
