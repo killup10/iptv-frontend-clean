@@ -3,7 +3,7 @@ import React from 'react';
 import Card from './Card';
 
 // Asegúrate de que el componente Carousel acepte y use onPlayTrailerClick
-export default function Carousel({ title, items = [], onItemClick, itemType = 'item', onPlayTrailerClick }) {
+export default function Carousel({ title, items = [], onItemClick, itemType = 'item', onPlayTrailerClick, onAddToCollectionClick }) {
   if (!items || items.length === 0) {
     return null;
   }
@@ -44,6 +44,7 @@ export default function Carousel({ title, items = [], onItemClick, itemType = 'i
               itemType={typeof itemType === 'function' ? itemType(item) : itemType}
               onPlayTrailer={onPlayTrailerClick} // Pasa la prop onPlayTrailerClick a Card (Card la espera como onPlayTrailer)
               progressPercent={progressPercent}
+              onAddToCollectionClick={onAddToCollectionClick}
             />
           );
         })}

@@ -1,4 +1,4 @@
-  import React from 'react';
+import React from 'react';
 
   import {
     PlayIcon as PlayOutlineIcon,
@@ -13,31 +13,11 @@
     itemType = 'item',
     onPlayTrailer,
     progressPercent,
+    onAddToCollectionClick,
   }) {
-    React.useEffect(() => {
-      // Debug de la información que llega
-      console.log('Card.jsx: Item data:', {
-        id: item?.id,
-        title: item?.title || item?.name,
-        thumbnail: item?.thumbnail,
-        tmdbRating: item?.tmdbRating,
-        ratingDisplay: item?.ratingDisplay,
-        description: item?.description
-      });
-
-      if (item?.trailerUrl) {
-        console.log('Card.jsx: trailerUrl detected for item:', item?.id || item?.title || item?.name, 'trailerUrl:', item.trailerUrl);
-        console.log('Card.jsx: onPlayTrailer type:', typeof onPlayTrailer, 'value:', onPlayTrailer);
-      }
-    }, [item?.trailerUrl, onPlayTrailer, item]);
     const handlePlayClick = (e) => {
       e.stopPropagation();
-      console.log('Card.jsx: handlePlayClick invoked for item:', item?.id || item?.name || item?.title);
-      // If there's a trailer, prefer playing the trailer first. Pass a
-      // callback so the parent can navigate after the trailer modal closes.
       if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
-        console.log('Card.jsx: handlePlayClick -> item has trailer, calling onPlayTrailer before navigation');
-        // Parent may accept a second parameter as onClose callback.
         onPlayTrailer(item.trailerUrl, () => {
           if (onClick) onClick(item, itemType);
         });
@@ -50,21 +30,13 @@
     };
 
     const handleTriggerPlayTrailer = (e) => {
-      console.log('Card.jsx: handleTriggerPlayTrailer called');
       e.preventDefault();
       e.stopPropagation();
       
       if (!item?.trailerUrl || !onPlayTrailer) {
-        console.warn('Card.jsx: No trailer URL or onPlayTrailer not provided:', {
-          hasTrailerUrl: !!item?.trailerUrl,
-          hasOnPlayTrailer: !!onPlayTrailer
-        });
         return;
       }
 
-      console.log('Card.jsx: Playing trailer for:', item.title || item.name);
-      console.log('Card.jsx: Trailer URL:', item.trailerUrl);
-      
       try {
         onPlayTrailer(item.trailerUrl);
       } catch (error) {
@@ -72,39 +44,22 @@
       }
     };
 
-      // Fallback click handler on the whole card: only trigger when the
-      // click originates from the card root (not from child elements).
       const handleCardClick = (e) => {
-        // Si el clic viene de un botón o sus hijos, ignorarlo
         const closestButton = e.target.closest('button');
         if (closestButton) {
-          console.log('Card.jsx: handleCardClick ignored because click originated from button');
           return;
         }
 
-        // Registrar información del evento para debugging
-        console.log('Card.jsx: handleCardClick invoked event target/currentTarget:', e?.target?.tagName, e?.currentTarget?.tagName);
-        try {
-          const path = e?.nativeEvent?.composedPath ? e.nativeEvent.composedPath() : (e?.nativeEvent?.path || null);
-          console.log('Card.jsx: handleCardClick composedPath/native path:', path);
-        } catch (err) {}
-
-        // Prevenir la propagación del evento
         e.stopPropagation();
         e.preventDefault();
 
-        console.log('Card.jsx: handleCardClick executing for item:', item?.id || item?.name || item?.title);
         if (onClick) onClick(item, itemType);
       };
 
-  // Priorizar customThumbnail si existe, luego thumbnail directo, luego tmdbThumbnail
   const preferred = item?.customThumbnail || item?.thumbnail || item?.tmdbThumbnail || item?.logo || '/img/placeholder-thumbnail.png';
   const displayThumbnail = (typeof preferred === 'string' && preferred.startsWith('http')) ? preferred : preferred;
 
-  // Unified rating: try several possible fields that may contain rating/label info
-  // Accepts numbers or string labels like 'tbdt'
   const rawRating = (
-  // Prefer backend-provided unified field when available
   item?.ratingDisplay ??
   item?.tmdbRating ??
     item?.rating ??
@@ -117,7 +72,6 @@
     null
   );
   const rating = rawRating !== undefined && rawRating !== null ? rawRating : null;
-  // Prepare display value: format numbers to one decimal, otherwise show string as-is
   let ratingDisplay = null;
   if (rating !== null) {
     if (typeof rating === 'number' && !Number.isNaN(rating)) {
@@ -125,28 +79,18 @@
     } else if (typeof rating === 'string' && rating.trim() !== '' && rating.toLowerCase() !== 'null') {
       ratingDisplay = rating;
     } else if (!isNaN(Number(rating))) {
-      // numeric-like string
       ratingDisplay = Number(rating).toFixed(1);
     }
   }
 
-
-  // No fallback from releaseYear: ratingDisplay is determined only from
-  // rating-related fields (tmdbRating, rating, ranking, etc.).
-
-    // Función para detectar si el contenido es 4K
-
     const is4K = () => {
       if (!item) return false;
       
-      // Verificar si está en la sección CINE_4K
       if (item.mainSection === 'CINE_4K') return true;
       
-      // Verificar si el título contiene "4K"
       const title = (item.title || item.name || '').toLowerCase();
       if (title.includes('4k') || title.includes('2160p')) return true;
       
-      // Verificar si algún género contiene "4K"
       if (item.genres && item.genres.some(genre => 
         genre.toLowerCase().includes('4k') || genre.toLowerCase().includes('2160p')
       )) return true;
@@ -163,12 +107,8 @@
         position: 'relative',
       }}
       data-card
-      // onClick a la tarjeta completa para ver detalles (si se implementa)
       onClick={(e) => {
         e.stopPropagation();
-        // Aquí se podría navegar a una página de detalles, no reproducir.
-        // Por ahora, lo dejamos sin acción directa para evitar reproducción.
-        console.log('Card clicked, but no reproduction action is set here.');
       }}
     >
       <div className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover:scale-105 relative shadow-lg">
@@ -204,7 +144,6 @@
           </>
         )}
 
-        {/* Rating badge: unified source, top-left. Shows numbers or strings (e.g. 'tbdt') */}
         {ratingDisplay && (
           <div className="absolute top-2 left-2 bg-black/80 text-yellow-400 text-xs px-2 py-1 rounded-md font-semibold z-50 flex items-center gap-1 pointer-events-none">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -214,9 +153,6 @@
           </div>
         )}
 
-  {/* Development debug info is logged to console only to avoid overlaying the UI */}
-
-        {/* Overlay con botones, visible on hover */}
         <div 
           className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end pointer-events-none"
           onClick={(e) => e.stopPropagation()}
@@ -260,11 +196,25 @@
                   <FilmOutlineIcon className="w-4 h-4" />
                 </button>
               )}
+              {onAddToCollectionClick && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onAddToCollectionClick(item);
+                  }}
+                  className="w-[44px] bg-gray-500 hover:bg-gray-400 text-white text-sm font-semibold py-2 rounded-md transition-colors flex items-center justify-center pointer-events-auto relative z-50"
+                  aria-label={`Agregar ${item.name || item.title} a una colección`}
+                  title="Agregar a colección"
+                >
+                  <PlusCircleOutlineIcon className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Título visible cuando no se hace hover */}
         <div 
           className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent group-hover:opacity-0 transition-opacity duration-300"
           onClick={(e) => {
@@ -282,8 +232,6 @@
                 </div>
               </div>
             )}
-      {/* tmdbRating badge removed from bottom overlay to avoid duplicate/incorrect placement.
-        Use the unified badge above the poster (top-left) which handles numbers and strings. */}
             <p className="text-white text-sm font-semibold truncate pointer-events-none">
               {item.name || item.title || 'Título no disponible'}
             </p>

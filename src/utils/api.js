@@ -46,7 +46,7 @@ export async function fetchChannelForPlayback(channelId) {
 }
 
 /* =================== VOD - USUARIO =================== */
-export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, genre = null) {
+export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, genre = null, searchTerm = null) {
   const relativePath = "/api/videos";
   const params = { tipo: "pelicula", page, limit };
   if (mainSection) {
@@ -54,6 +54,9 @@ export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, 
   }
   if (genre && genre !== 'Todas') {
     params.genre = genre;
+  }
+  if (searchTerm) {
+    params.search = searchTerm;
   }
   console.log(`API (fetchUserMovies - axios): GET ${relativePath} con params:`, params);
   try {

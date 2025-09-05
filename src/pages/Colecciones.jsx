@@ -1,46 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fetchUserMovies, fetchUserSeries } from '../utils/api.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 
-const COLECCIONES = [
-  "TODAS",
-  "Marvel",
-  "DC Comics",
-  "Fast & Furious",
-  "Harry Potter",
-  "Star Wars",
-  "Jurassic Park",
-  "Transformers",
-  "Mission Impossible",
-  "John Wick",
-  "Rocky",
-  "Terminator",
-  "Alien",
-  "Predator",
-  "X-Men",
-  "James Bond"
-];
+const defaultCollections = {
+  "Marvel": [],
+  "DC Comics": [],
+  "Fast & Furious": [],
+  "Harry Potter": [],
+  "Star Wars": [],
+  "Jurassic Park": [],
+  "Transformers": [],
+  "Mission Impossible": [],
+  "John Wick": [],
+  "Rocky": [],
+  "Terminator": [],
+  "Alien": [],
+  "Predator": [],
+  "X-Men": [],
+  "James Bond": []
+};
 
 export default function Colecciones() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [content, setContent] = useState([]);
+  const [allContent, setAllContent] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedColeccion, setSelectedColeccion] = useState("TODAS");
   const [searchTerm, setSearchTerm] = useState("");
+  const [collections, setCollections] = useState({});
 
-  // Hook para verificación de acceso al contenido
-  const {
-    checkContentAccess,
-    showAccessModal,
-    accessModalData,
-    closeAccessModal,
-    proceedWithTrial
-  } = useContentAccess();
+  const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+
+  useEffect(() => {
+    try {
+      const savedCollections = localStorage.getItem('userCollections');
+      if (savedCollections) {
+        setCollections(JSON.parse(savedCollections));
+      } else {
+        setCollections(defaultCollections);
+        localStorage.setItem('userCollections', JSON.stringify(defaultCollections));
+      }
+    } catch (error) {
+      console.error("Failed to load collections from localStorage", error);
+      setCollections(defaultCollections);
+    }
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -50,26 +58,15 @@ export default function Colecciones() {
       }
       setIsLoading(true);
       try {
-        // Cargar tanto películas como series
         const [moviesResponse, seriesResponse] = await Promise.all([
           fetchUserMovies(1, 5000),
           fetchUserSeries(1, 5000)
         ]);
-        
-        const movies = moviesResponse.videos;
-        const series = seriesResponse.videos;
-
-        // Combinar y filtrar contenido que pertenezca a colecciones
-        const allContent = [...(movies || []), ...(series || [])];
-        const collectionContent = allContent.filter(item => 
-          item.coleccion || COLECCIONES.some(col => 
-            col !== "TODAS" && item.name?.toLowerCase().includes(col.toLowerCase())
-          )
-        );
-        
-        setContent(collectionContent);
+        const movies = moviesResponse.videos || [];
+        const series = seriesResponse.videos || [];
+        setAllContent([...movies, ...series]);
       } catch (err) {
-        console.error("Error cargando colecciones:", err);
+        console.error("Error cargando contenido:", err);
         setError(err.message);
       } finally {
         setIsLoading(false);
@@ -84,46 +81,83 @@ export default function Colecciones() {
       console.error("Colecciones: Clic en contenido sin ID válido.", item);
       return;
     }
-
-    // Función para navegar después de verificar acceso
     const navigateToContent = () => {
       const type = item.tipo === 'serie' ? 'serie' : 'movie';
       navigate(`/watch/${type}/${itemId}`);
     };
-
-    // Verificar acceso antes de navegar
     checkContentAccess(item, navigateToContent);
   };
 
   const handleProceedWithTrial = () => {
-    // El hook maneja la navegación internamente
     proceedWithTrial();
   };
 
-  const filteredContent = content.filter(item => {
-    const matchesColeccion = selectedColeccion === "TODAS" || 
-      item.coleccion === selectedColeccion ||
-      item.name?.toLowerCase().includes(selectedColeccion.toLowerCase());
-    
-    const matchesSearch = searchTerm === "" || 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesColeccion && matchesSearch;
-  });
-
-  // Agrupar contenido por colección para mostrar
-  const groupedContent = {};
-  filteredContent.forEach(item => {
-    const collection = item.coleccion || 
-      COLECCIONES.find(col => col !== "TODAS" && item.name?.toLowerCase().includes(col.toLowerCase())) ||
-      "Otras";
-    
-    if (!groupedContent[collection]) {
-      groupedContent[collection] = [];
+  const handleCreateCollection = () => {
+    const newCollectionName = prompt("Introduce el nombre de la nueva colección:");
+    if (newCollectionName && !collections[newCollectionName]) {
+      const newCollections = { ...collections, [newCollectionName]: [] };
+      setCollections(newCollections);
+      localStorage.setItem('userCollections', JSON.stringify(newCollections));
+      setSelectedColeccion(newCollectionName);
     }
-    groupedContent[collection].push(item);
-  });
+  };
+
+  const collectionItems = useMemo(() => {
+    const items = new Set();
+    Object.values(collections).forEach(itemList => {
+        itemList.forEach(item => items.add(item));
+    });
+    // Also add content from the general fetch that might match a collection name
+    allContent.forEach(item => {
+        if (Object.keys(collections).some(col => item.name?.toLowerCase().includes(col.toLowerCase()))) {
+            items.add(item);
+        }
+    });
+    return Array.from(items);
+}, [collections, allContent]);
+
+
+  const filteredContent = useMemo(() => {
+    return collectionItems.filter(item => {
+        const matchesColeccion = selectedColeccion === "TODAS" || 
+            Object.entries(collections).some(([colName, items]) => 
+                colName === selectedColeccion && items.some(i => (i.id || i._id) === (item.id || item._id))
+            ) || item.name?.toLowerCase().includes(selectedColeccion.toLowerCase());
+
+        const matchesSearch = searchTerm === "" || 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        return matchesColeccion && matchesSearch;
+    });
+  }, [collectionItems, selectedColeccion, searchTerm, collections]);
+
+  const groupedContent = useMemo(() => {
+    const groups = {};
+    filteredContent.forEach(item => {
+        let foundInCollection = false;
+        for (const [colName, items] of Object.entries(collections)) {
+            if (items.some(i => (i.id || i._id) === (item.id || item._id))) {
+                if (!groups[colName]) groups[colName] = [];
+                groups[colName].push(item);
+                foundInCollection = true;
+            }
+        }
+
+        if (!foundInCollection) {
+            const matchedCollection = Object.keys(collections).find(col => item.name?.toLowerCase().includes(col.toLowerCase()));
+            if (matchedCollection) {
+                if (!groups[matchedCollection]) groups[matchedCollection] = [];
+                groups[matchedCollection].push(item);
+            } else {
+                if (!groups["Otras"]) groups["Otras"] = [];
+                groups["Otras"].push(item);
+            }
+        }
+    });
+    return groups;
+  }, [filteredContent, collections]);
+
 
   if (isLoading) return (
     <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
@@ -143,17 +177,18 @@ export default function Colecciones() {
     </p>
   );
 
+  const collectionNames = ["TODAS", ...Object.keys(collections)];
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Sidebar con colecciones */}
         <div className="md:w-64 flex-shrink-0">
           <div className="bg-gradient-to-br from-indigo-800 to-purple-800 rounded-lg p-4 sticky top-24">
             <h2 className="text-xl font-bold mb-4 text-white flex items-center">
               📚 Colecciones
             </h2>
             <div className="space-y-2">
-              {COLECCIONES.map(coleccion => (
+              {collectionNames.map(coleccion => (
                 <button
                   key={coleccion}
                   onClick={() => setSelectedColeccion(coleccion)}
@@ -167,10 +202,17 @@ export default function Colecciones() {
                 </button>
               ))}
             </div>
+            <div className="mt-4">
+              <button
+                onClick={handleCreateCollection}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+              >
+                Crear Colección
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Contenido principal */}
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-white flex items-center">
@@ -195,9 +237,7 @@ export default function Colecciones() {
                     </h2>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {items.map(item => {
-                      console.log('Item in Colecciones:', item);
-                      return (
+                    {items.map(item => (
                       <div
                         key={item.id || item._id}
                         onClick={() => handleContentClick(item)}
@@ -227,8 +267,7 @@ export default function Colecciones() {
                           </div>
                         </div>
                       </div>
-                      );
-                    })}
+                    ))}
                   </div>
                 </div>
               ))}

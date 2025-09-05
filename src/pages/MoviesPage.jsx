@@ -8,6 +8,26 @@ import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
 import { useContentAccess } from '@/hooks/useContentAccess.js';
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import TrailerModal from '@/components/TrailerModal.jsx';
+import { useDebounce } from '@/hooks/useDebounce.js';
+import CollectionsModal from '@/components/CollectionsModal.jsx';
+
+const defaultCollections = {
+    "Marvel": [],
+    "DC Comics": [],
+    "Fast & Furious": [],
+    "Harry Potter": [],
+    "Star Wars": [],
+    "Jurassic Park": [],
+    "Transformers": [],
+    "Mission Impossible": [],
+    "John Wick": [],
+    "Rocky": [],
+    "Terminator": [],
+    "Alien": [],
+    "Predator": [],
+    "X-Men": [],
+    "James Bond": []
+  };
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -51,33 +71,55 @@ export default function MoviesPage() {
     const [loadingMore, setLoadingMore] = useState(false);
 
     const [mainSections, setMainSections] = useState([]);
+    const [moviesBySection, setMoviesBySection] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedMainSectionKey, setSelectedMainSectionKey] = useState(null);
-    const [genresForSelectedSection, setGenresForSelectedSection] = useState(['Todas']);
+    const [allGenres, setAllGenres] = useState(['Todas']);
     const [selectedGenre, setSelectedGenre] = useState('Todas');
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
     const gridOptions = [5, 4, 3, 1];
     const [gridCols, setGridCols] = useState(gridOptions[0]);
 
     const [showTrailerModal, setShowTrailerModal] = useState(false);
     const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
 
+    const [collections, setCollections] = useState({});
+    const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+    const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
+
     const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+
+    useEffect(() => {
+        try {
+            const savedCollections = localStorage.getItem('userCollections');
+            if (savedCollections) {
+                setCollections(JSON.parse(savedCollections));
+            } else {
+                setCollections(defaultCollections);
+                localStorage.setItem('userCollections', JSON.stringify(defaultCollections));
+            }
+        } catch (error) {
+            console.error("Failed to load collections from localStorage", error);
+            setCollections(defaultCollections);
+        }
+    }, []);
 
     const observer = useRef();
     const lastMovieElementRef = useCallback(node => {
         if (isLoading || loadingMore) return;
         if (observer.current) observer.current.disconnect();
         observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
+            if (entries[0].isIntersecting && hasMore && !debouncedSearchTerm) {
                 loadMoreMovies();
             }
         });
         if (node) observer.current.observe(node);
-    }, [isLoading, loadingMore, hasMore]);
+    }, [isLoading, loadingMore, hasMore, debouncedSearchTerm]);
 
-    const loadMovies = async (currentPage, mainSection, genre) => {
+    const loadMovies = async (currentPage, mainSection, genre, search) => {
         if (!user?.token) {
             setError("Por favor, inicia sesión para acceder al contenido.");
             setIsLoading(false);
@@ -88,14 +130,21 @@ export default function MoviesPage() {
         setError(null);
 
         try {
-                        const data = await fetchUserMovies(currentPage, 50, mainSection, genre);
+            const isGenreSection = mainSection === 'por-generos';
+            const sectionToFetch = isGenreSection ? null : mainSection;
+            const data = await fetchUserMovies(currentPage, 20, sectionToFetch, genre, search);
+            
             setMovies(prevMovies => currentPage === 1 ? data.videos : [...prevMovies, ...data.videos]);
             setTotalPages(data.totalPages);
             setPage(data.page);
             setHasMore(data.page < data.totalPages);
 
-            if (currentPage === 1) {
-                setGenresForSelectedSection(getUniqueValuesFromArray(data.videos, 'genres'));
+            if (isGenreSection) {
+                const newGenres = getUniqueValuesFromArray(data.videos, 'genres');
+                setAllGenres(prevGenres => {
+                    const combined = [...prevGenres, ...newGenres];
+                    return ['Todas', ...new Set(combined.filter(g => g !== 'Todas'))].sort((a,b) => a.localeCompare(b));
+                });
             }
 
         } catch (err) {
@@ -109,7 +158,7 @@ export default function MoviesPage() {
 
     const loadMoreMovies = () => {
         if (page < totalPages) {
-            loadMovies(page + 1, selectedMainSectionKey, selectedGenre);
+            loadMovies(page + 1, selectedMainSectionKey, selectedGenre, debouncedSearchTerm);
         }
     };
 
@@ -119,6 +168,19 @@ export default function MoviesPage() {
             try {
                 const sectionsDataFromAPI = await fetchMainMovieSections();
                 setMainSections(sectionsDataFromAPI || []);
+
+                const moviesForSections = {};
+                for (const section of sectionsDataFromAPI) {
+                    try {
+                        const data = await fetchUserMovies(1, 5, section.key, 'Todas');
+                        moviesForSections[section.key] = data.videos;
+                    } catch (err) {
+                        console.error(`Error cargando muestra para ${section.key}:`, err);
+                        moviesForSections[section.key] = [];
+                    }
+                }
+                setMoviesBySection(moviesForSections);
+
             } catch (err) {
                 console.error("MoviesPage: Error cargando secciones:", err);
                 setError(err.message || "No se pudieron cargar las secciones.");
@@ -135,21 +197,9 @@ export default function MoviesPage() {
             setPage(1);
             setTotalPages(0);
             setHasMore(true);
-            loadMovies(1, selectedMainSectionKey, selectedGenre);
+            loadMovies(1, selectedMainSectionKey, selectedGenre, debouncedSearchTerm);
         }
-    }, [selectedMainSectionKey, selectedGenre, user?.token]);
-
-    const displayedMovies = useMemo(() => {
-        let filtered = [...movies];
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase().trim();
-            filtered = filtered.filter(m =>
-                (m.title && m.title.toLowerCase().includes(term)) ||
-                (m.name && m.name.toLowerCase().includes(term))
-            );
-        }
-        return filtered;
-    }, [movies, searchTerm]);
+    }, [selectedMainSectionKey, selectedGenre, debouncedSearchTerm, user?.token]);
 
     const handleMovieClick = (movie) => {
         const movieId = movie.id || movie._id;
@@ -188,9 +238,38 @@ export default function MoviesPage() {
         }
     };
 
+    const handleOpenCollectionsModal = (item) => {
+        setSelectedItemForCollection(item);
+        setIsCollectionsModalOpen(true);
+    };
+
+    const handleCloseCollectionsModal = () => {
+        setIsCollectionsModalOpen(false);
+        setSelectedItemForCollection(null);
+    };
+
+    const handleAddToCollection = ({ item, collectionName }) => {
+        const updatedCollections = { ...collections };
+        if (!updatedCollections[collectionName]) {
+            updatedCollections[collectionName] = [];
+        }
+        const collection = updatedCollections[collectionName];
+        const itemExists = collection.some(i => (i.id || i._id) === (item.id || item._id));
+        if (!itemExists) {
+            collection.push(item);
+        }
+        setCollections(updatedCollections);
+        try {
+            localStorage.setItem('userCollections', JSON.stringify(updatedCollections));
+        } catch (error) {
+            console.error("Failed to save collections to localStorage", error);
+        }
+        handleCloseCollectionsModal();
+    };
+
     const handleSelectMainSection = (sectionKey) => {
         const planUsuario = user?.plan || "gratuito";
-        if (!isSectionAllowedForPlan(sectionKey, planUsuario)) {
+        if (sectionKey !== 'por-generos' && !isSectionAllowedForPlan(sectionKey, planUsuario)) {
             const requerido = sectionKey.includes("CINE") ? "Cinéfilo o Premium" : "un plan superior";
             setError(`🎬 Estimado cliente, debe tener el plan ${requerido} para acceder a esta sección.`);
             setTimeout(() => setError(null), 5000);
@@ -223,6 +302,7 @@ export default function MoviesPage() {
                                 section={section}
                                 onClick={handleSelectMainSection}
                                 userPlan={user.plan || 'gratuito'}
+                                moviesInSection={moviesBySection[section.key] || []}
                             />
                         ))}
                     </div>
@@ -234,6 +314,7 @@ export default function MoviesPage() {
     }
 
     const currentMainSection = mainSections.find(s => s.key === selectedMainSectionKey);
+    const genresToShow = selectedMainSectionKey === 'por-generos' ? allGenres : getUniqueValuesFromArray(movies, 'genres');
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -268,9 +349,9 @@ export default function MoviesPage() {
                 </div>
             </div>
 
-            {genresForSelectedSection.length > 1 && (
+            {genresToShow.length > 1 && (
                 <div className="flex flex-wrap gap-2 mb-8 pb-4 border-b border-gray-700">
-                    {genresForSelectedSection.map(genre => (
+                    {genresToShow.map(genre => (
                         <button
                             key={genre}
                             onClick={() => setSelectedGenre(genre)}
@@ -282,10 +363,10 @@ export default function MoviesPage() {
                 </div>
             )}
 
-            {displayedMovies.length > 0 ? (
+            {movies.length > 0 ? (
                 <div className={`grid ${getGridClass()} gap-6`}>
-                    {displayedMovies.map((movie, index) => {
-                        if (displayedMovies.length === index + 1) {
+                    {movies.map((movie, index) => {
+                        if (movies.length === index + 1) {
                             return (
                                 <div ref={lastMovieElementRef} key={movie.id || movie._id}>
                                     <Card
@@ -293,6 +374,7 @@ export default function MoviesPage() {
                                         onClick={() => handleMovieClick(movie)}
                                         itemType="movie"
                                         onPlayTrailer={handlePlayTrailerClick}
+                                        onAddToCollectionClick={handleOpenCollectionsModal}
                                     />
                                 </div>
                             );
@@ -304,6 +386,7 @@ export default function MoviesPage() {
                                     onClick={() => handleMovieClick(movie)}
                                     itemType="movie"
                                     onPlayTrailer={handlePlayTrailerClick}
+                                    onAddToCollectionClick={handleOpenCollectionsModal}
                                 />
                             );
                         }
@@ -337,6 +420,14 @@ export default function MoviesPage() {
                     }}
                 />
             )}
+
+            <CollectionsModal
+                isOpen={isCollectionsModalOpen}
+                onClose={handleCloseCollectionsModal}
+                item={selectedItemForCollection}
+                collections={collections}
+                onAddToCollection={handleAddToCollection}
+            />
         </div>
     );
 }

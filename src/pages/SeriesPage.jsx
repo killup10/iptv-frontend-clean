@@ -7,6 +7,7 @@ import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
+import CollectionsModal from '../components/CollectionsModal.jsx';
 
 const SUBCATEGORIAS = [
   "TODOS",
@@ -19,6 +20,24 @@ const SUBCATEGORIAS = [
   "Retro",
   "Animadas",
 ];
+
+const defaultCollections = {
+    "Marvel": [],
+    "DC Comics": [],
+    "Fast & Furious": [],
+    "Harry Potter": [],
+    "Star Wars": [],
+    "Jurassic Park": [],
+    "Transformers": [],
+    "Mission Impossible": [],
+    "John Wick": [],
+    "Rocky": [],
+    "Terminator": [],
+    "Alien": [],
+    "Predator": [],
+    "X-Men": [],
+    "James Bond": []
+  };
 
 export default function SeriesPage() {
   const { user } = useAuth();
@@ -40,7 +59,26 @@ export default function SeriesPage() {
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
 
+  const [collections, setCollections] = useState({});
+  const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+  const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
+
   const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+
+  useEffect(() => {
+    try {
+        const savedCollections = localStorage.getItem('userCollections');
+        if (savedCollections) {
+            setCollections(JSON.parse(savedCollections));
+        } else {
+            setCollections(defaultCollections);
+            localStorage.setItem('userCollections', JSON.stringify(defaultCollections));
+        }
+    } catch (error) {
+        console.error("Failed to load collections from localStorage", error);
+        setCollections(defaultCollections);
+    }
+}, []);
 
   const observer = useRef();
   const lastSerieElementRef = useCallback(node => {
@@ -118,6 +156,35 @@ export default function SeriesPage() {
       setShowTrailerModal(true);
     }
   };
+
+  const handleOpenCollectionsModal = (item) => {
+    setSelectedItemForCollection(item);
+    setIsCollectionsModalOpen(true);
+};
+
+const handleCloseCollectionsModal = () => {
+    setIsCollectionsModalOpen(false);
+    setSelectedItemForCollection(null);
+};
+
+const handleAddToCollection = ({ item, collectionName }) => {
+    const updatedCollections = { ...collections };
+    if (!updatedCollections[collectionName]) {
+        updatedCollections[collectionName] = [];
+    }
+    const collection = updatedCollections[collectionName];
+    const itemExists = collection.some(i => (i.id || i._id) === (item.id || item._id));
+    if (!itemExists) {
+        collection.push(item);
+    }
+    setCollections(updatedCollections);
+    try {
+        localStorage.setItem('userCollections', JSON.stringify(updatedCollections));
+    } catch (error) {
+        console.error("Failed to save collections to localStorage", error);
+    }
+    handleCloseCollectionsModal();
+};
 
   const getGridClass = () => {
     switch (gridCols) {
@@ -236,6 +303,7 @@ export default function SeriesPage() {
                                   onClick={() => handleSerieClick(serie)}
                                   itemType="serie"
                                   onPlayTrailer={handlePlayTrailerClick}
+                                  onAddToCollectionClick={handleOpenCollectionsModal}
                               />
                           </div>
                       );
@@ -247,6 +315,7 @@ export default function SeriesPage() {
                               onClick={() => handleSerieClick(serie)}
                               itemType="serie"
                               onPlayTrailer={handlePlayTrailerClick}
+                              onAddToCollectionClick={handleOpenCollectionsModal}
                           />
                       );
                   }
@@ -282,6 +351,14 @@ export default function SeriesPage() {
             }}
           />
         )}
+
+        <CollectionsModal
+            isOpen={isCollectionsModalOpen}
+            onClose={handleCloseCollectionsModal}
+            item={selectedItemForCollection}
+            collections={collections}
+            onAddToCollection={handleAddToCollection}
+        />
       </div>
     </>
   );

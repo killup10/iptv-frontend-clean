@@ -61,7 +61,7 @@ const router = createHashRouter([
             <LiveTVPage />
           </ProtectedRoute>
         ),
-      },,
+      },
       {
         path: "peliculas",
         element: (
