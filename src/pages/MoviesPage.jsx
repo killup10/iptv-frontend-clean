@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext.jsx';
-import { fetchUserMovies, fetchMainMovieSections } from '@/utils/api.js';
+import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '@/utils/api.js';
 import Card from '@/components/Card.jsx';
 import MovieSectionCard from '@/components/MovieSectionCard.jsx';
 import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
@@ -10,24 +10,6 @@ import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import TrailerModal from '@/components/TrailerModal.jsx';
 import { useDebounce } from '@/hooks/useDebounce.js';
 import CollectionsModal from '@/components/CollectionsModal.jsx';
-
-const defaultCollections = {
-    "Marvel": [],
-    "DC Comics": [],
-    "Fast & Furious": [],
-    "Harry Potter": [],
-    "Star Wars": [],
-    "Jurassic Park": [],
-    "Transformers": [],
-    "Mission Impossible": [],
-    "John Wick": [],
-    "Rocky": [],
-    "Terminator": [],
-    "Alien": [],
-    "Predator": [],
-    "X-Men": [],
-    "James Bond": []
-  };
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -86,25 +68,22 @@ export default function MoviesPage() {
     const [showTrailerModal, setShowTrailerModal] = useState(false);
     const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
 
-    const [collections, setCollections] = useState({});
+    const [collections, setCollections] = useState([]);
     const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
     const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
     const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
 
     useEffect(() => {
-        try {
-            const savedCollections = localStorage.getItem('userCollections');
-            if (savedCollections) {
-                setCollections(JSON.parse(savedCollections));
-            } else {
-                setCollections(defaultCollections);
-                localStorage.setItem('userCollections', JSON.stringify(defaultCollections));
+        const loadCollections = async () => {
+            try {
+                const fetchedCollections = await getCollections();
+                setCollections(fetchedCollections);
+            } catch (error) {
+                console.error("Failed to load collections", error);
             }
-        } catch (error) {
-            console.error("Failed to load collections from localStorage", error);
-            setCollections(defaultCollections);
-        }
+        };
+        loadCollections();
     }, []);
 
     const observer = useRef();
@@ -248,21 +227,16 @@ export default function MoviesPage() {
         setSelectedItemForCollection(null);
     };
 
-    const handleAddToCollection = ({ item, collectionName }) => {
-        const updatedCollections = { ...collections };
-        if (!updatedCollections[collectionName]) {
-            updatedCollections[collectionName] = [];
-        }
-        const collection = updatedCollections[collectionName];
-        const itemExists = collection.some(i => (i.id || i._id) === (item.id || item._id));
-        if (!itemExists) {
-            collection.push(item);
-        }
-        setCollections(updatedCollections);
-        try {
-            localStorage.setItem('userCollections', JSON.stringify(updatedCollections));
-        } catch (error) {
-            console.error("Failed to save collections to localStorage", error);
+    const handleAddToCollection = async ({ item, collectionName }) => {
+        const collection = collections.find(c => c.name === collectionName);
+        if (collection) {
+            try {
+                await addItemsToCollection(collection._id, [item._id]);
+                alert(`${item.name} fue agregado a la colección ${collectionName}`);
+            } catch (error) {
+                console.error("Failed to add item to collection", error);
+                alert(`Error al agregar a la colección: ${error.message}`);
+            }
         }
         handleCloseCollectionsModal();
     };
@@ -425,7 +399,7 @@ export default function MoviesPage() {
                 isOpen={isCollectionsModalOpen}
                 onClose={handleCloseCollectionsModal}
                 item={selectedItemForCollection}
-                collections={collections}
+                collections={collections.filter(c => c.itemsModel === 'Video')}
                 onAddToCollection={handleAddToCollection}
             />
         </div>

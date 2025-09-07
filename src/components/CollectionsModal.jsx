@@ -32,7 +32,7 @@ export default function CollectionsModal({
     onAddToCollection({ item, collectionName });
   };
 
-  const collectionNames = Object.keys(collections);
+  const collectionNames = collections.map(c => c.name);
 
   return (
     <div

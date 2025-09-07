@@ -469,3 +469,43 @@ export async function updateAdminUserStatus(userId, isActive, expiresAt = null) 
     throw new Error(errorMsg);
   }
 }
+
+/* =================== COLLECTIONS =================== */
+export async function getCollections() {
+  const relativePath = "/api/collections";
+  console.log(`API (getCollections - axios): GET ${relativePath}`);
+  try {
+    const response = await axiosInstance.get(relativePath);
+    return response.data || [];
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al cargar colecciones.";
+    console.error(`API Error (getCollections - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function createCollection(name, itemsModel) {
+  const relativePath = "/api/collections";
+  console.log(`API (createCollection - axios): POST ${relativePath} con data:`, { name, itemsModel });
+  try {
+    const response = await axiosInstance.post(relativePath, { name, itemsModel });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al crear la colección.";
+    console.error(`API Error (createCollection - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function addItemsToCollection(collectionId, items) {
+    const relativePath = `/api/collections/${collectionId}/items`;
+    console.log(`API (addItemsToCollection - axios): PUT ${relativePath} con data:`, { items });
+    try {
+        const response = await axiosInstance.put(relativePath, { items });
+        return response.data;
+    } catch (error) {
+        const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al agregar elementos a la colección.";
+        console.error(`API Error (addItemsToCollection - axios): ${errorMsg}`, error.response?.data);
+        throw new Error(errorMsg);
+    }
+}

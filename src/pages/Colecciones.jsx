@@ -1,78 +1,46 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { fetchUserMovies, fetchUserSeries } from '../utils/api.js';
+import { getCollections, createCollection } from '../utils/api.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
-
-const defaultCollections = {
-  "Marvel": [],
-  "DC Comics": [],
-  "Fast & Furious": [],
-  "Harry Potter": [],
-  "Star Wars": [],
-  "Jurassic Park": [],
-  "Transformers": [],
-  "Mission Impossible": [],
-  "John Wick": [],
-  "Rocky": [],
-  "Terminator": [],
-  "Alien": [],
-  "Predator": [],
-  "X-Men": [],
-  "James Bond": []
-};
 
 export default function Colecciones() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [allContent, setAllContent] = useState([]);
+  const [collections, setCollections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedColeccion, setSelectedColeccion] = useState("TODAS");
   const [searchTerm, setSearchTerm] = useState("");
-  const [collections, setCollections] = useState({});
 
   const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
 
   useEffect(() => {
-    try {
-      const savedCollections = localStorage.getItem('userCollections');
-      if (savedCollections) {
-        setCollections(JSON.parse(savedCollections));
-      } else {
-        setCollections(defaultCollections);
-        localStorage.setItem('userCollections', JSON.stringify(defaultCollections));
-      }
-    } catch (error) {
-      console.error("Failed to load collections from localStorage", error);
-      setCollections(defaultCollections);
-    }
-  }, []);
-
-  useEffect(() => {
-    const loadData = async () => {
+    const loadCollections = async () => {
       if (!user?.token) {
         setIsLoading(false);
         return;
       }
       setIsLoading(true);
       try {
-        const [moviesResponse, seriesResponse] = await Promise.all([
-          fetchUserMovies(1, 5000),
-          fetchUserSeries(1, 5000)
-        ]);
-        const movies = moviesResponse.videos || [];
-        const series = seriesResponse.videos || [];
-        setAllContent([...movies, ...series]);
+        const fetchedCollections = await getCollections();
+        setCollections(fetchedCollections);
       } catch (err) {
-        console.error("Error cargando contenido:", err);
+        console.error("Error cargando colecciones:", err);
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
-    loadData();
+    
+    loadCollections();
+
+    window.addEventListener('focus', loadCollections);
+
+    return () => {
+      window.removeEventListener('focus', loadCollections);
+    };
   }, [user?.token]);
 
   const handleContentClick = (item) => {
@@ -92,71 +60,51 @@ export default function Colecciones() {
     proceedWithTrial();
   };
 
-  const handleCreateCollection = () => {
+  const handleCreateCollection = async () => {
     const newCollectionName = prompt("Introduce el nombre de la nueva colección:");
-    if (newCollectionName && !collections[newCollectionName]) {
-      const newCollections = { ...collections, [newCollectionName]: [] };
-      setCollections(newCollections);
-      localStorage.setItem('userCollections', JSON.stringify(newCollections));
-      setSelectedColeccion(newCollectionName);
+    if (newCollectionName) {
+      let itemsModel;
+      while (true) {
+        const modelInput = prompt("Introduce el tipo de contenido: 'Película' o 'Serie'");
+        if (modelInput === null) { // User cancelled the prompt
+          return;
+        }
+        const modelInputLower = modelInput.toLowerCase();
+        if (modelInputLower === 'pelicula' || modelInputLower === 'película') {
+          itemsModel = 'Video';
+          break;
+        }
+        if (modelInputLower === 'serie') {
+          itemsModel = 'Serie';
+          break;
+        }
+        alert("Tipo inválido. Por favor, introduce 'Película' o 'Serie'.");
+      }
+
+      try {
+        await createCollection(newCollectionName, itemsModel);
+        const fetchedCollections = await getCollections();
+        setCollections(fetchedCollections);
+        setSelectedColeccion(newCollectionName);
+      } catch (err) {
+        console.error("Error creando colección:", err);
+        alert(`Error al crear la colección: ${err.message}`);
+      }
     }
   };
 
-  const collectionItems = useMemo(() => {
-    const items = new Set();
-    Object.values(collections).forEach(itemList => {
-        itemList.forEach(item => items.add(item));
-    });
-    // Also add content from the general fetch that might match a collection name
-    allContent.forEach(item => {
-        if (Object.keys(collections).some(col => item.name?.toLowerCase().includes(col.toLowerCase()))) {
-            items.add(item);
-        }
-    });
-    return Array.from(items);
-}, [collections, allContent]);
-
-
-  const filteredContent = useMemo(() => {
-    return collectionItems.filter(item => {
-        const matchesColeccion = selectedColeccion === "TODAS" || 
-            Object.entries(collections).some(([colName, items]) => 
-                colName === selectedColeccion && items.some(i => (i.id || i._id) === (item.id || item._id))
-            ) || item.name?.toLowerCase().includes(selectedColeccion.toLowerCase());
-
-        const matchesSearch = searchTerm === "" || 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        return matchesColeccion && matchesSearch;
-    });
-  }, [collectionItems, selectedColeccion, searchTerm, collections]);
-
   const groupedContent = useMemo(() => {
-    const groups = {};
-    filteredContent.forEach(item => {
-        let foundInCollection = false;
-        for (const [colName, items] of Object.entries(collections)) {
-            if (items.some(i => (i.id || i._id) === (item.id || item._id))) {
-                if (!groups[colName]) groups[colName] = [];
-                groups[colName].push(item);
-                foundInCollection = true;
-            }
-        }
+    if (selectedColeccion === "TODAS") {
+        const groups = {};
+        collections.forEach(collection => {
+            groups[collection.name] = collection.items;
+        });
+        return groups;
+    }
+    const selected = collections.find(c => c.name === selectedColeccion);
+    return selected ? { [selected.name]: selected.items } : {};
 
-        if (!foundInCollection) {
-            const matchedCollection = Object.keys(collections).find(col => item.name?.toLowerCase().includes(col.toLowerCase()));
-            if (matchedCollection) {
-                if (!groups[matchedCollection]) groups[matchedCollection] = [];
-                groups[matchedCollection].push(item);
-            } else {
-                if (!groups["Otras"]) groups["Otras"] = [];
-                groups["Otras"].push(item);
-            }
-        }
-    });
-    return groups;
-  }, [filteredContent, collections]);
+  }, [collections, selectedColeccion]);
 
 
   if (isLoading) return (
@@ -177,7 +125,7 @@ export default function Colecciones() {
     </p>
   );
 
-  const collectionNames = ["TODAS", ...Object.keys(collections)];
+  const collectionNames = ["TODAS", ...collections.map(c => c.name)];
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -202,14 +150,16 @@ export default function Colecciones() {
                 </button>
               ))}
             </div>
-            <div className="mt-4">
-              <button
-                onClick={handleCreateCollection}
-                className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
-              >
-                Crear Colección
-              </button>
-            </div>
+            {user.role === 'admin' && (
+              <div className="mt-4">
+                <button
+                  onClick={handleCreateCollection}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+                >
+                  Crear Colección
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -237,7 +187,7 @@ export default function Colecciones() {
                     </h2>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {items.map(item => (
+                    {items.filter(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
                       <div
                         key={item.id || item._id}
                         onClick={() => handleContentClick(item)}

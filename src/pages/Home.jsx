@@ -12,6 +12,7 @@ import {
   fetchFeaturedNovelas,
   fetchFeaturedDocumentales,
   getUserProgress,
+  fetchVideoById,
 } from '../utils/api.js';
 import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
@@ -67,6 +68,44 @@ export function Home() {
   }
 };
 
+async function fetchCompleteContinueWatching() {
+    const progressItems = await getUserProgress();
+    if (!progressItems || progressItems.length === 0) {
+        return [];
+    }
+
+    const detailedItemsPromises = progressItems.map(async (progressItem) => {
+        if (!progressItem.video?._id) return null;
+        try {
+            const fullVideoDetails = await fetchVideoById(progressItem.video._id);
+            return {
+                ...fullVideoDetails,
+                watchProgress: {
+                    lastTime: progressItem.progress,
+                    lastSeason: progressItem.lastSeason,
+                    lastChapter: progressItem.lastChapter
+                }
+            };
+        } catch (error) {
+            console.error(`Failed to fetch full details for video ${progressItem.video._id}`, error);
+            // Return the original item so the user can still see something
+            return {
+                ...progressItem.video,
+                watchProgress: {
+                    lastTime: progressItem.progress,
+                    lastSeason: progressItem.lastSeason,
+                    lastChapter: progressItem.lastChapter
+                }
+            };
+        }
+    });
+
+    const settledResults = await Promise.allSettled(detailedItemsPromises);
+    return settledResults
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => result.value);
+}
+
 
   useEffect(() => {
     async function loadInitialData() {
@@ -74,7 +113,7 @@ export function Home() {
       setContentError(null);
       try {
         const results = await Promise.allSettled([
-          getUserProgress(),
+          fetchCompleteContinueWatching(),
           fetchFeaturedChannels(),
           fetchFeaturedMovies(),
           fetchFeaturedSeries(),
@@ -96,22 +135,7 @@ export function Home() {
         ] = results;
 
         if (continueWatchingResult.status === 'fulfilled' && Array.isArray(continueWatchingResult.value)) {
-          console.log('[Home.jsx] Continue watching items loaded:', continueWatchingResult.value);
-          const transformedItems = continueWatchingResult.value
-            .map(progressItem => {
-              if (!progressItem.video) return null;
-              return {
-                ...progressItem.video,
-                                watchProgress: { 
-                  lastTime: progressItem.progress,
-                  lastSeason: progressItem.lastSeason,
-                  lastChapter: progressItem.lastChapter
-                }
-
-              };
-            })
-            .filter(Boolean);
-          setContinueWatchingItems(transformedItems);
+          setContinueWatchingItems(continueWatchingResult.value);
         } else {
           console.error('[Home.jsx] Error loading "Continue Watching":', continueWatchingResult.reason);
           setContinueWatchingItems([]);
