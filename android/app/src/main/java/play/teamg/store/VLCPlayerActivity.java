@@ -77,7 +77,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_vlc_player);
-        enterFullScreenMode();
+        // No entrar en pantalla completa automáticamente - permitir que el usuario elija
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         videoLayout = findViewById(R.id.videoLayout);
@@ -96,6 +96,13 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
         lastPosition = getIntent().getLongExtra("start_time", 0L);
+        
+        // Convertir startTime de segundos a milisegundos si es necesario
+        if (lastPosition > 0 && lastPosition < 100000) {
+            // Si el valor es menor a 100000, probablemente está en segundos, convertir a ms
+            lastPosition = lastPosition * 1000;
+            Log.d(TAG, "Converted start_time from seconds to milliseconds: " + lastPosition + "ms");
+        }
 
         gestureDetector = new GestureDetector(this, this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
@@ -184,6 +191,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private void releasePlayer() {
         if (mediaPlayer != null) {
             lastPosition = mediaPlayer.getTime();
+            // Guardar progreso final antes de cerrar
+            if (lastPosition > 0) {
+                Log.d(TAG, "Saving final progress before closing: " + (lastPosition / 1000) + "s");
+                notifyProgressUpdate(lastPosition);
+            }
             mediaPlayer.stop();
             mediaPlayer.detachViews();
             mediaPlayer.release();
@@ -191,6 +203,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
         controlsHandler.removeCallbacksAndMessages(null);
     }
+
+    // Variables para throttling de progreso
+    private long lastProgressSent = 0;
+    private final long PROGRESS_THROTTLE_MS = 10000; // 10 segundos
 
     private void setupPlayerEvents() {
         mediaPlayer.setEventListener(event -> {
@@ -201,6 +217,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 case MediaPlayer.Event.Playing:
                     playPauseButton.setImageResource(android.R.drawable.ic_media_pause);
                     if (lastPosition > 0) {
+                        Log.d(TAG, "Setting start time to: " + lastPosition + "ms");
                         mediaPlayer.setTime(lastPosition);
                         lastPosition = 0;
                     }
@@ -209,10 +226,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 case MediaPlayer.Event.Paused:
                 case MediaPlayer.Event.Stopped:
                     playPauseButton.setImageResource(android.R.drawable.ic_media_play);
+                    // Enviar progreso cuando se pausa (siempre)
+                    notifyProgressUpdate(mediaPlayer.getTime());
                     break;
                 case MediaPlayer.Event.TimeChanged:
                     currentTime.setText(formatTime(event.getTimeChanged()));
                     seekBar.setProgress((int) event.getTimeChanged());
+                    // Enviar progreso con throttling (cada 10 segundos)
+                    long now = System.currentTimeMillis();
+                    if (now - lastProgressSent > PROGRESS_THROTTLE_MS) {
+                        notifyProgressUpdate(event.getTimeChanged());
+                        lastProgressSent = now;
+                    }
                     break;
                 case MediaPlayer.Event.LengthChanged:
                     totalDuration.setText(formatTime(event.getLengthChanged()));
@@ -220,10 +245,35 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     break;
                 case MediaPlayer.Event.EndReached:
                     Log.d(TAG, "Video ended, checking for next episode");
+                    // Enviar progreso final cuando termina el video
+                    notifyProgressUpdate(mediaPlayer.getTime(), true);
                     playNextEpisode();
                     break;
             }
         });
+    }
+
+    // Método para notificar progreso al plugin JavaScript
+    private void notifyProgressUpdate(long currentTimeMs) {
+        notifyProgressUpdate(currentTimeMs, false);
+    }
+
+    private void notifyProgressUpdate(long currentTimeMs, boolean completed) {
+        try {
+            // Convertir de milisegundos a segundos para consistencia con el frontend
+            long currentTimeSec = currentTimeMs / 1000;
+            
+            // Crear intent para enviar progreso al plugin
+            android.content.Intent progressIntent = new android.content.Intent("VIDEO_PROGRESS_UPDATE");
+            progressIntent.putExtra("currentTime", currentTimeSec);
+            progressIntent.putExtra("completed", completed);
+            progressIntent.setPackage(getPackageName());
+            sendBroadcast(progressIntent);
+            
+            Log.d(TAG, "Progress update sent: " + currentTimeSec + "s, completed: " + completed);
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending progress update", e);
+        }
     }
 
     private void playNextEpisode() {

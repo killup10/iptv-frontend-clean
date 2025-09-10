@@ -1,7 +1,9 @@
 package play.teamg.store;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.util.Log;
 import com.getcapacitor.JSArray;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 @CapacitorPlugin(name = "VideoPlayerPlugin")
 public class VideoPlayerPlugin extends Plugin {
     private static final String TAG = "VideoPlayerPlugin";
+    private BroadcastReceiver progressReceiver;
 
     @PluginMethod
     public void playVideo(PluginCall call) {
@@ -128,5 +131,75 @@ public class VideoPlayerPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("success", true);
         call.resolve(result);
+    }
+
+    @PluginMethod
+    public void getCurrentTime(PluginCall call) {
+        // Enviar solicitud para obtener tiempo actual
+        sendPlayerControl("getCurrentTime", 0);
+        
+        // Por ahora devolvemos 0, pero esto debería ser mejorado
+        // para recibir el tiempo real del reproductor
+        JSObject result = new JSObject();
+        result.put("currentTime", 0);
+        result.put("success", true);
+        call.resolve(result);
+    }
+
+    @Override
+    protected void handleOnStart() {
+        super.handleOnStart();
+        registerProgressReceiver();
+    }
+
+    @Override
+    protected void handleOnStop() {
+        super.handleOnStop();
+        unregisterProgressReceiver();
+    }
+
+    private void registerProgressReceiver() {
+        if (progressReceiver == null) {
+            progressReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if ("VIDEO_PROGRESS_UPDATE".equals(intent.getAction())) {
+                        long currentTime = intent.getLongExtra("currentTime", 0);
+                        boolean completed = intent.getBooleanExtra("completed", false);
+                        
+                        Log.d(TAG, "Progress received: " + currentTime + "s, completed: " + completed);
+                        
+                        // Enviar evento al JavaScript
+                        JSObject data = new JSObject();
+                        data.put("currentTime", currentTime);
+                        data.put("completed", completed);
+                        notifyListeners("timeupdate", data);
+                    }
+                }
+            };
+            
+            IntentFilter filter = new IntentFilter("VIDEO_PROGRESS_UPDATE");
+            getContext().registerReceiver(progressReceiver, filter);
+            Log.d(TAG, "Progress receiver registered");
+        }
+    }
+
+    private void unregisterProgressReceiver() {
+        if (progressReceiver != null) {
+            try {
+                getContext().unregisterReceiver(progressReceiver);
+                progressReceiver = null;
+                Log.d(TAG, "Progress receiver unregistered");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering progress receiver", e);
+            }
+        }
+    }
+
+    // Método para enviar eventos de progreso desde la actividad VLC
+    public void notifyTimeUpdate(long currentTime) {
+        JSObject data = new JSObject();
+        data.put("currentTime", currentTime);
+        notifyListeners("timeupdate", data);
     }
 }

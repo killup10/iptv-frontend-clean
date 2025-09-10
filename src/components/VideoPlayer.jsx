@@ -1,16 +1,71 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { getPlayerType } from '../utils/platformUtils';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
 import { backgroundPlaybackService } from '../services/backgroundPlayback';
 import useProgressReporter from '../hooks/useProgressReporter';
 import useElectronMpvProgress from '../hooks/useElectronMpvProgress';
+import { videoProgressService } from '../services/videoProgress';
 
 // Este componente es un "despachador" que decide qué hacer según la plataforma.
 export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, chapters }) {
   const platform = getPlayerType(); // Ahora es síncrono
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
+  
+  // Estados para Android VLC progress tracking
+  const [currentTime, setCurrentTime] = useState(0);
+  const lastSavedTimeRef = useRef(0);
+  const progressIntervalRef = useRef(null);
+
+  // Hook para manejar progreso en Android VLC (fuera del condicional de renderizado)
+  useEffect(() => {
+    if (platform !== 'android-vlc' || !itemId) return;
+
+    // Inicializar progreso con startTime si está disponible
+    if (startTime > 0) {
+      setCurrentTime(startTime);
+      lastSavedTimeRef.current = startTime;
+    }
+
+    // Configurar polling para obtener tiempo actual del VLC
+    const pollCurrentTime = async () => {
+      try {
+        // Intentar obtener tiempo actual del plugin si está disponible
+        if (VideoPlayerPlugin.getCurrentTime) {
+          const time = await VideoPlayerPlugin.getCurrentTime();
+          if (typeof time === 'number' && time > 0) {
+            setCurrentTime(time);
+            lastSavedTimeRef.current = time;
+          }
+        }
+      } catch (error) {
+        console.warn('[VideoPlayer] Error obteniendo tiempo actual de VLC:', error);
+      }
+    };
+
+    // Configurar intervalo para polling de tiempo
+    const timePollingInterval = setInterval(pollCurrentTime, 5000); // Cada 5 segundos
+
+    // Configurar intervalo para guardar progreso
+    const progressSaveInterval = setInterval(async () => {
+      const currentTimeValue = lastSavedTimeRef.current;
+      if (currentTimeValue > 0 && itemId) {
+        try {
+          console.log(`[VideoPlayer] Guardando progreso VLC: ${currentTimeValue}s para video ${itemId}`);
+          await videoProgressService.saveProgress(itemId, { lastTime: currentTimeValue });
+        } catch (error) {
+          console.error('[VideoPlayer] Error guardando progreso VLC:', error);
+        }
+      }
+    }, 20000); // Cada 20 segundos
+
+    // Cleanup
+    return () => {
+      clearInterval(timePollingInterval);
+      clearInterval(progressSaveInterval);
+    };
+  }, [platform, itemId, startTime]);
 
   useEffect(() => {
     // La lógica de reproducción para Android se maneja aquí
@@ -261,6 +316,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         </p>
         <p className="text-xs text-blue-400 mt-1">
           🎵 Reproducción en segundo plano activada
+        </p>
+        <p className="text-xs text-yellow-400 mt-1">
+          💾 Progreso guardándose automáticamente
         </p>
       </div>
     );

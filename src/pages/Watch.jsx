@@ -43,25 +43,9 @@ export function Watch() {
     });
 
 
-  // --- 2. USEREF PARA GUARDAR LA ÚLTIMA POSICIÓN Y EVITAR RE-RENDERS ---
-  const lastSavedTimeRef = useRef(0);
-  // Mantener el último tiempo reportado por MPV para permitir un guardado final al salir
+  // --- REFS PARA ELECTRON MPV (solo para compatibilidad) ---
   const currentTimeRef = useRef(0);
-  // Timestamp de inicio de reproducción para estimar progreso si no recibimos eventos de MPV
   const playbackStartTsRef = useRef(null);
-
-  // --- 3. FUNCIÓN PARA GUARDAR PROGRESO CON THROTTLE ---
-  const throttledSaveProgress = useRef(
-    throttle((currentTime) => {
-      if (!itemId || itemType === 'channel') return;
-
-      if (Math.abs(currentTime - lastSavedTimeRef.current) > 4) {
-        console.log(`[Watch.jsx] Guardando progreso... Tiempo: ${currentTime}`);
-        updateUserProgress(itemId, currentTime);
-        lastSavedTimeRef.current = currentTime;
-      }
-    }, 5000)
-  ).current;
 
 
 
@@ -261,8 +245,7 @@ export function Watch() {
             if (process.env.NODE_ENV === "development") {
               console.log('[Watch.jsx] mpv-time-pos →', t);
             }
-            // Guardado periódico (con throttle)
-            throttledSaveProgress(t);
+            // El progreso ahora se maneja en VideoPlayer.jsx para cada plataforma
         } else {
             if (process.env.NODE_ENV === "development") {
               console.warn('[Watch.jsx] mpv-time-pos inválido:', time, 'typeof=', typeof time);
@@ -279,26 +262,8 @@ export function Watch() {
 
     return () => {
       console.log('[Watch.jsx] Limpiando recursos MPV...');
-      // Hacer flush del throttling y enviar un guardado final del progreso si corresponde
-      try {
-        if (throttledSaveProgress && typeof throttledSaveProgress.flush === 'function') {
-          throttledSaveProgress.flush();
-        }
-        const finalTime = currentTimeRef.current || 0;
-        if (itemId && itemType !== 'channel' && finalTime > (lastSavedTimeRef.current || 0)) {
-          if (process.env.NODE_ENV === "development") {
-            console.log('[Watch.jsx] Guardado final de progreso en cleanup. Tiempo:', finalTime);
-          }
-          // No await: el cleanup no es async; registrar mejor-esfuerzo
-          updateUserProgress(itemData?.id || itemId, finalTime).catch(err => {
-            console.error('[Watch.jsx] Error guardando progreso final:', err);
-          });
-
-          lastSavedTimeRef.current = finalTime;
-        }
-      } catch (e) {
-        console.warn('[Watch.jsx] No se pudo hacer flush de progreso en cleanup:', e);
-      }
+      // El progreso ahora se maneja completamente en VideoPlayer.jsx
+      console.log('[Watch.jsx] Cleanup - progreso manejado por VideoPlayer');
 
       if (window.electronMPV) {
         window.electronMPV.stop().catch(err => {
@@ -313,7 +278,7 @@ export function Watch() {
         window.electronAPI.removeListener('mpv-time-pos', handleTimePos);
       }
     };
-  }, [videoUrl, bounds, startTime, throttledSaveProgress]); // Añadir dependencias
+  }, [videoUrl, bounds, startTime]); // Dependencias para Electron MPV
 
 
 
