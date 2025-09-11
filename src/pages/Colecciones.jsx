@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getCollections, createCollection } from '../utils/api.js';
+import { getCollections, createCollection, addItemsToCollection } from '../utils/api.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
+import Card from '../components/Card.jsx';
+import TrailerModal from '../components/TrailerModal.jsx';
+import CollectionsModal from '../components/CollectionsModal.jsx';
 
 export default function Colecciones() {
   const { user } = useAuth();
@@ -13,6 +16,14 @@ export default function Colecciones() {
   const [error, setError] = useState(null);
   const [selectedColeccion, setSelectedColeccion] = useState("TODAS");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Trailer functionality
+  const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
+
+  // Collections modal functionality
+  const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+  const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
   const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
 
@@ -58,6 +69,52 @@ export default function Colecciones() {
 
   const handleProceedWithTrial = () => {
     proceedWithTrial();
+  };
+
+  const handlePlayTrailerClick = (trailerUrl) => {
+    if (trailerUrl) {
+      setCurrentTrailerUrl(trailerUrl);
+      setShowTrailerModal(true);
+    }
+  };
+
+  const handleOpenCollectionsModal = (item) => {
+    setSelectedItemForCollection(item);
+    setIsCollectionsModalOpen(true);
+  };
+
+  const handleCloseCollectionsModal = () => {
+    setIsCollectionsModalOpen(false);
+    setSelectedItemForCollection(null);
+  };
+
+  const handleAddToCollection = async ({ item, collectionName }) => {
+    try {
+      let collection = collections.find(c => c.name === collectionName);
+      
+      // Si no se encuentra la colección, recargar las colecciones (puede ser una nueva)
+      if (!collection) {
+        console.log('Colección no encontrada, recargando colecciones...');
+        const updatedCollections = await getCollections();
+        setCollections(updatedCollections);
+        collection = updatedCollections.find(c => c.name === collectionName);
+      }
+      
+      if (collection) {
+        await addItemsToCollection(collection._id, [item._id || item.id]);
+        alert(`${item.name || item.title} fue agregado a la colección ${collectionName}`);
+        
+        // Recargar colecciones para mantener sincronización
+        const refreshedCollections = await getCollections();
+        setCollections(refreshedCollections);
+      } else {
+        throw new Error(`No se pudo encontrar la colección "${collectionName}"`);
+      }
+    } catch (error) {
+      console.error("Failed to add item to collection", error);
+      alert(`Error al agregar a la colección: ${error.message}`);
+    }
+    handleCloseCollectionsModal();
   };
 
   const handleCreateCollection = async () => {
@@ -200,37 +257,20 @@ export default function Colecciones() {
                       {collectionName}
                     </h2>
                   )}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {items.filter(item => item && item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
-                      <div
+                  <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+                    {(items || []).filter(item => {
+                      if (!item) return false;
+                      const itemName = item.name || item.title || '';
+                      return itemName.toLowerCase().includes(searchTerm.toLowerCase());
+                    }).map(item => (
+                      <Card
                         key={item.id || item._id}
+                        item={item}
                         onClick={() => handleContentClick(item)}
-                        className="cursor-pointer group"
-                      >
-                        <div className="aspect-[2/3] bg-gradient-to-br from-indigo-800 to-purple-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover:scale-105 relative border-2 border-purple-400">
-                          <img 
-                            src={item.customThumbnail || item.thumbnail || item.logo || '/placeholder-thumbnail.png'} 
-                            alt={item.name} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => e.currentTarget.src = '/placeholder-thumbnail.png'}
-                          />
-                          {item.mainSection === 'CINE_4K' && (
-                            <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-md">
-                              4K
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <div className="absolute bottom-0 p-4">
-                              <h3 className="text-white text-sm font-semibold line-clamp-2">{item.name}</h3>
-                              <div className="flex items-center mt-1">
-                                <span className="text-purple-400 text-xs">
-                                  {item.tipo === 'serie' ? '📺 Serie' : '🎬 Película'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                        itemType={item.tipo === 'serie' ? 'serie' : 'movie'}
+                        onPlayTrailer={handlePlayTrailerClick}
+                        onAddToCollectionClick={handleOpenCollectionsModal}
+                      />
                     ))}
                   </div>
                 </div>
@@ -255,6 +295,28 @@ export default function Colecciones() {
         onClose={closeAccessModal}
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
+      />
+
+      {showTrailerModal && currentTrailerUrl && (
+        <TrailerModal
+          trailerUrl={currentTrailerUrl}
+          onClose={() => {
+            setShowTrailerModal(false);
+            setCurrentTrailerUrl('');
+          }}
+        />
+      )}
+
+      <CollectionsModal
+        isOpen={isCollectionsModalOpen}
+        onClose={handleCloseCollectionsModal}
+        item={selectedItemForCollection}
+        collections={collections.filter(c => 
+          selectedItemForCollection?.tipo === 'serie' 
+            ? c.itemsModel === 'Serie' 
+            : c.itemsModel === 'Video'
+        )}
+        onAddToCollection={handleAddToCollection}
       />
     </div>
   );
