@@ -9,12 +9,12 @@ export default function TVNavigation() {
   const menuItems = [
     { path: '/', label: 'Inicio', icon: '🏠' },
     { path: '/tv', label: 'TV en Vivo', icon: '📺' },
-    { path: '/movies', label: 'Películas', icon: '🎬' },
+    { path: '/#peliculas', label: 'Películas', icon: '🎬' },
     { path: '/series', label: 'Series', icon: '📽️' },
-    { path: '/animes', label: 'Animes', icon: '🎌' },
-    { path: '/doramas', label: 'Doramas', icon: '💝' },
-    { path: '/novelas', label: 'Novelas', icon: '💕' },
-    { path: '/documentales', label: 'Documentales', icon: '📚' }
+    { path: '/#animes', label: 'Animes', icon: '🎌' },
+    { path: '/#doramas', label: 'Doramas', icon: '💝' },
+    { path: '/#novelas', label: 'Novelas', icon: '💕' },
+    { path: '/#documentales', label: 'Documentales', icon: '📚' }
   ];
 
   useEffect(() => {

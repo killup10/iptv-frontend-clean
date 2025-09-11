@@ -20,7 +20,7 @@ async function downloadFile(url, outputPath) {
 async function extractRar(filePath, destPath) {
     try {
         const extractor = await createExtractorFromFile({ filepath: filePath });
-        const list = extractor.extract({ destPath });
+        const list = extractor.extract({ path: destPath });
         [...list.files]; // Consume the iterator
         console.log('Extracción completada.');
     } catch (err) {

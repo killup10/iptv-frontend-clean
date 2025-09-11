@@ -28,42 +28,60 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       lastSavedTimeRef.current = startTime;
     }
 
-    // Configurar polling para obtener tiempo actual del VLC
-    const pollCurrentTime = async () => {
-      try {
-        // Intentar obtener tiempo actual del plugin si está disponible
-        if (VideoPlayerPlugin.getCurrentTime) {
-          const time = await VideoPlayerPlugin.getCurrentTime();
-          if (typeof time === 'number' && time > 0) {
-            setCurrentTime(time);
-            lastSavedTimeRef.current = time;
-          }
-        }
-      } catch (error) {
-        console.warn('[VideoPlayer] Error obteniendo tiempo actual de VLC:', error);
-      }
-    };
-
-    // Configurar intervalo para polling de tiempo
-    const timePollingInterval = setInterval(pollCurrentTime, 5000); // Cada 5 segundos
-
-    // Configurar intervalo para guardar progreso
-    const progressSaveInterval = setInterval(async () => {
-      const currentTimeValue = lastSavedTimeRef.current;
+    // Función para guardar progreso
+    const saveProgress = async (currentTimeValue, completed = false) => {
       if (currentTimeValue > 0 && itemId) {
         try {
-          console.log(`[VideoPlayer] Guardando progreso VLC: ${currentTimeValue}s para video ${itemId}`);
-          await videoProgressService.saveProgress(itemId, { lastTime: currentTimeValue });
+          console.log(`[VideoPlayer] Guardando progreso VLC: ${currentTimeValue}s para video ${itemId}, completed: ${completed}`);
+          await videoProgressService.saveProgress(itemId, { 
+            lastTime: currentTimeValue,
+            completed 
+          });
+          lastSavedTimeRef.current = currentTimeValue;
         } catch (error) {
           console.error('[VideoPlayer] Error guardando progreso VLC:', error);
         }
       }
-    }, 20000); // Cada 20 segundos
+    };
+
+    // Manejar eventos de progreso del plugin nativo
+    const handleTimeUpdate = (data) => {
+      const currentTimeValue = data.currentTime || 0;
+      const completed = data.completed || false;
+      
+      console.log(`[VideoPlayer] Evento de progreso recibido: ${currentTimeValue}s, completed: ${completed}`);
+      
+      setCurrentTime(currentTimeValue);
+      lastSavedTimeRef.current = currentTimeValue;
+      
+      // Si el video se completó, guardar inmediatamente
+      if (completed) {
+        saveProgress(currentTimeValue, true);
+      }
+    };
+
+    // Registrar listener para eventos de progreso del plugin nativo
+    let progressListener = null;
+    if (VideoPlayerPlugin && VideoPlayerPlugin.addListener) {
+      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
+      console.log('[VideoPlayer] Listener de progreso VLC registrado');
+    }
+
+    // Configurar intervalo para guardar progreso cada 20 segundos
+    const progressSaveInterval = setInterval(async () => {
+      const currentTimeValue = lastSavedTimeRef.current;
+      if (currentTimeValue > 0) {
+        await saveProgress(currentTimeValue, false);
+      }
+    }, 20000);
 
     // Cleanup
     return () => {
-      clearInterval(timePollingInterval);
       clearInterval(progressSaveInterval);
+      if (progressListener && progressListener.remove) {
+        progressListener.remove();
+        console.log('[VideoPlayer] Listener de progreso VLC removido');
+      }
     };
   }, [platform, itemId, startTime]);
 
@@ -302,24 +320,43 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
   // --- Renderizado basado en la plataforma ---
 
-  // Para Android, la reproducción es nativa y en pantalla completa.
-  // Mostramos una UI que indica que la reproducción está activa en VLC.
+  // Para Android, la reproducción es nativa - mostrar interfaz con colores del Home
   if (platform === 'android-vlc') {
     return (
-      <div className="w-full aspect-video bg-black rounded-lg flex flex-col items-center justify-center text-white p-4">
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        <p className="text-sm text-gray-300">
-          ▶️ Reproducción iniciada en VLC Player.
-        </p>
-        <p className="text-xs text-green-400 mt-1">
-          Soporte completo para MKV y Dolby Audio.
-        </p>
-        <p className="text-xs text-blue-400 mt-1">
-          🎵 Reproducción en segundo plano activada
-        </p>
-        <p className="text-xs text-yellow-400 mt-1">
-          💾 Progreso guardándose automáticamente
-        </p>
+      <div 
+        className="w-full aspect-video rounded-lg flex items-center justify-center text-white relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, hsl(254 50% 8%) 0%, hsl(315 100% 25% / 0.3) 50%, hsl(190 100% 50% / 0.2) 100%)',
+          border: '1px solid hsl(315 100% 25% / 0.5)'
+        }}
+      >
+        <div className="text-center z-10">
+          <h3 
+            className="text-lg font-semibold mb-2"
+            style={{
+              color: 'hsl(190 100% 50%)',
+              textShadow: '0 0 5px hsl(190 100% 50% / 0.8), 0 0 10px hsl(190 100% 50% / 0.6)'
+            }}
+          >
+            {title}
+          </h3>
+          <p 
+            className="text-sm"
+            style={{
+              color: 'hsl(315 100% 60%)',
+              textShadow: '0 0 5px hsl(315 100% 60% / 0.8), 0 0 10px hsl(315 100% 60% / 0.6)'
+            }}
+          >
+            Reproduciendo en VLC
+          </p>
+        </div>
+        {/* Efecto de brillo de fondo */}
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            background: 'radial-gradient(circle at center, hsl(190 100% 50% / 0.3) 0%, transparent 70%)'
+          }}
+        />
       </div>
     );
   }

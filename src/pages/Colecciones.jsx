@@ -62,34 +62,48 @@ export default function Colecciones() {
 
   const handleCreateCollection = async () => {
     const newCollectionName = prompt("Introduce el nombre de la nueva colección:");
-    if (newCollectionName) {
-      let itemsModel;
-      while (true) {
-        const modelInput = prompt("Introduce el tipo de contenido: 'Película' o 'Serie'");
-        if (modelInput === null) { // User cancelled the prompt
-          return;
-        }
-        const modelInputLower = modelInput.toLowerCase();
-        if (modelInputLower === 'pelicula' || modelInputLower === 'película') {
-          itemsModel = 'Video';
-          break;
-        }
-        if (modelInputLower === 'serie') {
-          itemsModel = 'Serie';
-          break;
-        }
-        alert("Tipo inválido. Por favor, introduce 'Película' o 'Serie'.");
-      }
+    if (!newCollectionName || newCollectionName.trim() === '') {
+      return;
+    }
 
-      try {
-        await createCollection(newCollectionName, itemsModel);
-        const fetchedCollections = await getCollections();
-        setCollections(fetchedCollections);
-        setSelectedColeccion(newCollectionName);
-      } catch (err) {
-        console.error("Error creando colección:", err);
-        alert(`Error al crear la colección: ${err.message}`);
+    let itemsModel;
+    while (true) {
+      const modelInput = prompt("Introduce el tipo de contenido: 'Película' o 'Serie'");
+      if (modelInput === null) { // User cancelled the prompt
+        return;
       }
+      const modelInputLower = modelInput.toLowerCase();
+      if (modelInputLower === 'pelicula' || modelInputLower === 'película') {
+        itemsModel = 'Video';
+        break;
+      }
+      if (modelInputLower === 'serie') {
+        itemsModel = 'Serie';
+        break;
+      }
+      alert("Tipo inválido. Por favor, introduce 'Película' o 'Serie'.");
+    }
+
+    try {
+      console.log(`Creando colección: ${newCollectionName} con tipo: ${itemsModel}`);
+      
+      // Crear la colección en el backend
+      const newCollection = await createCollection(newCollectionName.trim(), itemsModel);
+      console.log('Colección creada exitosamente:', newCollection);
+      
+      // Recargar todas las colecciones desde el backend
+      const fetchedCollections = await getCollections();
+      console.log('Colecciones recargadas:', fetchedCollections);
+      
+      setCollections(fetchedCollections);
+      
+      // Seleccionar la nueva colección creada
+      setSelectedColeccion(newCollectionName.trim());
+      
+      alert(`Colección "${newCollectionName}" creada exitosamente!`);
+    } catch (err) {
+      console.error("Error creando colección:", err);
+      alert(`Error al crear la colección: ${err.message}`);
     }
   };
 

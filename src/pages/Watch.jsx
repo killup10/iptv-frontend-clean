@@ -314,12 +314,48 @@ export function Watch() {
     };
   }, [bounds]);
 
+  // Función inteligente para volver a la sección correcta
+  const handleBackNavigation = () => {
+    // Verificar si hay información de dónde vino en el estado de navegación
+    const fromLocation = location.state?.from;
+    const fromSection = location.state?.fromSection;
+    
+    if (fromLocation) {
+      // Si tenemos información específica de dónde vino, ir ahí
+      navigate(fromLocation);
+    } else if (fromSection) {
+      // Si tenemos información de la sección, navegar a esa sección específica
+      switch (fromSection) {
+        case 'movies':
+        case 'peliculas':
+          navigate('/');
+          break;
+        case 'series':
+          navigate('/series');
+          break;
+        case 'channels':
+        case 'canales':
+          navigate('/');
+          break;
+        case 'continue-watching':
+        case 'home':
+        default:
+          navigate('/');
+          break;
+      }
+    } else {
+      // Fallback: siempre ir a Home ya que es la página principal
+      // donde están todas las secciones (películas, series, etc.)
+      navigate('/');
+    }
+  };
+
   // Funciones del modal de acceso
   const closeAccessModal = () => {
     setShowAccessModal(false);
     setAccessModalData(null);
     // Navegar de vuelta después de cerrar el modal
-    navigate(-1);
+    handleBackNavigation();
   };
 
   const handleProceedWithTrial = () => {
@@ -348,7 +384,7 @@ export function Watch() {
         <div className="container mx-auto px-2 sm:px-4 py-4 flex-grow flex flex-col">
           <div className="mb-4 flex items-center justify-between w-full max-w-screen-xl mx-auto">
             <button
-              onClick={() => navigate(-1)}
+              onClick={handleBackNavigation}
               className="text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm transition-colors"
             >
               ← Volver
@@ -403,7 +439,7 @@ export function Watch() {
       <div className="text-white p-10 text-center min-h-screen bg-black pt-20">
         Información del contenido no disponible.
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBackNavigation}
           className="block mx-auto mt-4 bg-gray-700 px-3 py-1 rounded"
         >
           Volver
@@ -421,7 +457,7 @@ export function Watch() {
           Debug info: URL={itemData.url || 'null'}, Chapters={itemData.chapters?.length || 0}
         </div>
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleBackNavigation}
           className="block mx-auto mt-4 bg-gray-700 px-3 py-1 rounded"
         >
           Volver
@@ -430,90 +466,220 @@ export function Watch() {
     );
 
   return (
-    <div className="bg-zinc-900 min-h-screen flex flex-col pt-16">
-      <div className="container mx-auto px-2 sm:px-4 py-4 flex-grow flex flex-col">
-        {showError}
-        <div className="mb-4 flex items-center justify-between w-full max-w-screen-xl mx-auto">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm transition-colors"
-          >
-            ← Volver
-          </button>
-        </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
 
-        <div className="flex-grow flex flex-col items-center">
-          <div className="w-full max-w-screen-xl">
-            <h1 className="text-2xl font-bold text-white mb-4">
-              {itemData.name}
-            </h1>
-            
-            {itemData.chapters?.length > 0 && location.state?.chapterIndex !== undefined && (
-              <p className="text-sm text-gray-400 mb-2">
-                Episodio: {itemData.chapters[location.state.chapterIndex]?.title || "Sin título"}
-              </p>
-            )}
-            
-            <div
-              ref={videoAreaRef}
-              className="w-[70%] mx-auto mb-6 bg-black rounded-lg overflow-hidden"
-              style={{ position: "relative", aspectRatio: "16/9" }}
+        :root {
+          --background: 254 50% 5%;
+          --foreground: 210 40% 98%;
+          --primary: 190 100% 50%;
+          --primary-foreground: 254 50% 5%;
+          --secondary: 315 100% 60%;
+          --secondary-foreground: 210 40% 98%;
+          --muted-foreground: 190 30% 80%;
+          --card-background: 254 50% 8%;
+          --input-background: 254 50% 12%;
+          --input-border: 315 100% 25%;
+          --footer-text: 210 40% 70%;
+        }
+
+        body {
+          font-family: 'Inter', sans-serif;
+        }
+
+        .text-glow-primary {
+          text-shadow: 0 0 5px hsl(var(--primary) / 0.8), 0 0 10px hsl(var(--primary) / 0.6);
+        }
+        .text-glow-secondary {
+          text-shadow: 0 0 5px hsl(var(--secondary) / 0.8), 0 0 10px hsl(var(--secondary) / 0.6);
+        }
+        .shadow-glow-primary {
+          box-shadow: 0 0 25px hsl(var(--primary) / 0.8);
+        }
+        .shadow-glow-secondary {
+          box-shadow: 0 0 25px hsl(var(--secondary) / 0.6);
+        }
+        .bg-dynamic-overlay {
+          background: linear-gradient(135deg, 
+            hsl(var(--background) / 0.95) 0%, 
+            hsl(var(--background) / 0.85) 50%, 
+            hsl(var(--background) / 0.95) 100%);
+        }
+        .description-gradient {
+          background: linear-gradient(135deg, 
+            hsl(var(--card-background) / 0.9) 0%, 
+            hsl(var(--card-background) / 0.7) 50%, 
+            hsl(var(--card-background) / 0.9) 100%);
+          border: 1px solid hsl(var(--primary) / 0.3);
+        }
+        .metadata-badge {
+          background: linear-gradient(135deg, 
+            hsl(var(--primary) / 0.2) 0%, 
+            hsl(var(--secondary) / 0.2) 100%);
+          border: 1px solid hsl(var(--primary) / 0.4);
+        }
+      `}</style>
+      <div 
+        className="min-h-screen flex flex-col pt-16 relative"
+        style={{
+          backgroundImage: itemData?.poster || itemData?.backdrop || itemData?.thumbnail 
+            ? `url(${itemData.poster || itemData.backdrop || itemData.thumbnail})` 
+            : "url('/fondo.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed'
+        }}
+      >
+        {/* Dynamic overlay for readability */}
+        <div className="absolute inset-0 bg-dynamic-overlay"></div>
+        
+        <div className="relative z-10 container mx-auto px-2 sm:px-4 py-4 flex-grow flex flex-col">
+          {showError}
+          <div className="mb-4 flex items-center justify-between w-full max-w-screen-xl mx-auto">
+            <button
+              onClick={handleBackNavigation}
+              className="text-muted-foreground hover:text-primary bg-card-background hover:shadow-glow-primary px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm transition-all duration-300 border border-primary/30"
+              style={{
+                backgroundColor: 'hsl(var(--card-background) / 0.8)',
+                color: 'hsl(var(--muted-foreground))',
+                borderColor: 'hsl(var(--primary) / 0.3)'
+              }}
             >
-              {videoUrl ? (
-                <VideoPlayer 
-                  url={videoUrl}
-                  itemId={itemData.id}
-                  startTime={startTime}
-                  initialAutoplay={true}
-                  title={itemData.name}
-                  chapters={itemData.chapters}
-                />
+              ← Volver
+            </button>
+          </div>
 
-              ) : (
-                <div className="flex items-center justify-center h-full text-white">
-                  Cargando video...
+          <div className="flex-grow flex flex-col items-center">
+            <div className="w-full max-w-screen-xl">
+              <h1 className="text-3xl sm:text-4xl font-black text-primary text-glow-primary mb-4 text-center sm:text-left">
+                {itemData.name}
+              </h1>
+              
+              {/* Movie metadata */}
+              <div className="flex flex-wrap gap-2 mb-4 justify-center sm:justify-start">
+                {itemData.releaseYear && (
+                  <span className="metadata-badge px-3 py-1 rounded-full text-sm font-medium text-primary">
+                    {itemData.releaseYear}
+                  </span>
+                )}
+                {itemData.genre && (
+                  <span className="metadata-badge px-3 py-1 rounded-full text-sm font-medium text-secondary">
+                    {itemData.genre}
+                  </span>
+                )}
+                {itemData.rating && (
+                  <span className="metadata-badge px-3 py-1 rounded-full text-sm font-medium text-primary">
+                    ⭐ {itemData.rating}
+                  </span>
+                )}
+              </div>
+              
+              {itemData.chapters?.length > 0 && location.state?.chapterIndex !== undefined && (
+                <p className="text-sm text-secondary text-glow-secondary mb-4 text-center sm:text-left">
+                  Episodio: {itemData.chapters[location.state.chapterIndex]?.title || "Sin título"}
+                </p>
+              )}
+              
+              <div
+                ref={videoAreaRef}
+                className="w-[70%] mx-auto mb-6 bg-black rounded-xl overflow-hidden shadow-glow-primary"
+                style={{ position: "relative", aspectRatio: "16/9" }}
+              >
+                {videoUrl ? (
+                  <VideoPlayer 
+                    url={videoUrl}
+                    itemId={itemData.id}
+                    startTime={startTime}
+                    initialAutoplay={true}
+                    title={itemData.name}
+                    chapters={itemData.chapters}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-primary text-glow-primary">
+                    <div className="text-center">
+                      <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-lg font-medium">Cargando video...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6 w-full max-w-screen-xl">
+              {itemData.description && (
+                <div className="description-gradient p-6 rounded-xl shadow-glow-secondary backdrop-blur-sm">
+                  <h3 className="text-2xl font-bold text-primary text-glow-primary mb-4 flex items-center">
+                    <span className="w-1 h-8 bg-gradient-to-b from-primary to-secondary rounded-full mr-3"></span>
+                    Descripción
+                  </h3>
+                  <div className="prose prose-invert max-w-none">
+                    <p className="text-base leading-relaxed whitespace-pre-wrap text-foreground" 
+                       style={{ color: 'hsl(var(--foreground))' }}>
+                      {itemData.description}
+                    </p>
+                  </div>
+                  
+                  {/* Additional metadata in description */}
+                  {(itemData.director || itemData.cast || itemData.duration) && (
+                    <div className="mt-6 pt-4 border-t border-primary/20">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                        {itemData.director && (
+                          <div>
+                            <span className="text-secondary font-semibold">Director:</span>
+                            <span className="text-muted-foreground ml-2">{itemData.director}</span>
+                          </div>
+                        )}
+                        {itemData.duration && (
+                          <div>
+                            <span className="text-secondary font-semibold">Duración:</span>
+                            <span className="text-muted-foreground ml-2">{itemData.duration} min</span>
+                          </div>
+                        )}
+                        {itemData.cast && (
+                          <div className="sm:col-span-2 lg:col-span-1">
+                            <span className="text-secondary font-semibold">Reparto:</span>
+                            <span className="text-muted-foreground ml-2">{itemData.cast}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(
+                itemData.tipo !== 'pelicula' &&
+                itemData.tipo !== 'movie' &&
+                itemData.tipo !== 'channel' &&
+                ( (itemData.seasons && itemData.seasons.length > 0) || (itemData.chapters && itemData.chapters.length > 0) )
+              ) && (
+                <div className="description-gradient p-6 rounded-xl shadow-glow-primary backdrop-blur-sm">
+                  <h3 className="text-2xl font-bold text-primary text-glow-primary mb-4 flex items-center">
+                    <span className="w-1 h-8 bg-gradient-to-b from-primary to-secondary rounded-full mr-3"></span>
+                    Episodios
+                  </h3>
+                  <SeriesChapters
+                    seasons={itemData.seasons}
+                    serieId={itemData.id}
+                    currentChapter={location.state?.chapterIndex || 0}
+                    watchProgress={itemData.watchProgress}
+                    currentSeason={location.state?.seasonIndex}
+                  />
                 </div>
               )}
             </div>
           </div>
-
-          <div className="space-y-4 w-full max-w-screen-xl">
-            {itemData.description && (
-              <div className="p-4 bg-zinc-800 rounded-lg text-gray-300">
-                <h3 className="text-xl font-semibold text-white mb-2">Descripción</h3>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {itemData.description}
-                </p>
-              </div>
-            )}
-
-            {(
-              itemData.tipo !== 'pelicula' &&
-              itemData.tipo !== 'movie' &&
-              itemData.tipo !== 'channel' &&
-              ( (itemData.seasons && itemData.seasons.length > 0) || (itemData.chapters && itemData.chapters.length > 0) )
-            ) && (
-              <SeriesChapters
-                seasons={itemData.seasons}
-                serieId={itemData.id}
-                currentChapter={location.state?.chapterIndex || 0}
-                watchProgress={itemData.watchProgress}
-                currentSeason={location.state?.seasonIndex}
-              />
-            )}
-
-
-          </div>
         </div>
-      </div>
 
-      <ContentAccessModal
-        isOpen={showAccessModal}
-        onClose={closeAccessModal}
-        data={accessModalData}
-        onProceedWithTrial={handleProceedWithTrial}
-      />
-    </div>
+        <ContentAccessModal
+          isOpen={showAccessModal}
+          onClose={closeAccessModal}
+          data={accessModalData}
+          onProceedWithTrial={handleProceedWithTrial}
+        />
+      </div>
+    </>
   );
 }
 

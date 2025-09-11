@@ -1,5 +1,6 @@
 // src/components/CollectionsModal.jsx
 import React, { useState, useEffect } from 'react';
+import { createCollection } from '../utils/api.js';
 
 export default function CollectionsModal({
   isOpen,
@@ -10,12 +11,14 @@ export default function CollectionsModal({
 }) {
   const [selectedCollection, setSelectedCollection] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
 
   useEffect(() => {
     // Reset state when modal opens
     if (isOpen) {
       setSelectedCollection('');
       setNewCollectionName('');
+      setIsCreatingCollection(false);
     }
   }, [isOpen]);
 
@@ -23,13 +26,40 @@ export default function CollectionsModal({
     return null;
   }
 
-  const handleAddClick = () => {
-    const collectionName = newCollectionName.trim() || selectedCollection;
-    if (!collectionName) {
-      alert('Por favor, selecciona una colección o crea una nueva.');
-      return;
+  const handleAddClick = async () => {
+    try {
+      let collectionName = selectedCollection;
+      
+      // Si hay un nombre de nueva colección, crear la colección primero
+      if (newCollectionName.trim()) {
+        setIsCreatingCollection(true);
+        
+        // Determinar el tipo de contenido basado en el item
+        const itemsModel = item.tipo === 'serie' ? 'Serie' : 'Video';
+        
+        console.log(`Creando nueva colección: ${newCollectionName.trim()} con tipo: ${itemsModel}`);
+        
+        // Crear la nueva colección
+        const newCollection = await createCollection(newCollectionName.trim(), itemsModel);
+        console.log('Nueva colección creada:', newCollection);
+        
+        collectionName = newCollectionName.trim();
+        setIsCreatingCollection(false);
+      }
+      
+      if (!collectionName) {
+        alert('Por favor, selecciona una colección o crea una nueva.');
+        return;
+      }
+      
+      // Agregar el item a la colección
+      onAddToCollection({ item, collectionName });
+      
+    } catch (error) {
+      console.error('Error al crear colección:', error);
+      alert(`Error al crear la colección: ${error.message}`);
+      setIsCreatingCollection(false);
     }
-    onAddToCollection({ item, collectionName });
   };
 
   const collectionNames = collections.map(c => c.name);
@@ -68,6 +98,7 @@ export default function CollectionsModal({
                 setNewCollectionName(''); // Clear new collection input
               }}
               className="w-full px-3 py-2 rounded-lg bg-zinc-700 text-white border border-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              disabled={isCreatingCollection}
             >
               <option value="">-- Elige una colección --</option>
               {collectionNames.map((name) => (
@@ -96,6 +127,7 @@ export default function CollectionsModal({
               setSelectedCollection(''); // Clear selection
             }}
             className="w-full px-3 py-2 rounded-lg bg-zinc-700 text-white border border-zinc-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            disabled={isCreatingCollection}
           />
         </div>
 
@@ -103,14 +135,16 @@ export default function CollectionsModal({
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg bg-zinc-600 hover:bg-zinc-500 text-white font-semibold transition-colors"
+            disabled={isCreatingCollection}
           >
             Cancelar
           </button>
           <button
             onClick={handleAddClick}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors"
+            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isCreatingCollection}
           >
-            Agregar
+            {isCreatingCollection ? 'Creando...' : 'Agregar'}
           </button>
         </div>
       </div>

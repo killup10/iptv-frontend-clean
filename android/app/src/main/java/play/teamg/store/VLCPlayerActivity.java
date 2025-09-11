@@ -131,12 +131,17 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        // Usa 16:9 por defecto; puedes calcularlo del tamaño real del video si quieres.
-        PictureInPictureParams params =
-            new PictureInPictureParams.Builder()
+        enterPictureInPictureMode();
+    }
+
+    // Método para entrar en Picture-in-Picture
+    private void enterPictureInPictureMode() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            PictureInPictureParams params = new PictureInPictureParams.Builder()
                 .setAspectRatio(new Rational(16, 9))
                 .build();
-        enterPictureInPictureMode(params);
+            enterPictureInPictureMode(params);
+        }
     }
 
     @Override
@@ -222,6 +227,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                         lastPosition = 0;
                     }
                     hideControls();
+                    
+                    // Entrar automáticamente en PiP después de 2 segundos de reproducción
+                    controlsHandler.postDelayed(() -> {
+                        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                            Log.d(TAG, "Auto-entering Picture-in-Picture mode");
+                            enterPictureInPictureMode();
+                        }
+                    }, 2000);
                     break;
                 case MediaPlayer.Event.Paused:
                 case MediaPlayer.Event.Stopped:

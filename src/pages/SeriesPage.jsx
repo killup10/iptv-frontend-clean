@@ -147,15 +147,30 @@ const handleCloseCollectionsModal = () => {
 };
 
 const handleAddToCollection = async ({ item, collectionName }) => {
-    const collection = collections.find(c => c.name === collectionName);
-    if (collection) {
-        try {
-            await addItemsToCollection(collection._id, [item._id]);
-            alert(`${item.name} fue agregado a la colección ${collectionName}`);
-        } catch (error) {
-            console.error("Failed to add item to collection", error);
-            alert(`Error al agregar a la colección: ${error.message}`);
+    try {
+        let collection = collections.find(c => c.name === collectionName);
+        
+        // Si no se encuentra la colección, recargar las colecciones (puede ser una nueva)
+        if (!collection) {
+            console.log('Colección no encontrada, recargando colecciones...');
+            const updatedCollections = await getCollections();
+            setCollections(updatedCollections);
+            collection = updatedCollections.find(c => c.name === collectionName);
         }
+        
+        if (collection) {
+            await addItemsToCollection(collection._id, [item._id || item.id]);
+            alert(`${item.name || item.title} fue agregado a la colección ${collectionName}`);
+            
+            // Recargar colecciones para mantener sincronización
+            const refreshedCollections = await getCollections();
+            setCollections(refreshedCollections);
+        } else {
+            throw new Error(`No se pudo encontrar la colección "${collectionName}"`);
+        }
+    } catch (error) {
+        console.error("Failed to add item to collection", error);
+        alert(`Error al agregar a la colección: ${error.message}`);
     }
     handleCloseCollectionsModal();
 };

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import axiosInstance from '../utils/axiosInstance';
 
+
 // Hook to listen to mpv time-pos events exposed by preload (window.electronAPI)
 // and forward progress to backend for the given videoId.
 export default function useElectronMpvProgress(videoId, opts = {}) {

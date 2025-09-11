@@ -39,12 +39,12 @@ export default function NavBar() {
         <div className="hidden lg:flex space-x-6 text-sm">
           <Link to="/" className="text-white hover:text-primary text-glow-primary transition-colors duration-300">Inicio</Link>
           <Link to="/tv" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">TV en Vivo</Link>
-          <Link to="/movies" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Películas</Link>
+          <Link to="/#peliculas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Películas</Link>
           <Link to="/series" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Series</Link>
-          <Link to="/animes" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Animes</Link>
-          <Link to="/doramas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Doramas</Link>
-          <Link to="/novelas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Novelas</Link>
-          <Link to="/documentales" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Documentales</Link>
+          <Link to="/#animes" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Animes</Link>
+          <Link to="/#doramas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Doramas</Link>
+          <Link to="/#novelas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Novelas</Link>
+          <Link to="/#documentales" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Documentales</Link>
         </div>
 
         {/* Mobile menu button - you can expand this later */}
