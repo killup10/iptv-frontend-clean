@@ -82,7 +82,7 @@ export function Watch() {
         let endpoint = "";
         if (itemType === "channel") {
           endpoint = `/api/channels/id/${itemId}`;
-        } else if (["movie", "serie", "series", "pelicula"].includes(itemType)) {
+        } else if (["movie", "serie", "series", "pelicula", "anime"].includes(itemType)) {
           endpoint = `/api/videos/${itemId}${useTrial ? '?useTrial=true' : ''}`;
         } else {
           setError(`Tipo de contenido "${itemType}" no reconocido.`);

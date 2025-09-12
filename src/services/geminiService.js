@@ -1,6 +1,6 @@
 // Servicio para integración con API de Gemini
-const GEMINI_API_KEY = 'AIzaSyCO4sAvoosZxN-McPXBbWWmWZ05VPnrjeQ';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent';
 
 // Cache para evitar llamadas repetidas
 const cache = new Map();
@@ -77,6 +77,7 @@ Responde SOLO con el JSON válido, sin texto adicional. Si no tienes informació
 
     try {
       const response = await this.makeRequest(prompt);
+      console.log('Respuesta de Gemini:', response);
       let parsedData;
       
       try {
@@ -84,6 +85,7 @@ Responde SOLO con el JSON válido, sin texto adicional. Si no tienes informació
         const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           parsedData = JSON.parse(jsonMatch[0]);
+          parsedData.source = 'gemini';
         } else {
           throw new Error('No se encontró JSON válido en la respuesta');
         }
@@ -231,6 +233,7 @@ Incluye 5-6 recomendaciones relevantes. Responde SOLO con JSON válido.
     const yearInfo = this.getYearBasedInfo(year);
     
     return {
+      source: 'fallback',
       director: genreInfo.director,
       cast: genreInfo.cast,
       production: `${genreInfo.production} ${yearInfo.context}`,

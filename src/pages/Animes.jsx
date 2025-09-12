@@ -110,8 +110,8 @@ export function Animes() {
 
     // Función para navegar después de verificar acceso
     const navigateToAnime = () => {
-      // Determinar el tipo correcto para la navegación
-      const itemType = anime.tipo === 'anime' ? 'serie' : 'serie'; // Usar 'serie' para compatibilidad
+      // Usar el tipo real del anime para consistencia con continue watching
+      const itemType = anime.tipo || 'anime';
       navigate(`/watch/${itemType}/${animeId}`);
     };
 
