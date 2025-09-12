@@ -56,8 +56,7 @@ import React from 'react';
         if (onClick) onClick(item, itemType);
       };
 
-  const preferred = item?.customThumbnail || item?.thumbnail || item?.tmdbThumbnail || item?.logo || '/img/placeholder-thumbnail.png';
-  const displayThumbnail = (typeof preferred === 'string' && preferred.startsWith('http')) ? preferred : preferred;
+  const displayThumbnail = item?.thumbnail || '/img/placeholder-thumbnail.png';
 
   const rawRating = (
   item?.ratingDisplay ??
@@ -100,7 +99,7 @@ import React from 'react';
 
   return (
     <div
-      className="group w-full"
+      className="group/card w-full"
       style={{
         display: 'block',
         maxWidth: '100%',
@@ -111,7 +110,7 @@ import React from 'react';
         e.stopPropagation();
       }}
     >
-      <div className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover:scale-105 relative shadow-lg">
+      <div className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover/card:scale-105 relative shadow-lg">
         <img
           src={displayThumbnail}
           alt={item.name || item.title || 'Póster'}
@@ -154,7 +153,7 @@ import React from 'react';
         )}
 
         <div 
-          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end pointer-events-none"
+          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end pointer-events-none"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-3 w-full">
@@ -216,7 +215,7 @@ import React from 'react';
         </div>
 
         <div 
-          className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent group-hover:opacity-0 transition-opacity duration-300"
+          className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent group-hover/card:opacity-0 transition-opacity duration-300"
           onClick={(e) => {
             e.stopPropagation();
             handleCardClick(e);

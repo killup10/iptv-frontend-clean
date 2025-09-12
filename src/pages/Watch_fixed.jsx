@@ -31,27 +31,26 @@ export function Watch() {
   const videoAreaRef = useRef(null);
   const isContinueWatching = location.state?.continueWatching === true;
   const startTimeFromState = location.state?.startTime || 0;
-    const [startTime, setStartTime] = useState(startTimeFromState);
-    // Forzar reintentos de carga (útil tras activar prueba gratuita)
-    const [reloadKey, setReloadKey] = useState(0);
-    // Flag para solicitar datos con ?useTrial=true cuando aplique
-    const [useTrial, setUseTrial] = useState(() => {
-      try {
-        const key = `useTrial:${itemId}`;
-        if (localStorage.getItem(key)) {
-          localStorage.removeItem(key);
-          return true;
-        }
-      } catch {}
-      return location.state?.useTrial === true;
-    });
-
+  const [startTime, setStartTime] = useState(startTimeFromState);
+  // Forzar reintentos de carga (útil tras activar prueba gratuita)
+  const [reloadKey, setReloadKey] = useState(0);
+  // Flag para solicitar datos con ?useTrial=true cuando aplique
+  const [useTrial, setUseTrial] = useState(() => {
+    try {
+      const key = `useTrial:${itemId}`;
+      if (localStorage.getItem(key)) {
+        localStorage.removeItem(key);
+        return true;
+      }
+    } catch {}
+    return location.state?.useTrial === true;
+  });
 
   // --- REFS PARA ELECTRON MPV (solo para compatibilidad) ---
   const currentTimeRef = useRef(0);
   const playbackStartTsRef = useRef(null);
 
-  // Hook para contenido generado por Gemini - DEBE estar al inicio
+  // Hook para contenido generado por Gemini - DEBE estar al inicio antes de cualquier return
   const {
     contentInfo,
     visualTheme,
@@ -65,8 +64,6 @@ export function Watch() {
     Array.isArray(itemData?.genres) ? itemData.genres.join(', ') : itemData?.genres,
     itemData?.description
   );
-
-
 
   // 1) Fetch de detalles del contenido
   useEffect(() => {
@@ -89,25 +86,26 @@ export function Watch() {
           setLoading(false);
           return;
         }
-  const response = await axiosInstance.get(endpoint);
-  console.log(`[Watch.jsx] fetchItemDetails - response for endpoint ${endpoint}:`, response.status, response.data);
-  const data = response.data;
+        const response = await axiosInstance.get(endpoint);
+        console.log(`[Watch.jsx] fetchItemDetails - response for endpoint ${endpoint}:`, response.status, response.data);
+        const data = response.data;
         if (!data) {
           throw new Error("No se recibieron datos del backend.");
         }
-        const normalizedData = {
+        const normalizedData = {
           id: data._id || data.id,
           name: data.name || data.title || data.titulo || "Sin título",
           url: data.url,
           description: data.description || data.descripcion || "",
           releaseYear: data.releaseYear,
           tipo: data.tipo || itemType,
+          genres: data.genres || [],
+          ratingDisplay: data.ratingDisplay,
           seasons: data.seasons || [],
           // Aplanar capítulos para la lógica de reproducción y comprobaciones
           chapters: (data.seasons || []).flatMap(season => season.chapters || []),
           watchProgress: data.watchProgress || null
         };
-
 
         if (process.env.NODE_ENV === "development") {
           console.log("[Watch.jsx] Datos normalizados:", normalizedData);
@@ -161,7 +159,6 @@ export function Watch() {
     }
     loadSavedProgress();
   }, [itemId, itemType, startTimeFromState]);
-
 
   // 2) Cuando tenemos itemData, calculamos la URL reproducible
   useEffect(() => {
@@ -299,8 +296,6 @@ export function Watch() {
     };
   }, [videoUrl, bounds, startTime]); // Dependencias para Electron MPV
 
-
-
   // 5) Suscribirse a petición de sincronización de bounds
   useEffect(() => {
     const isElectronEnv = typeof window !== "undefined" && window.electronMPV;
@@ -414,8 +409,17 @@ export function Watch() {
           </div>
         </div>
 
-        <ContentAccessModal
-          isOpen={showAccessModal}
+      <ContentAccessModal
+        isOpen={showAccessModal}
+        onClose={closeAccessModal}
+        data={accessModalData}
+        onProceedWithTrial={handleProceedWithTrial}
+      />
+    </DynamicTheme>
+  );
+}
+
+export default Watch;
           onClose={closeAccessModal}
           data={accessModalData}
           onProceedWithTrial={handleProceedWithTrial}
@@ -484,7 +488,6 @@ export function Watch() {
       </div>
     );
 
-
   return (
     <DynamicTheme 
       theme={visualTheme} 
@@ -549,7 +552,7 @@ export function Watch() {
                     📅 {itemData.releaseYear}
                   </span>
                 )}
-                {itemData.genres && (
+                {itemData.genres && itemData.genres.length > 0 && (
                   <span 
                     className="px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm"
                     style={{
@@ -621,37 +624,6 @@ export function Watch() {
 
           {/* Enhanced content sections */}
           <div className="space-y-8 w-full max-w-screen-xl">
-            {/* Series chapters with enhanced styling */}
-            {(
-              itemData.tipo !== 'pelicula' &&
-              itemData.tipo !== 'movie' &&
-              itemData.tipo !== 'channel' &&
-              ( (itemData.seasons && itemData.seasons.length > 0) || (itemData.chapters && itemData.chapters.length > 0) )
-            ) && (
-              <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
-                <h3 className="text-2xl font-bold mb-4 flex items-center">
-                  <span 
-                    className="w-1 h-8 rounded-full mr-3"
-                    style={{
-                      background: visualTheme 
-                        ? `linear-gradient(to bottom, ${visualTheme.primaryColor}, ${visualTheme.secondaryColor})`
-                        : 'linear-gradient(to bottom, #3b82f6, #ec4899)'
-                    }}
-                  ></span>
-                  <DynamicText theme={visualTheme} glow={true}>
-                    Episodios
-                  </DynamicText>
-                </h3>
-                <SeriesChapters
-                  seasons={itemData.seasons}
-                  serieId={itemData.id}
-                  currentChapter={location.state?.chapterIndex || 0}
-                  watchProgress={itemData.watchProgress}
-                  currentSeason={location.state?.seasonIndex}
-                />
-              </DynamicCard>
-            )}
-
             {/* Original description with enhanced styling */}
             {itemData.description && (
               <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
@@ -693,18 +665,40 @@ export function Watch() {
               error={geminiError}
               onRetry={retryGemini}
             />
+
+            {/* Series chapters with enhanced styling */}
+            {(
+              itemData.tipo !== 'pelicula' &&
+              itemData.tipo !== 'movie' &&
+              itemData.tipo !== 'channel' &&
+              ( (itemData.seasons && itemData.seasons.length > 0) || (itemData.chapters && itemData.chapters.length > 0) )
+            ) && (
+              <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
+                <h3 className="text-2xl font-bold mb-4 flex items-center">
+                  <span 
+                    className="w-1 h-8 rounded-full mr-3"
+                    style={{
+                      background: visualTheme 
+                        ? `linear-gradient(to bottom, ${visualTheme.primaryColor}, ${visualTheme.secondaryColor})`
+                        : 'linear-gradient(to bottom, #3b82f6, #ec4899)'
+                    }}
+                  ></span>
+                  <DynamicText theme={visualTheme} glow={true}>
+                    Episodios
+                  </DynamicText>
+                </h3>
+                <SeriesChapters
+                  seasons={itemData.seasons}
+                  serieId={itemData.id}
+                  currentChapter={location.state?.chapterIndex || 0}
+                  watchProgress={itemData.watchProgress}
+                  currentSeason={location.state?.seasonIndex}
+                />
+              </DynamicCard>
+            )}
           </div>
         </div>
       </div>
 
       <ContentAccessModal
-        isOpen={showAccessModal}
-        onClose={closeAccessModal}
-        data={accessModalData}
-        onProceedWithTrial={handleProceedWithTrial}
-      />
-    </DynamicTheme>
-  );
-}
-
-export default Watch;
+        isOpen={
