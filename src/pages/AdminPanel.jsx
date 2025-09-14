@@ -138,6 +138,7 @@ export default function AdminPanel() {
     title: "",
     url: "",
     logo: "",
+    customThumbnail: "",
     description: "",
     trailerUrl: "",
     releaseYear: new Date().getFullYear().toString(),

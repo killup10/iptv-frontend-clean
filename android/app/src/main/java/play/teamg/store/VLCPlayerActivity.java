@@ -22,6 +22,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
@@ -72,6 +76,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ArrayList<String> chapterUrls;
     private ArrayList<Integer> chapterSeasonNumbers;
     private ArrayList<Integer> chapterNumbers;
+
+    private BroadcastReceiver controlReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,21 +132,13 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     protected void onStart() {
         super.onStart();
         initializePlayer();
+        registerControlReceiver();
     }
 
     @Override
     public void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        enterPictureInPictureMode();
-    }
-
-    // Método para entrar en Picture-in-Picture
-    private void enterPictureInPictureMode() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            PictureInPictureParams params = new PictureInPictureParams.Builder()
-                .setAspectRatio(new Rational(16, 9))
-                .build();
-            enterPictureInPictureMode(params);
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            enterPictureInPictureMode();
         }
     }
 
@@ -152,16 +150,30 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             controlsContainer.setVisibility(View.GONE);
         } else {
             controlsContainer.setVisibility(View.VISIBLE);
+            // Continuar reproducción cuando se sale de PiP
+            // No detener ni cerrar la actividad para que siga reproduciendo en segundo plano
         }
     }
 
-    // ¡No sueltes el jugador si estás en PiP!
     @Override
     protected void onStop() {
         super.onStop();
+        unregisterControlReceiver();
         if (!isInPictureInPictureMode()) {
             releasePlayer(); // tu método actual
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Si se destruye la actividad mientras está en PiP, detener reproducción
+        if (isInPictureInPictureMode() && mediaPlayer != null && mediaPlayer.isPlaying()) {
+            Log.d(TAG, "Stopping playback when activity is destroyed in PiP mode");
+            mediaPlayer.stop();
+            notifyProgressUpdate(mediaPlayer.getTime());
+        }
+        releasePlayer();
     }
 
 
@@ -227,14 +239,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                         lastPosition = 0;
                     }
                     hideControls();
-                    
-                    // Entrar automáticamente en PiP después de 2 segundos de reproducción
-                    controlsHandler.postDelayed(() -> {
-                        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
-                            Log.d(TAG, "Auto-entering Picture-in-Picture mode");
-                            enterPictureInPictureMode();
-                        }
-                    }, 2000);
                     break;
                 case MediaPlayer.Event.Paused:
                 case MediaPlayer.Event.Stopped:
@@ -277,7 +281,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             long currentTimeSec = currentTimeMs / 1000;
             
             // Crear intent para enviar progreso al plugin
-            android.content.Intent progressIntent = new android.content.Intent("VIDEO_PROGRESS_UPDATE");
+            Intent progressIntent = new Intent("VIDEO_PROGRESS_UPDATE");
             progressIntent.putExtra("currentTime", currentTimeSec);
             progressIntent.putExtra("completed", completed);
             progressIntent.setPackage(getPackageName());
@@ -646,5 +650,62 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         volumeBar.setVisibility(View.VISIBLE);
         indicatorHandler.removeCallbacks(hideVolumeBarRunnable);
         indicatorHandler.postDelayed(hideVolumeBarRunnable, 1500);
+    }
+
+    private void registerControlReceiver() {
+        controlReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("VIDEO_PLAYER_CONTROL".equals(intent.getAction())) {
+                    String action = intent.getStringExtra("action");
+                    Log.d(TAG, "Received control action: " + action);
+                    if (mediaPlayer != null) {
+                        switch (action) {
+                            case "play":
+                                mediaPlayer.play();
+                                break;
+                            case "pause":
+                                mediaPlayer.pause();
+                                break;
+                            case "stop":
+                                mediaPlayer.stop();
+                                break;
+                            case "seek":
+                                long position = intent.getLongExtra("position", -1);
+                                if (position >= 0) {
+                                    mediaPlayer.setTime(position);
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter("VIDEO_PLAYER_CONTROL");
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(controlReceiver, filter, RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(controlReceiver, filter);
+        }
+    }
+
+    private void unregisterControlReceiver() {
+        if (controlReceiver != null) {
+            unregisterReceiver(controlReceiver);
+            controlReceiver = null;
+        }
+    }
+
+    public void enterPictureInPictureMode() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            try {
+                PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
+                Rational aspectRatio = new Rational(16, 9);
+                builder.setAspectRatio(aspectRatio);
+                enterPictureInPictureMode(builder.build());
+            } catch (Exception e) {
+                Log.e(TAG, "Error entering Picture-in-Picture mode", e);
+            }
+        }
     }
 }

@@ -11,6 +11,7 @@ import {
   fetchFeaturedDoramas,
   fetchFeaturedNovelas,
   fetchFeaturedDocumentales,
+  fetchRecentlyAdded,
   getUserProgress,
   fetchVideoById,
 } from '../utils/api.js';
@@ -37,6 +38,7 @@ export function Home() {
   const [featuredDoramas, setFeaturedDoramas] = useState([]);
   const [featuredNovelas, setFeaturedNovelas] = useState([]);
   const [featuredDocumentales, setFeaturedDocumentales] = useState([]);
+  const [recentlyAdded, setRecentlyAdded] = useState([]);
   const [continueWatchingItems, setContinueWatchingItems] = useState([]);
   const [contentError, setContentError] = useState(null);
 
@@ -121,6 +123,7 @@ async function fetchCompleteContinueWatching() {
           fetchFeaturedDoramas(),
           fetchFeaturedNovelas(),
           fetchFeaturedDocumentales(),
+          fetchRecentlyAdded(),
         ]);
 
         const [
@@ -132,6 +135,7 @@ async function fetchCompleteContinueWatching() {
           doramasResult,
           novelasResult,
           documentalesResult,
+          recentlyAddedResult,
         ] = results;
 
         if (continueWatchingResult.status === 'fulfilled' && Array.isArray(continueWatchingResult.value)) {
@@ -185,25 +189,32 @@ async function fetchCompleteContinueWatching() {
 
         if (documentalesResult.status === 'fulfilled' && Array.isArray(documentalesResult.value)) {
           setFeaturedDocumentales(documentalesResult.value.slice(0, 15));
-        } else {
-          console.error('[Home.jsx] Error loading featured documentales:', documentalesResult.reason);
-          setFeaturedDocumentales([]);
-        }
-
-      } catch (err) {
-        console.error('[Home.jsx] General error in loadInitialData:', err);
-        setContentError(err.message || "Error loading content.");
-      } finally {
-        setLoading(false);
+      } else {
+        console.error('[Home.jsx] Error loading featured documentales:', documentalesResult.reason);
+        setFeaturedDocumentales([]);
       }
-    }
 
-    if (user) {
-      loadInitialData();
-    } else {
-      setLoading(false); 
+      if (recentlyAddedResult.status === 'fulfilled' && Array.isArray(recentlyAddedResult.value)) {
+        setRecentlyAdded(recentlyAddedResult.value.slice(0, 15));
+      } else {
+        console.error('[Home.jsx] Error loading recently added:', recentlyAddedResult.reason);
+        setRecentlyAdded([]);
+      }
+
+    } catch (err) {
+      console.error('[Home.jsx] General error in loadInitialData:', err);
+      setContentError(err.message || "Error loading content.");
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  }
+
+  if (user) {
+    loadInitialData();
+  } else {
+    setLoading(false); 
+  }
+}, [user]);
 
   const handleItemClick = (item, itemTypeFromCarousel) => {
     console.log("[Home.jsx] ===== HANDLE ITEM CLICK =====");
@@ -493,91 +504,110 @@ async function fetchCompleteContinueWatching() {
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8 space-y-8 md:space-y-12">
-          {continueWatchingItems.length > 0 && (
-            <Carousel
-              title="Continuar Viendo"
-              items={continueWatchingItems}
-              onItemClick={(item) => handleItemClick(item, 'continue-watching')}
-              itemType={item => item.tipo || item.itemType || 'movie'}
-            />
-          )}
-          {featuredChannels.length > 0 && (
-            <Carousel
-              title="Canales en Vivo Destacados"
-              items={featuredChannels}
-              onItemClick={(item) => handleItemClick(item, 'channel')}
-              itemType="channel"
-            />
-          )}
-          {featuredMovies.length > 0 && (
-            <Carousel
-              title="Películas Destacadas"
-              items={featuredMovies}
-              onItemClick={(item) => handleItemClick(item, 'movie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="movie"
-            />
-          )}
-          {featuredSeries.length > 0 && (
-            <Carousel
-              title="Series Populares"
-              items={featuredSeries}
-              onItemClick={(item) => handleItemClick(item, 'serie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="serie"
-            />
-          )}
-          {featuredAnimes.length > 0 && (
-            <Carousel
-              title="Animes Destacados"
-              items={featuredAnimes}
-              onItemClick={(item) => handleItemClick(item, 'serie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="serie"
-            />
-          )}
-          {featuredDoramas.length > 0 && (
-            <Carousel
-              title="Doramas Populares"
-              items={featuredDoramas}
-              onItemClick={(item) => handleItemClick(item, 'serie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="serie"
-            />
-          )}
-          {featuredNovelas.length > 0 && (
-            <Carousel
-              title="Novelas Destacadas"
-              items={featuredNovelas}
-              onItemClick={(item) => handleItemClick(item, 'serie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="serie"
-            />
-          )}
-          {featuredDocumentales.length > 0 && (
-            <Carousel
-              title="Documentales Imperdibles"
-              items={featuredDocumentales}
-              onItemClick={(item) => handleItemClick(item, 'serie')}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              itemType="serie"
-            />
-          )}
-          
-          {user && !loading && !contentError &&
-            featuredChannels.length === 0 &&
-            featuredMovies.length === 0 &&
-            featuredSeries.length === 0 &&
-            featuredAnimes.length === 0 &&
-            featuredDoramas.length === 0 &&
-            featuredNovelas.length === 0 &&
-            featuredDocumentales.length === 0 &&
-            continueWatchingSeries.length === 0 &&
-            continueWatchingAnimes.length === 0 && (
-            <p className="text-center text-gray-500 py-10 text-lg px-4">
-              No hay contenido destacado disponible en este momento. ¡Vuelve pronto!
-            </p>
-          )}
+        {recentlyAdded.length > 0 && (
+          <Carousel
+            title="Recien Agregados"
+            items={recentlyAdded}
+            onItemClick={(item) => handleItemClick(item, item.tipo || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType={item => item.tipo || 'movie'}
+          />
+        )}
+        {continueWatchingItems.length > 0 && (
+          <Carousel
+            title="Continuar Viendo"
+            items={continueWatchingItems}
+            onItemClick={(item) => handleItemClick(item, 'continue-watching')}
+            itemType={item => item.tipo || item.itemType || 'movie'}
+          />
+        )}
+        {featuredChannels.length > 0 && (
+          <Carousel
+            title="Canales en Vivo Destacados"
+            items={featuredChannels}
+            onItemClick={(item) => handleItemClick(item, 'channel')}
+            itemType="channel"
+          />
+        )}
+        {featuredMovies.length > 0 && (
+          <Carousel
+            title="Películas Destacadas"
+            items={featuredMovies}
+            onItemClick={(item) => handleItemClick(item, 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="movie"
+          />
+        )}
+        {featuredSeries.length > 0 && (
+          <Carousel
+            title="Series Populares"
+            items={featuredSeries}
+            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="serie"
+          />
+        )}
+        {featuredAnimes.length > 0 && (
+          <Carousel
+            title="Animes Destacados"
+            items={featuredAnimes}
+            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="serie"
+          />
+        )}
+        {featuredDoramas.length > 0 && (
+          <Carousel
+            title="Doramas Populares"
+            items={featuredDoramas}
+            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="serie"
+          />
+        )}
+        {featuredNovelas.length > 0 && (
+          <Carousel
+            title="Novelas Destacadas"
+            items={featuredNovelas}
+            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="serie"
+          />
+        )}
+        {featuredDocumentales.length > 0 && (
+          <Carousel
+            title="Documentales Imperdibles"
+            items={featuredDocumentales}
+            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType="serie"
+          />
+        )}
+
+        {recentlyAdded.length > 0 && (
+          <Carousel
+            title="Recien Agregados"
+            items={recentlyAdded}
+            onItemClick={(item) => handleItemClick(item, item.tipo || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            itemType={item => item.tipo || 'movie'}
+          />
+        )}
+        
+        {user && !loading && !contentError &&
+          featuredChannels.length === 0 &&
+          featuredMovies.length === 0 &&
+          featuredSeries.length === 0 &&
+          featuredAnimes.length === 0 &&
+          featuredDoramas.length === 0 &&
+          featuredNovelas.length === 0 &&
+          featuredDocumentales.length === 0 &&
+          recentlyAdded.length === 0 &&
+          continueWatchingItems.length === 0 && (
+          <p className="text-center text-gray-500 py-10 text-lg px-4">
+            No hay contenido destacado disponible en este momento. ¡Vuelve pronto!
+          </p>
+        )}
         </div>
       </div>
 

@@ -290,6 +290,24 @@ export async function fetchFeaturedDocumentales() {
   }
 }
 
+export async function fetchRecentlyAdded() {
+  const relativePath = "/api/videos/public/recently-added";
+  console.log(`API (fetchRecentlyAdded - axios): GET ${relativePath}`);
+  try {
+    const response = await axiosInstance.get(relativePath);
+    const data = response.data;
+    if (!Array.isArray(data)) {
+        console.warn(`API (fetchRecentlyAdded - axios): La respuesta no fue un array, fue:`, data);
+        return [];
+    }
+    return data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al cargar contenido recientemente agregado.";
+    console.error(`API Error (fetchRecentlyAdded - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 /* =================== ADMIN - CANALES =================== */
 export async function fetchAdminChannels() {
   const relativePath = "/api/channels/admin/list";

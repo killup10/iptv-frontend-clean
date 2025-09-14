@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
+import android.os.Build;
 import android.util.Log;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -37,6 +38,7 @@ public class VideoPlayerPlugin extends Plugin {
 
         try {
             Intent intent = new Intent(getContext(), VLCPlayerActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             intent.putExtra("video_url", url);
             intent.putExtra("video_title", title);
             intent.putExtra("start_time", startTime);
@@ -179,7 +181,11 @@ public class VideoPlayerPlugin extends Plugin {
             };
             
             IntentFilter filter = new IntentFilter("VIDEO_PROGRESS_UPDATE");
-            getContext().registerReceiver(progressReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getContext().registerReceiver(progressReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getContext().registerReceiver(progressReceiver, filter);
+            }
             Log.d(TAG, "Progress receiver registered");
         }
     }
