@@ -583,16 +583,6 @@ async function fetchCompleteContinueWatching() {
             itemType="serie"
           />
         )}
-
-        {recentlyAdded.length > 0 && (
-          <Carousel
-            title="Recien Agregados"
-            items={recentlyAdded}
-            onItemClick={(item) => handleItemClick(item, item.tipo || 'movie')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            itemType={item => item.tipo || 'movie'}
-          />
-        )}
         
         {user && !loading && !contentError &&
           featuredChannels.length === 0 &&

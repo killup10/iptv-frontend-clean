@@ -363,24 +363,24 @@ export default function AdminPanel() {
   [clearMessages]
 );
 
-  const clearVodForm = useCallback(() => { 
-    setVodId(null); 
-    setVodForm({ 
-      title: "", 
-      url: "", 
-      logo: "", 
-      description: "", 
-      trailerUrl: "", 
-      releaseYear: new Date().getFullYear().toString(), 
-      isFeatured: false, 
-      active: true, 
-      tipo: "pelicula", 
-      mainSection: MAIN_SECTION_VOD_OPTIONS[0]?.key || "", 
-      genres: "", 
+  const clearVodForm = useCallback(() => {
+    setVodId(null);
+    setVodForm({
+      title: "",
+      url: "",
+      customThumbnail: "",
+      description: "",
+      trailerUrl: "",
+      releaseYear: new Date().getFullYear().toString(),
+      isFeatured: false,
+      active: true,
+      tipo: "pelicula",
+      mainSection: MAIN_SECTION_VOD_OPTIONS[0]?.key || "",
+      genres: "",
       requiresPlan: [],
       seasons: [],
       subcategoria: "Netflix"
-    }); 
+    });
   }, []);
 
   const handleVodFormChange = (e) => { const { name, value, type, checked } = e.target; setVodForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
@@ -393,22 +393,22 @@ export default function AdminPanel() {
     } else if (video.requiresPlan) { 
       plansForForm = [video.requiresPlan === "basico" ? "gplay" : String(video.requiresPlan)]; 
     } 
-    setVodForm({ 
-      title: video.title || "", 
-      url: video.url || "", 
-      logo: video.logo || video.thumbnail || "", 
-      description: video.description || "", 
-      trailerUrl: video.trailerUrl || "", 
-      releaseYear: video.releaseYear?.toString() || new Date().getFullYear().toString(), 
-      isFeatured: video.isFeatured || false, 
-      active: video.active !== undefined ? video.active : true, 
-      tipo: video.tipo || "pelicula", 
-      mainSection: video.mainSection || MAIN_SECTION_VOD_OPTIONS[0]?.key || "", 
-      genres: Array.isArray(video.genres) ? video.genres.join(", ") : (video.genres || ""), 
+    setVodForm({
+      title: video.title || "",
+      url: video.url || "",
+      customThumbnail: video.customThumbnail || "",
+      description: video.description || "",
+      trailerUrl: video.trailerUrl || "",
+      releaseYear: video.releaseYear?.toString() || new Date().getFullYear().toString(),
+      isFeatured: video.isFeatured || false,
+      active: video.active !== undefined ? video.active : true,
+      tipo: video.tipo || "pelicula",
+      mainSection: video.mainSection || MAIN_SECTION_VOD_OPTIONS[0]?.key || "",
+      genres: Array.isArray(video.genres) ? video.genres.join(", ") : (video.genres || ""),
       requiresPlan: plansForForm.filter(p => ALL_AVAILABLE_PLANS.some(ap => ap.key === p)),
       seasons: Array.isArray(video.seasons) ? video.seasons : [],
       subcategoria: video.subcategoria || "Netflix"
-    }); 
+    });
 
     setActiveTab("add_vod"); 
     clearMessages(); 
@@ -902,7 +902,7 @@ export default function AdminPanel() {
               </>
             )}
 
-            <Input name="logo" type="url" placeholder="URL del Poster/Logo (vertical)" value={vodForm.logo} onChange={handleVodFormChange} />
+            <Input name="customThumbnail" type="url" placeholder="URL del Poster/Cover (vertical)" value={vodForm.customThumbnail} onChange={handleVodFormChange} />
             <Textarea name="description" placeholder="Descripción/Sinopsis" value={vodForm.description} onChange={handleVodFormChange} />
             <Input name="trailerUrl" type="url" placeholder="URL del Tráiler (YouTube u otro)" value={vodForm.trailerUrl} onChange={handleVodFormChange} />
             <Input name="releaseYear" type="number" placeholder="Año de Estreno" value={vodForm.releaseYear} onChange={handleVodFormChange} />
