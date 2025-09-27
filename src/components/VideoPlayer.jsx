@@ -78,6 +78,14 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     // Cleanup
     return () => {
       clearInterval(progressSaveInterval);
+      
+      // Guardar el progreso final al desmontar
+      const finalTime = lastSavedTimeRef.current;
+      if (finalTime > 0) {
+        console.log(`[VideoPlayer] Guardando progreso final al desmontar: ${finalTime}s`);
+        saveProgress(finalTime, false);
+      }
+
       if (progressListener && progressListener.remove) {
         progressListener.remove();
         console.log('[VideoPlayer] Listener de progreso VLC removido');

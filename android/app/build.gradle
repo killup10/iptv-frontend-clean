@@ -27,8 +27,9 @@ android {
         targetCompatibility JavaVersion.VERSION_21
     }
     packagingOptions {
-        // Ensures LibVLC’s C++ runtime is used
-        pickFirst 'lib/**/libc++_shared.so'
+        jniLibs {
+            pickFirsts += ['lib/**/libc++_shared.so']
+        }
     }
 }
 

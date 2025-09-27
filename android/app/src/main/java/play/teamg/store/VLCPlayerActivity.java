@@ -103,9 +103,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         currentVideoUrl = getIntent().getStringExtra("video_url");
         lastPosition = getIntent().getLongExtra("start_time", 0L);
         
-        // Convertir startTime de segundos a milisegundos si es necesario
-        if (lastPosition > 0 && lastPosition < 100000) {
-            // Si el valor es menor a 100000, probablemente está en segundos, convertir a ms
+        // Convertir startTime de segundos a milisegundos
+        if (lastPosition > 0) {
             lastPosition = lastPosition * 1000;
             Log.d(TAG, "Converted start_time from seconds to milliseconds: " + lastPosition + "ms");
         }
