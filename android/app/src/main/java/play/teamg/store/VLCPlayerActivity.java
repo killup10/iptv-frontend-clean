@@ -55,6 +55,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     // Media data
     private String currentVideoUrl;
     private long lastPosition = 0L;
+    private boolean isSeekPending = false;
 
     // Gesture control
     private GestureDetector gestureDetector;
@@ -101,12 +102,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         volumeBar = findViewById(R.id.volume_bar);
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
+        // Obtenemos el start_time en segundos y lo guardamos. No es necesario convertir a ms.
         lastPosition = getIntent().getLongExtra("start_time", 0L);
-        
-        // Convertir startTime de segundos a milisegundos
         if (lastPosition > 0) {
-            lastPosition = lastPosition * 1000;
-            Log.d(TAG, "Converted start_time from seconds to milliseconds: " + lastPosition + "ms");
+            isSeekPending = true;
         }
 
         gestureDetector = new GestureDetector(this, this);
@@ -198,6 +197,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         media.addOption(":network-caching=1500");
         media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
         
+        media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+
         mediaPlayer.setMedia(media);
         media.release();
         
@@ -232,10 +233,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     break;
                 case MediaPlayer.Event.Playing:
                     playPauseButton.setImageResource(android.R.drawable.ic_media_pause);
-                    if (lastPosition > 0) {
-                        Log.d(TAG, "Setting start time to: " + lastPosition + "ms");
-                        mediaPlayer.setTime(lastPosition);
-                        lastPosition = 0;
+                    if (isSeekPending) {
+                        mediaPlayer.setTime(lastPosition * 1000);
+                        isSeekPending = false;
                     }
                     hideControls();
                     break;

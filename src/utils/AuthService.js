@@ -1,29 +1,34 @@
 // src/utils/AuthService.js
 import axiosInstance from "./axiosInstance.js";
+import { storage } from './storage.js';
 
-// Función para obtener el deviceId único para este dispositivo
-const getDeviceId = () => {
-  // Usar una combinación de userAgent y otros datos para crear un ID más único
-  const deviceInfo = {
-    userAgent: navigator.userAgent,
-    language: navigator.language,
-    platform: navigator.platform,
-    screenResolution: `${window.screen.width}x${window.screen.height}`
-  };
-  
-  // Crear un hash simple de la información del dispositivo
-  const str = JSON.stringify(deviceInfo);
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+const getDeviceId = async () => {
+  let deviceId = await storage.getItem('deviceId');
+  if (!deviceId) {
+    // Usar una combinación de userAgent y otros datos para crear un ID más único
+    const deviceInfo = {
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      platform: navigator.platform,
+      screenResolution: `${window.screen.width}x${window.screen.height}`
+    };
+    
+    // Crear un hash simple de la información del dispositivo
+    const str = JSON.stringify(deviceInfo);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    deviceId = `device_${Math.abs(hash)}`;
+    await storage.setItem('deviceId', deviceId);
   }
-  return `device_${Math.abs(hash)}`;
+  return deviceId;
 };
 
 export const login = async (username, password) => {
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   const loginPath = "/api/auth/login";
   console.log(`AuthService: Intentando login para ${username} en ${loginPath} (usando axiosInstance)`);
   try {
@@ -33,8 +38,8 @@ export const login = async (username, password) => {
       deviceId,
     });
 
-    // Guardar el deviceId en localStorage para usarlo en logout
-    localStorage.setItem('deviceId', deviceId);
+    // Guardar el deviceId en storage para usarlo en logout
+    await storage.setItem('deviceId', deviceId);
     
     return response.data;
   } catch (error) {
@@ -69,11 +74,11 @@ export const register = async (username, password) => {
 export const logout = async (allDevices = false) => {
   const logoutPath = "/api/auth/logout";
   try {
-    const deviceId = allDevices ? null : localStorage.getItem('deviceId');
+    const deviceId = allDevices ? null : await storage.getItem('deviceId');
     await axiosInstance.post(logoutPath, { deviceId });
     
-    // Limpiar el deviceId del localStorage
-    localStorage.removeItem('deviceId');
+    // Limpiar el deviceId del storage
+    await storage.removeItem('deviceId');
     
     return true;
   } catch (error) {

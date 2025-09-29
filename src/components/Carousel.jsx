@@ -4,7 +4,7 @@ import Card from './Card';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 
 // Asegúrate de que el componente Carousel acepte y use onPlayTrailerClick
-export default function Carousel({ title, items = [], onItemClick, itemType = 'item', onPlayTrailerClick, onAddToCollectionClick }) {
+export default function Carousel({ title, items = [], onItemClick, itemType = 'item', onPlayTrailerClick, onAddToCollectionClick, showItemTypeBadge }) {
   const scrollContainerRef = useRef(null);
   const [isHovering, setIsHovering] = useState(false);
 
@@ -77,6 +77,7 @@ export default function Carousel({ title, items = [], onItemClick, itemType = 'i
                 onPlayTrailer={onPlayTrailerClick} // Pasa la prop onPlayTrailerClick a Card (Card la espera como onPlayTrailer)
                 progressPercent={progressPercent}
                 onAddToCollectionClick={onAddToCollectionClick}
+                showItemTypeBadge={showItemTypeBadge} // Pasar la prop aquí
               />
             );
           })}

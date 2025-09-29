@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Preferences } from '@capacitor/preferences';
+import { storage } from './storage.js';
 
 const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
 
@@ -15,21 +15,21 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   async (config) => {
-    const { value: token } = await Preferences.get({ key: 'token' });
+    const token = await storage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('axiosInstance: Token añadido a la cabecera de la petición.');
     } else {
-      console.log('axiosInstance: No hay token en Preferences para añadir a la petición.');
+      console.log('axiosInstance: No hay token en storage para añadir a la petición.');
     }
 
-    let { value: deviceId } = await Preferences.get({ key: 'deviceId' });
+    let deviceId = await storage.getItem('deviceId');
     if (!deviceId) {
       const userAgent = navigator.userAgent;
       const now = Date.now();
       const randomStr = Math.random().toString(36).substring(2);
       deviceId = btoa(`${userAgent}-${now}-${randomStr}`).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
-      await Preferences.set({ key: 'deviceId', value: deviceId });
+      await storage.setItem('deviceId', deviceId);
       console.log('axiosInstance: Nuevo Device ID generado y guardado:', deviceId);
     }
     config.headers['x-device-id'] = deviceId;
@@ -56,8 +56,8 @@ axiosInstance.interceptors.response.use(
       if (status === 401 || status === 403) {
         console.warn(`axiosInstance: Error ${status} detectado. Mensaje:`, data?.error || data?.message);
         console.log('axiosInstance: Deslogueando usuario debido a error de autenticación/autorización.');
-        await Preferences.remove({ key: 'user' });
-        await Preferences.remove({ key: 'token' });
+        await storage.removeItem('user');
+        await storage.removeItem('token');
         if (!window.location.pathname.startsWith('/login')) {
           window.location.href = '/login?session_expired=true';
         }
