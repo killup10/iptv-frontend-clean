@@ -58,8 +58,8 @@ export function AuthProvider({ children }) {
         plan: userDataFromBackend.user.plan,
       };
 
-      await Preferences.set({ key: 'token', value: userDataFromBackend.token });
-      await Preferences.set({ key: 'user', value: JSON.stringify(userToStore) });
+      await storage.setItem('token', userDataFromBackend.token);
+      await storage.setItem('user', JSON.stringify(userToStore));
 
       const userForState = { ...userToStore, token: userDataFromBackend.token };
       setUser(userForState);

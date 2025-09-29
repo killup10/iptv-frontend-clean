@@ -485,6 +485,8 @@ export function Home() {
             items={continueWatchingItems}
             onItemClick={(item) => handleItemClick(item, 'continue-watching')}
             itemType={item => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            showProgressBar={true}
           />
         )}
         {featuredChannels.length > 0 && (

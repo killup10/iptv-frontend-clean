@@ -139,9 +139,6 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
-            <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-md font-semibold z-10">
-              {Math.round(progressPercent)}%
-            </div>
           </>
         )}
 
@@ -157,8 +154,8 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
         {showItemTypeBadge && itemType && itemType !== 'item' && (
           <div className="absolute top-10 left-2 z-10">
             <div className="inline-block relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-md blur-sm opacity-75"></div>
-              <div className="relative bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-lg border border-cyan-400">
+              <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-600 rounded-md blur-sm opacity-75"></div>
+              <div className="relative bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-lg border border-pink-400">
                 <span className="drop-shadow-sm">{itemType.charAt(0).toUpperCase() + itemType.slice(1)}</span>
               </div>
             </div>
