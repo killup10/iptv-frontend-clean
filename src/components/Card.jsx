@@ -132,14 +132,12 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
         />
 
   {typeof progressPercent === 'number' && progressPercent > 0 && progressPercent < 100 && (
-          <>
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700/80">
               <div
                 className="h-full bg-red-600"
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
-          </>
         )}
 
         {ratingDisplay && (

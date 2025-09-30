@@ -3,7 +3,7 @@ import { storage } from './storage.js';
 
 const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
 
-const baseURL = isElectron ? 'http://localhost:3000' : 'https://iptv-backend-w6hf.onrender.com';
+const baseURL = isElectron ? 'http://localhost:3000' : 'https://iptv-backend-qhbr.onrender.com';
 
 const axiosInstance = axios.create({
   baseURL,

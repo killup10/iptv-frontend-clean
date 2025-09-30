@@ -19,7 +19,8 @@ export default function UploadManual() {
     const token = localStorage.getItem("token");
 
     try {
-      const res = await axios.post("https://iptv-backend-w6hf.onrender.com/api/videos/upload-link", form, {
+      // NOTE: This component should be refactored to use the global axiosInstance instead of a hardcoded URL.
+      const res = await axios.post("https://iptv-backend-qhbr.onrender.com/api/videos/upload-link", form, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert("✅ Video subido");
