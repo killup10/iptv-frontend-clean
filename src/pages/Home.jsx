@@ -16,6 +16,7 @@ import {
 } from '../utils/api.js';
 import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
+import { Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 
 export function Home() {
