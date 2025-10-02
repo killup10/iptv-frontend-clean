@@ -187,7 +187,10 @@ export function Home() {
     console.log("[Home.jsx] Item clicked:", JSON.stringify(item, null, 2));
     console.log("[Home.jsx] itemTypeFromCarousel:", itemTypeFromCarousel);
     
-    const type = item.itemType || item.tipo || itemTypeFromCarousel;
+    let type = item.itemType || item.tipo || itemTypeFromCarousel;
+    if (type === 'dorama') {
+      type = 'serie';
+    }
     const id = item.id || item._id;
 
     console.log("[Home.jsx] Extracted type:", type, "id:", id);
