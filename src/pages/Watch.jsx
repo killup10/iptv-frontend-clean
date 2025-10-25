@@ -23,6 +23,7 @@ export function Watch() {
   const [error, setError] = useState(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [bounds, setBounds] = useState(null);
+  const [currentChapterInfo, setCurrentChapterInfo] = useState(null);
   
   // Estado para el modal de acceso
   const [showAccessModal, setShowAccessModal] = useState(false);
@@ -162,6 +163,31 @@ export function Watch() {
     loadSavedProgress();
   }, [itemId, itemType, startTimeFromState]);
 
+  useEffect(() => {
+    if (!itemData || itemData.tipo === 'pelicula' || itemData.tipo === 'movie') return;
+
+    let seasonIdx = 0;
+    let chapterIdx = 0;
+
+    if (location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
+      seasonIdx = location.state.seasonIndex;
+      chapterIdx = location.state.chapterIndex;
+    } else if (itemData.watchProgress && itemData.watchProgress.lastSeason && itemData.watchProgress.lastChapter) {
+      const progress = itemData.watchProgress;
+      const season = itemData.seasons.find(s => s.seasonNumber === progress.lastSeason);
+      if (season) {
+        const chapter = season.chapters.find(c => c.chapterNumber === progress.lastChapter);
+        if (chapter) {
+          seasonIdx = itemData.seasons.indexOf(season);
+          chapterIdx = season.chapters.indexOf(chapter);
+          setStartTime(progress.progress || 0);
+        }
+      }
+    }
+
+    setCurrentChapterInfo({ seasonIndex: seasonIdx, chapterIndex: chapterIdx });
+  }, [itemData, location.state]);
+
 
   // 2) Cuando tenemos itemData, calculamos la URL reproducible
   useEffect(() => {
@@ -172,22 +198,23 @@ export function Watch() {
     const M3U8_PROXY_BASE_URL = null;
 
     let finalUrl = "";
-    // Detectar automáticamente si el contenido tiene capítulos/seasons.
     const hasChapters = (itemData.chapters && itemData.chapters.length > 0) || (itemData.seasons && itemData.seasons.length > 0);
     if (hasChapters) {
-      const chapterIndex = location.state?.chapterIndex || 0;
-      const chapter = itemData.chapters?.[chapterIndex] || (itemData.seasons?.[0]?.chapters?.[chapterIndex]);
-      if (chapter?.url) {
-        finalUrl = getPlayableUrl({ ...itemData, url: chapter.url }, M3U8_PROXY_BASE_URL);
-      } else {
-        setError("El capítulo seleccionado no tiene una URL válida.");
-        return;
+      if (currentChapterInfo) {
+        const season = itemData.seasons?.[currentChapterInfo.seasonIndex];
+        const chapter = season?.chapters?.[currentChapterInfo.chapterIndex];
+        if (chapter?.url) {
+          finalUrl = getPlayableUrl({ ...itemData, url: chapter.url }, M3U8_PROXY_BASE_URL);
+        } else {
+          setError("El capítulo seleccionado no tiene una URL válida.");
+          return;
+        }
       }
     } else if (itemData.url) {
       finalUrl = getPlayableUrl(itemData, M3U8_PROXY_BASE_URL);
     }
     setVideoUrl(finalUrl);
-  }, [itemData, location.state?.chapterIndex]);
+  }, [itemData, currentChapterInfo]);
 
   // 3) Cuando cambie videoUrl, medimos las bounds de videoAreaRef
   useEffect(() => {
@@ -484,6 +511,7 @@ export function Watch() {
       </div>
     );
 
+    const currentChapter = currentChapterInfo && itemData.seasons[currentChapterInfo.seasonIndex]?.chapters[currentChapterInfo.chapterIndex];
 
   return (
     <DynamicTheme 
@@ -602,6 +630,8 @@ export function Watch() {
                   initialAutoplay={true}
                   title={itemData.name}
                   chapters={itemData.chapters}
+                  seasonNumber={currentChapter?.seasonNumber}
+                  chapterNumber={currentChapter?.chapterNumber}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">
@@ -642,13 +672,13 @@ export function Watch() {
                     Episodios
                   </DynamicText>
                 </h3>
-                <SeriesChapters
+                {currentChapterInfo && <SeriesChapters
                   seasons={itemData.seasons}
                   serieId={itemData.id}
-                  currentChapter={location.state?.chapterIndex || 0}
+                  currentChapter={currentChapterInfo.chapterIndex}
                   watchProgress={itemData.watchProgress}
-                  currentSeason={location.state?.seasonIndex}
-                />
+                  currentSeason={currentChapterInfo.seasonIndex}
+                />}
               </DynamicCard>
             )}
 

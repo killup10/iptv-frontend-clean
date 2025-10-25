@@ -6,12 +6,14 @@ import { backgroundPlaybackService } from '../services/backgroundPlayback';
 import useProgressReporter from '../hooks/useProgressReporter';
 import useElectronMpvProgress from '../hooks/useElectronMpvProgress';
 import { videoProgressService } from '../services/videoProgress';
+import { Lock, Unlock } from 'lucide-react';
 
 // Este componente es un "despachador" que decide qué hacer según la plataforma.
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, chapters }) {
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, chapters, seasonNumber, chapterNumber }) {
   const platform = getPlayerType(); // Ahora es síncrono
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const [isLocked, setIsLocked] = useState(false);
   
   // Estados para Android VLC progress tracking
   const [currentTime, setCurrentTime] = useState(0);
@@ -35,7 +37,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           console.log(`[VideoPlayer] Guardando progreso VLC: ${currentTimeValue}s para video ${itemId}, completed: ${completed}`);
           await videoProgressService.saveProgress(itemId, { 
             lastTime: currentTimeValue,
-            completed 
+            completed,
+            lastSeason: seasonNumber,
+            lastChapter: chapterNumber
           });
           lastSavedTimeRef.current = currentTimeValue;
         } catch (error) {
@@ -91,7 +95,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         console.log('[VideoPlayer] Listener de progreso VLC removido');
       }
     };
-  }, [platform, itemId, startTime]);
+  }, [platform, itemId, startTime, seasonNumber, chapterNumber]);
 
   useEffect(() => {
     // La lógica de reproducción para Android se maneja aquí
@@ -365,6 +369,30 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             background: 'radial-gradient(circle at center, hsl(190 100% 50% / 0.3) 0%, transparent 70%)'
           }}
         />
+        
+        {/* Botón de bloqueo */}
+        {!isLocked && (
+          <button
+            onClick={() => setIsLocked(true)}
+            className="absolute top-4 right-4 z-20 p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-75 transition-opacity"
+            aria-label="Bloquear pantalla"
+          >
+            <Lock size={24} />
+          </button>
+        )}
+
+        {/* Overlay de bloqueo */}
+        {isLocked && (
+          <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
+            <button
+              onClick={() => setIsLocked(false)}
+              className="p-4 bg-white bg-opacity-20 rounded-full text-white hover:bg-opacity-30 transition-colors"
+              aria-label="Desbloquear pantalla"
+            >
+              <Unlock size={48} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -376,6 +404,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     return (
       <div className="w-full aspect-video bg-black rounded-lg overflow-hidden">
+        <div style={{color: 'red', position: 'absolute', top: '10px', left: '10px', zIndex: 1000, fontSize: '20px', fontWeight: 'bold'}}>
+          PLATFORM DETECTED: {platform}
+        </div>
         <video
           ref={videoRef}
           className="w-full h-full"
@@ -416,4 +447,7 @@ VideoPlayer.propTypes = {
   initialAutoplay: PropTypes.bool,
   title: PropTypes.string,
   chapters: PropTypes.array,
+  seasonNumber: PropTypes.number,
+  chapterNumber: PropTypes.number,
 };
+

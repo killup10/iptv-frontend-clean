@@ -103,7 +103,7 @@ const MAIN_SECTION_VOD_OPTIONS = [
   { key: "CINE_60FPS", displayName: "CINE 60 FPS"},
 ];
 
-const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO MAX", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS" ];
+const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO MAX", "Hulu y Otros", "Retro", "Animadas" ];
 
 const ALL_AVAILABLE_PLANS = [
 

@@ -84,14 +84,8 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
     serieId
   });
 
-  // Determinar si el capítulo actual es el que se está reproduciendo
   const isCurrentPlaying = (seasonIdx, chapterIdx) => {
-    // Necesitas pasar la temporada actual desde el Watch.jsx a este componente
-    // o inferirla del currentChapter si solo se pasa un índice global de capítulo
-    // Por simplicidad, asumimos que currentChapter se refiere al índice dentro de la temporada actual.
-    // Para una implementación más robusta, Watch.jsx debería pasar both currentSeasonIndex and currentChapterIndex.
-    // Asumiendo que `currentSeason` en `watchProgress` indica la temporada que se está viendo
-    return watchProgress?.lastSeason === seasonIdx && watchProgress?.lastChapter === chapterIdx;
+    return seasonIdx === selectedSeasonIndex && chapterIdx === currentChapter;
   };
 
 
@@ -220,34 +214,6 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
             </p>
           )}
         </>
-      )}
-      
-      {/* Botón para continuar viendo desde el último capítulo (si hay progreso) */}
-      {progressData?.lastSeason !== undefined && progressData?.lastChapter !== undefined && (
-        <div className="mt-6 pt-4 border-t border-primary/20">
-          <button
-            onClick={() => handleChapterClick(progressData.lastSeason, progressData.lastChapter)}
-            className="w-full py-3 px-6 rounded-lg transition-all duration-300 relative overflow-hidden transform hover:scale-[1.02] font-semibold"
-            style={{
-              background: 'linear-gradient(135deg, hsl(var(--primary) / 0.8) 0%, hsl(var(--secondary) / 0.8) 100%)',
-              color: 'hsl(var(--primary-foreground))',
-              border: '1px solid hsl(var(--primary) / 0.6)',
-              boxShadow: '0 0 20px hsl(var(--primary) / 0.4)'
-            }}
-          >
-            {progressData?.seasons?.[progressData.lastSeason]?.chapters?.[progressData.lastChapter]?.progress && (
-              <div 
-                className="absolute bottom-0 left-0 h-1 rounded-full"
-                style={{ 
-                  width: `${progressData.seasons[progressData.lastSeason].chapters[progressData.lastChapter].progress * 100}%`,
-                  backgroundColor: 'hsl(var(--secondary))',
-                  boxShadow: '0 0 10px hsl(var(--secondary) / 0.8)'
-                }}
-              />
-            )}
-            🎬 Continuar viendo - Temporada {seasons[progressData.lastSeason]?.seasonNumber || (progressData.lastSeason + 1)}, Capítulo {progressData.lastChapter + 1}
-          </button>
-        </div>
       )}
     </div>
   );

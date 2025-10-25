@@ -86,6 +86,20 @@ export async function fetchUserSeries(page = 1, limit = 20, subcategoria = "TODO
   }
 }
 
+export async function fetchVideosByType(tipo, page = 1, limit = 100) {
+  const relativePath = "/api/videos";
+  const params = { tipo, page, limit };
+  console.log(`API (fetchVideosByType - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || `Error al obtener contenido de tipo ${tipo}.`;
+    console.error(`API Error (fetchVideosByType - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 export async function fetchVideoById(id) {
   if (!id) {
     console.error('fetchVideoById: ID no proporcionado');
