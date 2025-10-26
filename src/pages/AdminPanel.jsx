@@ -101,9 +101,10 @@ const MAIN_SECTION_VOD_OPTIONS = [
   { key: "CINE_2025", displayName: "CINE 2025 (Estrenos)"},
   { key: "CINE_4K", displayName: "CINE 4K UHD"},
   { key: "CINE_60FPS", displayName: "CINE 60 FPS"},
+  { key: "ZONA_KIDS", displayName: "ZONA KIDS"},
 ];
 
-const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO MAX", "Hulu y Otros", "Retro", "Animadas" ];
+const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO MAX", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS" ];
 
 const ALL_AVAILABLE_PLANS = [
 
@@ -804,6 +805,7 @@ export default function AdminPanel() {
               <option value="dorama">Dorama</option>
               <option value="novela">Novela</option>
               <option value="documental">Documental</option>
+              <option value="zona kids">Zona Kids</option>
             </Select>
             {vodForm.tipo === "pelicula" ? (
               <Input name="url" type="url" placeholder="URL del Video/Stream Principal" value={vodForm.url} onChange={handleVodFormChange} required />
