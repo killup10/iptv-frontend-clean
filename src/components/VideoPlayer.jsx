@@ -9,28 +9,31 @@ import { videoProgressService } from '../services/videoProgress';
 import { Lock, Unlock } from 'lucide-react';
 
 // Este componente es un "despachador" que decide qué hacer según la plataforma.
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, chapters, seasonNumber, chapterNumber }) {
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode }) {
   const platform = getPlayerType(); // Ahora es síncrono
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [autoplayFailed, setAutoplayFailed] = useState(false);
   
   // Estados para Android VLC progress tracking
   const [currentTime, setCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
   const progressIntervalRef = useRef(null);
 
-  // Hook para manejar progreso en Android VLC (fuera del condicional de renderizado)
+  const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
+  const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
+  const allChapters = seasons?.flatMap(season => season.chapters) || [];
+
+  // Hook para manejar progreso en Android VLC
   useEffect(() => {
     if (platform !== 'android-vlc' || !itemId) return;
 
-    // Inicializar progreso con startTime si está disponible
     if (startTime > 0) {
       setCurrentTime(startTime);
       lastSavedTimeRef.current = startTime;
     }
 
-    // Función para guardar progreso
     const saveProgress = async (currentTimeValue, completed = false) => {
       if (currentTimeValue > 0 && itemId) {
         try {
@@ -48,7 +51,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
     };
 
-    // Manejar eventos de progreso del plugin nativo
     const handleTimeUpdate = (data) => {
       const currentTimeValue = data.currentTime || 0;
       const completed = data.completed || false;
@@ -58,20 +60,27 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       setCurrentTime(currentTimeValue);
       lastSavedTimeRef.current = currentTimeValue;
       
-      // Si el video se completó, guardar inmediatamente
       if (completed) {
         saveProgress(currentTimeValue, true);
+        if (onNextEpisode && seasons && currentChapterInfo) {
+          const { seasonIndex, chapterIndex } = currentChapterInfo;
+          const currentSeason = seasons[seasonIndex];
+          
+          if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
+            onNextEpisode(seasonIndex, chapterIndex + 1);
+          } else if (seasons.length > seasonIndex + 1) {
+            onNextEpisode(seasonIndex + 1, 0);
+          }
+        }
       }
     };
 
-    // Registrar listener para eventos de progreso del plugin nativo
     let progressListener = null;
-    if (VideoPlayerPlugin && VideoPlayerPlugin.addListener) {
+    if (VideoPlayerPlugin?.addListener) {
       progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
       console.log('[VideoPlayer] Listener de progreso VLC registrado');
     }
 
-    // Configurar intervalo para guardar progreso cada 20 segundos
     const progressSaveInterval = setInterval(async () => {
       const currentTimeValue = lastSavedTimeRef.current;
       if (currentTimeValue > 0) {
@@ -79,31 +88,27 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
     }, 20000);
 
-    // Cleanup
     return () => {
       clearInterval(progressSaveInterval);
       
-      // Guardar el progreso final al desmontar
       const finalTime = lastSavedTimeRef.current;
       if (finalTime > 0) {
         console.log(`[VideoPlayer] Guardando progreso final al desmontar: ${finalTime}s`);
         saveProgress(finalTime, false);
       }
 
-      if (progressListener && progressListener.remove) {
+      if (progressListener?.remove) {
         progressListener.remove();
         console.log('[VideoPlayer] Listener de progreso VLC removido');
       }
     };
-  }, [platform, itemId, startTime, seasonNumber, chapterNumber]);
+  }, [platform, itemId, startTime, seasonNumber, chapterNumber, onNextEpisode, seasons, currentChapterInfo]);
 
+  // Efecto para plataforma Android
   useEffect(() => {
-    // La lógica de reproducción para Android se maneja aquí
     const handleAndroidPlayback = async () => {
-      // El nuevo tipo es 'android-vlc'
       if (platform === 'android-vlc' && url && initialAutoplay) {
         try {
-          // Inicializar servicio de segundo plano
           await backgroundPlaybackService.startPlayback({
             title: title || "TeamG Play",
             artist: "Reproduciendo contenido",
@@ -117,7 +122,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             url: url,
             title: title || "Video",
             startTime: startTime || 0,
-            chapters: chapters || [],
+            chapters: allChapters,
           });
 
           isPlayingRef.current = true;
@@ -130,16 +135,15 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     handleAndroidPlayback();
 
-    // Cleanup al desmontar
     return () => {
       if (isPlayingRef.current) {
         backgroundPlaybackService.stopPlayback();
         isPlayingRef.current = false;
       }
     };
-  }, [platform, url, initialAutoplay, title, startTime, chapters]);
+  }, [platform, url, initialAutoplay, title, startTime, allChapters]);
 
-  // Manejar eventos de segundo plano para Android
+  // Eventos de segundo plano para Android
   useEffect(() => {
     if (platform !== 'android-vlc') return;
 
@@ -179,7 +183,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
     };
 
-    // Agregar listeners para eventos de segundo plano
     window.addEventListener('backgroundPlayback:play', handleBackgroundPlay);
     window.addEventListener('backgroundPlayback:pause', handleBackgroundPause);
     window.addEventListener('backgroundPlayback:stop', handleBackgroundStop);
@@ -195,22 +198,30 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
   }, [platform]);
 
-  // Para plataformas web, crear un reproductor HTML5 con soporte de segundo plano
+  // Reproductor HTML5 con soporte de segundo plano para Web
   useEffect(() => {
+    let cleanupDone = false;
+
     if (platform === 'web' && url && videoRef.current) {
       const video = videoRef.current;
-      
-      const handleLoadedMetadata = async () => {
-        if (startTime > 0) {
-          video.currentTime = startTime;
+      console.log('[VideoPlayer] Inicializando reproductor web con URL:', url);
+
+      // Limpiar reproductor anterior si existe
+      try {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        if (isPlayingRef.current) {
+          backgroundPlaybackService.stopPlayback();
+          isPlayingRef.current = false;
         }
-        
-        if (initialAutoplay) {
-          try {
-            await video.play();
-            isPlayingRef.current = true;
-            
-            // Inicializar servicio de segundo plano
+      } catch (e) {
+        console.warn('[VideoPlayer] Error en cleanup inicial:', e);
+      }
+
+      const initBackgroundPlayback = async () => {
+        try {
+          if (!cleanupDone) {
             await backgroundPlaybackService.startPlayback({
               title: title || "TeamG Play",
               artist: "Reproduciendo contenido",
@@ -219,120 +230,125 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
                 { src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }
               ]
             });
+          }
+        } catch (err) {
+          console.warn('[VideoPlayer] Error al iniciar background playback:', err);
+        }
+      };
+      
+      const handleLoadedMetadata = async () => {
+        console.log('[VideoPlayer] handleLoadedMetadata called');
+        if (startTime > 0) {
+          video.currentTime = startTime;
+        }
+
+        if (initialAutoplay) {
+          console.log('[VideoPlayer] handleLoadedMetadata - intentando autoplay, initialAutoplay=', initialAutoplay, 'video.readyState=', video.readyState, 'videoUrl:', url);
+
+          try {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              await playPromise;
+              isPlayingRef.current = true;
+              console.log('[VideoPlayer] autoplay succeed sin mutear');
+              await initBackgroundPlayback();
+            } else {
+              console.warn('[VideoPlayer] play() devolvió undefined');
+            }
           } catch (error) {
-            // Mejor diagnóstico: mostrar mensaje y tratar autoplay silencioso (muted) como fallback
-            console.warn('Error al reproducir automáticamente (intentar muted fallback):', error && error.name ? error.name : error);
+            console.warn('[VideoPlayer] Error en primer intento de autoplay:', {
+              error: error && error.name ? error.name : error,
+              message: error.message,
+              readyState: video.readyState,
+              networkState: video.networkState,
+              currentSrc: video.currentSrc,
+              url
+            });
+
             try {
               video.muted = true;
-              await video.play();
-              isPlayingRef.current = true;
-              // intentar reanudar segundo plano incluso si estaba muteado
-              await backgroundPlaybackService.startPlayback({
-                title: title || "TeamG Play",
-                artist: "Reproduciendo contenido",
-                album: "TeamG Play",
-                artwork: [
-                  { src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }
-                ]
-              });
-              // intentar desmutear después de un pequeño retraso (opcional)
-              setTimeout(() => { try { video.muted = false; } catch (e) {} }, 1500);
+              console.log('[VideoPlayer] fallback: intentando play() con muted=true');
+              const mutedPlayPromise = video.play();
+              if (mutedPlayPromise !== undefined) {
+                await mutedPlayPromise;
+                isPlayingRef.current = true;
+                console.log('[VideoPlayer] fallback muted autoplay succeed');
+                await initBackgroundPlayback();
+                
+                setTimeout(() => {
+                  try {
+                    video.muted = false;
+                    video.play().catch(e => console.warn('[VideoPlayer] Error al desmutear:', e));
+                  } catch (e) {
+                    console.warn('[VideoPlayer] Error en timeout de desmuteo:', e);
+                  }
+                }, 1500);
+              }
             } catch (mutedErr) {
-              console.error('Fallback muted autoplay también falló:', mutedErr);
+              console.error('[VideoPlayer] Fallback muted autoplay falló:', {
+                error: mutedErr && mutedErr.name ? mutedErr.name : mutedErr,
+                message: mutedErr.message,
+                readyState: video.readyState,
+                networkState: video.networkState,
+                url: url
+              });
+              setAutoplayFailed(true);
             }
           }
         }
       };
 
-      const handlePlay = () => {
-        isPlayingRef.current = true;
-        backgroundPlaybackService.resumePlayback();
-      };
-
-      const handlePause = () => {
-        isPlayingRef.current = false;
-        backgroundPlaybackService.pausePlayback();
-      };
-
-      const handleTimeUpdate = () => {
-        if (video.duration && video.currentTime) {
-          backgroundPlaybackService.updatePlaybackPosition(video.currentTime, video.duration);
+      const handleVideoError = (ev) => {
+        try {
+          const err = ev.target.error;
+          console.error('[VideoPlayer] Error detallado:', {
+            error: err,
+            code: err?.code,
+            message: err?.message,
+            videoUrl: url,
+            readyState: ev.target?.readyState,
+            networkState: ev.target?.networkState,
+            currentTime: ev.target?.currentTime,
+            paused: ev.target?.paused,
+            currentSrc: ev.target?.currentSrc,
+            mediaError: err ? {
+              MEDIA_ERR_ABORTED: err.MEDIA_ERR_ABORTED,
+              MEDIA_ERR_NETWORK: err.MEDIA_ERR_NETWORK,
+              MEDIA_ERR_DECODE: err.MEDIA_ERR_DECODE,
+              MEDIA_ERR_SRC_NOT_SUPPORTED: err.MEDIA_ERR_SRC_NOT_SUPPORTED
+            } : null
+          });
+          setAutoplayFailed(true);
+        } catch (e) {
+          console.error('[VideoPlayer] Error en manejador de errores:', e);
         }
       };
 
-      const handleEnded = () => {
-        isPlayingRef.current = false;
-        backgroundPlaybackService.stopPlayback();
-      };
-
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      video.addEventListener('play', handlePlay);
-      video.addEventListener('pause', handlePause);
-      video.addEventListener('timeupdate', handleTimeUpdate);
-      video.addEventListener('ended', handleEnded);
+      video.addEventListener('error', handleVideoError);
 
       return () => {
+        cleanupDone = true;
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        video.removeEventListener('play', handlePlay);
-        video.removeEventListener('pause', handlePause);
-        video.removeEventListener('timeupdate', handleTimeUpdate);
-        video.removeEventListener('ended', handleEnded);
+        video.removeEventListener('error', handleVideoError);
         
         if (isPlayingRef.current) {
           backgroundPlaybackService.stopPlayback();
           isPlayingRef.current = false;
         }
+
+        try { 
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+        } catch (e) {
+          console.warn('[VideoPlayer] Error en cleanup de video:', e);
+        }
       };
     }
   }, [platform, url, startTime, initialAutoplay, title]);
 
-  // Manejar eventos de segundo plano para web
-  useEffect(() => {
-    if (platform !== 'web' || !videoRef.current) return;
-
-    const video = videoRef.current;
-
-    const handleBackgroundPlay = () => {
-      video.play().catch(console.error);
-    };
-
-    const handleBackgroundPause = () => {
-      video.pause();
-    };
-
-    const handleBackgroundStop = () => {
-      video.pause();
-      video.currentTime = 0;
-    };
-
-    const handleSeekBackward = (event) => {
-      const seconds = event.detail?.seconds || 10;
-      video.currentTime = Math.max(0, video.currentTime - seconds);
-    };
-
-    const handleSeekForward = (event) => {
-      const seconds = event.detail?.seconds || 10;
-      video.currentTime = Math.min(video.duration || 0, video.currentTime + seconds);
-    };
-
-    window.addEventListener('backgroundPlayback:play', handleBackgroundPlay);
-    window.addEventListener('backgroundPlayback:pause', handleBackgroundPause);
-    window.addEventListener('backgroundPlayback:stop', handleBackgroundStop);
-    window.addEventListener('backgroundPlayback:seekBackward', handleSeekBackward);
-    window.addEventListener('backgroundPlayback:seekForward', handleSeekForward);
-
-    return () => {
-      window.removeEventListener('backgroundPlayback:play', handleBackgroundPlay);
-      window.removeEventListener('backgroundPlayback:pause', handleBackgroundPause);
-      window.removeEventListener('backgroundPlayback:stop', handleBackgroundStop);
-      window.removeEventListener('backgroundPlayback:seekBackward', handleSeekBackward);
-      window.removeEventListener('backgroundPlayback:seekForward', handleSeekForward);
-    };
-  }, [platform]);
-
-  // --- Renderizado basado en la plataforma ---
-
-  // Para Android, la reproducción es nativa - mostrar interfaz con colores del Home
+  // Renderizado según plataforma
   if (platform === 'android-vlc') {
     return (
       <div 
@@ -362,7 +378,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             Reproduciendo en VLC
           </p>
         </div>
-        {/* Efecto de brillo de fondo */}
         <div 
           className="absolute inset-0 opacity-20"
           style={{
@@ -370,7 +385,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           }}
         />
         
-        {/* Botón de bloqueo */}
         {!isLocked && (
           <button
             onClick={() => setIsLocked(true)}
@@ -381,7 +395,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           </button>
         )}
 
-        {/* Overlay de bloqueo */}
         {isLocked && (
           <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
             <button
@@ -397,34 +410,102 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     );
   }
 
-  // Para Web, renderizar reproductor HTML5 con soporte de segundo plano
   if (platform === 'web') {
-    // Hook que reporta progreso periódicamente al backend
-    useProgressReporter(videoRef, itemId, { intervalMs: 20000 });
+    useProgressReporter(videoRef, itemId, { 
+      intervalMs: 20000,
+      seasonIndex: currentChapterInfo?.seasonIndex,
+      chapterIndex: currentChapterInfo?.chapterIndex
+    });
 
     return (
       <div className="w-full aspect-video bg-black rounded-lg overflow-hidden">
-        <div style={{color: 'red', position: 'absolute', top: '10px', left: '10px', zIndex: 1000, fontSize: '20px', fontWeight: 'bold'}}>
-          PLATFORM DETECTED: {platform}
+        <div className="relative w-full h-full">
+          <video
+            ref={videoRef}
+            className="w-full h-full"
+            controls
+            preload="auto"
+            playsInline
+            autoPlay={initialAutoplay}
+            muted={initialAutoplay}
+            crossOrigin="anonymous"
+            style={{ backgroundColor: '#000' }}
+            onLoadStart={() => console.log('[VideoPlayer] onLoadStart', { url })}
+            onLoadedMetadata={(e) => console.log('[VideoPlayer] onLoadedMetadata', { 
+              readyState: e.target.readyState,
+              videoWidth: e.target.videoWidth,
+              videoHeight: e.target.videoHeight,
+              duration: e.target.duration
+            })}
+            onCanPlay={() => console.log('[VideoPlayer] onCanPlay - video puede comenzar a reproducirse')}
+            onPlay={() => console.log('[VideoPlayer] onPlay - reproducción iniciada')}
+            onEnded={() => {
+              console.log('[VideoPlayer] Video terminado, intentando reproducir siguiente episodio');
+              if (onNextEpisode && seasons && currentChapterInfo) {
+                const { seasonIndex, chapterIndex } = currentChapterInfo;
+                const currentSeason = seasons[seasonIndex];
+                
+                if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
+                  console.log('[VideoPlayer] Reproduciendo siguiente episodio de la misma temporada');
+                  onNextEpisode(seasonIndex, chapterIndex + 1);
+                } else if (seasons.length > seasonIndex + 1) {
+                  console.log('[VideoPlayer] Reproduciendo primer episodio de la siguiente temporada');
+                  onNextEpisode(seasonIndex + 1, 0);
+                } else {
+                  console.log('[VideoPlayer] No hay más episodios disponibles');
+                }
+              }
+            }}
+            onError={(e) => {
+              const err = e.target.error;
+              console.error('[VideoPlayer] onError:', {
+                code: err?.code,
+                message: err?.message,
+                networkState: e.target.networkState,
+                readyState: e.target.readyState,
+                currentSrc: e.target.currentSrc
+              });
+            }}
+          >
+            <source src={url} type="video/mp4" />
+            <source src={url} type="video/webm" />
+            Tu navegador no soporta el elemento video.
+          </video>
         </div>
-        <video
-          ref={videoRef}
-          className="w-full h-full"
-          controls
-          preload="metadata"
-          playsInline
-          src={url}
-        >
-          Tu navegador no soporta el elemento video.
-        </video>
+        {autoplayFailed && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto">
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                const v = videoRef.current;
+                if (!v) return;
+                try {
+                  console.log('[VideoPlayer] Usuario pulsó Play manual (overlay) - intentando play() y desmutear');
+                  v.muted = false;
+                  await v.play();
+                  setAutoplayFailed(false);
+                  isPlayingRef.current = true;
+                  try { 
+                    await backgroundPlaybackService.startPlayback({ title: title || 'TeamG Play' }); 
+                  } catch (err) { 
+                    console.warn('[VideoPlayer] startPlayback tras gesto manual falló:', err); 
+                  }
+                } catch (err) {
+                  console.error('[VideoPlayer] Error al forzar play tras gesto manual:', err);
+                }
+              }}
+              className="px-6 py-3 bg-black bg-opacity-75 text-white rounded-lg shadow-lg hover:bg-opacity-90"
+            >
+              ▶️ Reproducir
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  // Para Electron, mantener el comportamiento original
   if (platform === 'electron') {
-  // Si estamos en Electron, suscribirse al forwarder que escucha eventos mpv del preload
-  useElectronMpvProgress(itemId, { intervalMs: 20000 });
+    useElectronMpvProgress(itemId, onNextEpisode, seasons, currentChapterInfo, { intervalMs: 20000 });
     return (
       <div className="w-full aspect-video bg-black rounded-lg flex items-center justify-center text-white">
         {/* Este espacio está reservado para MPV en Electron */}
@@ -432,7 +513,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     );
   }
 
-  // Fallback por si algo sale mal
   return (
     <div className="w-full aspect-video bg-red-900 rounded-lg flex items-center justify-center text-white">
       <p>Error: Plataforma no reconocida.</p>
@@ -446,8 +526,7 @@ VideoPlayer.propTypes = {
   startTime: PropTypes.number,
   initialAutoplay: PropTypes.bool,
   title: PropTypes.string,
-  chapters: PropTypes.array,
-  seasonNumber: PropTypes.number,
-  chapterNumber: PropTypes.number,
+  seasons: PropTypes.array,
+  currentChapterInfo: PropTypes.object,
+  onNextEpisode: PropTypes.func,
 };
-

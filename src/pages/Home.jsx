@@ -213,8 +213,9 @@ export function Home() {
       }
 
       // Para contenido VOD, manejar progreso
-      const progress = item.watchProgress || {};
-      const startTime = Math.round(progress.lastTime || 0);
+  const progress = item.watchProgress || {};
+  // Historically we rounded the saved second when navigating from "Continuar Viendo"
+  const startTime = (progress && progress.lastTime != null) ? Math.round(progress.lastTime) : 0;
       const lastChapter = progress.lastChapter || 0;
       
       const navigationState = {};

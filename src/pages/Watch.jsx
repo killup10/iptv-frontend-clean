@@ -4,6 +4,7 @@ import { getPlayableUrl } from "@/utils/playerUtils.js";
 import axiosInstance from "@/utils/axiosInstance.js";
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
+import { backgroundPlaybackService } from '@/services/backgroundPlayback';
 import { getUserProgress, updateUserProgress } from "@/utils/api.js";
 import { throttle } from 'lodash'; // Se necesita lodash para throttling
 
@@ -83,7 +84,7 @@ export function Watch() {
         let endpoint = "";
         if (itemType === "channel") {
           endpoint = `/api/channels/id/${itemId}`;
-        } else if (["movie", "serie", "series", "pelicula", "anime"].includes(itemType)) {
+        } else if (["movie", "serie", "series", "pelicula", "anime", "dorama", "novela", "documental", "zona kids"].includes(itemType)) {
           endpoint = `/api/videos/${itemId}${useTrial ? '?useTrial=true' : ''}`;
         } else {
           setError(`Tipo de contenido "${itemType}" no reconocido.`);
@@ -168,37 +169,108 @@ export function Watch() {
 
     let seasonIdx = 0;
     let chapterIdx = 0;
+    let foundChapter = false;
 
-    if (location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
-      seasonIdx = location.state.seasonIndex;
-      chapterIdx = location.state.chapterIndex;
-    } else if (itemData.watchProgress && itemData.watchProgress.lastSeason && itemData.watchProgress.lastChapter) {
-      const progress = itemData.watchProgress;
-      const season = itemData.seasons.find(s => s.seasonNumber === progress.lastSeason);
-      if (season) {
-        const chapter = season.chapters.find(c => c.chapterNumber === progress.lastChapter);
-        if (chapter) {
-          seasonIdx = itemData.seasons.indexOf(season);
-          chapterIdx = season.chapters.indexOf(chapter);
-          setStartTime(progress.progress || 0);
+    // Prioridad 1: Usar el progreso guardado si viene de "continuar viendo"
+    if (location.state?.continueWatching && itemData.watchProgress) {
+      console.log('[Watch] Intentando cargar desde watchProgress:', itemData.watchProgress);
+      const wp = itemData.watchProgress;
+      
+      // Verificar que los índices existen y son válidos
+      if (typeof wp.lastSeason === 'number' && 
+          typeof wp.lastChapter === 'number' &&
+          wp.lastSeason >= 0 && 
+          wp.lastChapter >= 0) {
+        
+        const targetSeason = itemData.seasons[wp.lastSeason];
+        if (targetSeason?.chapters?.[wp.lastChapter]) {
+          seasonIdx = wp.lastSeason;
+          chapterIdx = wp.lastChapter;
+          setStartTime(wp.progress || 0);
+          console.log('[Watch] Cargando último episodio visto:', {
+            seasonIdx,
+            chapterIdx,
+            startTime: wp.progress
+          });
+          foundChapter = true;
         }
       }
     }
 
-    setCurrentChapterInfo({ seasonIndex: seasonIdx, chapterIndex: chapterIdx });
+    // Prioridad 2: Usar el estado de la navegación (cuando se hace clic en un capítulo)
+    if (!foundChapter && location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
+      seasonIdx = location.state.seasonIndex;
+      chapterIdx = location.state.chapterIndex;
+      if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
+        foundChapter = true;
+      }
+    }
+
+    // Prioridad 3: Fallback al primer capítulo de la primera temporada
+    if (!foundChapter) {
+      if (itemData.seasons?.[0]?.chapters?.[0]) {
+        seasonIdx = 0;
+        chapterIdx = 0;
+        foundChapter = true;
+      }
+    }
+    
+    if (foundChapter) {
+      setCurrentChapterInfo({ seasonIndex: seasonIdx, chapterIndex: chapterIdx });
+    } else {
+      setError("No se encontró un capítulo válido para reproducir.");
+    }
+
   }, [itemData, location.state]);
 
 
-  // 2) Cuando tenemos itemData, calculamos la URL reproducible
+  // 2) Cuando tenemos itemData, calculamos la URL reproducible y validamos la plataforma
   useEffect(() => {
     if (!itemData) return;
     if (process.env.NODE_ENV === "development") {
-      console.log("[Watch.jsx] itemData recibido:", itemData);
+      console.log("[Watch.jsx] Estado del entorno:", {
+        itemData,
+        environment: process.env.NODE_ENV,
+        isElectronAvailable: typeof window !== 'undefined' && window.electronAPI,
+        mediaSessionSupport: 'mediaSession' in navigator,
+        wakeLockSupport: 'wakeLock' in navigator,
+        mediaSourceSupport: 'MediaSource' in window,
+        platform: navigator.platform,
+        userAgent: navigator.userAgent
+      });
     }
     const M3U8_PROXY_BASE_URL = null;
 
     let finalUrl = "";
     const hasChapters = (itemData.chapters && itemData.chapters.length > 0) || (itemData.seasons && itemData.seasons.length > 0);
+    // BEFORE switching chapters, ensure any existing HTML5 player is paused and background playback stopped
+    try {
+      if (videoAreaRef.current) {
+        const existingVideo = videoAreaRef.current.querySelector('video');
+        if (existingVideo) {
+          try {
+            existingVideo.pause();
+          } catch (e) { /* ignore */ }
+          try {
+            existingVideo.removeAttribute('src');
+            // reload to fully detach source
+            existingVideo.load();
+          } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn('[Watch.jsx] Error during pre-switch cleanup:', cleanupErr);
+    }
+
+    // Stop any background media session (safety) before starting new chapter
+    try {
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        backgroundPlaybackService.stopPlayback();
+      }
+    } catch (bgErr) {
+      console.warn('[Watch.jsx] backgroundPlaybackService.stopPlayback failed:', bgErr);
+    }
+
     if (hasChapters) {
       if (currentChapterInfo) {
         const season = itemData.seasons?.[currentChapterInfo.seasonIndex];
@@ -402,6 +474,10 @@ export function Watch() {
     setAccessModalData(null);
     // Navegar de vuelta después de cerrar el modal
     handleBackNavigation();
+  };
+
+  const handleNextEpisode = (seasonIndex, chapterIndex) => {
+    navigate(`/watch/${itemType}/${itemId}`, { state: { seasonIndex, chapterIndex, continueWatching: true } });
   };
 
   const handleProceedWithTrial = () => {
@@ -629,9 +705,9 @@ export function Watch() {
                   startTime={startTime}
                   initialAutoplay={true}
                   title={itemData.name}
-                  chapters={itemData.chapters}
-                  seasonNumber={currentChapter?.seasonNumber}
-                  chapterNumber={currentChapter?.chapterNumber}
+                  seasons={itemData.seasons}
+                  currentChapterInfo={currentChapterInfo}
+                  onNextEpisode={itemData.tipo !== 'pelicula' ? handleNextEpisode : undefined}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">

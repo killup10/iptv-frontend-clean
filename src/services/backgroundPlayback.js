@@ -114,19 +114,22 @@ class BackgroundPlaybackService {
 
   async stopPlayback() {
     try {
-      this.isPlaying = false;
-      this.currentMedia = null;
+      // Solo ejecutar si realmente estábamos reproduciendo
+      if (this.isPlaying || this.currentMedia) {
+        this.isPlaying = false;
+        this.currentMedia = null;
 
-      // Limpiar Media Session
-      if (this.mediaSession) {
-        this.mediaSession.playbackState = 'none';
-        this.mediaSession.metadata = null;
+        // Limpiar Media Session
+        if (this.mediaSession) {
+          this.mediaSession.playbackState = 'none';
+          this.mediaSession.metadata = null;
+        }
+
+        // Liberar Wake Lock
+        await this.releaseWakeLock();
+
+        console.log('[BackgroundPlayback] Reproducción detenida');
       }
-
-      // Liberar Wake Lock
-      await this.releaseWakeLock();
-
-      console.log('[BackgroundPlayback] Reproducción detenida');
     } catch (error) {
       console.error('[BackgroundPlayback] Error deteniendo reproducción:', error);
     }

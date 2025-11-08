@@ -3,14 +3,19 @@ import react from '@vitejs/plugin-react-swc';
 import path from 'path';
 
 export default defineConfig({
-  // Cambiado de '/' a './' para que funcione correctamente con el protocolo file:// en Electron
-  // cuando se carga el index.html directamente desde el sistema de archivos (ej. en producción).
-  base: './', 
+  base: './',
   plugins: [react()],
   resolve: {
     alias: {
-      // Permite importar desde '@/...' como si fuera 'src/...'
       '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  server: {
+    cors: true,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
     },
   },
   // Opcional: Configuración específica para la compilación (build)

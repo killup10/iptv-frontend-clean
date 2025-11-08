@@ -25,7 +25,9 @@ export default function useProgressReporter(videoRef, videoId, opts = {}) {
       const payload = {
         lastTime: now,
         progress,
-        completed: completed || false
+        completed: completed || false,
+        lastSeason: optsRef.current.seasonIndex,
+        lastChapter: optsRef.current.chapterIndex
       };
 
       try {

@@ -4,7 +4,7 @@ import axiosInstance from '../utils/axiosInstance';
 
 // Hook to listen to mpv time-pos events exposed by preload (window.electronAPI)
 // and forward progress to backend for the given videoId.
-export default function useElectronMpvProgress(videoId, opts = {}) {
+export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, currentChapterInfo, opts = {}) {
   const lastSentRef = useRef(0);
   const optsRef = useRef(opts);
   optsRef.current = opts;
@@ -39,6 +39,18 @@ export default function useElectronMpvProgress(videoId, opts = {}) {
     const endedHandler = async () => {
       try {
         await axiosInstance.put(`/api/videos/${videoId}/progress`, { lastTime: undefined, completed: true });
+        if (onNextEpisode && seasons && currentChapterInfo) {
+          const { seasonIndex, chapterIndex } = currentChapterInfo;
+          const currentSeason = seasons[seasonIndex];
+          
+          if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
+            // Next chapter in the same season
+            onNextEpisode(seasonIndex, chapterIndex + 1);
+          } else if (seasons.length > seasonIndex + 1) {
+            // First chapter of the next season
+            onNextEpisode(seasonIndex + 1, 0);
+          }
+        }
       } catch (e) {
         console.warn('[useElectronMpvProgress] failed to send completed', e?.message || e);
       }
@@ -54,5 +66,5 @@ export default function useElectronMpvProgress(videoId, opts = {}) {
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-time-pos', handler); } catch (e) {}
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-ended', endedHandler); } catch (e) {}
     };
-  }, [videoId]);
+  }, [videoId, onNextEpisode, seasons, currentChapterInfo]);
 }
