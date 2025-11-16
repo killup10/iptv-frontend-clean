@@ -78,16 +78,16 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
 
     let progressListener = null;
+    let stopListener = null;
     if (VideoPlayerPlugin?.addListener) {
-      progressListener = VideoPlayerPlugin.addListener('timeupdate', (data) => {
-        // El primer evento de timeupdate indica que realmente está reproduciendo
-        if (!isPlayingRef.current) {
-          isPlayingRef.current = true;
-          console.log('[VideoPlayer] ✓ Reproducción realmente iniciada (primer timeupdate)');
-        }
-        handleTimeUpdate(data);
-      });
+      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
       console.log('[VideoPlayer] Listener de progreso VLC registrado');
+      
+      // Listener para cuando se detiene VLC
+      stopListener = VideoPlayerPlugin.addListener('stopped', () => {
+        console.log('[VideoPlayer] VLC detuvo');
+        isPlayingRef.current = false;
+      });
     }
 
     // Fallback: si el plugin expone getCurrentTime, poll para asegurar que guardamos progreso
@@ -130,6 +130,10 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         progressListener.remove();
         console.log('[VideoPlayer] Listener de progreso VLC removido');
       }
+      if (stopListener?.remove) {
+        stopListener.remove();
+        console.log('[VideoPlayer] Stop listener VLC removido');
+      }
     };
   }, [platform, itemId, startTime, seasonNumber, chapterNumber, onNextEpisode, seasons, currentChapterInfo]);
 
@@ -160,8 +164,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             chapters: allChapters,
           });
 
-          // NO setear isPlayingRef.current aquí - esperar al primer evento timeupdate
-          console.log('[VideoPlayer] playVideo() llamado, esperando evento timeupdate...');
+          // ✅ Setear que está reproduciendo (para mostrar el candado)
+          isPlayingRef.current = true;
+          console.log('[VideoPlayer] ✓ VLC iniciado, candado visible');
           
           // Guardar al menos el capítulo actual (índices) cuando el reproductor nativo arranca,
           // así "Continuar viendo" puede apuntar al episodio correcto aunque no haya eventos de progreso.
@@ -195,6 +200,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
             try {
               VideoPlayerPlugin.stopVideo();
+              isPlayingRef.current = false;  // ✅ Reset state
               console.log('[VideoPlayer] Cleanup Android: VLC plugin detenido');
             } catch (err) {
               console.warn('[VideoPlayer] Cleanup Android: Error deteniendo VLC plugin:', err);

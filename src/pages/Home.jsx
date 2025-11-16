@@ -217,6 +217,7 @@ export function Home() {
   // Historically we rounded the saved second when navigating from "Continuar Viendo"
   const startTime = (progress && progress.lastTime != null) ? Math.round(progress.lastTime) : 0;
       const lastChapter = progress.lastChapter || 0;
+      const lastSeason = progress.lastSeason !== undefined ? progress.lastSeason : 0;
       
       const navigationState = {};
       
@@ -227,7 +228,13 @@ export function Home() {
         
         // Si es una serie y tiene capítulos, navegar al último capítulo visto
         if ((type === 'serie' || type === 'series') && lastChapter !== undefined) {
+          navigationState.seasonIndex = lastSeason;
           navigationState.chapterIndex = lastChapter;
+          console.log("[Home.jsx] Passing continue watching state:", {
+            seasonIndex: lastSeason,
+            chapterIndex: lastChapter,
+            startTime: startTime
+          });
         }
       }
       

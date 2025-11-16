@@ -248,6 +248,12 @@ export function Watch() {
 
   // 2) Cuando tenemos itemData, calculamos la URL reproducible y validamos la plataforma
   useEffect(() => {
+    // 🛑 No cargar si estamos en proceso de unmounting
+    if (isUnmountingRef.current) {
+      console.log('[Watch.jsx] Omitiendo carga de video: en proceso de unmount');
+      return;
+    }
+    
     if (!itemData) return;
     if (process.env.NODE_ENV === "development") {
       console.log("[Watch.jsx] Estado del entorno:", {
@@ -457,25 +463,39 @@ export function Watch() {
   // Limpieza cuando Watch.jsx se desmonta (usuario navega atrás o cambia de página)
   useEffect(() => {
     return () => {
-      console.log('[Watch.jsx] Watch.jsx se está desmontando - limpiando reproducción...');
+      // Siempre ejecutar limpieza agresiva al desmontar
+      console.log('[Watch.jsx] Watch.jsx se está desmontando - limpieza AGRESIVA...');
+      isUnmountingRef.current = true;
       
       // Limpiar backgroundPlayback
       if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
         try {
           backgroundPlaybackService.stopPlayback();
-          console.log('[Watch.jsx] Cleanup: backgroundPlayback detenido al desmontar');
+          console.log('[Watch.jsx] Cleanup: backgroundPlayback DETENIDO');
         } catch (err) {
           console.warn('[Watch.jsx] Cleanup: Error deteniendo backgroundPlayback:', err);
         }
       }
 
-      // Detener VLC plugin si existe
-      if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+      // Detener VLC plugin si existe - MÚLTIPLES INTENTOS
+      if (window.VideoPlayerPlugin) {
         try {
-          window.VideoPlayerPlugin.stopVideo();
-          console.log('[Watch.jsx] Cleanup: VLC plugin detenido al desmontar');
+          if (typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+            window.VideoPlayerPlugin.stopVideo();
+            console.log('[Watch.jsx] Cleanup: VLC plugin DETENIDO (intento 1)');
+          }
         } catch (err) {
-          console.warn('[Watch.jsx] Cleanup: Error deteniendo VLC plugin:', err);
+          console.warn('[Watch.jsx] Cleanup: Error intento 1:', err);
+        }
+        
+        // Segundo intento
+        try {
+          if (typeof window.VideoPlayerPlugin.stop === 'function') {
+            window.VideoPlayerPlugin.stop();
+            console.log('[Watch.jsx] Cleanup: VLC plugin DETENIDO (intento 2)');
+          }
+        } catch (err) {
+          console.warn('[Watch.jsx] Cleanup: Error intento 2:', err);
         }
       }
 
