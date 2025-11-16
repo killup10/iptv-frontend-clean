@@ -48,6 +48,9 @@ export function Watch() {
       return location.state?.useTrial === true;
     });
 
+    // Flag para prevenir re-inicios al salir de la página
+    const isUnmountingRef = useRef(false);
+
 
   // --- REFS PARA ELECTRON MPV (solo para compatibilidad) ---
   const currentTimeRef = useRef(0);
@@ -165,7 +168,8 @@ export function Watch() {
   }, [itemId, itemType, startTimeFromState]);
 
   useEffect(() => {
-    if (!itemData || itemData.tipo === 'pelicula' || itemData.tipo === 'movie') return;
+    // Excluir canales en vivo (no tienen capítulos/temporadas)
+    if (!itemData || itemData.tipo === 'pelicula' || itemData.tipo === 'movie' || itemType === 'channel') return;
 
     let seasonIdx = 0;
     let chapterIdx = 0;
@@ -235,10 +239,11 @@ export function Watch() {
     if (foundChapter) {
       setCurrentChapterInfo({ seasonIndex: seasonIdx, chapterIndex: chapterIdx });
     } else {
-      setError("No se encontró un capítulo válido para reproducir.");
+      console.warn('[Watch] No se encontró capítulo válido pero no es crítico para canales o películas');
+      // No mostrar error para canales/películas
     }
 
-  }, [itemData, location.state]);
+  }, [itemData, location.state, itemType]);
 
 
   // 2) Cuando tenemos itemData, calculamos la URL reproducible y validamos la plataforma
@@ -498,6 +503,9 @@ export function Watch() {
   // Función inteligente para volver a la sección correcta
   const handleBackNavigation = async () => {
     console.log('[Watch.jsx] handleBackNavigation: Iniciando limpieza de reproducción...');
+    
+    // Marcar que estamos saliendo para prevenir re-inicios
+    isUnmountingRef.current = true;
     
     // PASO 1: Detener cualquier reproducción de fondo
     try {
@@ -817,6 +825,7 @@ export function Watch() {
                   seasons={itemData.seasons}
                   currentChapterInfo={currentChapterInfo}
                   onNextEpisode={itemData.tipo !== 'pelicula' ? handleNextEpisode : undefined}
+                  isUnmountingRef={isUnmountingRef}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">

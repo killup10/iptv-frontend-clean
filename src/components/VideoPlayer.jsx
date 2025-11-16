@@ -10,7 +10,7 @@ import { Lock, Unlock } from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
 
 // Este componente es un "despachador" que decide qué hacer según la plataforma.
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode }) {
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef }) {
   const platform = getPlayerType(); // Ahora es síncrono
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
@@ -79,7 +79,14 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     let progressListener = null;
     if (VideoPlayerPlugin?.addListener) {
-      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
+      progressListener = VideoPlayerPlugin.addListener('timeupdate', (data) => {
+        // El primer evento de timeupdate indica que realmente está reproduciendo
+        if (!isPlayingRef.current) {
+          isPlayingRef.current = true;
+          console.log('[VideoPlayer] ✓ Reproducción realmente iniciada (primer timeupdate)');
+        }
+        handleTimeUpdate(data);
+      });
       console.log('[VideoPlayer] Listener de progreso VLC registrado');
     }
 
@@ -129,6 +136,12 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   // Efecto para plataforma Android
   useEffect(() => {
     const handleAndroidPlayback = async () => {
+      // Prevenir re-inicios si estamos saliendo de la página
+      if (isUnmountingRef?.current) {
+        console.log('[VideoPlayer] Android playback cancelado: página en proceso de unmount');
+        return;
+      }
+      
       if (platform === 'android-vlc' && url && initialAutoplay) {
         try {
           await backgroundPlaybackService.startPlayback({
@@ -147,7 +160,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             chapters: allChapters,
           });
 
-          isPlayingRef.current = true;
+          // NO setear isPlayingRef.current aquí - esperar al primer evento timeupdate
+          console.log('[VideoPlayer] playVideo() llamado, esperando evento timeupdate...');
+          
           // Guardar al menos el capítulo actual (índices) cuando el reproductor nativo arranca,
           // así "Continuar viendo" puede apuntar al episodio correcto aunque no haya eventos de progreso.
           try {
