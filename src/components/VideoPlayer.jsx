@@ -26,6 +26,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
   const allChapters = seasons?.flatMap(season => season.chapters) || [];
 
+  // 🔥 VERIFICACIÓN DE BUILD: Este log aparecerá SOLO si el build se compiló correctamente
+  console.log('[VideoPlayer] 🔥 VERIFICACIÓN: Build contiene los últimos cambios (16 Nov 2025)');
+
   // Hook para manejar progreso en Android VLC
   useEffect(() => {
     if (platform !== 'android-vlc' || !itemId) return;
@@ -595,6 +598,73 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       chapterIndex: currentChapterInfo?.chapterIndex
     });
 
+    // 🎬 Efecto para forzar autoplay sin click manual
+    useEffect(() => {
+      if (!initialAutoplay || !videoRef.current) return;
+      
+      const video = videoRef.current;
+      
+      const attemptAutoplay = async () => {
+        try {
+          console.log('[VideoPlayer] 🎬 Intentando autoplay automático sin click...');
+          const playPromise = video.play();
+          
+          if (playPromise !== undefined) {
+            await playPromise;
+            isPlayingRef.current = true;
+            console.log('[VideoPlayer] ✅ Autoplay EXITOSO sin click manual');
+            
+            // Iniciar background playback
+            try {
+              await backgroundPlaybackService.startPlayback({
+                title: title || 'TeamG Play',
+                artist: 'Reproduciendo contenido',
+                album: 'TeamG Play',
+                artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
+              });
+            } catch (bgErr) {
+              console.warn('[VideoPlayer] Error iniciando background playback:', bgErr);
+            }
+          }
+        } catch (err) {
+          console.warn('[VideoPlayer] ⚠️ Autoplay falló, intentando con muted...', err);
+          try {
+            video.muted = true;
+            await video.play();
+            isPlayingRef.current = true;
+            console.log('[VideoPlayer] ✅ Autoplay EXITOSO con muted=true');
+            
+            // Desmutear después de 1.5s
+            setTimeout(() => {
+              try {
+                video.muted = false;
+                console.log('[VideoPlayer] Desmuteo completado');
+              } catch (e) {
+                console.warn('[VideoPlayer] Error desmutando:', e);
+              }
+            }, 1500);
+          } catch (err2) {
+            console.error('[VideoPlayer] ❌ Autoplay falló incluso con muted:', err2);
+            setAutoplayFailed(true);
+          }
+        }
+      };
+      
+      // Intentar autoplay después de que el video esté listo (con delay)
+      if (video.readyState >= 3) {
+        // Ya está listo, intentar ahora
+        attemptAutoplay();
+      } else {
+        // Esperar a que esté listo
+        const handleCanPlay = () => {
+          console.log('[VideoPlayer] canplay event, intentando autoplay...');
+          attemptAutoplay();
+          video.removeEventListener('canplay', handleCanPlay);
+        };
+        video.addEventListener('canplay', handleCanPlay);
+      }
+    }, [initialAutoplay, url, title]);
+
     return (
       <div className="w-full aspect-video bg-black rounded-lg overflow-hidden">
         <div className="relative w-full h-full">
@@ -604,7 +674,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             controls
             preload="auto"
             playsInline
-            autoPlay={initialAutoplay}
+            autoPlay={false}
             muted={initialAutoplay}
             crossOrigin="anonymous"
             style={{ backgroundColor: '#000' }}
