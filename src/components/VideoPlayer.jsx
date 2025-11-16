@@ -540,7 +540,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           }}
         />
         
-        {!isLocked && (
+        {/* Candado solo visible cuando está reproduciendo */}
+        {isPlayingRef.current && !isLocked && (
           <button
             onClick={() => setIsLocked(true)}
             className="absolute top-4 right-4 z-20 p-2 bg-black bg-opacity-50 rounded-full text-white hover:bg-opacity-75 transition-opacity"
@@ -550,7 +551,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           </button>
         )}
 
-        {isLocked && (
+        {/* Pantalla de desbloqueo cuando está bloqueado */}
+        {isPlayingRef.current && isLocked && (
           <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-30">
             <button
               onClick={() => setIsLocked(false)}
