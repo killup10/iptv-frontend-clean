@@ -7,6 +7,7 @@ import useProgressReporter from '../hooks/useProgressReporter';
 import useElectronMpvProgress from '../hooks/useElectronMpvProgress';
 import { videoProgressService } from '../services/videoProgress';
 import { Lock, Unlock } from 'lucide-react';
+import { App as CapacitorApp } from '@capacitor/app';
 
 // Este componente es un "despachador" que decide qué hacer según la plataforma.
 export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode }) {
@@ -41,8 +42,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           await videoProgressService.saveProgress(itemId, { 
             lastTime: currentTimeValue,
             completed,
-            lastSeason: seasonNumber,
-            lastChapter: chapterNumber
+            // Guardar índices (seasonIndex/chapterIndex) para mantener compatibilidad con la UI
+            lastSeason: currentChapterInfo?.seasonIndex,
+            lastChapter: currentChapterInfo?.chapterIndex
           });
           lastSavedTimeRef.current = currentTimeValue;
         } catch (error) {
@@ -81,6 +83,25 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       console.log('[VideoPlayer] Listener de progreso VLC registrado');
     }
 
+    // Fallback: si el plugin expone getCurrentTime, poll para asegurar que guardamos progreso
+    let pluginPollInterval = null;
+    if (VideoPlayerPlugin?.getCurrentTime) {
+      pluginPollInterval = setInterval(async () => {
+        try {
+          const res = await VideoPlayerPlugin.getCurrentTime();
+          const t = res?.currentTime ?? res?.time ?? null;
+          if (typeof t === 'number' && t >= 0) {
+            // Actualizar memoria local y guardar
+            lastSavedTimeRef.current = t;
+            await saveProgress(t, false);
+            console.log('[VideoPlayer] Polling VLC currentTime:', t);
+          }
+        } catch (err) {
+          // ignore polling errors
+        }
+      }, 15000);
+    }
+
     const progressSaveInterval = setInterval(async () => {
       const currentTimeValue = lastSavedTimeRef.current;
       if (currentTimeValue > 0) {
@@ -90,6 +111,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     return () => {
       clearInterval(progressSaveInterval);
+      if (pluginPollInterval) clearInterval(pluginPollInterval);
       
       const finalTime = lastSavedTimeRef.current;
       if (finalTime > 0) {
@@ -126,6 +148,21 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           });
 
           isPlayingRef.current = true;
+          // Guardar al menos el capítulo actual (índices) cuando el reproductor nativo arranca,
+          // así "Continuar viendo" puede apuntar al episodio correcto aunque no haya eventos de progreso.
+          try {
+            const initialTime = startTime || 0;
+            await videoProgressService.saveProgress(itemId, {
+              lastTime: initialTime,
+              lastSeason: currentChapterInfo?.seasonIndex,
+              lastChapter: currentChapterInfo?.chapterIndex,
+              completed: false
+            });
+            lastSavedTimeRef.current = initialTime;
+            console.log('[VideoPlayer] Progreso inicial VLC guardado:', { initialTime, lastSeason: currentChapterInfo?.seasonIndex, lastChapter: currentChapterInfo?.chapterIndex });
+          } catch (err) {
+            console.warn('[VideoPlayer] No se pudo guardar el progreso inicial para VLC:', err);
+          }
         } catch (err) {
           console.error("Error starting Android player:", err);
           await backgroundPlaybackService.stopPlayback();
@@ -137,7 +174,23 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     return () => {
       if (isPlayingRef.current) {
-        backgroundPlaybackService.stopPlayback();
+        try {
+          console.log('[VideoPlayer] Cleanup Android: Deteniendo reproducción...');
+          // Primero detener el plugin VLC
+          if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+            try {
+              VideoPlayerPlugin.stopVideo();
+              console.log('[VideoPlayer] Cleanup Android: VLC plugin detenido');
+            } catch (err) {
+              console.warn('[VideoPlayer] Cleanup Android: Error deteniendo VLC plugin:', err);
+            }
+          }
+          // Después detener background playback
+          backgroundPlaybackService.stopPlayback();
+          console.log('[VideoPlayer] Cleanup Android: Background playback detenido');
+        } catch (err) {
+          console.warn('[VideoPlayer] Cleanup Android: Error en cleanup:', err);
+        }
         isPlayingRef.current = false;
       }
     };
@@ -347,6 +400,108 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       };
     }
   }, [platform, url, startTime, initialAutoplay, title]);
+
+  // Limpieza global cuando VideoPlayer se desmonta completamente
+  useEffect(() => {
+    return () => {
+      console.log('[VideoPlayer] VideoPlayer se está desmontando - limpieza global...');
+      
+      // Detener VLC plugin si existe
+      try {
+        if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+          window.VideoPlayerPlugin.stopVideo();
+          console.log('[VideoPlayer] Global cleanup: VLC plugin detenido al desmontar');
+        }
+      } catch (err) {
+        console.warn('[VideoPlayer] Global cleanup: Error deteniendo VLC plugin:', err);
+      }
+
+      // Detener background playback
+      try {
+        if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+          backgroundPlaybackService.stopPlayback();
+          console.log('[VideoPlayer] Global cleanup: Background playback detenido al desmontar');
+        }
+      } catch (err) {
+        console.warn('[VideoPlayer] Global cleanup: Error deteniendo background playback:', err);
+      }
+
+      // Pausar y limpiar video HTML5
+      try {
+        if (videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
+          console.log('[VideoPlayer] Global cleanup: Video HTML5 pausado al desmontar');
+        }
+      } catch (err) {
+        console.warn('[VideoPlayer] Global cleanup: Error limpiando video HTML5:', err);
+      }
+
+      isPlayingRef.current = false;
+    };
+  }, []);
+
+  // Manejar pausa/reanudación de la app en Android
+  useEffect(() => {
+    if (platform !== 'android-vlc') return;
+
+    let appPauseListener = null;
+    let appResumeListener = null;
+
+    try {
+      // Escuchar cuando la app se pausa (minimiza)
+      appPauseListener = CapacitorApp.addListener('appStateChange', (state) => {
+        console.log('[VideoPlayer] App state changed:', state.isActive);
+        
+        if (!state.isActive) {
+          // App se minimizó
+          console.log('[VideoPlayer] App minimizada - pausando reproducción VLC');
+          try {
+            if (VideoPlayerPlugin && typeof VideoPlayerPlugin.pauseVideo === 'function') {
+              VideoPlayerPlugin.pauseVideo();
+              console.log('[VideoPlayer] VLC pausado al minimizar app');
+            }
+            if (backgroundPlaybackService && typeof backgroundPlaybackService.pausePlayback === 'function') {
+              backgroundPlaybackService.pausePlayback();
+              console.log('[VideoPlayer] Background playback pausado al minimizar app');
+            }
+          } catch (err) {
+            console.warn('[VideoPlayer] Error pausando al minimizar app:', err);
+          }
+        } else {
+          // App se reanudó
+          console.log('[VideoPlayer] App reanudada - reanudando reproducción VLC');
+          try {
+            if (isPlayingRef.current) {
+              if (VideoPlayerPlugin && typeof VideoPlayerPlugin.resumeVideo === 'function') {
+                VideoPlayerPlugin.resumeVideo();
+                console.log('[VideoPlayer] VLC reanudado al volver al foreground');
+              }
+              if (backgroundPlaybackService && typeof backgroundPlaybackService.resumePlayback === 'function') {
+                backgroundPlaybackService.resumePlayback();
+                console.log('[VideoPlayer] Background playback reanudado al volver al foreground');
+              }
+            }
+          } catch (err) {
+            console.warn('[VideoPlayer] Error reanudando al volver al foreground:', err);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('[VideoPlayer] Error configurando listeners de app state:', err);
+    }
+
+    return () => {
+      if (appPauseListener) {
+        appPauseListener.remove();
+        console.log('[VideoPlayer] Listener de app state removido');
+      }
+      if (appResumeListener) {
+        appResumeListener.remove();
+      }
+    };
+  }, [platform]);
 
   // Renderizado según plataforma
   if (platform === 'android-vlc') {

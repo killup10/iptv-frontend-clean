@@ -171,8 +171,25 @@ export function Watch() {
     let chapterIdx = 0;
     let foundChapter = false;
 
-    // Prioridad 1: Usar el progreso guardado si viene de "continuar viendo"
-    if (location.state?.continueWatching && itemData.watchProgress) {
+    // Prioridad 1: Usar el estado de la navegación si viene de "continuar viendo" desde Home
+    if (location.state?.continueWatching && location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
+      seasonIdx = location.state.seasonIndex;
+      chapterIdx = location.state.chapterIndex;
+      if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
+        console.log('[Watch] Cargando desde estado de navegación (continuar viendo):', {
+          seasonIdx,
+          chapterIdx
+        });
+        foundChapter = true;
+        // También usar startTime si viene del estado
+        if (location.state?.startTime !== undefined) {
+          setStartTime(location.state.startTime);
+        }
+      }
+    }
+
+    // Prioridad 2: Usar el progreso guardado en itemData (fallback)
+    if (!foundChapter && location.state?.continueWatching && itemData.watchProgress) {
       console.log('[Watch] Intentando cargar desde watchProgress:', itemData.watchProgress);
       const wp = itemData.watchProgress;
       
@@ -197,7 +214,7 @@ export function Watch() {
       }
     }
 
-    // Prioridad 2: Usar el estado de la navegación (cuando se hace clic en un capítulo)
+    // Prioridad 3: Usar el estado de la navegación (cuando se hace clic directo en un capítulo)
     if (!foundChapter && location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
       seasonIdx = location.state.seasonIndex;
       chapterIdx = location.state.chapterIndex;
@@ -206,7 +223,7 @@ export function Watch() {
       }
     }
 
-    // Prioridad 3: Fallback al primer capítulo de la primera temporada
+    // Prioridad 4: Fallback al primer capítulo de la primera temporada
     if (!foundChapter) {
       if (itemData.seasons?.[0]?.chapters?.[0]) {
         seasonIdx = 0;
@@ -432,17 +449,109 @@ export function Watch() {
     };
   }, [bounds]);
 
+  // Limpieza cuando Watch.jsx se desmonta (usuario navega atrás o cambia de página)
+  useEffect(() => {
+    return () => {
+      console.log('[Watch.jsx] Watch.jsx se está desmontando - limpiando reproducción...');
+      
+      // Limpiar backgroundPlayback
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        try {
+          backgroundPlaybackService.stopPlayback();
+          console.log('[Watch.jsx] Cleanup: backgroundPlayback detenido al desmontar');
+        } catch (err) {
+          console.warn('[Watch.jsx] Cleanup: Error deteniendo backgroundPlayback:', err);
+        }
+      }
+
+      // Detener VLC plugin si existe
+      if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+        try {
+          window.VideoPlayerPlugin.stopVideo();
+          console.log('[Watch.jsx] Cleanup: VLC plugin detenido al desmontar');
+        } catch (err) {
+          console.warn('[Watch.jsx] Cleanup: Error deteniendo VLC plugin:', err);
+        }
+      }
+
+      // Limpiar videos HTML5
+      try {
+        if (videoAreaRef.current) {
+          const videoElements = videoAreaRef.current.querySelectorAll('video');
+          videoElements.forEach(video => {
+            try {
+              video.pause();
+              video.removeAttribute('src');
+              video.load();
+            } catch (e) {
+              // Ignorar errores de videos HTML5
+            }
+          });
+          console.log('[Watch.jsx] Cleanup: Videos HTML5 limpiados al desmontar');
+        }
+      } catch (err) {
+        console.warn('[Watch.jsx] Cleanup: Error limpiando videos HTML5:', err);
+      }
+    };
+  }, []);
+
   // Función inteligente para volver a la sección correcta
-  const handleBackNavigation = () => {
-    // Verificar si hay información de dónde vino en el estado de navegación
+  const handleBackNavigation = async () => {
+    console.log('[Watch.jsx] handleBackNavigation: Iniciando limpieza de reproducción...');
+    
+    // PASO 1: Detener cualquier reproducción de fondo
+    try {
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        await backgroundPlaybackService.stopPlayback();
+        console.log('[Watch.jsx] handleBackNavigation: backgroundPlayback detenido');
+      }
+    } catch (err) {
+      console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo backgroundPlayback:', err);
+    }
+
+    // PASO 2: Detener VideoPlayer nativo (VLC en Android)
+    try {
+      if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+        await window.VideoPlayerPlugin.stopVideo();
+        console.log('[Watch.jsx] handleBackNavigation: VLC plugin detenido');
+      }
+    } catch (err) {
+      console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VLC plugin:', err);
+    }
+
+    // PASO 3: Limpiar cualquier video HTML5 que esté corriendo
+    try {
+      if (videoAreaRef.current) {
+        const videoElements = videoAreaRef.current.querySelectorAll('video');
+        videoElements.forEach(video => {
+          try {
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+          } catch (e) {
+            console.warn('[Watch.jsx] handleBackNavigation: Error limpiando video HTML5:', e);
+          }
+        });
+        console.log('[Watch.jsx] handleBackNavigation: Videos HTML5 pausados y limpiados');
+      }
+    } catch (err) {
+      console.warn('[Watch.jsx] handleBackNavigation: Error accediendo a videoAreaRef:', err);
+    }
+
+    // PASO 4: Dar un pequeño tiempo para asegurar que todo se detuvo
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // PASO 5: Navegar de vuelta
     const fromLocation = location.state?.from;
     const fromSection = location.state?.fromSection;
     
     if (fromLocation) {
       // Si tenemos información específica de dónde vino, ir ahí
+      console.log('[Watch.jsx] handleBackNavigation: Navegando a ubicación específica:', fromLocation);
       navigate(fromLocation);
     } else if (fromSection) {
       // Si tenemos información de la sección, navegar a esa sección específica
+      console.log('[Watch.jsx] handleBackNavigation: Navegando a sección:', fromSection);
       switch (fromSection) {
         case 'movies':
         case 'peliculas':
@@ -463,7 +572,7 @@ export function Watch() {
       }
     } else {
       // Fallback: siempre ir a Home ya que es la página principal
-      // donde están todas las secciones (películas, series, etc.)
+      console.log('[Watch.jsx] handleBackNavigation: Navegando a Home (fallback)');
       navigate('/');
     }
   };
