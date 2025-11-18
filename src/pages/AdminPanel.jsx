@@ -150,7 +150,8 @@ export default function AdminPanel() {
     genres: "",
     requiresPlan: [],
     seasons: [],
-    subcategoria: "Netflix"
+    subcategoria: "Netflix",
+    hasNewEpisodes: false
   });
 
 
@@ -380,7 +381,8 @@ export default function AdminPanel() {
       genres: "",
       requiresPlan: [],
       seasons: [],
-      subcategoria: "Netflix"
+      subcategoria: "Netflix",
+      hasNewEpisodes: false
     });
   }, []);
 
@@ -408,7 +410,8 @@ export default function AdminPanel() {
       genres: Array.isArray(video.genres) ? video.genres.join(", ") : (video.genres || ""),
       requiresPlan: plansForForm.filter(p => ALL_AVAILABLE_PLANS.some(ap => ap.key === p)),
       seasons: Array.isArray(video.seasons) ? video.seasons : [],
-      subcategoria: video.subcategoria || "Netflix"
+      subcategoria: video.subcategoria || "Netflix",
+      hasNewEpisodes: video.hasNewEpisodes || false
     });
 
     setActiveTab("add_vod"); 
@@ -934,6 +937,14 @@ export default function AdminPanel() {
             <div className="flex items-center space-x-6 pt-2">
               <Checkbox label="Activo" name="active" checked={vodForm.active} onChange={handleVodFormChange} />
               <Checkbox label="Destacado" name="isFeatured" checked={vodForm.isFeatured} onChange={handleVodFormChange} />
+              {vodForm.tipo !== 'pelicula' && (
+                <Checkbox 
+                  label="Nuevos Episodios" 
+                  name="hasNewEpisodes" 
+                  checked={!!vodForm.hasNewEpisodes} 
+                  onChange={handleVodFormChange} 
+                />
+              )}
             </div>
             <Button type="submit" isLoading={isSubmitting} className="w-full">
               {isSubmitting ? (vodId ? "Actualizando VOD..." : "Creando VOD...") : (vodId ? "Actualizar VOD" : "Crear VOD")}

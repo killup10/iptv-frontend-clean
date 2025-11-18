@@ -1,11 +1,10 @@
-import { Preferences } from '@capacitor/preferences';
-
 const isCapacitor = () => !!window.Capacitor;
 
 export const storage = {
   async getItem(key) {
     try {
       if (isCapacitor()) {
+        const { Preferences } = await import('@capacitor/preferences');
         const { value } = await Preferences.get({ key });
         return value;
       }
@@ -19,6 +18,7 @@ export const storage = {
   async setItem(key, value) {
     try {
       if (isCapacitor()) {
+        const { Preferences } = await import('@capacitor/preferences');
         await Preferences.set({ key, value: String(value) });
       } else {
         localStorage.setItem(key, String(value));
@@ -31,6 +31,7 @@ export const storage = {
   async removeItem(key) {
     try {
       if (isCapacitor()) {
+        const { Preferences } = await import('@capacitor/preferences');
         await Preferences.remove({ key });
       } else {
         localStorage.removeItem(key);

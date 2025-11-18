@@ -67,6 +67,25 @@ export default function ContenidoAdmin() {
     }
   };
 
+  const handleNewEpisodesChange = async (vodId, currentStatus) => {
+    try {
+      const res = await fetch(`${API}/api/videos/${vodId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ hasNewEpisodes: !currentStatus }),
+      });
+
+      if (res.ok) {
+        cargarContenido();
+      } else {
+        const errorData = await res.json();
+        alert(`Error al actualizar: ${errorData.message}`);
+      }
+    } catch (error) {
+      alert('Error de red al actualizar el video.');
+    }
+  };
+
 
   const agregarCanal = async (e) => {
     e.preventDefault();
@@ -146,7 +165,21 @@ export default function ContenidoAdmin() {
                   alt={v.title}
                   className="w-12 h-8 rounded object-cover mr-3"
                 />
-                <span className="truncate">{v.title}</span>
+                <span className="truncate flex-grow">{v.title}</span>
+                {v.tipo !== 'pelicula' && (
+                  <div className="flex items-center ml-4">
+                    <input
+                      type="checkbox"
+                      id={`new-episodes-${v._id}`}
+                      className="w-4 h-4 mr-2"
+                      checked={v.hasNewEpisodes || false}
+                      onChange={() => handleNewEpisodesChange(v._id, v.hasNewEpisodes)}
+                    />
+                    <label htmlFor={`new-episodes-${v._id}`} className="text-sm">
+                      NUEVOS EPISODIOS / NUEVA TEMPORADA
+                    </label>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

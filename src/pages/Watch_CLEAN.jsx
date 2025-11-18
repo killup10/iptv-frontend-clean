@@ -228,69 +228,56 @@ export function Watch() {
 
   // 2) Calcular URL reproducible
   useEffect(() => {
-    console.log('[Watch.jsx] INICIANDO CÁLCULO DE URL. Data:', { itemData, currentChapterInfo, loading });
-
-    if (!itemData) {
-      console.log('[Watch.jsx] CÁLCULO DETENIDO: No hay itemData.');
+    if (isUnmountingRef.current) {
+      console.log('[Watch.jsx] Omitiendo carga de video: en proceso de unmount');
       return;
     }
-    if (loading) {
-      console.log('[Watch.jsx] CÁLCULO DETENIDO: loading es true.');
-      return;
-    }
-
-    let urlToPlay = null;
+    
+    if (!itemData) return;
+    
+    const M3U8_PROXY_BASE_URL = null;
+    let finalUrl = "";
     const hasChapters = (itemData.chapters && itemData.chapters.length > 0) || (itemData.seasons && itemData.seasons.length > 0);
+    
+    try {
+      if (videoAreaRef.current) {
+        const existingVideo = videoAreaRef.current.querySelector('video');
+        if (existingVideo) {
+          try {
+            existingVideo.pause();
+            existingVideo.removeAttribute('src');
+            existingVideo.load();
+          } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn('[Watch.jsx] Error during pre-switch cleanup:', cleanupErr);
+    }
+
+    try {
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        backgroundPlaybackService.stopPlayback();
+      }
+    } catch (bgErr) {
+      console.warn('[Watch.jsx] backgroundPlaybackService.stopPlayback failed:', bgErr);
+    }
 
     if (hasChapters) {
-      console.log('[Watch.jsx] Es una serie. Verificando currentChapterInfo.');
       if (currentChapterInfo) {
         const season = itemData.seasons?.[currentChapterInfo.seasonIndex];
         const chapter = season?.chapters?.[currentChapterInfo.chapterIndex];
-        console.log('[Watch.jsx] Info de capítulo:', { season, chapter });
         if (chapter?.url) {
-          urlToPlay = chapter.url;
-          console.log(`[Watch.jsx] URL de capítulo encontrada: ${urlToPlay}`);
+          finalUrl = getPlayableUrl({ ...itemData, url: chapter.url }, M3U8_PROXY_BASE_URL);
         } else {
-          console.error('[Watch.jsx] ERROR: El capítulo no tiene URL.');
-          setError('El capítulo seleccionado no tiene una URL válida.');
+          setError("El capítulo seleccionado no tiene una URL válida.");
           return;
         }
-      } else {
-        console.log('[Watch.jsx] ESPERANDO currentChapterInfo para la serie.');
-        // We do nothing and wait for the chapter effect to run
-        return;
       }
-    } else {
-      console.log('[Watch.jsx] No es una serie. Verificando itemData.url.');
-      if (itemData.url) {
-        urlToPlay = itemData.url;
-        console.log(`[Watch.jsx] URL de película/contenido encontrada: ${urlToPlay}`);
-      } else {
-        console.error('[Watch.jsx] ERROR: El contenido no tiene URL.');
-        setError(`No se encontró una fuente de video para "${itemData.name}".`);
-        return;
-      }
+    } else if (itemData.url) {
+      finalUrl = getPlayableUrl(itemData, M3U8_PROXY_BASE_URL);
     }
-
-    if (urlToPlay) {
-      console.log(`[Watch.jsx] Procesando URL con getPlayableUrl: ${urlToPlay}`);
-      const finalUrl = getPlayableUrl({ ...itemData, url: urlToPlay }, null);
-      console.log(`[Watch.jsx] URL final obtenida: ${finalUrl}`);
-      
-      if (finalUrl) {
-        setVideoUrl(finalUrl);
-      } else {
-        console.error('[Watch.jsx] ERROR: getPlayableUrl devolvió una URL vacía.');
-        setError('No se pudo procesar la URL del video para la reproducción.');
-      }
-    } else {
-        // This case should not be reached due to the returns above, but as a safeguard:
-        console.error('[Watch.jsx] ERROR INESPERADO: No se pudo determinar ninguna URL para reproducir.');
-        setError('Error inesperado al intentar obtener el video.');
-    }
-
-  }, [itemData, currentChapterInfo, loading]);
+    setVideoUrl(finalUrl);
+  }, [itemData, currentChapterInfo]);
 
   // 3) Medir bounds
   useEffect(() => {
@@ -308,25 +295,7 @@ export function Watch() {
   // 4) Iniciar MPV (solo Electron)
   useEffect(() => {
     const isElectronEnv = typeof window !== "undefined" && window.electronMPV;
-
-    // --- INICIO DE DEPURACIÓN ---
-    console.log('--- DEBUG: ESTADO ANTES DE REPRODUCIR ---');
-    console.log({
-      isElectronEnv,
-      videoUrl,
-      bounds,
-      startTime,
-      itemData,
-      currentChapterInfo
-    });
-    // --- FIN DE DEPURACIÓN ---
-
-    if (!videoUrl || !bounds || !isElectronEnv) {
-      if (isElectronEnv) {
-        console.log('--- DEBUG: Omitiendo MPV. Razón:', { hasVideoUrl: !!videoUrl, hasBounds: !!bounds });
-      }
-      return;
-    }
+    if (!videoUrl || !bounds || !isElectronEnv) return;
 
     const initializeMPV = async (retryCount = 0) => {
       try {
@@ -334,10 +303,7 @@ export function Watch() {
         await window.electronMPV.stop();
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${videoUrl}`);
         const result = await window.electronMPV.play(videoUrl, bounds, { startTime });
-        console.log('--- DEBUG: Resultado de window.electronMPV.play ---', result);
-
         if (!result.success) {
           throw new Error(result.error || 'Error desconocido al iniciar MPV');
         }
@@ -760,55 +726,4 @@ export function Watch() {
             )}
 
             {itemData.description && (
-              <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
-                <h3 className="text-2xl font-bold mb-4 flex items-center">
-                  <span 
-                    className="w-1 h-8 rounded-full mr-3"
-                    style={{
-                      background: visualTheme 
-                        ? `linear-gradient(to bottom, ${visualTheme.primaryColor}, ${visualTheme.secondaryColor})`
-                        : 'linear-gradient(to bottom, #3b82f6, #ec4899)'
-                    }}
-                  ></span>
-                  <DynamicText theme={visualTheme} glow={true}>
-                    Descripción
-                  </DynamicText>
-                </h3>
-                <div className="prose prose-invert max-w-none">
-                  <p className="text-base leading-relaxed whitespace-pre-wrap" 
-                     style={{ color: visualTheme?.textColor || '#ffffff' }}>
-                    {itemData.description}
-                  </p>
-                </div>
-              </DynamicCard>
-            )}
-
-            <EnhancedContentInfo
-              contentInfo={contentInfo}
-              loading={geminiLoading}
-              error={geminiError}
-              onRetry={retryGemini}
-            />
-
-            <ContentRecommendations
-              recommendations={recommendations}
-              theme={visualTheme}
-              loading={geminiLoading}
-              error={geminiError}
-              onRetry={retryGemini}
-            />
-          </div>
-        </div>
-      </div>
-
-      <ContentAccessModal
-        isOpen={showAccessModal}
-        onClose={closeAccessModal}
-        data={accessModalData}
-        onProceedWithTrial={handleProceedWithTrial}
-      />
-    </DynamicTheme>
-  );
-}
-
-export default Watch;
+              <D

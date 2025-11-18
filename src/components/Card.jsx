@@ -149,6 +149,12 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
           </div>
         )}
 
+        {item.hasNewEpisodes && (
+          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-lg z-10 animate-pulse">
+            NUEVOS EPISODIOS
+          </div>
+        )}
+
         {showItemTypeBadge && itemType && itemType !== 'item' && (
           <div className="absolute top-10 left-2 z-10">
             <div className="inline-block relative">

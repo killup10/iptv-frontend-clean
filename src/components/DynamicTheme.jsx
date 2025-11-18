@@ -43,7 +43,7 @@ export default function DynamicTheme({ theme, children, className = "" }) {
 
   return (
     <>
-      <style jsx>{`
+      <style>{`
         @keyframes fade-in {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -160,7 +160,8 @@ export default function DynamicTheme({ theme, children, className = "" }) {
         </div>
       </div>
       
-      <style jsx>{`
+      
+      <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px) rotate(0deg); }
           33% { transform: translateY(-10px) rotate(1deg); }
