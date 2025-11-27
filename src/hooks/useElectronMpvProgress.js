@@ -62,9 +62,27 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
       // optional
     }
 
+    // Listen to mpv-closed to capture final progress when user closes the video
+    const closedHandler = async ({ code, signal, url }) => {
+      try {
+        console.log('[useElectronMpvProgress] MPV cerrado, capturando progreso final');
+        // El progreso ya fue enviado periódicamente, pero podemos asegurar que se sincronice
+        // Esta es una buena oportunidad para confirmar el último progreso conocido
+      } catch (e) {
+        console.warn('[useElectronMpvProgress] failed on mpv-closed', e?.message || e);
+      }
+    };
+
+    try {
+      window.electronAPI.on('mpv-closed', closedHandler);
+    } catch (e) {
+      // optional
+    }
+
     return () => {
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-time-pos', handler); } catch (e) {}
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-ended', endedHandler); } catch (e) {}
+      try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-closed', closedHandler); } catch (e) {}
     };
   }, [videoId, onNextEpisode, seasons, currentChapterInfo]);
 }

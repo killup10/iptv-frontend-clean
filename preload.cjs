@@ -11,10 +11,11 @@ try {
      * @param {string} url    - La URL (.mkv, .m3u8, etc.) del video a reproducir.
      * @param {{ x: number, y: number, width: number, height: number }} bounds
      *                       - Coordenadas/Dimensiones (relativas al viewport) donde debe pintarse MPV.
+     * @param {{ startTime?: number, title?: string }} options - Opciones adicionales
      * @returns {Promise<{ success: boolean, error?: string }>}
      */
-    play: (url, bounds) => {
-      return ipcRenderer.invoke('mpv-embed-play', { url, bounds });
+    play: (url, bounds, options = {}) => {
+      return ipcRenderer.invoke('mpv-embed-play', { url, bounds, ...options });
     },
 
     /**
@@ -49,6 +50,16 @@ try {
       return () => {
         ipcRenderer.removeListener('request-video-bounds-sync', handler);
       };
+    },
+
+    /**
+     * Activa/desactiva el modo Picture-in-Picture (PIP) del reproductor MPV externo
+     * En modo PIP, la ventana de MPV se mantiene siempre adelante
+     * @param {boolean} enabled - true para activar PIP, false para desactivar
+     * @returns {Promise<boolean>} - true si PIP está activo, false si está inactivo
+     */
+    setPip: (enabled) => {
+      return ipcRenderer.invoke('mpv-set-pip-floating', { enabled });
     }
   });
   console.log('[PRELOAD_LOG] electronMPV expuesto a window.electronMPV');
@@ -78,12 +89,12 @@ try {
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {
-      if (channel === 'mpv-error' || channel === 'mpv-time-pos') {
+      if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed') {
         ipcRenderer.on(channel, callback);
       }
     },
     removeListener: (channel, callback) => {
-            if (channel === 'mpv-error' || channel === 'mpv-time-pos') {
+            if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed') {
             ipcRenderer.removeListener(channel, callback);
       }
     }

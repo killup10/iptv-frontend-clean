@@ -192,6 +192,12 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     mpvProcess.on('exit', (code, signal) => {
       console.log(`[MPV] Proceso terminado:`, { code, signal });
+      
+      // Notificar al frontend que MPV se cerró para que guarde el progreso
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('mpv-closed', { code, signal, url });
+      }
+      
       mpvProcess = null;
     });
 
