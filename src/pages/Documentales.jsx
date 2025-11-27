@@ -12,7 +12,7 @@ export function Documentales() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const gridOptions = [5, 4, 3, 1];
-  const [gridCols, setGridCols] = useState(gridOptions[0]);
+  const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
 
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
@@ -59,9 +59,9 @@ export function Documentales() {
     switch (gridCols) {
       case 1: return 'grid-cols-1';
       case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-      case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
-      case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
-      default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
+      case 4: return 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+      case 5: return 'grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-6';
+      default: return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
     }
   };
 

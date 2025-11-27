@@ -123,6 +123,15 @@ function App() {
   
   const shouldShowLayout = !isAuthPage && !isWatchPage;
 
+  const mainContainerStyle = {
+    backgroundImage: "url('/fondo.png')",
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+    minHeight: '100vh',
+    width: '100%'
+  };
+
   return (
     <>
       <style>{`
@@ -143,7 +152,7 @@ function App() {
           font-weight: bold;
         }
       `}</style>
-      <div className="min-h-screen bg-black text-white flex flex-col">
+      <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
       {shouldShowLayout && (
         <header 
           className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
@@ -156,7 +165,7 @@ function App() {
               <div className="flex items-center flex-1">
                 <Link to="/" className="flex items-center py-2">
                   <img 
-                    src="/TeamG Play.png" 
+                    src="/logo-teamg.png" 
                     alt="TeamG Play Logo" 
                     className="h-16 sm:h-18 drop-shadow-glow-logo hover:scale-105 transition-transform duration-300" 
                   />
@@ -272,7 +281,7 @@ function App() {
           <div className="container mx-auto px-4">
             <div className="flex flex-col md:flex-row justify-between">
               <div className="mb-6 md:mb-0">
-                <img src="/TeamG Play.png" alt="TeamG Play Logo" className="h-12 mb-4 drop-shadow-glow-logo" />
+                <img src="/logo-teamg.png" alt="TeamG Play Logo" className="h-12 mb-4 drop-shadow-glow-logo" />
                 <p className="mt-2 max-w-md">La mejor plataforma de streaming para disfrutar de canales en vivo, películas, series y mas.</p>
               </div>
               <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-6">

@@ -16,7 +16,7 @@ import {
 } from '../utils/api.js';
 import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
-import { Smartphone } from 'lucide-react';
+import { Laptop, Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 
 export function Home() {
@@ -188,9 +188,6 @@ export function Home() {
     console.log("[Home.jsx] itemTypeFromCarousel:", itemTypeFromCarousel);
     
     let type = item.itemType || item.tipo || itemTypeFromCarousel;
-    if (type === 'dorama') {
-      type = 'serie';
-    }
     const id = item.id || item._id;
 
     console.log("[Home.jsx] Extracted type:", type, "id:", id);
@@ -313,12 +310,11 @@ export function Home() {
           }
         `}</style>
         <div 
-          className="relative min-h-screen w-full flex flex-col"
           style={{
-          backgroundImage: "url('/fondo.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
+            backgroundImage: "url('/fondo.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed'
           }}
         >
           <main className="relative z-10 flex-grow flex flex-col md:flex-row items-center justify-center p-4 min-h-screen">
@@ -328,7 +324,7 @@ export function Home() {
                 Bienvenido a
               </h1>
               <img 
-                src="/TeamG Play.png" 
+                src="/logo-teamg.png" 
                 alt="Logo de TeamG Play" 
                 className="w-48 sm:w-56 drop-shadow-glow-logo mb-4" 
               />
@@ -339,7 +335,7 @@ export function Home() {
                     Bienvenido a
                 </h1>
                 <img 
-                  src="/TeamG Play.png" 
+                  src="/logo-teamg.png" 
                   alt="Logo de TeamG Play" 
                   className="w-full max-w-xs drop-shadow-glow-logo" 
                 />
@@ -427,6 +423,26 @@ export function Home() {
                     Regístrate aquí
                   </Link>
                 </p>
+
+                <div className="mt-6 pt-6 border-t border-input-border/50">
+                  <h3 className="text-lg font-bold text-primary mb-3 text-center">Descargar la aplicación</h3>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a 
+                      href="REEMPLAZAR_CON_TU_LINK_DE_WINDOWS" 
+                      className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
+                    >
+                      <Laptop className="h-5 w-5 text-secondary" />
+                      <span className="font-semibold text-sm">Windows</span>
+                    </a>
+                    <a 
+                      href="REEMPLAZAR_CON_TU_LINK_DE_ANDROID" 
+                      className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
+                    >
+                      <Smartphone className="h-5 w-5 text-secondary" />
+                      <span className="font-semibold text-sm">Android</span>
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </main>
@@ -474,7 +490,7 @@ export function Home() {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: "url('/fondo.png')",
+          backgroundImage: "url('background.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'
@@ -531,18 +547,18 @@ export function Home() {
           <Carousel
             title="Animes Destacados"
             items={featuredAnimes}
-            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onItemClick={(item) => handleItemClick(item, 'anime')}
             onPlayTrailerClick={handlePlayTrailerClick}
-            itemType="serie"
+            itemType="anime"
           />
         )}
         {featuredDoramas.length > 0 && (
           <Carousel
             title="Doramas Populares"
             items={featuredDoramas}
-            onItemClick={(item) => handleItemClick(item, 'serie')}
+            onItemClick={(item) => handleItemClick(item, 'dorama')}
             onPlayTrailerClick={handlePlayTrailerClick}
-            itemType="serie"
+            itemType="dorama"
           />
         )}
         {featuredNovelas.length > 0 && (

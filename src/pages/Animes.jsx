@@ -21,7 +21,7 @@ export function Animes() {
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
   const gridOptions = [5, 4, 3, 1];
-  const [gridCols, setGridCols] = useState(gridOptions[0]);
+  const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns for better mobile view
 
 
 
@@ -140,10 +140,10 @@ export function Animes() {
   const getGridClass = () => {
     switch (gridCols) {
       case 1: return 'grid-cols-1';
-      case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-      case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
-      case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
-      default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
+      case 3: return 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3';
+      case 4: return 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5'; // 3 cols on mobile, 4 on tablet, 5 on desktop
+      case 5: return 'grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-6'; // 3 cols min on mobile
+      default: return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
     }
   };
 
