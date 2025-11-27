@@ -13,6 +13,8 @@ module.exports = {
   },
   files: [
     "dist/**/*",
+    "public/**/*",
+    "assets/**/*",
     "electron.cjs",
     "preload.cjs",
     "package.json"
@@ -32,22 +34,24 @@ module.exports = {
         arch: ["x64"]
       }
     ],
-    icon: "assets_electron/icon.ico"
+    icon: "assets/icon.ico"
   },
   mac: {
     target: "dmg",
-    icon: "assets_electron/icon.icns",
+    icon: "assets/icon.png",
     category: "public.app-category.entertainment"
   },
   linux: {
     target: "AppImage",
-    icon: "assets_electron/icon.png",
+    icon: "assets/icon.png",
     category: "AudioVideo;Player;Video;"
   },
   nsis: {
     oneClick: false,
     perMachine: false,
     allowElevation: true,
-    allowToChangeInstallationDirectory: true
+    allowToChangeInstallationDirectory: true,
+    installerIcon: "assets/icon.ico",
+    uninstallerIcon: "assets/icon.ico"
   }
 };

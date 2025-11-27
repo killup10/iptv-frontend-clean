@@ -70,6 +70,24 @@ export function Home() {
   }
 };
 
+  // Función para refrescar solo la lista de continuar viendo
+  const refreshContinueWatchingList = async () => {
+    try {
+      const result = await fetchContinueWatching();
+      if (Array.isArray(result)) {
+        const sortedItems = result.sort((a, b) => {
+          const dateA = a.watchProgress?.lastWatched ? new Date(a.watchProgress.lastWatched) : new Date(0);
+          const dateB = b.watchProgress?.lastWatched ? new Date(b.watchProgress.lastWatched) : new Date(0);
+          return dateB - dateA;
+        });
+        setContinueWatchingItems(sortedItems);
+        console.log('[Home.jsx] ✅ Lista de continuar viendo actualizada:', sortedItems.length, 'items');
+      }
+    } catch (err) {
+      console.warn('[Home.jsx] Error al refrescar continuar viendo:', err?.message);
+    }
+  };
+
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true);
@@ -181,6 +199,20 @@ export function Home() {
     setLoading(false); 
   }
 }, [user]);
+
+  // Escuchar evento de actualización de continuar viendo
+  useEffect(() => {
+    const handleContinueWatchingUpdate = (event) => {
+      console.log('[Home.jsx] 📡 Evento recibido: continue-watching-updated', event.detail);
+      refreshContinueWatchingList();
+    };
+
+    window.addEventListener('continue-watching-updated', handleContinueWatchingUpdate);
+    
+    return () => {
+      window.removeEventListener('continue-watching-updated', handleContinueWatchingUpdate);
+    };
+  }, []);
 
   const handleItemClick = (item, itemTypeFromCarousel) => {
     console.log("[Home.jsx] ===== HANDLE ITEM CLICK =====");
