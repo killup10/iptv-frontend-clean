@@ -336,6 +336,18 @@ export function Watch() {
         currentTimeRef.current = t;
       }
     };
+
+    // Intervalo para enviar progreso periódicamente (cada 30 segundos)
+    const progressInterval = setInterval(() => {
+      if (currentTimeRef.current > 0 && itemId) {
+        console.log('[Watch.jsx] Enviando progreso periódico:', currentTimeRef.current);
+        axiosInstance.put(`/api/videos/${itemId}/progress`, { 
+          lastTime: Math.floor(currentTimeRef.current) 
+        }).catch(err => {
+          console.warn('[Watch.jsx] Error al enviar progreso periódico:', err?.message);
+        });
+      }
+    }, 30000); // Cada 30 segundos
     
     if (window.electronAPI) {
       window.electronAPI.on('mpv-error', handleMpvError);
@@ -343,10 +355,22 @@ export function Watch() {
     }
 
     return () => {
+      clearInterval(progressInterval); // Limpiar intervalo
+      
       if (window.electronMPV) {
         window.electronMPV.stop().catch(err => {
           console.error('[Watch.jsx] Error al detener MPV en cleanup:', err);
         });
+        
+        // Guardar progreso cuando se detiene MPV
+        if (currentTimeRef.current > 0 && itemId) {
+          console.log('[Watch.jsx] Guardando progreso final:', currentTimeRef.current);
+          axiosInstance.put(`/api/videos/${itemId}/progress`, { 
+            lastTime: Math.floor(currentTimeRef.current) 
+          }).catch(err => {
+            console.warn('[Watch.jsx] Error al guardar progreso final:', err?.message);
+          });
+        }
       }
       playbackStartTsRef.current = null;
       if (window.electronAPI) {
