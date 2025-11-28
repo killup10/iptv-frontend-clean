@@ -8,7 +8,7 @@ module.exports = {
     "mpv/**"
   ],
   directories: {
-    buildResources: "assets_electron",
+    buildResources: "assets",
     output: "release_electron"
   },
   files: [
