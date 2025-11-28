@@ -87,6 +87,9 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
     const is4K = () => {
       if (!item) return false;
       
+      // Check for explicit 4K flag in series
+      if (item.is4K) return true;
+      
       if (item.mainSection === 'CINE_4K') return true;
       
       const title = (item.title || item.name || '').toLowerCase();
@@ -94,6 +97,24 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
       
       if (item.genres && item.genres.some(genre => 
         genre.toLowerCase().includes('4k') || genre.toLowerCase().includes('2160p')
+      )) return true;
+      
+      return false;
+    };
+
+    const is60FPS = () => {
+      if (!item) return false;
+      
+      // Check for explicit 60FPS flag in series
+      if (item.is60FPS) return true;
+      
+      if (item.mainSection === 'CINE_60FPS') return true;
+      
+      const title = (item.title || item.name || '').toLowerCase();
+      if (title.includes('60fps') || title.includes('60 fps')) return true;
+      
+      if (item.genres && item.genres.some(genre => 
+        genre.toLowerCase().includes('60fps') || genre.toLowerCase().includes('60 fps')
       )) return true;
       
       return false;
@@ -241,6 +262,16 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
                   <div className="absolute inset-0 bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 rounded-md blur-sm opacity-75"></div>
                   <div className="relative bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 text-black text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-lg border border-amber-400">
                     <span className="drop-shadow-sm">4K ULTRAHD</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {is60FPS() && (
+              <div className="mb-1 pointer-events-none">
+                <div className="inline-block relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 rounded-md blur-sm opacity-75"></div>
+                  <div className="relative bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-lg border border-cyan-400">
+                    <span className="drop-shadow-sm">60 FPS</span>
                   </div>
                 </div>
               </div>

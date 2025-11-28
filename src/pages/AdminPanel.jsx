@@ -382,7 +382,9 @@ export default function AdminPanel() {
       requiresPlan: [],
       seasons: [],
       subcategoria: "Netflix",
-      hasNewEpisodes: false
+      hasNewEpisodes: false,
+      is4K: false,
+      is60FPS: false
     });
   }, []);
 
@@ -411,7 +413,9 @@ export default function AdminPanel() {
       requiresPlan: plansForForm.filter(p => ALL_AVAILABLE_PLANS.some(ap => ap.key === p)),
       seasons: Array.isArray(video.seasons) ? video.seasons : [],
       subcategoria: video.subcategoria || "Netflix",
-      hasNewEpisodes: video.hasNewEpisodes || false
+      hasNewEpisodes: video.hasNewEpisodes || false,
+      is4K: video.is4K || false,
+      is60FPS: video.is60FPS || false
     });
 
     setActiveTab("add_vod"); 
@@ -946,6 +950,25 @@ export default function AdminPanel() {
                 />
               )}
             </div>
+            {vodForm.tipo === 'serie' && (
+              <div className="space-y-2 pt-2 border-t border-gray-600 mt-4 pt-4">
+                <p className="text-sm font-medium text-gray-300">Calidad:</p>
+                <div className="flex items-center space-x-6">
+                  <Checkbox 
+                    label="4K ULTRAHD" 
+                    name="is4K" 
+                    checked={!!vodForm.is4K} 
+                    onChange={handleVodFormChange} 
+                  />
+                  <Checkbox 
+                    label="60 FPS" 
+                    name="is60FPS" 
+                    checked={!!vodForm.is60FPS} 
+                    onChange={handleVodFormChange} 
+                  />
+                </div>
+              </div>
+            )}
             <Button type="submit" isLoading={isSubmitting} className="w-full">
               {isSubmitting ? (vodId ? "Actualizando VOD..." : "Creando VOD...") : (vodId ? "Actualizar VOD" : "Crear VOD")}
             </Button>
