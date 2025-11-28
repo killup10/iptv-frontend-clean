@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import fondoImg from '../../assets/fondo.png';
 
 export const Series = () => {
   const [activeSection, setActiveSection] = useState("todas");
@@ -55,7 +56,7 @@ export const Series = () => {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: "url('/fondo.png')",
+          backgroundImage: `url(${fondoImg})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'

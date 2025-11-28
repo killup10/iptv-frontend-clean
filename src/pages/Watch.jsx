@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getPlayableUrl } from "@/utils/playerUtils.js";
 import axiosInstance from "@/utils/axiosInstance.js";
+import fondoImg from '../../assets/fondo.png';
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
 import { backgroundPlaybackService } from '@/services/backgroundPlayback';
@@ -631,7 +632,7 @@ export function Watch() {
         style={{
           backgroundImage: itemData?.poster || itemData?.backdrop || itemData?.thumbnail 
             ? `url(${itemData.poster || itemData.backdrop || itemData.thumbnail})` 
-            : "url('/fondo.png')",
+            : `url(${fondoImg})`,
           filter: 'brightness(0.3) blur(1px)'
         }}
       />

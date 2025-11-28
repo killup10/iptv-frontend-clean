@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import fondoImg from '../../assets/fondo.png';
 
 export const Movies = () => {
   // Simulación de pelis
@@ -47,7 +48,7 @@ export const Movies = () => {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: "url('/fondo.png')",
+          backgroundImage: `url(${fondoImg})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'

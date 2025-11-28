@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
+import logoTeamg from '../../assets/logo-teamg.png';
+import fondoImg from '../../assets/fondo.png';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -69,24 +71,6 @@ export function Home() {
     setIsLoggingIn(false);
   }
 };
-
-  // Función para refrescar solo la lista de continuar viendo
-  const refreshContinueWatchingList = async () => {
-    try {
-      const result = await fetchContinueWatching();
-      if (Array.isArray(result)) {
-        const sortedItems = result.sort((a, b) => {
-          const dateA = a.watchProgress?.lastWatched ? new Date(a.watchProgress.lastWatched) : new Date(0);
-          const dateB = b.watchProgress?.lastWatched ? new Date(b.watchProgress.lastWatched) : new Date(0);
-          return dateB - dateA;
-        });
-        setContinueWatchingItems(sortedItems);
-        console.log('[Home.jsx] ✅ Lista de continuar viendo actualizada:', sortedItems.length, 'items');
-      }
-    } catch (err) {
-      console.warn('[Home.jsx] Error al refrescar continuar viendo:', err?.message);
-    }
-  };
 
   useEffect(() => {
     async function loadInitialData() {
@@ -199,20 +183,6 @@ export function Home() {
     setLoading(false); 
   }
 }, [user]);
-
-  // Escuchar evento de actualización de continuar viendo
-  useEffect(() => {
-    const handleContinueWatchingUpdate = (event) => {
-      console.log('[Home.jsx] 📡 Evento recibido: continue-watching-updated', event.detail);
-      refreshContinueWatchingList();
-    };
-
-    window.addEventListener('continue-watching-updated', handleContinueWatchingUpdate);
-    
-    return () => {
-      window.removeEventListener('continue-watching-updated', handleContinueWatchingUpdate);
-    };
-  }, []);
 
   const handleItemClick = (item, itemTypeFromCarousel) => {
     console.log("[Home.jsx] ===== HANDLE ITEM CLICK =====");
@@ -343,7 +313,7 @@ export function Home() {
         `}</style>
         <div 
           style={{
-            backgroundImage: "url('/fondo.png')",
+            backgroundImage: `url(${fondoImg})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -356,7 +326,7 @@ export function Home() {
                 Bienvenido a
               </h1>
               <img 
-                src="/logo-teamg.png" 
+                src={logoTeamg}
                 alt="Logo de TeamG Play" 
                 className="w-48 sm:w-56 drop-shadow-glow-logo mb-4" 
               />
@@ -367,7 +337,7 @@ export function Home() {
                     Bienvenido a
                 </h1>
                 <img 
-                  src="/logo-teamg.png" 
+                  src={logoTeamg}
                   alt="Logo de TeamG Play" 
                   className="w-full max-w-xs drop-shadow-glow-logo" 
                 />

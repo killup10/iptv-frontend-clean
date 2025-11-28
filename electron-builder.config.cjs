@@ -8,12 +8,11 @@ module.exports = {
     "mpv/**"
   ],
   directories: {
-    buildResources: "assets",
+    buildResources: "assets_electron",
     output: "release_electron"
   },
   files: [
     "dist/**/*",
-    "public/**/*",
     "assets/**/*",
     "electron.cjs",
     "preload.cjs",

@@ -367,11 +367,6 @@ export function Watch() {
           console.log('[Watch.jsx] Guardando progreso final:', currentTimeRef.current);
           axiosInstance.put(`/api/videos/${itemId}/progress`, { 
             lastTime: Math.floor(currentTimeRef.current) 
-          }).then(() => {
-            // Notificar al Home que debe refrescar la lista de continuar viendo
-            window.dispatchEvent(new CustomEvent('continue-watching-updated', { 
-              detail: { videoId: itemId, lastTime: currentTimeRef.current } 
-            }));
           }).catch(err => {
             console.warn('[Watch.jsx] Error al guardar progreso final:', err?.message);
           });
