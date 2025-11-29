@@ -3,8 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
-import logoTeamg from '../../assets/logo-teamg.png';
-import fondoImg from '../../assets/fondo.png';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -313,7 +311,7 @@ export function Home() {
         `}</style>
         <div 
           style={{
-            backgroundImage: `url(${fondoImg})`,
+            backgroundImage: `url(/fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -326,7 +324,7 @@ export function Home() {
                 Bienvenido a
               </h1>
               <img 
-                src={logoTeamg}
+                src="/logo-teamg.png" 
                 alt="Logo de TeamG Play" 
                 className="w-48 sm:w-56 drop-shadow-glow-logo mb-4" 
               />
@@ -337,7 +335,7 @@ export function Home() {
                     Bienvenido a
                 </h1>
                 <img 
-                  src={logoTeamg}
+                  src="/logo-teamg.png" 
                   alt="Logo de TeamG Play" 
                   className="w-full max-w-xs drop-shadow-glow-logo" 
                 />

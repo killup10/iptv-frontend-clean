@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '@/utils/axiosInstance';
-import fondoImg from '../../assets/fondo.png';
 import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
@@ -78,7 +77,7 @@ export function Documentales() {
         <div 
           className="flex justify-center items-center min-h-screen"
           style={{
-            backgroundImage: `url(${fondoImg})`,
+            backgroundImage: `url(/fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -101,7 +100,7 @@ export function Documentales() {
         <div 
           className="text-red-400 p-10 text-center min-h-screen flex items-center justify-center"
           style={{
-            backgroundImage: `url(${fondoImg})`,
+            backgroundImage: `url(/fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -152,7 +151,7 @@ export function Documentales() {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: `url(${fondoImg})`,
+          backgroundImage: `url(/fondo.png)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'

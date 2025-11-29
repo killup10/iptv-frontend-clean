@@ -5,7 +5,6 @@ import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
 import axiosInstance from '@/utils/axiosInstance';
-import fondoImg from '../../assets/fondo.png';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 
@@ -213,7 +212,7 @@ export function Animes() {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: `url(${fondoImg})`,
+          backgroundImage: `url(/fondo.png)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'
