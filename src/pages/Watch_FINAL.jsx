@@ -148,6 +148,16 @@ export function Watch() {
     } catch (err) {
       console.error("Error fetching item details:", err);
       
+      if (err.response?.status === 401) {
+        // Sesión expirada o no autorizado
+        setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente para acceder a este contenido.');
+        setTimeout(() => {
+          navigate('/login', { state: { from: location.pathname } });
+        }, 2000);
+        setLoading(false);
+        return;
+      }
+      
       if (err.response?.status === 403 && err.response?.data) {
         const errorData = err.response.data;
         

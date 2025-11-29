@@ -1,11 +1,12 @@
 import React from 'react';
-import { XMarkIcon, StarIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, StarIcon, ClockIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const ContentAccessModal = ({ 
   isOpen, 
   onClose, 
   data, 
-  onProceedWithTrial 
+  onProceedWithTrial,
+  onGoBack
 }) => {
   if (!isOpen || !data) return null;
 
@@ -112,7 +113,7 @@ const ContentAccessModal = ({
         </div>
 
         {/* Footer con botones */}
-        <div className="flex gap-3 p-6 border-t border-zinc-700">
+        <div className="flex gap-3 p-6 border-t border-zinc-700 flex-col sm:flex-row">
           {hasTrialTime && (
             <button
               onClick={onProceedWithTrial}
@@ -123,11 +124,21 @@ const ContentAccessModal = ({
             </button>
           )}
           
+          {onGoBack && (
+            <button
+              onClick={onGoBack}
+              className={`${hasTrialTime ? 'flex-1' : 'w-full'} bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center`}
+            >
+              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              Volver
+            </button>
+          )}
+          
           <button
             onClick={onClose}
-            className={`${hasTrialTime ? 'flex-1' : 'w-full'} bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+            className={`${hasTrialTime || onGoBack ? 'flex-1' : 'w-full'} bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2 px-4 rounded-lg transition-colors`}
           >
-            {hasTrialTime ? 'Cancelar' : 'Entendido'}
+            {hasTrialTime || onGoBack ? 'Cerrar' : 'Entendido'}
           </button>
         </div>
       </div>

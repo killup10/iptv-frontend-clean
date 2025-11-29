@@ -112,8 +112,15 @@ export function Watch() {
         }
         setItemData(normalizedData);
       } catch (err) {
-        // Manejar específicamente errores 403 relacionados con planes
-        if (err.response?.status === 403) {
+        // Manejar errores 401 (sesión expirada)
+        if (err.response?.status === 401) {
+          // Sesión expirada o no autorizado
+          setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente para acceder a este contenido.');
+          setTimeout(() => {
+            navigate('/login', { state: { from: location.pathname } });
+          }, 2000);
+        } else if (err.response?.status === 403) {
+          // Manejar específicamente errores 403 relacionados con planes
           const errorData = err.response.data || {};
           
           // SIEMPRE mostrar modal personalizado para errores 403

@@ -53,14 +53,22 @@ axiosInstance.interceptors.response.use(
     console.error('axiosInstance: Error en la respuesta del backend:', error.response || error.message);
     if (error.response) {
       const { status, data } = error.response;
-      if (status === 401 || status === 403) {
-        console.warn(`axiosInstance: Error ${status} detectado. Mensaje:`, data?.error || data?.message);
-        console.log('axiosInstance: Deslogueando usuario debido a error de autenticación/autorización.');
+      
+      // Solo desloguear en caso de 401 (No autenticado / Token expirado)
+      // NO desloguear en 403 (Acceso denegado / Plan insuficiente) - dejar que el componente lo maneje
+      if (status === 401) {
+        console.warn(`axiosInstance: Error 401 detectado. Mensaje:`, data?.error || data?.message);
+        console.log('axiosInstance: Deslogueando usuario debido a token inválido/expirado.');
         await storage.removeItem('user');
         await storage.removeItem('token');
         if (!window.location.pathname.startsWith('/login')) {
           window.location.href = '/login?session_expired=true';
         }
+      } else if (status === 403) {
+        // 403: Acceso denegado (permisos insuficientes, plan insuficiente, etc.)
+        // NO desloguear - el componente que hace la petición manejará el error
+        console.warn(`axiosInstance: Error 403 detectado (Acceso denegado). Mensaje:`, data?.error || data?.message);
+        console.log('axiosInstance: Usuario sigue autenticado, permitiendo que el componente maneje el error 403.');
       }
     } else if (error.code === 'ECONNABORTED') {
       console.error('axiosInstance: La petición excedió el tiempo límite. Puede que necesites aumentar el timeout para esta operación.');

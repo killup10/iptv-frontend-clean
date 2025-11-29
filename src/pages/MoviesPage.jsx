@@ -194,6 +194,17 @@ export default function MoviesPage() {
         proceedWithTrial();
     };
 
+    const handleGoBack = () => {
+        // Si estamos en una sección, volver a las secciones
+        if (selectedMainSectionKey) {
+            setSelectedMainSectionKey(null);
+            setSearchTerm('');
+        } else {
+            // Si no estamos en una sección, ir a la página principal
+            navigate('/');
+        }
+    };
+
     const toggleGridView = () => {
         const currentIndex = gridOptions.indexOf(gridCols);
         const nextIndex = (currentIndex + 1) % gridOptions.length;
@@ -398,6 +409,7 @@ export default function MoviesPage() {
                 onClose={closeAccessModal}
                 data={accessModalData}
                 onProceedWithTrial={handleProceedWithTrial}
+                onGoBack={handleGoBack}
             />
 
             {showTrailerModal && currentTrailerUrl && (

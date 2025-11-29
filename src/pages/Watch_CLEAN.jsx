@@ -107,7 +107,13 @@ export function Watch() {
         }
         setItemData(normalizedData);
       } catch (err) {
-        if (err.response?.status === 403) {
+        if (err.response?.status === 401) {
+          // Sesión expirada o no autorizado
+          setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente para acceder a este contenido.');
+          setTimeout(() => {
+            navigate('/login', { state: { from: location.pathname } });
+          }, 2000);
+        } else if (err.response?.status === 403) {
           const errorData = err.response.data || {};
           setAccessModalData({
             title: errorData.title || location.state?.title || location.state?.name || 'Contenido Premium',
@@ -496,7 +502,9 @@ export function Watch() {
   const closeAccessModal = () => {
     setShowAccessModal(false);
     setAccessModalData(null);
-    handleBackNavigation();
+    // No llamar handleBackNavigation aquí directamente
+    // El usuario puede cerrar el modal desde el botón X y seguir en la página
+    // Solo volver atrás si presiona el botón "Volver"
   };
 
   const handleNextEpisode = (seasonIndex, chapterIndex) => {
@@ -541,6 +549,7 @@ export function Watch() {
           onClose={closeAccessModal}
           data={accessModalData}
           onProceedWithTrial={handleProceedWithTrial}
+          onGoBack={handleBackNavigation}
         />
       </div>
     );

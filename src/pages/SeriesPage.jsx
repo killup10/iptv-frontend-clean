@@ -123,6 +123,10 @@ export default function SeriesPage() {
     proceedWithTrial();
   };
 
+  const handleGoBack = () => {
+    navigate('/');
+  };
+
   const toggleGridView = () => {
     const currentIndex = gridOptions.indexOf(gridCols);
     const nextIndex = (currentIndex + 1) % gridOptions.length;
@@ -329,6 +333,7 @@ const handleAddToCollection = async ({ item, collectionName }) => {
           onClose={closeAccessModal}
           data={accessModalData}
           onProceedWithTrial={handleProceedWithTrial}
+          onGoBack={handleGoBack}
         />
 
         {showTrailerModal && currentTrailerUrl && (

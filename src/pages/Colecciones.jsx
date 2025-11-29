@@ -71,6 +71,10 @@ export default function Colecciones() {
     proceedWithTrial();
   };
 
+  const handleGoBack = () => {
+    navigate('/');
+  };
+
   const handlePlayTrailerClick = (trailerUrl) => {
     if (trailerUrl) {
       setCurrentTrailerUrl(trailerUrl);
@@ -295,6 +299,7 @@ export default function Colecciones() {
         onClose={closeAccessModal}
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
+        onGoBack={handleGoBack}
       />
 
       {showTrailerModal && currentTrailerUrl && (

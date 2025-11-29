@@ -60,6 +60,10 @@ export default function ZonaKids() {
     proceedWithTrial();
   };
 
+  const handleGoBack = () => {
+    navigate('/');
+  };
+
   const filteredContent = content.filter(item => {
     return searchTerm === "" ||
       item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -147,6 +151,7 @@ export default function ZonaKids() {
         onClose={closeAccessModal}
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
+        onGoBack={handleGoBack}
       />
     </div>
   );

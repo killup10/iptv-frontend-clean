@@ -150,7 +150,13 @@ export function Watch() {
         }
         setItemData(normalizedData);
       } catch (err) {
-        if (err.response?.status === 403) {
+        if (err.response?.status === 401) {
+          // Sesión expirada o no autorizado
+          setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente para acceder a este contenido.');
+          setTimeout(() => {
+            navigate('/login', { state: { from: location.pathname } });
+          }, 2000);
+        } else if (err.response?.status === 403) {
           const errorData = err.response.data || {};
           setAccessModalData({
             title: errorData.title || location.state?.title || location.state?.name || 'Contenido Premium',

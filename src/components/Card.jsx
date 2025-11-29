@@ -17,6 +17,7 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
     onAddToCollectionClick,
     showItemTypeBadge = false, // Nueva prop para controlar la visibilidad
   }) {
+    console.log('Card item:', item);
     const handlePlayClick = (e) => {
       e.stopPropagation();
       if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
