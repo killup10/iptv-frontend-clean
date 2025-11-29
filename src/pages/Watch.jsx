@@ -30,8 +30,51 @@ export function Watch() {
   const [accessModalData, setAccessModalData] = useState(null);
 
   const videoAreaRef = useRef(null);
-  const isContinueWatching = location.state?.continueWatching === true;
-  const startTimeFromState = location.state?.startTime || 0;
+  
+  // 🔧 FIX ELECTRON: Recuperar state desde localStorage si es necesario (HashRouter puede perderlo)
+  const [isContinueWatching, setIsContinueWatching] = useState(location.state?.continueWatching === true);
+  const [startTimeFromState, setStartTimeFromState] = useState(location.state?.startTime || 0);
+  
+  useEffect(() => {
+    if (location.state?.continueWatching) {
+      // Guardar el state en localStorage como fallback para Electron
+      const cacheKey = `continueWatching_${itemId}`;
+      const navigationCache = {
+        continueWatching: location.state.continueWatching,
+        startTime: location.state.startTime,
+        seasonIndex: location.state.seasonIndex,
+        chapterIndex: location.state.chapterIndex,
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(navigationCache));
+        console.log('[Watch] ✅ Estado "Continuar viendo" guardado en localStorage:', navigationCache);
+      } catch (e) {
+        console.error('[Watch] Error guardando en localStorage:', e);
+      }
+      setIsContinueWatching(true);
+      setStartTimeFromState(location.state.startTime || 0);
+    } else {
+      // Intentar recuperar desde localStorage si el state se perdió
+      const cacheKey = `continueWatching_${itemId}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached);
+          // Solo usar si es reciente (menos de 5 minutos)
+          if (Date.now() - data.timestamp < 5 * 60 * 1000) {
+            console.log('[Watch] ✅ Estado recuperado desde localStorage:', data);
+            setIsContinueWatching(true);
+            setStartTimeFromState(data.startTime || 0);
+            // No borrar de localStorage aún, por si el usuario hace back/forward
+          }
+        }
+      } catch (e) {
+        console.error('[Watch] Error recuperando de localStorage:', e);
+      }
+    }
+  }, [itemId, location.state]);
+
   const [startTime, setStartTime] = useState(startTimeFromState);
   const [reloadKey, setReloadKey] = useState(0);
   const [useTrial, setUseTrial] = useState(() => {
@@ -168,12 +211,33 @@ export function Watch() {
       hasSeasons: !!itemData.seasons,
       seasonsLength: itemData.seasons?.length,
       locationState: location.state,
+      isContinueWatching,
       watchProgress: itemData.watchProgress
     });
 
-    if (location.state?.continueWatching && location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
-      seasonIdx = location.state.seasonIndex;
-      chapterIdx = location.state.chapterIndex;
+    // 🔧 FIX ELECTRON: Intentar obtener seasonIndex/chapterIndex de localStorage si no está en location.state
+    let seasonIndexFromState = location.state?.seasonIndex;
+    let chapterIndexFromState = location.state?.chapterIndex;
+    let continueWatchingFromState = location.state?.continueWatching || isContinueWatching;
+
+    if (isContinueWatching && (seasonIndexFromState === undefined || chapterIndexFromState === undefined)) {
+      const cacheKey = `continueWatching_${itemId}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached);
+          seasonIndexFromState = data.seasonIndex;
+          chapterIndexFromState = data.chapterIndex;
+          console.log('[Watch] ✅ Recuperado seasonIndex/chapterIndex desde localStorage:', { seasonIndexFromState, chapterIndexFromState });
+        }
+      } catch (e) {
+        console.error('[Watch] Error leyendo localStorage:', e);
+      }
+    }
+
+    if (continueWatchingFromState && seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
+      seasonIdx = seasonIndexFromState;
+      chapterIdx = chapterIndexFromState;
       if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
         console.log('[Watch] ✅ Cargando desde estado de navegación (continuar viendo):', { seasonIdx, chapterIdx });
         foundChapter = true;
@@ -183,7 +247,7 @@ export function Watch() {
       }
     }
 
-    if (!foundChapter && location.state?.continueWatching && itemData.watchProgress) {
+    if (!foundChapter && continueWatchingFromState && itemData.watchProgress) {
       console.log('[Watch] Intentando cargar desde watchProgress:', itemData.watchProgress);
       const wp = itemData.watchProgress;
       
@@ -199,9 +263,9 @@ export function Watch() {
       }
     }
 
-    if (!foundChapter && location.state?.seasonIndex !== undefined && location.state?.chapterIndex !== undefined) {
-      seasonIdx = location.state.seasonIndex;
-      chapterIdx = location.state.chapterIndex;
+    if (!foundChapter && seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
+      seasonIdx = seasonIndexFromState;
+      chapterIdx = chapterIndexFromState;
       if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
         console.log('[Watch] ✅ Cargando desde estado de navegación directo:', { seasonIdx, chapterIdx });
         foundChapter = true;
@@ -224,7 +288,7 @@ export function Watch() {
       console.error('[Watch] ❌ No se encontró ningún capítulo válido para reproducir');
       setError('No se encontró ningún capítulo válido para reproducir');
     }
-  }, [itemData, location.state, itemType]);
+  }, [itemData, location.state, itemType, isContinueWatching, itemId]);
 
   // 2) Calcular URL reproducible
   useEffect(() => {

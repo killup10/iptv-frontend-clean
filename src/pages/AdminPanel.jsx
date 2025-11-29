@@ -151,7 +151,9 @@ export default function AdminPanel() {
     requiresPlan: [],
     seasons: [],
     subcategoria: "Netflix",
-    hasNewEpisodes: false
+    hasNewEpisodes: false,
+    is4K: false,
+    is60FPS: false
   });
 
 
@@ -469,6 +471,8 @@ export default function AdminPanel() {
         requiresPlan: plansToSend,
         subcategoria: (vodForm.tipo !== "pelicula") ? vodForm.subcategoria : undefined,
         seasons: (vodForm.tipo !== 'pelicula' && Array.isArray(vodForm.seasons)) ? vodForm.seasons : [],
+        is4K: Boolean(vodForm.is4K),
+        is60FPS: Boolean(vodForm.is60FPS),
       };
       delete dataToSend.chapters;
       
@@ -950,7 +954,7 @@ export default function AdminPanel() {
                 />
               )}
             </div>
-            {vodForm.tipo === 'serie' && (
+            {vodForm.tipo !== 'pelicula' && vodForm.tipo !== 'movie' && vodForm.tipo !== 'channel' && (
               <div className="space-y-2 pt-2 border-t border-gray-600 mt-4 pt-4">
                 <p className="text-sm font-medium text-gray-300">Calidad:</p>
                 <div className="flex items-center space-x-6">

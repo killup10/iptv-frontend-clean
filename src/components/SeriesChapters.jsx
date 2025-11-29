@@ -12,13 +12,18 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
   const currentSeason = validSeasons ? seasons[selectedSeasonIndex] : null;
   const chaptersInSelectedSeason = currentSeason ? currentSeason.chapters : [];
 
+  // 🔧 FIX: Sincronizar temporada seleccionada cuando cambia initialCurrentSeason
+  // Este efecto SIEMPRE debe actualizar cuando initialCurrentSeason cambia, incluso en Electron
   useEffect(() => {
-    // Sincroniza el estado de la temporada seleccionada con el prop que viene de la navegación.
-    // Esto asegura que si se navega a un capítulo de una temporada específica, se muestre la temporada correcta.
-    if (initialCurrentSeason !== undefined && initialCurrentSeason !== selectedSeasonIndex) {
+    if (initialCurrentSeason !== undefined && typeof initialCurrentSeason === 'number') {
+      console.log('[SeriesChapters] FIX: Actualizando temporada seleccionada:', { 
+        initialCurrentSeason, 
+        currentSelected: selectedSeasonIndex,
+        willUpdate: initialCurrentSeason !== selectedSeasonIndex
+      });
       setSelectedSeasonIndex(initialCurrentSeason);
     }
-  }, [initialCurrentSeason, selectedSeasonIndex]);
+  }, [initialCurrentSeason]); // ✅ Dependencia SOLO en initialCurrentSeason
 
 
   console.log("[SeriesChapters] Props recibidos:", {
