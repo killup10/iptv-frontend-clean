@@ -35,7 +35,7 @@ function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url(/fondo.png)` }}>
+    <div className="min-h-screen flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url(./fondo.png)` }}>
       <div className="bg-black bg-opacity-75 p-8 rounded-lg shadow-lg w-full max-w-md">
         <h2 className="text-3xl font-bold text-white text-center mb-6">Registrarse en TeamG Play</h2>
         

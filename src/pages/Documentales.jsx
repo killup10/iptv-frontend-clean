@@ -77,7 +77,7 @@ export function Documentales() {
         <div 
           className="flex justify-center items-center min-h-screen"
           style={{
-            backgroundImage: `url(/fondo.png)`,
+            backgroundImage: `url(./fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -100,7 +100,7 @@ export function Documentales() {
         <div 
           className="text-red-400 p-10 text-center min-h-screen flex items-center justify-center"
           style={{
-            backgroundImage: `url(/fondo.png)`,
+            backgroundImage: `url(./fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -151,7 +151,7 @@ export function Documentales() {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: `url(/fondo.png)`,
+          backgroundImage: `url(./fondo.png)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'

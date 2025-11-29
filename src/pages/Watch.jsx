@@ -631,7 +631,7 @@ export function Watch() {
         style={{
           backgroundImage: itemData?.poster || itemData?.backdrop || itemData?.thumbnail 
             ? `url(${itemData.poster || itemData.backdrop || itemData.thumbnail})` 
-            : `url(/fondo.png)`,
+            : `url(./fondo.png)`,
           filter: 'brightness(0.3) blur(1px)'
         }}
       />

@@ -224,7 +224,7 @@ export default function TVHome() {
         <div className="px-8 mb-12">
           <div className="tv-hero-section rounded-2xl p-12 text-center">
             <img 
-              src="/logo-teamg.png" 
+              src="./logo-teamg.png" 
               alt="TeamG Play Logo" 
               className="h-32 mx-auto mb-8"
               style={{

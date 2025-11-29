@@ -77,7 +77,7 @@ export default function TVNavigation() {
           {/* Logo */}
           <div className="flex items-center">
             <img 
-              src="/logo-teamg.png" 
+              src="./logo-teamg.png" 
               alt="TeamG Play Logo" 
               className="h-20 tv-logo" 
             />

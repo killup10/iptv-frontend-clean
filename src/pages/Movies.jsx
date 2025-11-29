@@ -47,7 +47,7 @@ export const Movies = () => {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: `url(/fondo.png)`,
+          backgroundImage: `url(./fondo.png)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'

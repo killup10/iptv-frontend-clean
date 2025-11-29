@@ -311,7 +311,7 @@ export function Home() {
         `}</style>
         <div 
           style={{
-            backgroundImage: `url(/fondo.png)`,
+            backgroundImage: `url(./fondo.png)`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -324,7 +324,7 @@ export function Home() {
                 Bienvenido a
               </h1>
               <img 
-                src="/logo-teamg.png" 
+                src="./logo-teamg.png" 
                 alt="Logo de TeamG Play" 
                 className="w-48 sm:w-56 drop-shadow-glow-logo mb-4" 
               />
@@ -335,7 +335,7 @@ export function Home() {
                     Bienvenido a
                 </h1>
                 <img 
-                  src="/logo-teamg.png" 
+                  src="./logo-teamg.png" 
                   alt="Logo de TeamG Play" 
                   className="w-full max-w-xs drop-shadow-glow-logo" 
                 />

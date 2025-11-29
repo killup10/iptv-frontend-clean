@@ -212,7 +212,7 @@ export function Animes() {
       <div 
         className="text-white min-h-screen"
         style={{
-          backgroundImage: `url(/fondo.png)`,
+          backgroundImage: `url(./fondo.png)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundAttachment: 'fixed'
