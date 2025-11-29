@@ -1,70 +1,64 @@
 import React from 'react';
-import { XMarkIcon, StarIcon, ClockIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, StarIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const ContentAccessModal = ({ 
   isOpen, 
   onClose, 
   data, 
-  onProceedWithTrial,
-  onGoBack
+  onGoBack,
+  onProceedWithTrial
 }) => {
   if (!isOpen || !data) return null;
 
-  const hasTrialTime = data.trialMinutesRemaining > 0;
-
-  // Helpers: quitar decimales en cantidades de minutos
-  const fmt = (n) => Math.max(0, Math.round(Number(n || 0)));
-  const sanitizeMinutesInText = (text) =>
-    String(text || '').replace(/(\d+(\.\d+)?)/g, (match) => String(Math.round(Number(match))));
+  const hasTrial = onProceedWithTrial && data.trialMessage;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 rounded-lg max-w-sm w-full mx-4 relative border border-zinc-700">
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-2">
+      <div className="bg-zinc-900 rounded-lg w-full max-w-[280px] mx-auto relative border-2 border-zinc-700 shadow-2xl shadow-red-500/20 max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-zinc-700">
-
-          <h2 className="text-xl font-bold text-white flex items-center">
-            <StarIcon className="w-6 h-6 text-yellow-500 mr-2" />
+        <div className="flex items-center justify-between p-3 border-b border-zinc-800 sticky top-0 bg-zinc-900/80 backdrop-blur-sm">
+          <h2 className="text-base font-bold text-white flex items-center">
+            <StarIcon className="w-5 h-5 text-yellow-400 mr-2" />
             Contenido Premium
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-500 hover:text-white transition-colors flex-shrink-0"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="p-3 space-y-3">
           {/* Título del contenido */}
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">
+            <h3 className="text-sm font-semibold text-white mb-1">
               {data.title}
             </h3>
-            <p className="text-red-400 font-medium">
+            <p className="text-red-400 font-medium text-xs">
               {data.error}
             </p>
           </div>
 
           {/* Mensaje principal */}
-          <div className="bg-zinc-800 rounded-lg p-4 border border-zinc-600">
-            <p className="text-gray-300 text-sm leading-relaxed">
+          <div className="bg-zinc-800/50 rounded-md p-2 border border-zinc-700">
+            <p className="text-gray-300 text-xs leading-relaxed">
               {data.message}
             </p>
           </div>
 
           {/* Información de planes */}
           {data.currentPlan && data.requiredPlans && (
-            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-300">Plan actual:</span>
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-md p-2">
+              <div className="flex items-center justify-between text-xs gap-2">
+                <span className="text-gray-400">Tu plan:</span>
                 <span className="text-blue-400 font-medium uppercase">
                   {data.currentPlan}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm mt-2">
-                <span className="text-gray-300">Plan requerido:</span>
+              <div className="flex items-center justify-between text-xs gap-2 mt-1">
+                <span className="text-gray-400">Requerido:</span>
                 <span className="text-green-400 font-medium uppercase">
                   {Array.isArray(data.requiredPlans) 
                     ? data.requiredPlans.join(' o ') 
@@ -74,71 +68,29 @@ const ContentAccessModal = ({
             </div>
           )}
 
-          {/* Información de prueba gratuita */}
-          {data.trialMessage && (
-            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
-              <div className="flex items-center mb-2">
-                <ClockIcon className="w-5 h-5 text-green-400 mr-2" />
-                <span className="text-green-400 font-medium text-sm">
-                  Prueba Gratuita Diaria
-                </span>
-              </div>
-              <p className="text-gray-300 text-sm mb-3">
-                {sanitizeMinutesInText(data.trialMessage)}
-              </p>
-              
-              {hasTrialTime && (
-                <div className="bg-green-800/30 rounded p-3 text-center">
-                  <p className="text-green-300 text-sm font-medium">
-                    ⏱️ Tiempo disponible hoy: {fmt(data.trialMinutesRemaining)} minutos
-                  </p>
-                  {data.trialUsedToday > 0 && (
-                    <p className="text-gray-400 text-xs mt-1">
-                      Ya has usado {fmt(data.trialUsedToday)} minutos hoy
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Mensaje de upgrade */}
-          {data.upgradeMessage && (
-            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
-              <p className="text-yellow-300 text-sm leading-relaxed">
-                {data.upgradeMessage}
-              </p>
-            </div>
-          )}
+          <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+            <p className="text-green-300 text-xs font-medium mb-2 text-center">
+              Actualiza tu plan para disfrutar de todo el contenido.
+            </p>
+            <a
+              href="https://wa.me/912194777?text=Hola,%20me%20gustaría%20actualizar%20mi%20plan%20de%20TeamG%20Play"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-xs"
+            >
+              Contactar por WhatsApp
+            </a>
+          </div>
         </div>
 
         {/* Footer con botones */}
-        <div className="flex gap-3 p-6 border-t border-zinc-700 flex-col sm:flex-row">
-          {hasTrialTime && (
-            <button
-              onClick={onProceedWithTrial}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center"
-            >
-              <ClockIcon className="w-4 h-4 mr-2" />
-              Usar Prueba Gratuita
-            </button>
-          )}
-          
-          {onGoBack && (
-            <button
-              onClick={onGoBack}
-              className={`${hasTrialTime ? 'flex-1' : 'w-full'} bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center`}
-            >
-              <ArrowLeftIcon className="w-4 h-4 mr-2" />
-              Volver
-            </button>
-          )}
-          
+        <div className="flex gap-2 p-3 border-t border-zinc-800 sticky bottom-0 bg-zinc-900/80 backdrop-blur-sm">
           <button
             onClick={onClose}
-            className={`${hasTrialTime || onGoBack ? 'flex-1' : 'w-full'} bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2 px-4 rounded-lg transition-colors`}
+            className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white font-medium py-2 px-3 rounded-lg transition-colors text-xs"
           >
-            {hasTrialTime || onGoBack ? 'Cerrar' : 'Entendido'}
+            Cerrar
           </button>
         </div>
       </div>
