@@ -428,14 +428,16 @@ export function Home() {
                   <h3 className="text-lg font-bold text-primary mb-3 text-center">Descargar la aplicación</h3>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <a 
-                      href="REEMPLAZAR_CON_TU_LINK_DE_WINDOWS" 
+                      href="https://dl.dropboxusercontent.com/scl/fi/byzfo9c143ggozcvool85/TeamG-Play-Desktop-Setup-1.0.0.exe?rlkey=uikis927zvfgj79914jip4gjk&dl=0" 
+                      download="TeamG-Play-Desktop-Setup-1.0.0.exe"
                       className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
                     >
                       <Laptop className="h-5 w-5 text-secondary" />
                       <span className="font-semibold text-sm">Windows</span>
                     </a>
                     <a 
-                      href="REEMPLAZAR_CON_TU_LINK_DE_ANDROID" 
+                      href="https://dl.dropboxusercontent.com/scl/fi/uz1t1p2sji067yeirw7er/TeamGPlayv.3.apk?rlkey=wf4jxeqwb4nqpr2dlpsghu037&dl=0" 
+                      download="TeamGPlayv.3.apk"
                       className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
                     >
                       <Smartphone className="h-5 w-5 text-secondary" />
