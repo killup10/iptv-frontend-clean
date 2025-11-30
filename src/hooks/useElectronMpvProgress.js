@@ -21,8 +21,18 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
         if (now - lastSentRef.current < INTERVAL_MS) return; // throttle
 
         const lastTime = Math.floor(Number(timePos) || 0);
-        await axiosInstance.put(`/api/videos/${videoId}/progress`, { lastTime });
+        
+        // Preparar datos de progreso con capítulo y temporada si está disponible
+        const progressData = { lastTime };
+        
+        if (currentChapterInfo) {
+          progressData.lastChapter = currentChapterInfo.chapterIndex;
+          progressData.lastSeason = currentChapterInfo.seasonIndex;
+        }
+        
+        await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
         lastSentRef.current = Date.now();
+        console.debug('[useElectronMpvProgress] Progreso enviado:', progressData);
       } catch (e) {
         console.warn('[useElectronMpvProgress] failed to send progress', e?.message || e);
       }
@@ -38,7 +48,14 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
     // also listen to mpv-ended if exposed to mark completed
     const endedHandler = async () => {
       try {
-        await axiosInstance.put(`/api/videos/${videoId}/progress`, { lastTime: undefined, completed: true });
+        const progressData = { completed: true };
+        
+        if (currentChapterInfo) {
+          progressData.lastChapter = currentChapterInfo.chapterIndex;
+          progressData.lastSeason = currentChapterInfo.seasonIndex;
+        }
+        
+        await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
         if (onNextEpisode && seasons && currentChapterInfo) {
           const { seasonIndex, chapterIndex } = currentChapterInfo;
           const currentSeason = seasons[seasonIndex];

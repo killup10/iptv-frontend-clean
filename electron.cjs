@@ -2,13 +2,28 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const net = require('net');
 
 let mainWindow = null;
 let mpvProcess = null;
 let isPipMode = false;  // Flag para controlar si está en modo PIP
+let mpvSocket = null;  // Socket para comunicación IPC con MPV
+let mpvSocketConnected = false;
+let mpvCommandId = 0;  // ID para rastrear comandos
 
 // Helper para terminar el proceso de MPV
 async function forceKillVLC() {
+  // Cerrar socket de MPV si existe
+  if (mpvSocket) {
+    try {
+      mpvSocket.destroy();
+      mpvSocket = null;
+      mpvSocketConnected = false;
+    } catch (err) {
+      console.error('[MPV Socket] Error cerrando socket:', err);
+    }
+  }
+
   return new Promise(resolve => {
     if (!mpvProcess) {
       console.log('[MPV] No hay proceso MPV para detener');
@@ -48,6 +63,90 @@ async function forceKillVLC() {
 }
 
 const isDev = process.env.NODE_ENV === 'development';
+
+// Función para conectar al socket IPC de MPV y escuchar cambios de time-pos
+function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
+  console.log('[MPV Socket] Iniciando conexión a socket:', pipePath);
+  
+  return new Promise((resolve, reject) => {
+    try {
+      mpvSocket = net.createConnection(pipePath);
+      
+      let buffer = '';
+      
+      mpvSocket.on('connect', () => {
+        mpvSocketConnected = true;
+        console.log('[MPV Socket] ✓ Conectado al servidor IPC de MPV');
+        
+        // Enviar comando para observar la propiedad time-pos
+        const observeCommand = {
+          command: ['observe_property', mpvCommandId++, 'time-pos']
+        };
+        
+        mpvSocket.write(JSON.stringify(observeCommand) + '\n');
+        console.log('[MPV Socket] Observando property: time-pos');
+        resolve();
+      });
+      
+      mpvSocket.on('data', (data) => {
+        buffer += data.toString();
+        
+        // Procesar líneas completadas (terminadas en \n)
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Guardar línea incompleta
+        
+        lines.forEach(line => {
+          if (!line.trim()) return;
+          
+          try {
+            const event = JSON.parse(line);
+            
+            // Eventos de propiedad observada
+            if (event.event === 'property-change' && event.data !== null && event.data !== undefined) {
+              const timePos = event.data;
+              
+              // Enviar al frontend cada cambio de time-pos
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('mpv-time-pos', {
+                  timePos: Math.floor(timePos),
+                  currentTime: new Date().getTime()
+                });
+              }
+            }
+          } catch (err) {
+            // Ignorar líneas que no sean JSON válido
+            if (line.trim() && !line.includes('Received')) {
+              console.debug('[MPV Socket] Línea recibida (no JSON):', line.substring(0, 100));
+            }
+          }
+        });
+      });
+      
+      mpvSocket.on('error', (err) => {
+        console.warn('[MPV Socket] Error de conexión:', err.message);
+        mpvSocketConnected = false;
+      });
+      
+      mpvSocket.on('close', () => {
+        console.log('[MPV Socket] Conexión cerrada');
+        mpvSocketConnected = false;
+      });
+      
+      // Timeout de 3 segundos para conexión
+      setTimeout(() => {
+        if (!mpvSocketConnected) {
+          console.warn('[MPV Socket] Timeout en conexión, continuando sin socket');
+          reject(new Error('Timeout conectando al socket'));
+        }
+      }, 3000);
+      
+    } catch (err) {
+      console.error('[MPV Socket] Error general:', err);
+      mpvSocketConnected = false;
+      reject(err);
+    }
+  });
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -151,6 +250,9 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     args.push('--title=mpv');
     args.push('--ontop');
     
+    // NUEVO: Añadir socket IPC para monitorear time-pos
+    args.push('--input-ipc-server=\\\\.\\pipe\\mpv-socket');
+    
     // Validar bounds antes de usarlos
     if (bounds && bounds.width && bounds.height && bounds.x !== undefined && bounds.y !== undefined) {
       const w = Math.max(1, parseInt(bounds.width) || 1280);
@@ -238,6 +340,20 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     });
 
     console.log(`[MPV] Proceso iniciado con PID: ${mpvProcess.pid}`);
+    
+    // NUEVO: Intentar conectar al socket IPC de MPV después de iniciarlo
+    // Esperar un pequeño delay para que MPV inicie el servidor socket
+    setTimeout(() => {
+      setupMPVSocketListener('\\\\.\\pipe\\mpv-socket')
+        .then(() => {
+          console.log('[MPV] ✓ Socket IPC establecido, escuchando time-pos');
+        })
+        .catch((err) => {
+          console.warn('[MPV] No se pudo conectar al socket IPC (continuará sin monitoreo de progreso):', err.message);
+          // No es error crítico, el video se reproduce igual
+        });
+    }, 500); // Esperar 500ms para que MPV inicie
+    
     return { success: true, player: 'MPV', pid: mpvProcess.pid };
   } catch (error) {
     console.error('[PLAYER] Error general:', error);
