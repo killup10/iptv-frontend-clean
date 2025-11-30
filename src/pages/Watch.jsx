@@ -200,6 +200,35 @@ export function Watch() {
     loadSavedProgress();
   }, [itemId, itemType, startTimeFromState]);
 
+  // Guardar progreso inicial cuando se carga el video (para que aparezca en "Continuar Viendo")
+  useEffect(() => {
+    if (!itemData || !itemId || itemType === 'channel') return;
+
+    const saveInitialProgress = async () => {
+      try {
+        // Solo guardar si aún no hay progreso registrado
+        const existingProgress = await getUserProgress();
+        const hasProgress = existingProgress.some(p => p.video?._id === itemId && (p.progress || 0) > 0);
+        
+        if (!hasProgress) {
+          console.log(`[Watch.jsx] 📌 Guardando progreso inicial para ${itemId}`);
+          // Guardar 1 segundo para que aparezca en "Continuar Viendo"
+          await axiosInstance.put(`/api/videos/${itemId}/progress`, {
+            progress: 1,
+            completed: false,
+            totalDuration: 0
+          });
+          console.log(`[Watch.jsx] ✅ Progreso inicial guardado`);
+        }
+      } catch (err) {
+        console.error('[Watch.jsx] Error guardando progreso inicial:', err);
+        // No es crítico si falla, continúa con la reproducción
+      }
+    };
+
+    saveInitialProgress();
+  }, [itemData, itemId, itemType]);
+
   // Determinar capítulo actual
   useEffect(() => {
     if (!itemData) return;

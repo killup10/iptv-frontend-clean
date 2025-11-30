@@ -105,12 +105,9 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
             if (event.event === 'property-change' && event.data !== null && event.data !== undefined) {
               const timePos = event.data;
               
-              // Enviar al frontend cada cambio de time-pos
+              // Enviar al frontend cada cambio de time-pos (solo el número)
               if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('mpv-time-pos', {
-                  timePos: Math.floor(timePos),
-                  currentTime: new Date().getTime()
-                });
+                mainWindow.webContents.send('mpv-time-pos', timePos);
               }
             }
           } catch (err) {
@@ -343,16 +340,30 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     
     // NUEVO: Intentar conectar al socket IPC de MPV después de iniciarlo
     // Esperar un pequeño delay para que MPV inicie el servidor socket
-    setTimeout(() => {
+    let socketConnectAttempts = 0;
+    const maxAttempts = 10;
+    const attemptInterval = 300; // 300ms entre intentos
+    
+    const tryConnectSocket = () => {
+      socketConnectAttempts++;
+      console.log(`[MPV Socket] Intento ${socketConnectAttempts}/${maxAttempts} de conectar...`);
+      
       setupMPVSocketListener('\\\\.\\pipe\\mpv-socket')
         .then(() => {
-          console.log('[MPV] ✓ Socket IPC establecido, escuchando time-pos');
+          console.log('[MPV] ✓ Socket IPC establecido exitosamente, escuchando time-pos');
         })
         .catch((err) => {
-          console.warn('[MPV] No se pudo conectar al socket IPC (continuará sin monitoreo de progreso):', err.message);
-          // No es error crítico, el video se reproduce igual
+          if (socketConnectAttempts < maxAttempts) {
+            console.warn(`[MPV Socket] Intento ${socketConnectAttempts} falló, reintentando...`);
+            setTimeout(tryConnectSocket, attemptInterval);
+          } else {
+            console.warn('[MPV] No se pudo conectar al socket IPC después de múltiples intentos:', err.message);
+          }
         });
-    }, 500); // Esperar 500ms para que MPV inicie
+    };
+    
+    // Comenzar intentos después de 500ms
+    setTimeout(tryConnectSocket, 500);
     
     return { success: true, player: 'MPV', pid: mpvProcess.pid };
   } catch (error) {
