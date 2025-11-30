@@ -248,6 +248,7 @@ const VideoForm = () => {
             <option value="Prime Video">Prime Video</option>
             <option value="Disney">Disney</option>
             <option value="Apple TV">Apple TV</option>
+            <option value="HBO Max">HBO Max</option>
             <option value="Hulu y Otros">Hulu y Otros</option>
             <option value="Retro">Retro</option>
             <option value="Animadas">Animadas</option>

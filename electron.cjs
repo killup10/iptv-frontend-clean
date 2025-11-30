@@ -140,58 +140,90 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     playerPath = mpvBinPath;
     console.log('[PLAYER] Usando MPV empaquetado:', mpvBinPath);
 
+    // Validar URL
+    if (!url || typeof url !== 'string') {
+      return { success: false, error: 'URL inválida o no proporcionada' };
+    }
+
     // Construir argumentos para MPV
     const args = [];
     // Usar título simple "mpv" para que nircmd lo encuentre fácilmente
     args.push('--title=mpv');
     args.push('--ontop');
-    args.push(`--geometry=${bounds.width}x${bounds.height}+${bounds.x}+${bounds.y}`);
+    
+    // Validar bounds antes de usarlos
+    if (bounds && bounds.width && bounds.height && bounds.x !== undefined && bounds.y !== undefined) {
+      const w = Math.max(1, parseInt(bounds.width) || 1280);
+      const h = Math.max(1, parseInt(bounds.height) || 720);
+      const x = Math.max(0, parseInt(bounds.x) || 0);
+      const y = Math.max(0, parseInt(bounds.y) || 0);
+      args.push(`--geometry=${w}x${h}+${x}+${y}`);
+    }
+    
     args.push('--no-border');
-    args.push('--force-window=yes');
-    args.push('--keep-open=always');
+    args.push('--force-window=immediate');
+    args.push('--keep-open=yes');
     args.push('--vo=gpu');
     args.push('--gpu-api=d3d11');
     args.push('--hwdec=auto-safe');
     args.push('--cache=yes');
     args.push('--volume=70');
-    args.push('--save-position-on-quit');
+    args.push('--osc=yes');
+    args.push('--input-default-bindings=yes');
     
     if (startTime && startTime > 0) {
-      args.push(`--start=${Math.floor(startTime)}`);
+      const startSec = Math.max(0, Math.floor(Number(startTime)) || 0);
+      args.push(`--start=${startSec}`);
     }
 
     args.push('--');
     args.push(url);
 
     console.log(`[MPV] Lanzando con argumentos:`, args);
+    console.log(`[MPV] URL: ${url}, StartTime: ${startTime}`);
 
-    // Lanzar MPV
-    mpvProcess = spawn(playerPath, args, {
-      cwd: mpvDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      detached: false,
-      windowsHide: false,
-      env: {
-        ...process.env,
-        MPV_HOME: mpvDir
-      }
-    });
-
-    // Manejar errores
-    mpvProcess.on('error', (err) => {
-      const errorMsg = `Error al iniciar MPV: ` + err.message;
+    // Lanzar MPV con try-catch
+    try {
+      mpvProcess = spawn(playerPath, args, {
+        cwd: mpvDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+        windowsHide: false,
+        env: {
+          ...process.env,
+          MPV_HOME: mpvDir
+        }
+      });
+    } catch (spawnErr) {
+      const errorMsg = `Error al hacer spawn de MPV: ${spawnErr.message}`;
       console.error(`[MPV]`, errorMsg);
+      return { success: false, error: errorMsg };
+    }
+
+    // Manejar errores del proceso
+    mpvProcess.on('error', (err) => {
+      const errorMsg = `Error al iniciar MPV: ${err.message}`;
+      console.error(`[MPV ERROR]`, errorMsg);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('mpv-error', errorMsg);
       }
+      mpvProcess = null;
+    });
+
+    mpvProcess.stdout.on('data', (data) => {
+      const output = data.toString().trim();
+      if (output) console.log(`[MPV stdout]:`, output);
     });
 
     mpvProcess.stderr.on('data', (data) => {
-      console.error(`[MPV stderr]:`, data.toString());
+      const stderr = data.toString().trim();
+      if (stderr) {
+        console.warn(`[MPV stderr]:`, stderr);
+      }
     });
 
     mpvProcess.on('exit', (code, signal) => {
-      console.log(`[MPV] Proceso terminado:`, { code, signal });
+      console.log(`[MPV] Proceso terminado - código: ${code}, señal: ${signal}`);
       
       // Notificar al frontend que MPV se cerró para que guarde el progreso
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -201,8 +233,12 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
       mpvProcess = null;
     });
 
-    console.log(`[MPV] Proceso iniciado con PID:`, mpvProcess.pid);
-    return { success: true, player: 'MPV' };
+    mpvProcess.on('close', (code) => {
+      console.log(`[MPV] Handle cerrado con código:`, code);
+    });
+
+    console.log(`[MPV] Proceso iniciado con PID: ${mpvProcess.pid}`);
+    return { success: true, player: 'MPV', pid: mpvProcess.pid };
   } catch (error) {
     console.error('[PLAYER] Error general:', error);
     return { success: false, error: error.message };
@@ -230,7 +266,7 @@ ipcMain.handle('mpv-embed-stop', async () => {
 // -----------------------------------------------------------
 ipcMain.handle('mpv-set-pip-floating', async (_, { enabled }) => {
   try {
-    if (!mpvProcess) {
+    if (!mpvProcess || !mpvProcess.pid) {
       console.warn('[MPV PIP] No hay proceso MPV activo');
       return { success: false, isPipActive: false, error: 'No hay proceso MPV activo' };
     }
@@ -242,87 +278,97 @@ ipcMain.handle('mpv-set-pip-floating', async (_, { enabled }) => {
     if (enabled) {
       try {
         // Usar PowerShell para poner la ventana de MPV siempre adelante
-        // PowerShell es nativo en Windows y siempre está disponible
         const { exec } = require('child_process');
         
-        // Script PowerShell para poner ventana siempre adelante usando Windows API
+        // Script PowerShell más simple y estable
         const psScript = `
-          [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
-          $windows = Get-Process | Where-Object { $_.MainWindowTitle -like '*mpv*' }
-          foreach ($window in $windows) {
-            if ($window.MainWindowHandle -ne 0) {
-              [System.Windows.Forms.SendKeys]::SendWait('');
-              $windowHandle = $window.MainWindowHandle
-              Add-Type @"
-                using System;
-                using System.Runtime.InteropServices;
-                public class WindowControl {
-                  [DllImport("user32.dll")]
-                  public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-                  public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-                  public const uint SWP_NOMOVE = 2;
-                  public const uint SWP_NOSIZE = 1;
-                }
-              "@
-              [WindowControl]::SetWindowPos($windowHandle, [WindowControl]::HWND_TOPMOST, 0, 0, 0, 0, 3)
+          Add-Type @"
+            using System;
+            using System.Runtime.InteropServices;
+            public class WindowControl {
+              [DllImport("user32.dll", SetLastError = true)]
+              public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+              
+              public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+              public const uint SWP_NOMOVE = 2;
+              public const uint SWP_NOSIZE = 1;
             }
+          "@
+          
+          try {
+            $process = Get-Process -Name mpv -ErrorAction SilentlyContinue
+            if ($process) {
+              $windowHandle = $process.MainWindowHandle
+              if ($windowHandle -ne [IntPtr]::Zero) {
+                [WindowControl]::SetWindowPos($windowHandle, [WindowControl]::HWND_TOPMOST, 0, 0, 0, 0, 3)
+                Write-Host "MPV window set to topmost"
+              }
+            }
+          } catch {
+            Write-Error $_.Exception.Message
           }
         `;
         
-        const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`;
-        exec(cmd, (error, stdout, stderr) => {
+        const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/"/g, '\\"')}"`;
+        exec(cmd, { timeout: 5000 }, (error, stdout, stderr) => {
           if (error) {
-            console.error('[MPV PIP] Error con PowerShell:', error);
+            console.warn('[MPV PIP] Warning - PowerShell error:', error.message);
           } else {
             console.log('[MPV PIP] ✓ MPV configurado SIEMPRE ADELANTE');
           }
         });
       } catch (err) {
-        console.error('[MPV PIP] Error con PowerShell:', err);
+        console.error('[MPV PIP] Error con PowerShell:', err.message);
       }
     } else {
       try {
-        // Modo normal - usar Alt+Tab para desactivar topmost
         const { exec } = require('child_process');
         
+        // Script PowerShell para desactivar topmost
         const psScript = `
-          [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
-          $windows = Get-Process | Where-Object { $_.MainWindowTitle -like '*mpv*' }
-          foreach ($window in $windows) {
-            if ($window.MainWindowHandle -ne 0) {
-              $windowHandle = $window.MainWindowHandle
-              Add-Type @"
-                using System;
-                using System.Runtime.InteropServices;
-                public class WindowControl {
-                  [DllImport("user32.dll")]
-                  public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-                  public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-                  public const uint SWP_NOMOVE = 2;
-                  public const uint SWP_NOSIZE = 1;
-                }
-              "@
-              [WindowControl]::SetWindowPos($windowHandle, [WindowControl]::HWND_NOTOPMOST, 0, 0, 0, 0, 3)
+          Add-Type @"
+            using System;
+            using System.Runtime.InteropServices;
+            public class WindowControl {
+              [DllImport("user32.dll", SetLastError = true)]
+              public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+              
+              public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+              public const uint SWP_NOMOVE = 2;
+              public const uint SWP_NOSIZE = 1;
             }
+          "@
+          
+          try {
+            $process = Get-Process -Name mpv -ErrorAction SilentlyContinue
+            if ($process) {
+              $windowHandle = $process.MainWindowHandle
+              if ($windowHandle -ne [IntPtr]::Zero) {
+                [WindowControl]::SetWindowPos($windowHandle, [WindowControl]::HWND_NOTOPMOST, 0, 0, 0, 0, 3)
+                Write-Host "MPV window set to normal"
+              }
+            }
+          } catch {
+            Write-Error $_.Exception.Message
           }
         `;
         
-        const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript}"`;
-        exec(cmd, (error, stdout, stderr) => {
+        const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/"/g, '\\"')}"`;
+        exec(cmd, { timeout: 5000 }, (error, stdout, stderr) => {
           if (error) {
-            console.error('[MPV PIP] Error al quitar topmost:', error);
+            console.warn('[MPV PIP] Warning - PowerShell error:', error.message);
           } else {
             console.log('[MPV PIP] ✓ MPV configurado MODO NORMAL');
           }
         });
       } catch (err) {
-        console.error('[MPV PIP] Error:', err);
+        console.error('[MPV PIP] Error:', err.message);
       }
     }
 
     return { success: true, isPipActive: isPipMode };
   } catch (error) {
-    console.error('[MPV PIP] Error:', error);
+    console.error('[MPV PIP] Error general:', error);
     return { success: false, isPipActive: isPipMode, error: error.message };
   }
 });

@@ -1,20 +1,114 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axiosInstance from '@/utils/axiosInstance';
+import Card from '@/components/Card';
+import TrailerModal from '@/components/TrailerModal';
+import { Squares2X2Icon } from '@heroicons/react/24/solid';
 
-export const Series = () => {
-  const [activeSection, setActiveSection] = useState("todas");
+export function Series() {
+  const navigate = useNavigate();
+  const [series, setSeries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const gridOptions = [5, 4, 3, 1];
+  const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
 
-  // Simulación de series por categorías
-  const series = {
-    todas: [
-      { id: "1", title: "Serie 1", category: "general" },
-      { id: "2", title: "Serie Infantil 1", category: "kids" },
-    ],
-    kids: [
-      { id: "2", title: "Serie Infantil 1", category: "kids" },
-      { id: "3", title: "Serie Infantil 2", category: "kids" },
-    ]
+  const [showTrailerModal, setShowTrailerModal] = useState(false);
+  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
+
+  useEffect(() => {
+    const fetchSeries = async () => {
+      try {
+        const response = await axiosInstance.get('/api/videos', {
+          params: {
+            tipo: 'serie',
+            limit: 3000
+          }
+        });
+        setSeries(response.data.videos || []);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching series:', err);
+        setError('Error al cargar las series');
+        setLoading(false);
+      }
+    };
+
+    fetchSeries();
+  }, []);
+
+  const handleSerieClick = (serie) => {
+    navigate(`/watch/serie/${serie._id}`);
   };
+
+  const handlePlayTrailerClick = (trailerUrl) => {
+    if (trailerUrl) {
+      setCurrentTrailerUrl(trailerUrl);
+      setShowTrailerModal(true);
+    }
+  };
+
+  const toggleGridView = () => {
+    const currentIndex = gridOptions.indexOf(gridCols);
+    const nextIndex = (currentIndex + 1) % gridOptions.length;
+    setGridCols(gridOptions[nextIndex]);
+  };
+
+  const getGridClass = () => {
+    switch (gridCols) {
+      case 1: return 'grid-cols-1';
+      case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+      case 4: return 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+      case 5: return 'grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-6';
+      default: return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <style>{`
+          :root {
+            --primary: 190 100% 50%;
+          }
+        `}</style>
+        <div 
+          className="flex justify-center items-center min-h-screen"
+          style={{
+            backgroundImage: `url(./fondo.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed'
+          }}
+        >
+          <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'hsl(var(--primary))', borderTopColor: 'transparent' }}></div>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <style>{`
+          :root {
+            --primary: 190 100% 50%;
+          }
+        `}</style>
+        <div 
+          className="text-red-400 p-10 text-center min-h-screen flex items-center justify-center"
+          style={{
+            backgroundImage: `url(./fondo.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed'
+          }}
+        >
+          {error}
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -62,68 +156,50 @@ export const Series = () => {
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center text-glow-primary">Series</h1>
-          
-          {/* Tabs de categorías */}
-          <div className="flex justify-center space-x-4 mb-8">
-            <button
-              onClick={() => setActiveSection("todas")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                activeSection === "todas"
-                  ? "text-white shadow-glow-primary"
-                  : "text-gray-300 hover:text-white"
-              }`}
-              style={{
-                backgroundColor: activeSection === "todas" 
-                  ? 'hsl(var(--primary))' 
-                  : 'hsl(var(--card-background) / 0.6)',
-                border: '1px solid hsl(var(--input-border) / 0.3)'
-              }}
-            >
-              Todas las Series
-            </button>
-            <button
-              onClick={() => setActiveSection("kids")}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                activeSection === "kids"
-                  ? "text-white shadow-glow-primary"
-                  : "text-gray-300 hover:text-white"
-              }`}
-              style={{
-                backgroundColor: activeSection === "kids" 
-                  ? 'hsl(var(--primary))' 
-                  : 'hsl(var(--card-background) / 0.6)',
-                border: '1px solid hsl(var(--input-border) / 0.3)'
-              }}
-            >
-              ZONA KIDS
-            </button>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-glow-primary">Series</h1>
+            <div className="flex items-center">
+              <button
+                onClick={toggleGridView}
+                className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                aria-label="Cambiar vista de cuadrícula"
+              >
+                <Squares2X2Icon className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Lista de series */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {series[activeSection]?.map((serie) => (
-              <Link
-                key={serie.id}
-                to={`/series/${serie.id}`}
-                className="p-6 rounded-xl shadow-lg hover:shadow-glow-primary transition-all duration-300 flex items-center transform hover:scale-105"
-                style={{
-                  backgroundColor: 'hsl(var(--card-background) / 0.8)',
-                  border: '1px solid hsl(var(--input-border) / 0.3)'
-                }}
-              >
-                <div className="w-16 h-24 bg-gradient-to-br from-purple-900 to-blue-900 rounded-lg mr-4"></div>
-                <div>
-                  <h3 className="font-semibold text-white text-lg">{serie.title}</h3>
-                  <p className="text-sm text-gray-300 mt-1">
-                    {serie.category === "kids" ? "ZONA KIDS" : "Serie General"}
-                  </p>
-                </div>
-              </Link>
+          
+          {series.length > 0 ? (
+          <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
+            {series.map((serie) => (
+              <Card
+                key={serie._id}
+                item={serie}
+                onClick={() => handleSerieClick(serie)}
+                itemType="serie"
+                onPlayTrailer={handlePlayTrailerClick}
+              />
             ))}
           </div>
+          ) : (
+            <p className="text-gray-400 text-center mt-8 py-10 text-lg">
+              No hay series disponibles en este momento.
+            </p>
+          )}
         </div>
       </div>
+      {showTrailerModal && currentTrailerUrl && (
+        <TrailerModal
+          trailerUrl={currentTrailerUrl}
+          onClose={() => {
+            setShowTrailerModal(false);
+            setCurrentTrailerUrl('');
+          }}
+        />
+      )}
     </>
   );
-};
+}
+
+export default Series;
