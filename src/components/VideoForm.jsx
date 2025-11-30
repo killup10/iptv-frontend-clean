@@ -75,8 +75,8 @@ const VideoForm = () => {
 
     try {
       const videoData = {
-        titulo,
-        descripcion,
+        title: titulo,        // CAMBIO: Usar 'title' en lugar de 'titulo'
+        description: descripcion,  // CAMBIO: Usar 'description' en lugar de 'descripcion'
         url,
         tipo,
         customThumbnail,
@@ -104,10 +104,13 @@ const VideoForm = () => {
       setUrl("");
       setTipo("pelicula");
       setSubtipo("serie");
-      setSubcategoria("Netflix");
+      setSubcategoria("Netflix"); // Reset siempre a Netflix
       setCustomThumbnail("");
       // Reiniciar el estado de temporadas
       setSeasons([{ seasonNumber: 1, chapters: [{ title: "", url: "" }] }]);
+      
+      // Limpiar mensaje después de 3 segundos
+      setTimeout(() => setMensaje(""), 3000);
     } catch (err) {
       console.error(err);
       setMensaje("❌ Error al crear el video");

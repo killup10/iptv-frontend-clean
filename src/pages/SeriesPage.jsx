@@ -15,7 +15,7 @@ const SUBCATEGORIAS = [
   "Prime Video",
   "Disney",
   "Apple TV",
-  "HBO MAX",
+  "HBO Max",
   "Hulu y Otros",
   "Retro",
   "Animadas",
