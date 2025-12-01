@@ -580,23 +580,36 @@ export function Watch() {
     
     if (fromLocation) {
       navigate(fromLocation);
-    } else if (fromSection) {
-      switch (fromSection) {
-        case 'movies':
-        case 'peliculas':
-          navigate('/');
-          break;
-        case 'series':
-          navigate('/series');
-          break;
-        case 'channels':
-        case 'canales':
-          navigate('/');
-          break;
-        default:
-          navigate('/');
-          break;
+    } else if (fromSection === 'movies' || fromSection === 'peliculas') {
+      // Regresar a películas con filtros restaurados
+      const sectionKey = location.state?.sectionKey;
+      const genre = location.state?.genre;
+      const searchTerm = location.state?.searchTerm;
+      
+      if (sectionKey) {
+        navigate('/movies', { 
+          state: { 
+            selectedMainSectionKey: sectionKey,
+            selectedGenre: genre || 'Todas',
+            searchTerm: searchTerm || ''
+          } 
+        });
+      } else {
+        navigate('/movies');
       }
+    } else if (fromSection === 'tv') {
+      // Regresar a TV en vivo con categoría restaurada
+      const selectedCategory = location.state?.selectedCategory;
+      const searchTerm = location.state?.searchTerm;
+      
+      navigate('/tv', { 
+        state: { 
+          selectedCategory: selectedCategory || 'Todos',
+          searchTerm: searchTerm || ''
+        } 
+      });
+    } else if (fromSection === 'series') {
+      navigate('/series');
     } else {
       navigate('/');
     }

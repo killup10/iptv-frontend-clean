@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '@/utils/api.js';
 import Card from '@/components/Card.jsx';
@@ -45,6 +45,7 @@ const isSectionAllowedForPlan = (sectionKey, userPlan) => {
 export default function MoviesPage() {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [movies, setMovies] = useState([]);
     const [page, setPage] = useState(1);
@@ -56,10 +57,10 @@ export default function MoviesPage() {
     const [moviesBySection, setMoviesBySection] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [selectedMainSectionKey, setSelectedMainSectionKey] = useState(null);
+    const [selectedMainSectionKey, setSelectedMainSectionKey] = useState(location.state?.selectedMainSectionKey || null);
     const [allGenres, setAllGenres] = useState(['Todas']);
-    const [selectedGenre, setSelectedGenre] = useState('Todas');
-    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedGenre, setSelectedGenre] = useState(location.state?.selectedGenre || 'Todas');
+    const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     const gridOptions = [5, 4, 3, 1];
@@ -186,7 +187,16 @@ export default function MoviesPage() {
             console.error("MoviesPage: Clic en película sin ID válido.", movie);
             return;
         }
-        const navigateToMovie = () => navigate(`/watch/movie/${movieId}`);
+        const navigateToMovie = () => {
+            navigate(`/watch/movie/${movieId}`, {
+                state: {
+                    fromSection: 'movies',
+                    sectionKey: selectedMainSectionKey,
+                    genre: selectedGenre,
+                    searchTerm: debouncedSearchTerm
+                }
+            });
+        };
         checkContentAccess(movie, navigateToMovie);
     };
 

@@ -1,6 +1,6 @@
 // src/pages/LiveTVPage.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { 
     fetchUserChannels,          // Para obtener la lista de canales filtrada por categoría/sección
@@ -11,15 +11,16 @@ import Card from '../components/Card.jsx'; // Asumo que Card.jsx está en ../com
 export default function LiveTVPage() {
   const { user } = useAuth(); // Para verificar si el usuario está logueado si es necesario
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [allChannels, setAllChannels] = useState([]); // Canales de la categoría seleccionada
   const [filterCategories, setFilterCategories] = useState(['Todos']); // Ej: ["Todos", "KIDS", "Deportes"]
-  const [selectedCategory, setSelectedCategory] = useState('Todos'); // Categoría actualmente seleccionada
+  const [selectedCategory, setSelectedCategory] = useState(location.state?.selectedCategory || 'Todos'); // Categoría actualmente seleccionada
   
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingChannels, setIsLoadingChannels] = useState(false); 
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
 
   // 1. Cargar las categorías/secciones para los botones de filtro al montar
   useEffect(() => {
@@ -96,7 +97,13 @@ export default function LiveTVPage() {
       console.error("handleChannelClick: channelId no encontrado", channel);
       return;
     }
-    navigate(`/watch/channel/${channelId}`); // El backend /api/channels/id/:channelId verificará el plan
+    navigate(`/watch/channel/${channelId}`, {
+        state: {
+            fromSection: 'tv',
+            selectedCategory: selectedCategory,
+            searchTerm: searchTerm
+        }
+    }); // El backend /api/channels/id/:channelId verificará el plan
   };
 
   // --- RENDERIZADO ---
