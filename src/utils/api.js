@@ -486,23 +486,34 @@ export async function updateAdminUserPlan(userId, plan) {
 }
 
 export async function updateAdminUserStatus(userId, isActive, expiresAt = null) {
-  const relativePath = `/api/admin/users/${userId}/status`;
-  const payload = { isActive };
-  if (expiresAt !== null) { // Solo incluir expiresAt si se proporciona un valor
-    payload.expiresAt = expiresAt;
-  }
-  console.log(`API (updateAdminUserStatus - axios): PUT ${relativePath} con payload:`, payload);
-  try {
-    const response = await axiosInstance.put(relativePath, payload); 
-    return response.data; // Espera { message: "...", user: {...} }
-  } catch (error) {
-    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al actualizar el estado del usuario.";
-    console.error(`API Error (updateAdminUserStatus - axios): ${errorMsg}`, error.response?.data);
-    throw new Error(errorMsg);
-  }
+  const relativePath = `/api/admin/users/${userId}/status`;
+  const payload = { isActive };
+  if (expiresAt !== null) { // Solo incluir expiresAt si se proporciona un valor
+    payload.expiresAt = expiresAt;
+  }
+  console.log(`API (updateAdminUserStatus - axios): PUT ${relativePath} con payload:`, payload);
+  try {
+    const response = await axiosInstance.put(relativePath, payload); 
+    return response.data; // Espera { message: "...", user: {...} }
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al actualizar el estado del usuario.";
+    console.error(`API Error (updateAdminUserStatus - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
 }
 
-/* =================== COLLECTIONS =================== */
+export async function deleteAdminUser(userId) {
+  const relativePath = `/api/admin/users/${userId}`;
+  console.log(`API (deleteAdminUser - axios): DELETE ${relativePath}`);
+  try {
+    const response = await axiosInstance.delete(relativePath);
+    return response.data; // Espera { message: "...", user: {...} }
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al eliminar el usuario.";
+    console.error(`API Error (deleteAdminUser - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}/* =================== COLLECTIONS =================== */
 export async function getCollections() {
   const relativePath = "/api/collections";
   console.log(`API (getCollections - axios): GET ${relativePath}`);

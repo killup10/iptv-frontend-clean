@@ -5,7 +5,7 @@ import {
   fetchAdminChannels, createAdminChannel, updateAdminChannel,
   deleteAdminChannel, processM3UForAdmin,
   createAdminVideo, updateAdminVideo, deleteAdminVideo,
-  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus
+  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser
 } from "@/utils/api.js";
 import AdminUserDevices from "@/components/admin/AdminUserDevices.jsx";
 import MigrationPanel from "@/components/MigrationPanel.jsx";
@@ -713,6 +713,29 @@ export default function AdminPanel() {
     } catch (err) { setErrorMsg(err.message || "Error al cambiar el estado del usuario.");
     } finally { setIsSubmitting(false); }
   };
+
+  const handleUserExpirationChange = async (userId, expiresAt) => {
+    setIsSubmitting(true); clearMessages();
+    try {
+      await updateAdminUserStatus(userId, undefined, expiresAt);
+      setSuccessMsg("Fecha de expiración del usuario actualizada.");
+      fetchAdminUsersList();
+    } catch (err) { setErrorMsg(err.message || "Error al actualizar la fecha de expiración.");
+    } finally { setIsSubmitting(false); }
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el usuario "${username}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setIsSubmitting(true); clearMessages();
+    try {
+      await deleteAdminUser(userId);
+      setSuccessMsg(`Usuario "${username}" eliminado exitosamente.`);
+      fetchAdminUsersList();
+    } catch (err) { setErrorMsg(err.message || "Error al eliminar el usuario.");
+    } finally { setIsSubmitting(false); }
+  };
   // --- FIN LÓGICA USUARIOS ---
 
  useEffect(() => {
@@ -1166,21 +1189,36 @@ export default function AdminPanel() {
             <div className="space-y-8">
               {adminUsers.map((usr) => (
                 <div key={usr._id} className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row md:justify-between md:items-center">
-                    <div>
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                    <div className="flex-1">
                       <p className="text-white font-semibold text-lg">{usr.username} ({usr.role})</p>
                       <p className="text-gray-400 text-sm mb-2">Plan actual: {ALL_AVAILABLE_PLANS.find(p => p.key === (usr.plan === "basico" ? "gplay" : usr.plan))?.displayName || usr.plan}</p>
                       <Select
                         value={usr.plan === "basico" ? "gplay" : usr.plan}
                         onChange={(e) => handleUserPlanChange(usr._id, e.target.value)}
                         disabled={isSubmitting}
-                        className="text-xs py-1.5 bg-gray-700"
+                        className="text-xs py-1.5 bg-gray-700 mb-3"
                       >
                         {ALL_AVAILABLE_PLANS.map(plan => (
                           <option key={plan.key} value={plan.key}>{plan.displayName}</option>
                         ))}
                       </Select>
-                      <div className="mt-2">
+                      
+                      <div className="mt-3">
+                        <label className="block text-gray-300 text-xs font-medium mb-1">Fecha de Expiración</label>
+                        <input
+                          type="date"
+                          value={usr.expiresAt ? usr.expiresAt.split('T')[0] : ''}
+                          onChange={(e) => handleUserExpirationChange(usr._id, e.target.value || null)}
+                          disabled={isSubmitting}
+                          className="w-full sm:w-48 px-2 py-1.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none"
+                        />
+                        {usr.expiresAt && (
+                          <p className="text-gray-400 text-xs mt-1">Expira: {new Date(usr.expiresAt).toLocaleDateString()}</p>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
                         <span className={`px-2 py-1 text-xs rounded-full font-semibold ${usr.isActive ? 'bg-green-700 text-green-100' : 'bg-red-700 text-red-100'}`}>
                           {usr.isActive ? "Activo" : "Inactivo"}
                         </span>
@@ -1190,6 +1228,13 @@ export default function AdminPanel() {
                           className={`ml-2 text-xs px-3 py-1.5 ${usr.isActive ? "bg-yellow-600 hover:bg-yellow-700" : "bg-green-600 hover:bg-green-700"}`}
                         >
                           {usr.isActive ? "Desactivar" : "Activar"}
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteUser(usr._id, usr.username)}
+                          isLoading={isSubmitting}
+                          className="ml-2 text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700"
+                        >
+                          Eliminar Usuario
                         </Button>
                       </div>
                     </div>
