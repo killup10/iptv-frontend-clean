@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import HLS from 'hls.js';
 import { getPlayerType } from '../utils/platformUtils';
+import { isHLSStream } from '../utils/playerUtils';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
 import { backgroundPlaybackService } from '../services/backgroundPlayback';
 import useProgressReporter from '../hooks/useProgressReporter';
@@ -285,25 +287,155 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
   }, [platform]);
 
-  // Reproductor HTML5 con soporte de segundo plano para Web
+  // Reproductor HTML5 con soporte HLS (M3U8) y segundo plano para Web
+  const hlsInstanceRef = useRef(null);
+
   useEffect(() => {
     let cleanupDone = false;
 
     if (platform === 'web' && url && videoRef.current) {
       const video = videoRef.current;
       console.log('[VideoPlayer] Inicializando reproductor web con URL:', url);
+      console.log('[VideoPlayer] ¿Es stream HLS (M3U8)?', isHLSStream(url));
 
       // Limpiar reproductor anterior si existe
       try {
         video.pause();
         video.removeAttribute('src');
         video.load();
+        if (hlsInstanceRef.current) {
+          hlsInstanceRef.current.destroy();
+          hlsInstanceRef.current = null;
+        }
         if (isPlayingRef.current) {
           backgroundPlaybackService.stopPlayback();
           isPlayingRef.current = false;
         }
       } catch (e) {
         console.warn('[VideoPlayer] Error en cleanup inicial:', e);
+      }
+
+      // Inicializar HLS.js si es un stream M3U8
+      if (isHLSStream(url)) {
+        console.log('[VideoPlayer] 📡 Inicializando HLS.js para stream M3U8:', url);
+        
+        if (HLS.isSupported()) {
+          const hls = new HLS({
+            // Configuración optimizada para streams en vivo/estables
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 120,
+            maxMaxBufferLength: 150,
+            maxBufferLength: 90,
+            maxBufferSize: 80 * 1000 * 1000, // 80MB
+            maxLoadingDelay: 8,
+            minAutoBitrate: 0,
+            fragLoadPolicy: {
+              default: {
+                maxTimeToFirstByteMs: 20000,  // Más tiempo para cargar
+                maxLoadTimeMs: 60000,          // Más tolerancia
+              }
+            },
+            levelLoadingRetryDelay: 2000,
+            manifestLoadingRetryDelay: 2000,
+            testSegments: false,
+            debug: false,
+            nudgeOffset: 0.3,
+            maxFontCache: 20
+          });
+
+          hlsInstanceRef.current = hls;
+
+          hls.loadSource(url);
+          hls.attachMedia(video);
+
+          hls.on(HLS.Events.MANIFEST_PARSED, () => {
+            console.log('[VideoPlayer] ✅ Manifest HLS parseado correctamente');
+            console.log('[VideoPlayer] Niveles disponibles:', hls.levels.map(l => `${l.height}p @ ${(l.bitrate/1000).toFixed(0)}kbps`).join(', '));
+            
+            // Seleccionar mejor calidad automáticamente
+            if (hls.levels.length > 0) {
+              hls.currentLevel = hls.levels.length - 1;
+            }
+            
+            video.currentTime = startTime || 0;
+            if (initialAutoplay) {
+              const playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise.catch((err) => {
+                  console.warn('[VideoPlayer] Autoplay fallido (HLS):', err);
+                  setAutoplayFailed(true);
+                });
+              }
+            }
+          });
+
+          hls.on(HLS.Events.FRAG_LOADED, (event, data) => {
+            console.log(`[VideoPlayer] 📦 Fragment ${data.frag.sn} cargado (${(data.stats.total / 1024).toFixed(2)}KB)`);
+          });
+
+          hls.on(HLS.Events.ERROR, (event, data) => {
+            console.error('[VideoPlayer] ❌ Error HLS:', {
+              type: data.type,
+              details: data.details,
+              fatal: data.fatal
+            });
+            
+            if (data.fatal) {
+              switch (data.type) {
+                case HLS.ErrorTypes.NETWORK_ERROR:
+                  console.error('[VideoPlayer] Error de red HLS, intentando recuperar...');
+                  setTimeout(() => {
+                    hls.startLoad();
+                  }, 2000);
+                  break;
+                case HLS.ErrorTypes.MEDIA_ERROR:
+                  console.error('[VideoPlayer] Error de media HLS, intentando recuperar...');
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  console.error('[VideoPlayer] Error fatal HLS, no se puede recuperar');
+                  break;
+              }
+            }
+          });
+
+          hls.on(HLS.Events.LEVEL_SWITCHED, (event, data) => {
+            const level = hls.levels[data.level];
+            console.log(`[VideoPlayer] 📊 Calidad: ${level.height}p @ ${(level.bitrate/1000).toFixed(0)}kbps`);
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Fallback para Safari que tiene soporte nativo HLS
+          console.log('[VideoPlayer] 🍎 Usando soporte nativo HLS en Safari');
+          video.src = url;
+          video.currentTime = startTime || 0;
+          if (initialAutoplay) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                console.warn('[VideoPlayer] Autoplay fallido (Safari):', err);
+                setAutoplayFailed(true);
+              });
+            }
+          }
+        } else {
+          console.error('[VideoPlayer] ❌ Navegador no soporta HLS');
+          setAutoplayFailed(true);
+        }
+      } else {
+        // Para streams MP4/WebM normales
+        console.log('[VideoPlayer] 📹 Inicializando reproducción HTML5 nativa para:', url);
+        video.src = url;
+        video.currentTime = startTime || 0;
+        if (initialAutoplay) {
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.warn('[VideoPlayer] Autoplay fallido (HTML5):', err);
+              setAutoplayFailed(true);
+            });
+          }
+        }
       }
 
       const initBackgroundPlayback = async () => {
@@ -414,13 +546,21 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
       video.addEventListener('error', handleVideoError);
       
-      // Establecer la fuente del video
-      video.src = url;
+      // Establecer la fuente del video SOLO para streams no-HLS (HLS.js lo maneja automáticamente)
+      if (!isHLSStream(url)) {
+        video.src = url;
+      }
 
       return () => {
         cleanupDone = true;
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         video.removeEventListener('error', handleVideoError);
+        
+        // Cleanup de HLS.js si existe
+        if (hlsInstanceRef.current) {
+          hlsInstanceRef.current.destroy();
+          hlsInstanceRef.current = null;
+        }
         
         if (isPlayingRef.current) {
           backgroundPlaybackService.stopPlayback();
@@ -702,8 +842,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
               });
             }}
           >
-            <source src={url} type="video/mp4" />
-            <source src={url} type="video/webm" />
+            {/* Para streams no-HLS, el src se establece via JavaScript */}
+            {/* HLS.js maneja los streams M3U8 automáticamente */}
             Tu navegador no soporta el elemento video.
           </video>
         </div>

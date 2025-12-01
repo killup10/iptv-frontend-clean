@@ -6,6 +6,7 @@ import {
     fetchUserChannels,          // Para obtener la lista de canales filtrada por categoría/sección
     fetchChannelFilterSections  // Para obtener los nombres de las categorías para los botones de filtro
 } from '../utils/api.js';      // TU api.js YA EXPORTA ESTAS DOS FUNCIONES
+import { normalizeSearchText } from '../utils/searchUtils.js'; // Para búsqueda sin tildes
 import Card from '../components/Card.jsx'; // Asumo que Card.jsx está en ../components/
 
 export default function LiveTVPage() {
@@ -81,13 +82,17 @@ export default function LiveTVPage() {
     }
   };
   
-  // Filtrar canales por término de búsqueda (esto es solo frontend sobre 'allChannels')
+  // Filtrar canales por término de búsqueda sin tildes (esto es solo frontend sobre 'allChannels')
   const displayedChannels = useMemo(() => {
     if (!allChannels) return [];
     if (!searchTerm) return allChannels;
-    return allChannels.filter(ch =>
-      ch.name && ch.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    return allChannels.filter(ch => {
+      if (!ch.name) return false;
+      const normalizedName = normalizeSearchText(ch.name);
+      return normalizedName.includes(normalizedSearch);
+    });
   }, [allChannels, searchTerm]);
 
   const handleChannelClick = (channel) => {

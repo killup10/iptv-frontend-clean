@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fetchUserSeries, getCollections, addItemsToCollection } from '../utils/api.js';
+import { normalizeSearchText } from '../utils/searchUtils.js'; // Para búsqueda sin tildes
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
@@ -192,13 +193,13 @@ const handleAddToCollection = async ({ item, collectionName }) => {
   const filteredSeries = useMemo(() => {
       let filtered = [...series];
       if (searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
+        const normalizedTerm = normalizeSearchText(searchTerm);
         filtered = filtered.filter(serie => {
-            const inName = serie.name && serie.name.toLowerCase().includes(term);
-            const inDesc = serie.description && serie.description.toLowerCase().includes(term);
+            const inName = serie.name && normalizeSearchText(serie.name).includes(normalizedTerm);
+            const inDesc = serie.description && normalizeSearchText(serie.description).includes(normalizedTerm);
             const inGenres = Array.isArray(serie.genres)
-              ? serie.genres.some(g => g && g.toLowerCase().includes(term))
-              : (typeof serie.genres === 'string' && serie.genres.toLowerCase().includes(term));
+              ? serie.genres.some(g => g && normalizeSearchText(g).includes(normalizedTerm))
+              : (typeof serie.genres === 'string' && normalizeSearchText(serie.genres).includes(normalizedTerm));
             return inName || inDesc || inGenres;
         });
       }

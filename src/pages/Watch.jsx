@@ -602,7 +602,7 @@ export function Watch() {
       const selectedCategory = location.state?.selectedCategory;
       const searchTerm = location.state?.searchTerm;
       
-      navigate('/tv', { 
+      navigate('/live-tv', { 
         state: { 
           selectedCategory: selectedCategory || 'Todos',
           searchTerm: searchTerm || ''

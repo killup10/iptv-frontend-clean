@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '@/utils/api.js';
+import { normalizeSearchText } from '@/utils/searchUtils.js';
 import Card from '@/components/Card.jsx';
 import MovieSectionCard from '@/components/MovieSectionCard.jsx';
 import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';

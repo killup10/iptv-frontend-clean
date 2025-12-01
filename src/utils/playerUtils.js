@@ -13,6 +13,19 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 /**
+ * Detecta si una URL es un stream HLS (M3U8)
+ * @param {string} url - La URL a verificar
+ * @returns {boolean} - true si es M3U8, false si no
+ */
+export function isHLSStream(url) {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  return url.toLowerCase().endsWith('.m3u8') || 
+         url.toLowerCase().includes('.m3u8?');
+}
+
+/**
  * getPlayableUrl
  *
  * @param {object} item - Objeto que debe incluir al menos { url: string }.
