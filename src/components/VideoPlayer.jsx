@@ -21,6 +21,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   const [currentTime, setCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
   const progressIntervalRef = useRef(null);
+  
+  // 🔧 FIX: Prevenir que onEnded se dispare múltiples veces
+  const hasNavigatedToNextEpisodeRef = useRef(false);
 
   const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
@@ -289,6 +292,12 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
   // Reproductor HTML5 con soporte HLS (M3U8) y segundo plano para Web
   const hlsInstanceRef = useRef(null);
+
+  // 🔧 FIX: Resetear flag cuando cambia el video (nuevo episodio)
+  useEffect(() => {
+    hasNavigatedToNextEpisodeRef.current = false;
+    console.log('[VideoPlayer] 🔄 Reseteando flag de navegación al siguiente episodio');
+  }, [url, itemId, currentChapterInfo?.chapterIndex]);
 
   useEffect(() => {
     let cleanupDone = false;
@@ -816,15 +825,24 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             onPlay={() => console.log('[VideoPlayer] onPlay - reproducción iniciada')}
             onEnded={() => {
               console.log('[VideoPlayer] Video terminado, intentando reproducir siguiente episodio');
+              
+              // 🔧 FIX: Prevenir que onEnded se dispare múltiples veces
+              if (hasNavigatedToNextEpisodeRef.current) {
+                console.log('[VideoPlayer] ⚠️ Ya navegamos al siguiente episodio, ignorando evento onEnded duplicado');
+                return;
+              }
+              
               if (onNextEpisode && seasons && currentChapterInfo) {
                 const { seasonIndex, chapterIndex } = currentChapterInfo;
                 const currentSeason = seasons[seasonIndex];
                 
                 if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
                   console.log('[VideoPlayer] Reproduciendo siguiente episodio de la misma temporada');
+                  hasNavigatedToNextEpisodeRef.current = true; // Marcar como navegado
                   onNextEpisode(seasonIndex, chapterIndex + 1);
                 } else if (seasons.length > seasonIndex + 1) {
                   console.log('[VideoPlayer] Reproduciendo primer episodio de la siguiente temporada');
+                  hasNavigatedToNextEpisodeRef.current = true; // Marcar como navegado
                   onNextEpisode(seasonIndex + 1, 0);
                 } else {
                   console.log('[VideoPlayer] No hay más episodios disponibles');
