@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getPlayableUrl } from "@/utils/playerUtils.js";
+import { maskUrl } from "@/utils/debugUtils.js";
 import axiosInstance from "@/utils/axiosInstance.js";
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
@@ -349,7 +350,7 @@ export function Watch() {
         console.log('[Watch.jsx] Info de capítulo:', { season, chapter });
         if (chapter?.url) {
           urlToPlay = chapter.url;
-          console.log(`[Watch.jsx] URL de capítulo encontrada: ${urlToPlay}`);
+          console.log(`[Watch.jsx] URL de capítulo encontrada: ${maskUrl(urlToPlay)}`);
         } else {
           console.error('[Watch.jsx] ERROR: El capítulo no tiene URL.');
           setError('El capítulo seleccionado no tiene una URL válida.');
@@ -364,7 +365,7 @@ export function Watch() {
       console.log('[Watch.jsx] No es una serie. Verificando itemData.url.');
       if (itemData.url) {
         urlToPlay = itemData.url;
-        console.log(`[Watch.jsx] URL de película/contenido encontrada: ${urlToPlay}`);
+        console.log(`[Watch.jsx] URL de película/contenido encontrada: ${maskUrl(urlToPlay)}`);
       } else {
         console.error('[Watch.jsx] ERROR: El contenido no tiene URL.');
         setError(`No se encontró una fuente de video para "${itemData.name}".`);
@@ -373,9 +374,9 @@ export function Watch() {
     }
 
     if (urlToPlay) {
-      console.log(`[Watch.jsx] Procesando URL con getPlayableUrl: ${urlToPlay}`);
+      console.log(`[Watch.jsx] Procesando URL con getPlayableUrl: ${maskUrl(urlToPlay)}`);
       const finalUrl = getPlayableUrl({ ...itemData, url: urlToPlay }, null);
-      console.log(`[Watch.jsx] URL final obtenida: ${finalUrl}`);
+      console.log(`[Watch.jsx] URL final obtenida: ${maskUrl(finalUrl)}`);
       
       if (finalUrl) {
         setVideoUrl(finalUrl);
@@ -433,7 +434,7 @@ export function Watch() {
         await window.electronMPV.stop();
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${videoUrl}`);
+        console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${maskUrl(videoUrl)}`);
         const result = await window.electronMPV.play(videoUrl, bounds, { startTime });
         console.log('--- DEBUG: Resultado de window.electronMPV.play ---', result);
 

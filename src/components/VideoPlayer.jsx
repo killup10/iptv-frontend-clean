@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import HLS from 'hls.js';
 import { getPlayerType } from '../utils/platformUtils';
 import { isHLSStream } from '../utils/playerUtils';
+import { maskUrl } from '../utils/debugUtils';
+import { getProxiedStreamUrl } from '../utils/streamProxy';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
 import { backgroundPlaybackService } from '../services/backgroundPlayback';
 import useProgressReporter from '../hooks/useProgressReporter';
@@ -304,7 +306,15 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     if (platform === 'web' && url && videoRef.current) {
       const video = videoRef.current;
-      console.log('[VideoPlayer] Inicializando reproductor web con URL:', url);
+      
+      // 🔒 Aplicar proxy para URLs sensibles (HTTPS, Dropbox, etc.)
+      const streamUrl = getProxiedStreamUrl(url);
+      const isUsingProxy = streamUrl !== url;
+      
+      console.log('[VideoPlayer] Inicializando reproductor web con URL:', maskUrl(url));
+      if (isUsingProxy) {
+        console.log('[VideoPlayer] 🔒 Usando proxy seguro para stream');
+      }
       console.log('[VideoPlayer] ¿Es stream HLS (M3U8)?', isHLSStream(url));
 
       // Limpiar reproductor anterior si existe
@@ -326,7 +336,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
       // Inicializar HLS.js si es un stream M3U8
       if (isHLSStream(url)) {
-        console.log('[VideoPlayer] 📡 Inicializando HLS.js para stream M3U8:', url);
+        console.log('[VideoPlayer] 📡 Inicializando HLS.js para stream M3U8:', maskUrl(url));
         
         if (HLS.isSupported()) {
           const hls = new HLS({
@@ -355,7 +365,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
           hlsInstanceRef.current = hls;
 
-          hls.loadSource(url);
+          // 🔒 Usar streamUrl proxificada
+          hls.loadSource(streamUrl);
           hls.attachMedia(video);
 
           hls.on(HLS.Events.MANIFEST_PARSED, () => {
@@ -416,7 +427,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           // Fallback para Safari que tiene soporte nativo HLS
           console.log('[VideoPlayer] 🍎 Usando soporte nativo HLS en Safari');
-          video.src = url;
+          // 🔒 Usar streamUrl proxificada
+          video.src = streamUrl;
           video.currentTime = startTime || 0;
           if (initialAutoplay) {
             const playPromise = video.play();
@@ -433,8 +445,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         }
       } else {
         // Para streams MP4/WebM normales
-        console.log('[VideoPlayer] 📹 Inicializando reproducción HTML5 nativa para:', url);
-        video.src = url;
+        console.log('[VideoPlayer] 📹 Inicializando reproducción HTML5 nativa para:', maskUrl(url));
+        // 🔒 Usar streamUrl proxificada
+        video.src = streamUrl;
         video.currentTime = startTime || 0;
         if (initialAutoplay) {
           const playPromise = video.play();
@@ -471,7 +484,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         }
 
         if (initialAutoplay) {
-          console.log('[VideoPlayer] handleLoadedMetadata - intentando autoplay, initialAutoplay=', initialAutoplay, 'video.readyState=', video.readyState, 'videoUrl:', url);
+          console.log('[VideoPlayer] handleLoadedMetadata - intentando autoplay, initialAutoplay=', initialAutoplay, 'video.readyState=', video.readyState, 'videoUrl:', maskUrl(url));
 
           try {
             const playPromise = video.play();
@@ -814,7 +827,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
             muted={initialAutoplay}
             crossOrigin="anonymous"
             style={{ backgroundColor: '#000' }}
-            onLoadStart={() => console.log('[VideoPlayer] onLoadStart', { url })}
+            onLoadStart={() => console.log('[VideoPlayer] onLoadStart', { url: maskUrl(url) })}
             onLoadedMetadata={(e) => console.log('[VideoPlayer] onLoadedMetadata', { 
               readyState: e.target.readyState,
               videoWidth: e.target.videoWidth,
