@@ -8,6 +8,10 @@
  * 4. Caching del servidor backend
  */
 
+// 🔧 Usar la misma URL base que axiosInstance para producción
+const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
+const BACKEND_URL = isElectron ? 'http://localhost:3000' : 'https://iptv-backend-qhbr.onrender.com';
+
 /**
  * Obtiene URL proxificada para un stream
  * @param {string} streamUrl - URL original del stream
@@ -29,8 +33,8 @@ export function getProxiedStreamUrl(streamUrl, useProxy = null) {
   try {
     // Codificar URL en base64 para seguridad
     const encoded = btoa(streamUrl);
-    // Usar API proxy del backend
-    return `/api/channels/proxy/stream?url=${encoded}`;
+    // 🔧 Usar URL completa con BACKEND_URL
+    return `${BACKEND_URL}/api/channels/proxy/stream?url=${encoded}`;
   } catch (error) {
     console.error('[StreamProxy] Error codificando URL:', error);
     return streamUrl; // Fallback a URL original
