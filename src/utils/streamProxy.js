@@ -47,18 +47,19 @@ function shouldUseProxy(url) {
 
   // URLs que DEBEN usar proxy:
   // - Dropbox: problemas de CORS
-  // - HTTPS: muchos CDNs tienen restricciones
-  // - URLs con .m3u8 HTTPS: especialmente problématicas
-  // - URLs con .m3u HTTPS
+  // - URLs HTTPS: muchos CDNs tienen restricciones
+  // - Específicamente: live-evg, tv360, origin-
+  
+  // Pero NO proxificar URLs HTTP normales que funcionan bien
   
   return (
     urlLower.includes('dropbox') ||
-    urlLower.includes('live-evg') ||
-    urlLower.includes('tv360') ||
-    urlLower.includes('.m3u8') ||  // Todos los M3U8
-    urlLower.includes('.m3u') ||   // Todos los M3U
-    urlLower.includes('https://') ||  // Todas las URLs HTTPS
-    urlLower.includes('origin-')
+    (urlLower.includes('https://') && (
+      urlLower.includes('live-evg') ||
+      urlLower.includes('tv360') ||
+      urlLower.includes('origin-') ||
+      urlLower.includes('.m3u8')
+    ))
   );
 }
 
