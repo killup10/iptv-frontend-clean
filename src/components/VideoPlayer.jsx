@@ -405,16 +405,31 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
               switch (data.type) {
                 case HLS.ErrorTypes.NETWORK_ERROR:
                   console.error('[VideoPlayer] Error de red HLS, intentando recuperar...');
+                  // Reintentar después de 3 segundos
                   setTimeout(() => {
+                    console.log('[VideoPlayer] 🔄 Reintentando carga de HLS...');
                     hls.startLoad();
-                  }, 2000);
+                  }, 3000);
                   break;
                 case HLS.ErrorTypes.MEDIA_ERROR:
                   console.error('[VideoPlayer] Error de media HLS, intentando recuperar...');
-                  hls.recoverMediaError();
+                  try {
+                    hls.recoverMediaError();
+                  } catch (e) {
+                    console.error('[VideoPlayer] No se pudo recuperar error de media:', e);
+                    // Último recurso: intentar cargar nuevamente
+                    setTimeout(() => {
+                      hls.startLoad();
+                    }, 2000);
+                  }
                   break;
                 default:
-                  console.error('[VideoPlayer] Error fatal HLS, no se puede recuperar');
+                  console.error('[VideoPlayer] ❌ Error fatal HLS, no se puede recuperar');
+                  // Último intento: mostrar fallback HTML5
+                  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    console.log('[VideoPlayer] 🔄 Intentando fallback a Safari nativo...');
+                    video.src = streamUrl;
+                  }
                   break;
               }
             }

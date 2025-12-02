@@ -47,14 +47,17 @@ function shouldUseProxy(url) {
 
   // URLs que DEBEN usar proxy:
   // - Dropbox: problemas de CORS
-  // - HTTPS con CDN: problemas de certificados
-  // - URLs con .m3u8 HTTPS: muchos CDNs tienen restricciones
+  // - HTTPS: muchos CDNs tienen restricciones
+  // - URLs con .m3u8 HTTPS: especialmente problématicas
+  // - URLs con .m3u HTTPS
   
   return (
     urlLower.includes('dropbox') ||
     urlLower.includes('live-evg') ||
     urlLower.includes('tv360') ||
-    (urlLower.includes('https://') && urlLower.includes('.m3u8')) ||
+    urlLower.includes('.m3u8') ||  // Todos los M3U8
+    urlLower.includes('.m3u') ||   // Todos los M3U
+    urlLower.includes('https://') ||  // Todas las URLs HTTPS
     urlLower.includes('origin-')
   );
 }
