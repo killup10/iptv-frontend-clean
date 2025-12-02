@@ -50,20 +50,19 @@ function shouldUseProxy(url) {
   const urlLower = url.toLowerCase();
 
   // URLs que DEBEN usar proxy:
-  // - Dropbox: problemas de CORS
-  // - URLs HTTPS: muchos CDNs tienen restricciones
-  // - Específicamente: live-evg, tv360, origin-
-  
-  // Pero NO proxificar URLs HTTP normales que funcionan bien
+  // - URLs HTTPS (casi siempre tienen problemas CORS)
+  // - Dropbox y otros CDNs
+  // - IP addresses con puertos
+  // - Live streaming (M3U8)
   
   return (
+    urlLower.includes('https://') ||
     urlLower.includes('dropbox') ||
-    (urlLower.includes('https://') && (
-      urlLower.includes('live-evg') ||
-      urlLower.includes('tv360') ||
-      urlLower.includes('origin-') ||
-      urlLower.includes('.m3u8')
-    ))
+    /^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(url) || // IP addresses
+    urlLower.includes('.m3u8') ||
+    urlLower.includes('live-evg') ||
+    urlLower.includes('tv360') ||
+    urlLower.includes('origin-')
   );
 }
 

@@ -588,7 +588,7 @@ export function Watch() {
       const searchTerm = location.state?.searchTerm;
       
       if (sectionKey) {
-        navigate('/movies', { 
+        navigate('/peliculas', { 
           state: { 
             selectedMainSectionKey: sectionKey,
             selectedGenre: genre || 'Todas',
@@ -596,14 +596,14 @@ export function Watch() {
           } 
         });
       } else {
-        navigate('/movies');
+        navigate('/peliculas');
       }
     } else if (fromSection === 'tv') {
       // Regresar a TV en vivo con categoría restaurada
       const selectedCategory = location.state?.selectedCategory;
       const searchTerm = location.state?.searchTerm;
       
-      navigate('/live-tv', { 
+      navigate('/tv', { 
         state: { 
           selectedCategory: selectedCategory || 'Todos',
           searchTerm: searchTerm || ''
