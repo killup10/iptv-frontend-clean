@@ -90,6 +90,7 @@ export function Watch() {
   });
 
   const isUnmountingRef = useRef(false);
+  const isNavigatingAwayRef = useRef(false); // 🔥 NUEVO: Ref para detectar navegación
   const currentTimeRef = useRef(0);
   const playbackStartTsRef = useRef(null);
 
@@ -553,65 +554,74 @@ export function Watch() {
     };
   }, []);
 
-  const handleBackNavigation = async () => {
+  const handleBackNavigation = () => {
+    console.log('[Watch.jsx] handleBackNavigation: Iniciando navegación hacia atrás');
     isUnmountingRef.current = true;
+    isNavigatingAwayRef.current = true;
     setVideoUrl("");
     setItemData(null);
     
+    // Detener VLC y background playback de forma asincrónica (sin esperar)
     try {
       if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
-        await backgroundPlaybackService.stopPlayback();
+        backgroundPlaybackService.stopPlayback().catch(err => {
+          console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo backgroundPlayback:', err);
+        });
       }
     } catch (err) {
-      console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo backgroundPlayback:', err);
+      console.warn('[Watch.jsx] handleBackNavigation: Error en backgroundPlayback:', err);
     }
 
     try {
       if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
-        await window.VideoPlayerPlugin.stopVideo();
+        window.VideoPlayerPlugin.stopVideo().catch(err => {
+          console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VLC plugin:', err);
+        });
       }
     } catch (err) {
-      console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VLC plugin:', err);
+      console.warn('[Watch.jsx] handleBackNavigation: Error en VideoPlayerPlugin:', err);
     }
-
-    await new Promise(resolve => setTimeout(resolve, 100));
 
     const fromLocation = location.state?.from;
     const fromSection = location.state?.fromSection;
     
+    console.log('[Watch.jsx] fromSection:', fromSection, 'fromLocation:', fromLocation);
+    
     if (fromLocation) {
       navigate(fromLocation);
+    } else if (fromSection === 'tv') {
+      // Regresar a TV en vivo con categoría restaurada
+      const selectedCategory = location.state?.selectedCategory || 'Todos';
+      const searchTerm = location.state?.searchTerm || '';
+      
+      console.log('[Watch.jsx] Navegando a /live-tv con estado:', { selectedCategory, searchTerm });
+      navigate('/live-tv', { 
+        state: { 
+          selectedCategory,
+          searchTerm
+        } 
+      });
     } else if (fromSection === 'movies' || fromSection === 'peliculas') {
       // Regresar a películas con filtros restaurados
       const sectionKey = location.state?.sectionKey;
-      const genre = location.state?.genre;
-      const searchTerm = location.state?.searchTerm;
+      const genre = location.state?.genre || 'Todas';
+      const searchTerm = location.state?.searchTerm || '';
       
       if (sectionKey) {
         navigate('/peliculas', { 
           state: { 
             selectedMainSectionKey: sectionKey,
-            selectedGenre: genre || 'Todas',
-            searchTerm: searchTerm || ''
+            selectedGenre: genre,
+            searchTerm
           } 
         });
       } else {
         navigate('/peliculas');
       }
-    } else if (fromSection === 'tv') {
-      // Regresar a TV en vivo con categoría restaurada
-      const selectedCategory = location.state?.selectedCategory;
-      const searchTerm = location.state?.searchTerm;
-      
-      navigate('/tv', { 
-        state: { 
-          selectedCategory: selectedCategory || 'Todos',
-          searchTerm: searchTerm || ''
-        } 
-      });
     } else if (fromSection === 'series') {
       navigate('/series');
     } else {
+      console.log('[Watch.jsx] No fromSection o fromLocation, navegando a home');
       navigate('/');
     }
   };
@@ -624,6 +634,35 @@ export function Watch() {
 
   const handleNextEpisode = (seasonIndex, chapterIndex) => {
     navigate(`/watch/${itemType}/${itemId}`, { state: { seasonIndex, chapterIndex, continueWatching: true } });
+  };
+
+  const handleReturnToChannelList = () => {
+    console.log('[Watch.jsx] Retornando a lista de canales');
+    isUnmountingRef.current = true;
+    isNavigatingAwayRef.current = true;
+    setVideoUrl("");
+    setItemData(null);
+    
+    try {
+      if (backgroundPlaybackService?.stopPlayback) {
+        backgroundPlaybackService.stopPlayback().catch(() => {});
+      }
+      if (window.VideoPlayerPlugin?.stopVideo) {
+        window.VideoPlayerPlugin.stopVideo().catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Error stopping playback:', err);
+    }
+    
+    const selectedCategory = location.state?.selectedCategory || 'Todos';
+    const searchTerm = location.state?.searchTerm || '';
+    
+    navigate('/tv', { 
+      state: { 
+        selectedCategory,
+        searchTerm
+      } 
+    });
   };
 
   const handleProceedWithTrial = () => {
@@ -824,6 +863,8 @@ export function Watch() {
                   currentChapterInfo={currentChapterInfo}
                   onNextEpisode={itemData.tipo !== 'pelicula' ? handleNextEpisode : undefined}
                   isUnmountingRef={isUnmountingRef}
+                  isNavigatingAwayRef={isNavigatingAwayRef}
+                  onReturnToChannelList={itemType === 'channel' ? handleReturnToChannelList : undefined}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">

@@ -15,6 +15,8 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -49,6 +51,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ImageButton playPauseButton, rewindButton, forwardButton, tracksButton, channelsButton, aspectRatioButton;
     private View controlsContainer;
     private ProgressBar brightnessBar, volumeBar;
+    private FrameLayout videoContainer;
 
     private Handler controlsHandler = new Handler(Looper.getMainLooper());
 
@@ -374,6 +377,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             channelsButton.setVisibility(View.GONE);
         } else {
             channelsButton.setVisibility(View.VISIBLE);
+            
             channelsButton.setOnClickListener(v -> {
                 showChaptersDialog();
                 hideControls();

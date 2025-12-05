@@ -1,17 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { getPlayerType } from '../utils/platformUtils';
+import { getPlayerType, isAndroidTV } from '../utils/platformUtils';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
 import { backgroundPlaybackService } from '../services/backgroundPlayback';
 import useProgressReporter from '../hooks/useProgressReporter';
 import useElectronMpvProgress from '../hooks/useElectronMpvProgress';
+import TVVideoPlayer from './TVVideoPlayer';
 import { videoProgressService } from '../services/videoProgress';
 import { App as CapacitorApp } from '@capacitor/app';
 
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef }) {
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef, isNavigatingAwayRef, onReturnToChannelList }) {
   const platform = getPlayerType();
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const hasInitializedRef = useRef(false); // 🔥 CLAVE: Detecta si ya inicializó
+  
   const [autoplayFailed, setAutoplayFailed] = useState(false);
   
   const [currentTime, setCurrentTime] = useState(0);
@@ -99,84 +102,116 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
   }, [platform, itemId, startTime, seasonNumber, chapterNumber, onNextEpisode, seasons, currentChapterInfo]);
 
-  // Android VLC playback
+  // Android VLC playback - SIMPLIFICADO: Solo se ejecuta una vez
   useEffect(() => {
     if (!url || !platform || platform !== 'android-vlc') return;
 
+    // Guard: Si ya inicializó, no hacer nada
+    if (hasInitializedRef.current) {
+      console.log('[VideoPlayer] Android: Ya inicializó, evitando re-inicio');
+      return;
+    }
+
+    // Guard: Si está desmontando, no iniciar
+    if (isUnmountingRef?.current === true) {
+      console.log('[VideoPlayer] Android: Desmontaje detectado, evitando inicio');
+      return;
+    }
+
     const handleAndroidPlayback = async () => {
-      if (isUnmountingRef?.current === true) return;
-      if (isPlayingRef.current) return;
+      // SEGUNDA VERIFICACIÓN antes de iniciar
+      if (isUnmountingRef?.current === true || hasInitializedRef.current) {
+        console.log('[VideoPlayer] Android: Cancelado - desmontaje o ya inicializó');
+        return;
+      }
       
-      if (initialAutoplay) {
+      if (!initialAutoplay) {
+        console.log('[VideoPlayer] Android: initialAutoplay=false, no iniciando');
+        return;
+      }
+
+      if (!url) {
+        console.log('[VideoPlayer] Android: Sin URL, no iniciando');
+        return;
+      }
+
+      try {
+        console.log('[VideoPlayer] Android: Iniciando reproducción de:', url);
+        hasInitializedRef.current = true; // Marcar que ya inicializó
+        
+        await backgroundPlaybackService.startPlayback({
+          title: title || "TeamG Play",
+          artist: "Reproduciendo contenido",
+          album: "TeamG Play",
+          artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
+        });
+
+        await VideoPlayerPlugin.playVideo({
+          url: url,
+          title: title || "Video",
+          startTime: startTime || 0,
+          chapters: allChapters,
+        });
+
+        isPlayingRef.current = true;
+        console.log('[VideoPlayer] Android: VLC iniciado correctamente');
+        
         try {
-          await backgroundPlaybackService.startPlayback({
-            title: title || "TeamG Play",
-            artist: "Reproduciendo contenido",
-            album: "TeamG Play",
-            artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
+          const initialTime = startTime || 0;
+          await videoProgressService.saveProgress(itemId, {
+            lastTime: initialTime,
+            lastSeason: currentChapterInfo?.seasonIndex,
+            lastChapter: currentChapterInfo?.chapterIndex,
+            completed: false
           });
-
-          await VideoPlayerPlugin.playVideo({
-            url: url,
-            title: title || "Video",
-            startTime: startTime || 0,
-            chapters: allChapters,
-          });
-
-          isPlayingRef.current = true;
-          
-          try {
-            const initialTime = startTime || 0;
-            await videoProgressService.saveProgress(itemId, {
-              lastTime: initialTime,
-              lastSeason: currentChapterInfo?.seasonIndex,
-              lastChapter: currentChapterInfo?.chapterIndex,
-              completed: false
-            });
-            lastSavedTimeRef.current = initialTime;
-          } catch (err) {
-            console.warn('[VideoPlayer] Error guardando progreso inicial:', err);
-          }
+          lastSavedTimeRef.current = initialTime;
         } catch (err) {
-          console.error("Error iniciando Android player:", err);
+          console.warn('[VideoPlayer] Error guardando progreso inicial:', err);
+        }
+      } catch (err) {
+        console.error("Error iniciando Android player:", err);
+        isPlayingRef.current = false;
+        hasInitializedRef.current = false; // Reset en caso de error
+        try {
           await backgroundPlaybackService.stopPlayback();
+        } catch (bgErr) {
+          console.warn('[VideoPlayer] Error deteniendo background playback:', bgErr);
         }
       }
     };
 
+    // Pequeño delay para evitar race conditions
     const timer = setTimeout(handleAndroidPlayback, 300);
 
     return () => {
       clearTimeout(timer);
-      if (isPlayingRef.current) {
-        try {
-          if (VideoPlayerPlugin?.stopVideo) VideoPlayerPlugin.stopVideo();
-          backgroundPlaybackService.stopPlayback();
-        } catch (err) {
-          console.warn('[VideoPlayer] Error cleanup:', err);
-        }
-        isPlayingRef.current = false;
-      }
     };
   }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo]);
 
-  // Android background events
+  // Android background events - SIMPLIFICADO
   useEffect(() => {
     if (platform !== 'android-vlc') return;
 
     const handlers = {
       'backgroundPlayback:play': () => {
+        console.log('[VideoPlayer] Background play event received');
         if (VideoPlayerPlugin?.resumeVideo) VideoPlayerPlugin.resumeVideo();
         backgroundPlaybackService.resumePlayback();
       },
       'backgroundPlayback:pause': () => {
+        console.log('[VideoPlayer] Background pause event received');
         if (VideoPlayerPlugin?.pauseVideo) VideoPlayerPlugin.pauseVideo();
         backgroundPlaybackService.pausePlayback();
       },
       'backgroundPlayback:stop': () => {
-        if (VideoPlayerPlugin?.stopVideo) VideoPlayerPlugin.stopVideo();
-        backgroundPlaybackService.stopPlayback();
-        isPlayingRef.current = false;
+        console.log('[VideoPlayer] Background stop event received');
+        try {
+          if (VideoPlayerPlugin?.stopVideo) VideoPlayerPlugin.stopVideo();
+          backgroundPlaybackService.stopPlayback();
+          isPlayingRef.current = false;
+        } catch (err) {
+          console.warn('[VideoPlayer] Error in background stop handler:', err);
+        }
       }
     };
 
@@ -191,43 +226,97 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
   }, [platform]);
 
-  // Global cleanup
+  // 🔥 NUEVO: Listener para eventos del VLC (cambiar canal, etc)
   useEffect(() => {
-    return () => {
+    if (platform !== 'android-vlc' || !onReturnToChannelList) return;
+
+    const handleChannelChangeRequest = () => {
+      console.log('[VideoPlayer] Channel change requested from VLC');
+      if (onReturnToChannelList) {
+        onReturnToChannelList();
+      }
+    };
+
+    if (VideoPlayerPlugin?.addListener) {
+      const listener = VideoPlayerPlugin.addListener('changeChannel', handleChannelChangeRequest);
+      return () => {
+        if (listener?.remove) listener.remove();
+      };
+    }
+  }, [platform, onReturnToChannelList]);
+
+  // Global cleanup - SIMPLE Y EFECTIVO
+  useEffect(() => {
+    return async () => {
+      console.log('[VideoPlayer] Global cleanup starting...');
+      isUnmountingRef.current = true;
+      hasInitializedRef.current = false; // Reset para permitir re-inicialización si es necesario
+      
+      // Pequeña espera para que otros effects vean la bandera
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       try {
-        if (window.VideoPlayerPlugin?.stopVideo) window.VideoPlayerPlugin.stopVideo();
-        if (backgroundPlaybackService?.stopPlayback) backgroundPlaybackService.stopPlayback();
+        console.log('[VideoPlayer] Stopping VLC...');
+        if (window.VideoPlayerPlugin?.stopVideo) {
+          await window.VideoPlayerPlugin.stopVideo();
+        }
+      } catch (err) {
+        console.warn('[VideoPlayer] Error stopping VLC:', err);
+      }
+
+      try {
+        console.log('[VideoPlayer] Stopping background playback...');
+        if (backgroundPlaybackService?.stopPlayback) {
+          await backgroundPlaybackService.stopPlayback();
+        }
+      } catch (err) {
+        console.warn('[VideoPlayer] Error stopping background playback:', err);
+      }
+
+      try {
         if (videoRef.current) {
+          console.log('[VideoPlayer] Clearing video ref...');
           videoRef.current.pause();
           videoRef.current.removeAttribute('src');
           videoRef.current.load();
         }
       } catch (err) {
-        // Ignorar
+        console.warn('[VideoPlayer] Error clearing video ref:', err);
       }
+
       isPlayingRef.current = false;
+      console.log('[VideoPlayer] Global cleanup complete');
     };
   }, []);
 
-  // App state listener
+  // App state listener - SIMPLE
   useEffect(() => {
     if (platform !== 'android-vlc') return;
 
     const forceStop = () => {
+      console.log('[VideoPlayer] Force stop triggered (app inactive)');
       try {
-        if (window.VideoPlayerPlugin?.stopVideo) window.VideoPlayerPlugin.stopVideo();
-        if (backgroundPlaybackService?.stopPlayback) backgroundPlaybackService.stopPlayback();
+        if (window.VideoPlayerPlugin?.stopVideo) {
+          window.VideoPlayerPlugin.stopVideo();
+        }
+        if (backgroundPlaybackService?.stopPlayback) {
+          backgroundPlaybackService.stopPlayback();
+        }
         isPlayingRef.current = false;
       } catch (err) {
-        // Ignorar
+        console.warn('[VideoPlayer] Error in force stop:', err);
       }
     };
 
     const appStateListener = CapacitorApp.addListener('appStateChange', (state) => {
+      console.log('[VideoPlayer] App state changed:', state.isActive);
       if (!state.isActive) forceStop();
     });
 
-    const pauseListener = CapacitorApp.addListener('pause', forceStop);
+    const pauseListener = CapacitorApp.addListener('pause', () => {
+      console.log('[VideoPlayer] Pause event received');
+      forceStop();
+    });
 
     return () => {
       appStateListener.remove();
@@ -343,10 +432,25 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   }, [platform, url, startTime, initialAutoplay, title]);
 
   // Render
+  
+  // Android TV - usa reproductor nativo
+  if (isAndroidTV()) {
+    return (
+      <TVVideoPlayer
+        videoUrl={url}
+        title={title}
+        chapters={allChapters}
+        onBack={onReturnToChannelList}
+        onNextEpisode={onNextEpisode}
+        autoPlay={initialAutoplay}
+      />
+    );
+  }
+
   if (platform === 'android-vlc') {
     return (
       <div 
-        className="w-full aspect-video rounded-lg flex items-center justify-center text-white relative overflow-hidden"
+        className="w-full aspect-video rounded-lg flex items-center justify-center text-white relative overflow-hidden group"
         style={{
           background: 'linear-gradient(135deg, hsl(254 50% 8%) 0%, hsl(315 100% 25% / 0.3) 50%, hsl(190 100% 50% / 0.2) 100%)',
           border: '1px solid hsl(315 100% 25% / 0.5)'

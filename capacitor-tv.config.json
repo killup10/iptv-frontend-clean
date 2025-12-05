@@ -1,0 +1,24 @@
+{
+  "appId": "com.teamg.play.tv",
+  "appName": "TeamG Play TV",
+  "webDir": "dist-tv",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "http://192.168.1.100:5173",
+    "cleartext": true
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "~/android.jks",
+      "keystorePassword": "password",
+      "keystoreAlias": "alias",
+      "keystoreAliasPassword": "password",
+      "releaseType": "APK"
+    }
+  },
+  "plugins": {
+    "@capacitor/app": {
+      "version": "7.0.2"
+    }
+  }
+}
