@@ -1,0 +1,257 @@
+/* src/components/TVChannelGrid.css */
+
+.tv-channel-grid-container {
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+  gap: 20px;
+}
+
+/* Header */
+.tv-channel-header {
+  margin-bottom: 10px;
+}
+
+.tv-channel-header h1 {
+  font-size: 48px;
+  font-weight: 900;
+  margin: 0 0 10px 0;
+  background: linear-gradient(135deg, #ff6b6b, #ff8e72);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.tv-channel-header .breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  color: #aaa;
+}
+
+.breadcrumb .category-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.breadcrumb .channel-name {
+  color: #ff8e72;
+  font-weight: 500;
+}
+
+/* Categorías bar */
+.tv-categories-bar {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 10px 0;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 107, 107, 0.2) transparent;
+}
+
+.tv-categories-bar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tv-categories-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 107, 0.2);
+  border-radius: 3px;
+}
+
+.category-btn {
+  padding: 10px 24px;
+  background: rgba(100, 100, 100, 0.3);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: #aaa;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.category-btn.active {
+  background: rgba(255, 107, 107, 0.3);
+  border-color: #ff6b6b;
+  color: #ff8e72;
+}
+
+.category-btn.focused {
+  background: rgba(255, 107, 107, 0.5);
+  border-color: #ff8e72;
+  color: #fff;
+  box-shadow: 0 0 15px rgba(255, 107, 107, 0.5);
+  transform: scale(1.05);
+}
+
+/* Grilla de canales */
+.tv-channels-grid-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 107, 107, 0.2) transparent;
+}
+
+.tv-channels-grid-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tv-channels-grid-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 107, 0.2);
+  border-radius: 4px;
+}
+
+.tv-channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 20px;
+  padding: 10px 0;
+}
+
+/* Cards de canal */
+.channel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.channel-card.focused {
+  transform: scale(1.08);
+}
+
+.channel-thumbnail {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 1.2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f3460;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.channel-card.focused .channel-thumbnail {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+}
+
+.channel-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.focus-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid #ff6b6b;
+  border-radius: 6px;
+  animation: channel-glow 0.6s ease-in-out infinite;
+}
+
+@keyframes channel-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.4), inset 0 0 10px rgba(255, 107, 107, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.8), inset 0 0 15px rgba(255, 107, 107, 0.2);
+  }
+}
+
+.channel-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0;
+  color: #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-card.focused .channel-title {
+  color: #ff8e72;
+}
+
+/* Información del canal */
+.tv-channel-info {
+  padding: 15px;
+  background: rgba(255, 107, 107, 0.05);
+  border-left: 4px solid #ff6b6b;
+  border-radius: 6px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tv-channel-info h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 5px 0;
+  color: #ff8e72;
+}
+
+.tv-channel-info p {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0;
+}
+
+/* Instrucciones */
+.tv-instructions-bar {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #999;
+  margin-top: auto;
+}
+
+/* Responsive */
+@media (max-width: 1920px) {
+  .tv-channels-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .tv-channel-header h1 {
+    font-size: 36px;
+  }
+  
+  .tv-channels-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+  }
+}

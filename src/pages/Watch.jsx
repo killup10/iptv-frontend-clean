@@ -11,9 +11,9 @@ import { throttle } from 'lodash';
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import DynamicTheme, { DynamicText, DynamicCard } from '@/components/DynamicTheme.jsx';
-import EnhancedContentInfo from '@/components/EnhancedContentInfo.jsx';
-import ContentRecommendations from '@/components/ContentRecommendations.jsx';
+import SmartRecommendations from '@/components/SmartRecommendations.jsx';
 import useGeminiContent from '@/hooks/useGeminiContent.js';
+import useRecommendations from '@/hooks/useRecommendations.js';
 
 export function Watch() {
   const { itemType, itemId } = useParams();
@@ -107,6 +107,15 @@ export function Watch() {
     Array.isArray(itemData?.genres) ? itemData.genres.join(', ') : itemData?.genres,
     itemData?.description
   );
+
+  // Hook para recomendaciones inteligentes del backend
+  const {
+    recommendations: smartRecommendations,
+    loading: smartRecommendationsLoading,
+    error: smartRecommendationsError,
+    retry: retrySmartRecommendations,
+    loadSimilarRecommendations
+  } = useRecommendations(itemId, 'similar');
 
   // 1) Fetch de detalles del contenido
   useEffect(() => {
@@ -937,19 +946,15 @@ export function Watch() {
               </DynamicCard>
             )}
 
-            <EnhancedContentInfo
-              contentInfo={contentInfo}
-              loading={geminiLoading}
-              error={geminiError}
-              onRetry={retryGemini}
-            />
-
-            <ContentRecommendations
-              recommendations={recommendations}
+            {/* Recomendaciones inteligentes basadas en similitud */}
+            <SmartRecommendations
+              recommendations={smartRecommendations}
               theme={visualTheme}
-              loading={geminiLoading}
-              error={geminiError}
-              onRetry={retryGemini}
+              loading={smartRecommendationsLoading}
+              error={smartRecommendationsError}
+              onRetry={retrySmartRecommendations}
+              title="También te podría gustar"
+              maxItems={6}
             />
           </div>
         </div>

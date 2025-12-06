@@ -552,3 +552,94 @@ export async function addItemsToCollection(collectionId, items) {
         throw new Error(errorMsg);
     }
 }
+
+/* =================== RECOMENDACIONES =================== */
+
+/**
+ * Obtiene recomendaciones similares para un video específico
+ * @param {string} videoId - ID del video
+ * @param {number} limit - Número máximo de recomendaciones (default: 6)
+ * @returns {Promise<Array>} Array de videos recomendados
+ */
+export async function fetchVideoRecommendations(videoId, limit = 6) {
+  const relativePath = `/api/videos/${videoId}/recommendations`;
+  const params = { limit };
+  console.log(`API (fetchVideoRecommendations - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data?.recommendations || [];
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener recomendaciones.";
+    console.error(`API Error (fetchVideoRecommendations - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+/**
+ * Obtiene videos similares filtrados por género
+ * @param {string} videoId - ID del video
+ * @param {number} limit - Número máximo de resultados (default: 10)
+ * @returns {Promise<Array>} Array de videos similares
+ */
+export async function fetchSimilarByGenre(videoId, limit = 10) {
+  const relativePath = `/api/videos/${videoId}/similar-by-genre`;
+  const params = { limit };
+  console.log(`API (fetchSimilarByGenre - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data?.similarVideos || [];
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener videos similares.";
+    console.error(`API Error (fetchSimilarByGenre - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+/**
+ * Obtiene recomendaciones personalizadas basadas en el historial del usuario
+ * @param {number} limit - Número máximo de recomendaciones (default: 10)
+ * @returns {Promise<Array>} Array de videos recomendados personalizadamente
+ */
+export async function fetchPersonalizedRecommendations(limit = 10) {
+  const relativePath = `/api/videos/recommendations/personalized`;
+  const params = { limit };
+  console.log(`API (fetchPersonalizedRecommendations - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data?.recommendations || [];
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener recomendaciones personalizadas.";
+    console.error(`API Error (fetchPersonalizedRecommendations - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+/**
+ * Obtiene todos los videos de un género específico
+ * @param {string} genre - Nombre del género
+ * @param {string} tipo - Tipo de contenido (opcional)
+ * @param {number} limit - Número máximo de resultados (default: 20)
+ * @param {number} page - Número de página (default: 1)
+ * @returns {Promise<Object>} Objeto con videos y paginación
+ */
+export async function fetchVideosByGenre(genre, tipo = null, limit = 20, page = 1) {
+  const relativePath = `/api/videos/genre/${genre}`;
+  const params = { limit, page };
+  if (tipo) {
+    params.tipo = tipo;
+  }
+  console.log(`API (fetchVideosByGenre - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return {
+      videos: response.data?.videos || [],
+      total: response.data?.total || 0,
+      page: response.data?.page || 1,
+      pages: response.data?.pages || 0
+    };
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener videos por género.";
+    console.error(`API Error (fetchVideosByGenre - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}

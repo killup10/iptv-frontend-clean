@@ -14,6 +14,8 @@ import Register from './pages/Register.jsx';
 import AdminPanel from './pages/AdminPanel.jsx';
 import Watch from './pages/Watch.jsx'; // Página de reproducción
 import LiveTVPage from './pages/LiveTVPage.jsx';
+import TVLiveTV from './pages/TVLiveTV.jsx';
+import { isAndroidTV } from './utils/platformUtils.js';
 import MoviesPage from './pages/MoviesPage.jsx';
 import SeriesPage from './pages/SeriesPage.jsx';
 import Animes from './pages/Animes.jsx';
@@ -58,7 +60,7 @@ const router = createHashRouter([
         path: "live-tv",
         element: (
           <ProtectedRoute>
-            <LiveTVPage />
+            {isAndroidTV() ? <TVLiveTV /> : <LiveTVPage />}
           </ProtectedRoute>
         ),
       },

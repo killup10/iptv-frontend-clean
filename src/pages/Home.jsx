@@ -3,6 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
+import TVHome from '../components/TVHome.jsx';
+import SearchBar from '../components/SearchBar.jsx';
+import { isAndroidTV } from '../utils/platformUtils.js';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -13,6 +16,10 @@ import {
   fetchFeaturedDocumentales,
   fetchRecentlyAdded,
   fetchContinueWatching,
+  fetchUserChannels,
+  fetchUserMovies,
+  fetchUserSeries,
+  fetchVideosByType,
 } from '../utils/api.js';
 import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
@@ -42,9 +49,21 @@ export function Home() {
   const [continueWatchingItems, setContinueWatchingItems] = useState([]);
   const [contentError, setContentError] = useState(null);
 
+  // State for all content (for global search)
+  const [allChannels, setAllChannels] = useState([]);
+  const [allMovies, setAllMovies] = useState([]);
+  const [allSeries, setAllSeries] = useState([]);
+  const [allAnimes, setAllAnimes] = useState([]);
+  const [allDoramas, setAllDoramas] = useState([]);
+  const [allNovelas, setAllNovelas] = useState([]);
+  const [allDocumentales, setAllDocumentales] = useState([]);
+
   // State for trailer modal
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
+
+  // Estado para búsqueda global
+  const [allSearchItems, setAllSearchItems] = useState([]);
 
   // Hook para verificación de acceso al contenido
   const {
@@ -85,6 +104,14 @@ export function Home() {
           fetchFeaturedNovelas(),
           fetchFeaturedDocumentales(),
           fetchRecentlyAdded(),
+          // Cargas adicionales para búsqueda global (limites altos para obtener todo)
+          fetchUserChannels('Todos'),
+          fetchVideosByType('pelicula', 1, 1000),
+          fetchVideosByType('serie', 1, 1000),
+          fetchVideosByType('anime', 1, 500),
+          fetchVideosByType('dorama', 1, 500),
+          fetchVideosByType('novela', 1, 500),
+          fetchVideosByType('documental', 1, 500),
         ]);
 
         const [
@@ -97,6 +124,13 @@ export function Home() {
           novelasResult,
           documentalesResult,
           recentlyAddedResult,
+          allChannelsResult,
+          allMoviesResult,
+          allSeriesResult,
+          allAnimesResult,
+          allDoramasResult,
+          allNovelasResult,
+          allDocumentalesResult,
         ] = results;
 
         if (continueWatchingResult.status === 'fulfilled' && Array.isArray(continueWatchingResult.value)) {
@@ -165,6 +199,112 @@ export function Home() {
       } else {
         console.error('[Home.jsx] Error loading recently added:', recentlyAddedResult.reason);
         setRecentlyAdded([]);
+      }
+
+      // Cargar TODOS los datos para búsqueda global
+      if (allChannelsResult.status === 'fulfilled' && Array.isArray(allChannelsResult.value)) {
+        setAllChannels(allChannelsResult.value);
+      } else {
+        console.error('[Home.jsx] Error loading all channels:', allChannelsResult.reason);
+        setAllChannels([]);
+      }
+
+      if (allMoviesResult.status === 'fulfilled') {
+        const moviesRaw = allMoviesResult.value;
+        console.log('[Home.jsx] allMoviesResult.value:', moviesRaw);
+        
+        let moviesArray = [];
+        // Manejo de diferentes formatos de respuesta
+        if (moviesRaw?.videos && Array.isArray(moviesRaw.videos)) {
+          moviesArray = moviesRaw.videos; // Formato: { videos: [...], total: X }
+        } else if (Array.isArray(moviesRaw)) {
+          moviesArray = moviesRaw; // Formato: [...]
+        }
+        
+        console.log('[Home.jsx] Loaded movies for search:', moviesArray.length);
+        if (moviesArray.length > 0) {
+          console.log('[Home.jsx] First 5 movies:', moviesArray.slice(0, 5).map(m => ({ id: m.id || m._id, name: m.name || m.title })));
+        }
+        setAllMovies(moviesArray);
+      } else {
+        console.error('[Home.jsx] Error loading all movies:', allMoviesResult.reason);
+        setAllMovies([]);
+      }
+
+      if (allSeriesResult.status === 'fulfilled') {
+        const seriesRaw = allSeriesResult.value;
+        let seriesArray = [];
+        if (seriesRaw?.videos && Array.isArray(seriesRaw.videos)) {
+          seriesArray = seriesRaw.videos;
+        } else if (Array.isArray(seriesRaw)) {
+          seriesArray = seriesRaw;
+        }
+        console.log('[Home.jsx] Loaded series for search:', seriesArray.length);
+        setAllSeries(seriesArray);
+      } else {
+        console.error('[Home.jsx] Error loading all series:', allSeriesResult.reason);
+        setAllSeries([]);
+      }
+
+      // Procesar animes, doramas, novelas, documentales para búsqueda
+      if (allAnimesResult.status === 'fulfilled') {
+        const animesRaw = allAnimesResult.value;
+        let animesArray = [];
+        if (animesRaw?.videos && Array.isArray(animesRaw.videos)) {
+          animesArray = animesRaw.videos;
+        } else if (Array.isArray(animesRaw)) {
+          animesArray = animesRaw;
+        }
+        console.log('[Home.jsx] Loaded animes for search:', animesArray.length);
+        setAllAnimes(animesArray);
+      } else {
+        console.error('[Home.jsx] Error loading all animes:', allAnimesResult.reason);
+        setAllAnimes([]);
+      }
+
+      if (allDoramasResult.status === 'fulfilled') {
+        const doramasRaw = allDoramasResult.value;
+        let doramasArray = [];
+        if (doramasRaw?.videos && Array.isArray(doramasRaw.videos)) {
+          doramasArray = doramasRaw.videos;
+        } else if (Array.isArray(doramasRaw)) {
+          doramasArray = doramasRaw;
+        }
+        console.log('[Home.jsx] Loaded doramas for search:', doramasArray.length);
+        setAllDoramas(doramasArray);
+      } else {
+        console.error('[Home.jsx] Error loading all doramas:', allDoramasResult.reason);
+        setAllDoramas([]);
+      }
+
+      if (allNovelasResult.status === 'fulfilled') {
+        const novelasRaw = allNovelasResult.value;
+        let novelasArray = [];
+        if (novelasRaw?.videos && Array.isArray(novelasRaw.videos)) {
+          novelasArray = novelasRaw.videos;
+        } else if (Array.isArray(novelasRaw)) {
+          novelasArray = novelasRaw;
+        }
+        console.log('[Home.jsx] Loaded novelas for search:', novelasArray.length);
+        setAllNovelas(novelasArray);
+      } else {
+        console.error('[Home.jsx] Error loading all novelas:', allNovelasResult.reason);
+        setAllNovelas([]);
+      }
+
+      if (allDocumentalesResult.status === 'fulfilled') {
+        const documentalesRaw = allDocumentalesResult.value;
+        let documentalesArray = [];
+        if (documentalesRaw?.videos && Array.isArray(documentalesRaw.videos)) {
+          documentalesArray = documentalesRaw.videos;
+        } else if (Array.isArray(documentalesRaw)) {
+          documentalesArray = documentalesRaw;
+        }
+        console.log('[Home.jsx] Loaded documentales for search:', documentalesArray.length);
+        setAllDocumentales(documentalesArray);
+      } else {
+        console.error('[Home.jsx] Error loading all documentales:', allDocumentalesResult.reason);
+        setAllDocumentales([]);
       }
 
     } catch (err) {
@@ -262,6 +402,66 @@ export function Home() {
         window.__lastTrailerOnClose = onCloseCallback;
       }
     }
+  };
+
+  // Construir array combinado de búsqueda (GLOBAL - todos los datos disponibles)
+  useEffect(() => {
+    // Usar ALL data si está disponible, sino usar featured
+    const channels = allChannels.length > 0 ? allChannels : featuredChannels;
+    const movies = allMovies.length > 0 ? allMovies : featuredMovies;
+    const series = allSeries.length > 0 ? allSeries : featuredSeries;
+    const animes = allAnimes.length > 0 ? allAnimes : featuredAnimes;
+    const doramas = allDoramas.length > 0 ? allDoramas : featuredDoramas;
+    const novelas = allNovelas.length > 0 ? allNovelas : featuredNovelas;
+    const documentales = allDocumentales.length > 0 ? allDocumentales : featuredDocumentales;
+
+    const searchItems = [
+      ...channels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
+      ...movies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
+      ...series.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
+      ...animes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
+      ...doramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
+      ...novelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
+      ...documentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
+      ...recentlyAdded.map(item => ({ ...item, type: item.tipo || 'contenido', itemType: item.itemType || item.tipo })),
+      ...continueWatchingItems.map(item => ({ ...item, type: 'continuar viendo', itemType: item.itemType || item.tipo })),
+    ];
+    
+    // Eliminar duplicados por ID
+    const uniqueItems = Array.from(new Map(searchItems.map(item => [item.id || item._id, item])).values());
+    console.log('[Home.jsx] Total search items:', uniqueItems.length);
+    console.log('[Home.jsx] Search items breakdown:', {
+      channels: channels.length,
+      movies: movies.length,
+      series: series.length,
+      animes: animes.length,
+      doramas: doramas.length,
+      novelas: novelas.length,
+      documentales: documentales.length,
+    });
+    setAllSearchItems(uniqueItems);
+  }, [
+    allChannels,
+    allMovies,
+    allSeries,
+    allAnimes,
+    allDoramas,
+    allNovelas,
+    allDocumentales,
+    featuredChannels,
+    featuredMovies,
+    featuredSeries,
+    featuredAnimes,
+    featuredDoramas,
+    featuredNovelas,
+    featuredDocumentales,
+    recentlyAdded,
+    continueWatchingItems,
+  ]);
+
+  // Manejador de selección en búsqueda
+  const handleSearchSelectItem = (item) => {
+    handleItemClick(item, item.itemType);
   };
 
   if (loading) {
@@ -453,6 +653,70 @@ export function Home() {
     );
   }
 
+  // Preparar secciones para TV
+  const tvSections = [
+    { title: 'Continuar Viendo', items: continueWatchingItems },
+    { title: 'Canales en Vivo', items: featuredChannels },
+    { title: 'Películas Destacadas', items: featuredMovies },
+    { title: 'Series Populares', items: featuredSeries },
+    { title: 'Animes', items: featuredAnimes },
+    { title: 'Doramas', items: featuredDoramas },
+    { title: 'Novelas', items: featuredNovelas },
+    { title: 'Documentales', items: featuredDocumentales },
+    { title: 'Recién Agregados', items: recentlyAdded },
+  ].filter(section => section.items && section.items.length > 0);
+
+  const handleTVSelectItem = (item, sectionIndex, itemIndex) => {
+    // Determinar tipo basado en la sección
+    const sectionTitle = tvSections[sectionIndex].title;
+    let itemType = 'movie';
+    
+    if (sectionTitle.includes('Canales')) itemType = 'channel';
+    else if (sectionTitle.includes('Series')) itemType = 'serie';
+    else if (sectionTitle.includes('Animes')) itemType = 'anime';
+    else if (sectionTitle.includes('Doramas')) itemType = 'dorama';
+    else if (sectionTitle.includes('Novelas')) itemType = 'novela';
+    else if (sectionTitle.includes('Documentales')) itemType = 'documental';
+    else if (sectionTitle.includes('Continuar')) itemType = item.tipo || item.itemType || 'movie';
+    
+    handleItemClick(item, itemType);
+  };
+
+  // Si es Android TV, mostrar interfaz optimizada
+  if (isAndroidTV()) {
+    if (loading) {
+      return <div style={{ color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Cargando...</div>;
+    }
+    
+    return (
+      <>
+        <div style={{ position: 'fixed', top: 60, right: 120, zIndex: 200 }}>
+          <SearchBar 
+            items={allSearchItems}
+            onSelectItem={handleSearchSelectItem}
+            placeholder="Buscar canales, películas, series..."
+          />
+        </div>
+        <TVHome 
+          sections={tvSections}
+          onSelectItem={handleTVSelectItem}
+        />
+        <TrailerModal
+          isOpen={showTrailerModal}
+          trailerUrl={currentTrailerUrl}
+          onClose={() => setShowTrailerModal(false)}
+        />
+        <ContentAccessModal
+          isOpen={showAccessModal}
+          onClose={closeAccessModal}
+          data={accessModalData}
+          onProceedWithTrial={handleProceedWithTrial}
+        />
+      </>
+    );
+  }
+
+  // Interfaz web tradicional
   return (
     <>
       <style>{`
@@ -498,6 +762,15 @@ export function Home() {
           backgroundAttachment: 'fixed'
         }}
       >
+        {/* Barra de búsqueda */}
+        <div style={{ position: 'fixed', top: 60, right: 120, zIndex: 200 }}>
+          <SearchBar 
+            items={allSearchItems}
+            onSelectItem={handleSearchSelectItem}
+            placeholder="Buscar canales, películas, series..."
+          />
+        </div>
+
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8 space-y-8 md:space-y-12">
         {recentlyAdded.length > 0 && (
           <Carousel

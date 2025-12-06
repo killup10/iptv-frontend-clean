@@ -1,5 +1,6 @@
 import React from 'react';
 import { rewriteImageUrl } from '../utils/imageUrl.js';
+import { isAndroidTV } from '../utils/platformUtils.js';
 
   import {
     PlayIcon as PlayOutlineIcon,
@@ -20,6 +21,16 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
     console.log('Card item:', item);
     const handlePlayClick = (e) => {
       e.stopPropagation();
+      
+      // En Android TV, reproducir directamente SIN trailer primero
+      if (isAndroidTV()) {
+        if (onClick) {
+          onClick(item, itemType);
+        }
+        return;
+      }
+      
+      // En web, mostrar trailer primero (behavior antiguo)
       if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
         onPlayTrailer(item.trailerUrl, () => {
           if (onClick) onClick(item, itemType);
@@ -215,7 +226,8 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
                 <PlaySolidIcon className="w-4 h-4" />
                 <span>Ver</span>
               </button>
-              {item.trailerUrl && onPlayTrailer && (
+              {/* En Android TV, no mostrar botón de trailer - solo reproducir contenido */}
+              {!isAndroidTV() && item.trailerUrl && onPlayTrailer && (
                 <button
                   type="button"
                   onClick={handleTriggerPlayTrailer}
@@ -231,7 +243,7 @@ import { rewriteImageUrl } from '../utils/imageUrl.js';
                   <FilmOutlineIcon className="w-4 h-4" />
                 </button>
               )}
-              {onAddToCollectionClick && (
+              {!isAndroidTV() && onAddToCollectionClick && (
                 <button
                   type="button"
                   onClick={(e) => {
