@@ -460,9 +460,24 @@
     max-height: 90vh;
   }
 
+  .search-header {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .search-input-wrapper {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .search-input {
+    font-size: 14px;
+    padding: 10px 0;
+  }
+
   .result-image {
-    width: 50px;
-    height: 75px;
+    width: 40px;
+    height: 60px;
   }
 
   .result-name {

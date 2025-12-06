@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
+import SearchBar from "./components/SearchBar.jsx";
 
 function App() {
   console.log('[App.jsx] Renderizando App (App.jsx)...'); 
@@ -20,6 +21,8 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
+  const [searchItems, setSearchItems] = useState([]);
 
   useEffect(() => {
     if (isAuthPage || isWatchPage) {
@@ -120,6 +123,37 @@ function App() {
     logout();
     navigate("/login");
   };
+
+  // Cargar items de búsqueda de todas las categorías
+  useEffect(() => {
+    const loadSearchItems = async () => {
+      try {
+        // Cargar películas, series, animes, etc.
+        const response = await fetch('/api/search/all', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }).catch(() => null);
+        
+        if (response?.ok) {
+          const data = await response.json();
+          setSearchItems(data.items || []);
+        }
+      } catch (err) {
+        console.log('[App.jsx] Error cargando items de búsqueda:', err);
+        setSearchItems([]);
+      }
+    };
+
+    if (!isAuthPage && !isWatchPage) {
+      loadSearchItems();
+    }
+  }, [isAuthPage, isWatchPage]);
+
+  const handleSelectSearchItem = (item) => {
+    const type = item.tipo || item.type || 'movie';
+    navigate(`/watch/${type}/${item._id || item.id}`);
+  };
   
   const shouldShowLayout = !isAuthPage && !isWatchPage;
 
@@ -172,15 +206,28 @@ function App() {
                 </Link>
                 
                 {/* Navegación Desktop */}
-                <nav className="hidden md:flex ml-10 space-x-4">
-                  <Link to="/" className="text-gray-300 hover:text-white px-3 py-2">Inicio</Link>
+                <nav className="hidden md:flex ml-10 space-x-4 items-center">
                   <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2">TV en Vivo</Link>
                   <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2">Películas</Link>
-                  <Link to="/series" className="text-gray-300 hover:text-white px-3 py-2">Series</Link>
-                  <Link to="/animes" className="text-gray-300 hover:text-white px-3 py-2">Animes</Link>
-                  <Link to="/doramas" className="text-gray-300 hover:text-white px-3 py-2">Doramas</Link>
-                  <Link to="/novelas" className="text-gray-300 hover:text-white px-3 py-2">Novelas</Link>
-                  <Link to="/documentales" className="text-gray-300 hover:text-white px-3 py-2">Documentales</Link>
+                  
+                  {/* Dropdown Contenido */}
+                  <div className="relative group">
+                    <button className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1">
+                      Contenido
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </button>
+                    
+                    <div className="absolute left-0 mt-0 w-48 bg-gray-900 rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                      <Link to="/series" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Series</Link>
+                      <Link to="/animes" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Animes</Link>
+                      <Link to="/doramas" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Doramas</Link>
+                      <Link to="/novelas" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Novelas</Link>
+                      <Link to="/documentales" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Documentales</Link>
+                    </div>
+                  </div>
+                  
                   <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2">Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2">Colecciones</Link>
                 </nav>
@@ -196,6 +243,15 @@ function App() {
                     Admin
                   </Link>
                 )}
+
+                {/* Search Bar */}
+                <div className="hidden md:block">
+                  <SearchBar 
+                    items={searchItems}
+                    onSelectItem={handleSelectSearchItem}
+                    placeholder="Buscar..."
+                  />
+                </div>
 
                 <div className="hidden md:block relative" id="user-menu">
                   <button
@@ -242,14 +298,31 @@ function App() {
             {mobileMenuOpen && (
               <div id="mobile-menu" className="md:hidden">
                 <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
-                  <Link to="/" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Inicio</Link>
-                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
+                  <Link to="/tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
                   <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Películas</Link>
-                  <Link to="/series" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Series</Link>
-                  <Link to="/animes" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Animes</Link>
-                  <Link to="/doramas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Doramas</Link>
-                  <Link to="/novelas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Novelas</Link>
-                  <Link to="/documentales" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Documentales</Link>
+                  
+                  {/* Contenido Submenu */}
+                  <div>
+                    <button 
+                      onClick={() => setMobileContenidoOpen(!mobileContenidoOpen)}
+                      className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left flex items-center justify-between"
+                    >
+                      Contenido
+                      <svg className={`w-4 h-4 transition-transform ${mobileContenidoOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </button>
+                    {mobileContenidoOpen && (
+                      <div className="pl-4 space-y-1">
+                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Series</Link>
+                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Animes</Link>
+                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Doramas</Link>
+                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Novelas</Link>
+                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Documentales</Link>
+                      </div>
+                    )}
+                  </div>
+                  
                   <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Colecciones</Link>
                   <Link to="/test-player" className="text-yellow-400 hover:text-yellow-300 block px-3 py-2 rounded-md text-base font-medium border border-yellow-600 mx-2 text-center" onClick={() => setMobileMenuOpen(false)}>🧪 Test ExoPlayer</Link>
