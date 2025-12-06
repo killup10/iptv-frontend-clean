@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
-import SearchBar from "./components/SearchBar.jsx";
 
 function App() {
   console.log('[App.jsx] Renderizando App (App.jsx)...'); 
@@ -22,7 +21,6 @@ function App() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
-  const [searchItems, setSearchItems] = useState([]);
 
   useEffect(() => {
     if (isAuthPage || isWatchPage) {
@@ -123,37 +121,6 @@ function App() {
     logout();
     navigate("/login");
   };
-
-  // Cargar items de búsqueda de todas las categorías
-  useEffect(() => {
-    const loadSearchItems = async () => {
-      try {
-        // Cargar películas, series, animes, etc.
-        const response = await fetch('/api/search/all', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }).catch(() => null);
-        
-        if (response?.ok) {
-          const data = await response.json();
-          setSearchItems(data.items || []);
-        }
-      } catch (err) {
-        console.log('[App.jsx] Error cargando items de búsqueda:', err);
-        setSearchItems([]);
-      }
-    };
-
-    if (!isAuthPage && !isWatchPage) {
-      loadSearchItems();
-    }
-  }, [isAuthPage, isWatchPage]);
-
-  const handleSelectSearchItem = (item) => {
-    const type = item.tipo || item.type || 'movie';
-    navigate(`/watch/${type}/${item._id || item.id}`);
-  };
   
   const shouldShowLayout = !isAuthPage && !isWatchPage;
 
@@ -243,15 +210,6 @@ function App() {
                     Admin
                   </Link>
                 )}
-
-                {/* Search Bar */}
-                <div className="hidden md:block">
-                  <SearchBar 
-                    items={searchItems}
-                    onSelectItem={handleSelectSearchItem}
-                    placeholder="Buscar..."
-                  />
-                </div>
 
                 <div className="hidden md:block relative" id="user-menu">
                   <button
