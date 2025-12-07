@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
+import SearchBar from "./components/SearchBar.jsx";
 
 function App() {
   console.log('[App.jsx] Renderizando App (App.jsx)...'); 
@@ -21,6 +22,7 @@ function App() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
+  const [allSearchItems, setAllSearchItems] = useState([]);
 
   useEffect(() => {
     if (isAuthPage || isWatchPage) {
@@ -121,6 +123,11 @@ function App() {
     logout();
     navigate("/login");
   };
+
+  const handleSearchSelectItem = (item) => {
+    const type = item.tipo || item.type || 'movie';
+    navigate(`/watch/${type}/${item._id || item.id}`);
+  };
   
   const shouldShowLayout = !isAuthPage && !isWatchPage;
 
@@ -202,6 +209,15 @@ function App() {
 
               {/* Menú de Usuario y Hamburguesa */}
               <div className="flex items-center space-x-4">
+                {/* Search Bar */}
+                <div className="hidden md:block">
+                  <SearchBar 
+                    items={allSearchItems}
+                    onSelectItem={handleSearchSelectItem}
+                    placeholder="Buscar..."
+                  />
+                </div>
+
                 {user?.role === 'admin' && (
                   <Link
                     to="/admin"
@@ -304,7 +320,7 @@ function App() {
       )}
 
       <main className={`flex-grow ${shouldShowLayout ? 'pt-20' : ''}`}>
-        <Outlet />
+        <Outlet context={{ setAllSearchItems }} />
       </main>
 
       {shouldShowLayout && (

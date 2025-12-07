@@ -31,8 +31,8 @@ import { isAndroidTV } from '../utils/platformUtils.js';
       }
       
       // En web, mostrar trailer primero (behavior antiguo)
-      if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
-        onPlayTrailer(item.trailerUrl, () => {
+      if (item?.trailer_url && typeof onPlayTrailer === 'function') {
+        onPlayTrailer(item, () => {
           if (onClick) onClick(item, itemType);
         });
         return;
@@ -226,8 +226,8 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                 <PlaySolidIcon className="w-4 h-4" />
                 <span>Ver</span>
               </button>
-              {/* En Android TV, no mostrar botón de trailer - solo reproducir contenido */}
-              {!isAndroidTV() && item.trailerUrl && onPlayTrailer && (
+              {/* Mostrar botón de trailer si está disponible */}
+              {item.trailerUrl && onPlayTrailer && (
                 <button
                   type="button"
                   onClick={handleTriggerPlayTrailer}

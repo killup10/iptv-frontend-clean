@@ -267,9 +267,10 @@ export default function SearchBar({
                       onClick={() => handleSelectItem(item)}
                     >
                       <img
-                        src={item.image || item.logo || item.poster || '/placeholder.png'}
+                        src={item.thumbnail || item.customThumbnail || item.tmdbThumbnail || item.logo || item.image || item.poster || '/placeholder.png'}
                         alt={item.name || item.title}
                         className="result-image"
+                        onError={(e) => { e.currentTarget.src = '/placeholder.png'; }}
                       />
                       <div className="result-info">
                         <div className="result-name">{item.name || item.title}</div>

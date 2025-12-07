@@ -483,4 +483,13 @@
   .result-name {
     font-size: 14px;
   }
+
+  .search-voice-button {
+    padding: 4px;
+  }
+
+  .search-voice-button svg {
+    width: 18px;
+    height: 18px;
+  }
 }
