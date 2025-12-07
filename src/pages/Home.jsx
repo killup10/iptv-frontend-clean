@@ -223,16 +223,16 @@ export function Home() {
     checkContentAccess(item, itemType, () => navigateToPlayer(item, itemType));
   };
 
-  const handlePlayTrailerClick = (item, onCloseCallback) => {
-    if (item.trailer_url) {
-      console.log('[Home.jsx] Playing trailer:', item.trailer_url);
-      setCurrentTrailerUrl(item.trailer_url);
+const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
+    if (trailerUrl) {
+      console.log('[Home.jsx] Playing trailer:', trailerUrl);
+      setCurrentTrailerUrl(trailerUrl);
       setShowTrailerModal(true);
       if (onCloseCallback && typeof onCloseCallback === 'function') {
         window.__lastTrailerOnClose = onCloseCallback;
       }
     } else {
-      console.warn('[Home.jsx] No trailer URL for item:', item);
+      console.warn('[Home.jsx] No trailer URL for item:');
     }
   };
 

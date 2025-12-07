@@ -31,8 +31,8 @@ import { isAndroidTV } from '../utils/platformUtils.js';
       }
       
       // En web, mostrar trailer primero (behavior antiguo)
-      if (item?.trailer_url && typeof onPlayTrailer === 'function') {
-        onPlayTrailer(item, () => {
+      if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
+        onPlayTrailer(item.trailerUrl, () => {
           if (onClick) onClick(item, itemType);
         });
         return;
