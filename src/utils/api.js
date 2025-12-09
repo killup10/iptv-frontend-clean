@@ -553,6 +553,46 @@ export async function addItemsToCollection(collectionId, items) {
     }
 }
 
+/* =================== MI LISTA =================== */
+export async function fetchMyList() {
+  const relativePath = "/api/my-list";
+  console.log(`API (fetchMyList - axios): GET ${relativePath}`);
+  try {
+    const response = await axiosInstance.get(relativePath);
+    return response.data || [];
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al cargar mi lista.";
+    console.error(`API Error (fetchMyList - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function addToMyList(videoId) {
+  const relativePath = "/api/my-list/add";
+  console.log(`API (addToMyList - axios): POST ${relativePath} con data:`, { videoId });
+  try {
+    const response = await axiosInstance.post(relativePath, { videoId });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al agregar a mi lista.";
+    console.error(`API Error (addToMyList - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function removeFromMyList(videoId) {
+  const relativePath = "/api/my-list/remove";
+  console.log(`API (removeFromMyList - axios): POST ${relativePath} con data:`, { videoId });
+  try {
+    const response = await axiosInstance.post(relativePath, { videoId });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al remover de mi lista.";
+    console.error(`API Error (removeFromMyList - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 /* =================== RECOMENDACIONES =================== */
 
 /**

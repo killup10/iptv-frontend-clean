@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
 import TVHome from '../components/TVHome.jsx';
 import { isAndroidTV } from '../utils/platformUtils.js';
+import axiosInstance from '../utils/axiosInstance.js';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -200,28 +201,28 @@ export function Home() {
     loadAllData();
   }, [user, setAllSearchItems]);
 
-  const handleItemClick = (item, itemType) => {
-    const navigateToPlayer = (resolvedItem, resolvedType) => {
-      const id = resolvedItem._id || resolvedItem.id;
-      let path;
-
-      if (resolvedType === 'continue-watching') {
-        const actualType = resolvedItem.tipo || resolvedItem.itemType;
-        if (!actualType) {
-          console.error("Continue watching item doesn't have a type (tipo or itemType):", resolvedItem);
-          return;
+      const handleItemClick = (item, itemType) => {
+      const navigateToPlayer = (resolvedItem, resolvedType) => {
+        const id = resolvedItem._id || resolvedItem.id;
+        let path;
+  
+        if (resolvedType === 'continue-watching') {
+          const actualType = resolvedItem.tipo || resolvedItem.itemType;
+          if (!actualType) {
+            console.error("Continue watching item doesn't have a type (tipo or itemType):", resolvedItem);
+            return;
+          }
+          path = `/watch/${actualType}/${id}`;
+        } else {
+          path = `/watch/${resolvedType}/${id}`;
         }
-        path = `/watch/${actualType}/${id}`;
-      } else {
-        path = `/watch/${resolvedType}/${id}`;
-      }
-      
-      console.log(`Navigating to: ${path}`);
-      navigate(path);
+        
+        console.log(`Navigating to: ${path}`);
+        navigate(path);
+      };
+  
+      checkContentAccess(item, () => navigateToPlayer(item, itemType));
     };
-
-    checkContentAccess(item, itemType, () => navigateToPlayer(item, itemType));
-  };
 
 const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     if (trailerUrl) {
@@ -239,6 +240,28 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
   // Manejador de selección en búsqueda
   const handleSearchSelectItem = (item) => {
     handleItemClick(item, item.itemType);
+  };
+
+  const handleAddToMyList = async (item) => {
+    try {
+      console.log('[Home.jsx] Agregando a Mi Lista:', item);
+      const response = await axiosInstance.post('/users/my-list/add', {
+        itemId: item._id || item.id,
+        tipo: item.tipo || item.itemType || 'movie',
+        title: item.name || item.title,
+        thumbnail: item.thumbnail,
+        description: item.description
+      });
+
+      console.log('[Home.jsx] Agregado a Mi Lista exitosamente:', response.data);
+      // Aquí puedes mostrar una notificación de éxito si quieres
+    } catch (error) {
+      if (error.response?.status === 409) {
+        console.log('[Home.jsx] Item ya está en Mi Lista');
+      } else {
+        console.error('[Home.jsx] Error al agregar a Mi Lista:', error);
+      }
+    }
   };
 
   if (loading) {
@@ -539,8 +562,9 @@ onProceedWithTrial={proceedWithTrial}
             items={recentlyAdded}
             onItemClick={(item) => handleItemClick(item, item.tipo || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType={item => item.tipo || 'movie'}
-            showItemTypeBadge={true} // Mostrar la insignia aquí
+            showItemTypeBadge={true}
           />
         )}
         {continueWatchingItems.length > 0 && (
@@ -548,6 +572,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Continuar Viendo"
             items={continueWatchingItems}
             onItemClick={(item) => handleItemClick(item, 'continue-watching')}
+            onAddToMyListClick={handleAddToMyList}
             itemType={item => item.tipo || item.itemType || 'movie'}
             showItemTypeBadge={true}
             showProgressBar={true}
@@ -567,6 +592,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredMovies}
             onItemClick={(item) => handleItemClick(item, 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="movie"
           />
         )}
@@ -576,6 +602,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredSeries}
             onItemClick={(item) => handleItemClick(item, 'serie')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="serie"
           />
         )}
@@ -585,6 +612,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredAnimes}
             onItemClick={(item) => handleItemClick(item, 'anime')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="anime"
           />
         )}
@@ -594,6 +622,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredDoramas}
             onItemClick={(item) => handleItemClick(item, 'dorama')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="dorama"
           />
         )}
@@ -603,6 +632,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredNovelas}
             onItemClick={(item) => handleItemClick(item, 'serie')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="serie"
           />
         )}
@@ -612,6 +642,7 @@ onProceedWithTrial={proceedWithTrial}
             items={featuredDocumentales}
             onItemClick={(item) => handleItemClick(item, 'serie')}
             onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyList}
             itemType="serie"
           />
         )}

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import TVNavigation from '../components/TVNavigation';
 import TVCard from '../components/TVCard';
+import axios from 'axios';
 
-useEffect(() => {
-  sessionStorage.removeItem('vlc_opened');
-}, []);
+
 
 export default function TVHome() {
   const [featuredContent, setFeaturedContent] = useState([]);
@@ -13,154 +12,56 @@ export default function TVHome() {
   const [liveChannels, setLiveChannels] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
     const loadContent = async () => {
       try {
-        // Simulate API calls
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        setFeaturedContent([
-          {
-            id: 1,
-            title: "Película Destacada 1",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Acción",
-            isPremium: true,
-            videoUrl: "https://example.com/video1.m3u8"
-          },
-          {
-            id: 2,
-            title: "Serie Popular 1",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Drama",
-            isPremium: false,
-            videoUrl: "https://example.com/video2.m3u8"
-          },
-          {
-            id: 3,
-            title: "Anime Trending",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Anime",
-            isPremium: true,
-            videoUrl: "https://example.com/video3.m3u8"
-          },
-          {
-            id: 4,
-            title: "Documental Nuevo",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Documental",
-            isPremium: false,
-            videoUrl: "https://example.com/video4.m3u8"
-          }
-        ]);
+        const response = await axios.get('/api/videos');
+        const videos = response.data;
 
-        setMoviesContent([
-          {
-            id: 5,
-            title: "Acción Extrema",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Acción",
-            videoUrl: "https://example.com/movie1.m3u8"
-          },
-          {
-            id: 6,
-            title: "Comedia Romántica",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2023",
-            genre: "Comedia",
-            videoUrl: "https://example.com/movie2.m3u8"
-          },
-          {
-            id: 7,
-            title: "Thriller Psicológico",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Thriller",
-            isPremium: true,
-            videoUrl: "https://example.com/movie3.m3u8"
-          },
-          {
-            id: 8,
-            title: "Ciencia Ficción",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Sci-Fi",
-            videoUrl: "https://example.com/movie4.m3u8"
-          }
-        ]);
+        // Categorize videos
+        const featured = videos.filter(v => v.featured).map(v => ({
+          id: v._id,
+          title: v.title,
+          thumbnail: v.customThumbnail || v.thumbnail,
+          year: v.year,
+          genre: v.genre,
+          isPremium: v.isPremium,
+          videoUrl: v.url
+        }));
 
-        setSeriesContent([
-          {
-            id: 9,
-            title: "Drama Familiar",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Drama",
-            videoUrl: "https://example.com/series1.m3u8"
-          },
-          {
-            id: 10,
-            title: "Misterio Criminal",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Crimen",
-            isPremium: true,
-            videoUrl: "https://example.com/series2.m3u8"
-          },
-          {
-            id: 11,
-            title: "Aventura Épica",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2023",
-            genre: "Aventura",
-            videoUrl: "https://example.com/series3.m3u8"
-          },
-          {
-            id: 12,
-            title: "Comedia Situacional",
-            thumbnail: "/api/placeholder/400/225",
-            year: "2024",
-            genre: "Comedia",
-            videoUrl: "https://example.com/series4.m3u8"
-          }
-        ]);
+        const movies = videos.filter(v => v.tipo === 'pelicula').map(v => ({
+          id: v._id,
+          title: v.title,
+          thumbnail: v.customThumbnail || v.thumbnail,
+          year: v.year,
+          genre: v.genre,
+          isPremium: v.isPremium,
+          videoUrl: v.url
+        }));
 
-        setLiveChannels([
-          {
-            id: 13,
-            title: "Canal Noticias 24h",
-            thumbnail: "/api/placeholder/400/225",
-            genre: "Noticias",
-            videoUrl: "https://example.com/live1.m3u8"
-          },
-          {
-            id: 14,
-            title: "Deportes en Vivo",
-            thumbnail: "/api/placeholder/400/225",
-            genre: "Deportes",
-            videoUrl: "https://example.com/live2.m3u8"
-          },
-          {
-            id: 15,
-            title: "Música 24/7",
-            thumbnail: "/api/placeholder/400/225",
-            genre: "Música",
-            videoUrl: "https://example.com/live3.m3u8"
-          },
-          {
-            id: 16,
-            title: "Entretenimiento",
-            thumbnail: "/api/placeholder/400/225",
-            genre: "Entretenimiento",
-            videoUrl: "https://example.com/live4.m3u8"
-          }
-        ]);
+        const series = videos.filter(v => v.tipo === 'serie').map(v => ({
+          id: v._id,
+          title: v.title,
+          thumbnail: v.customThumbnail || v.thumbnail,
+          year: v.year,
+          genre: v.subtipo,
+          isPremium: v.isPremium,
+          videoUrl: v.url,
+          seasons: v.seasons
+        }));
+
+        const live = videos.filter(v => v.tipo === 'live').map(v => ({
+          id: v._id,
+          title: v.title,
+          thumbnail: v.customThumbnail || v.thumbnail,
+          genre: v.genre,
+          videoUrl: v.url
+        }));
+
+        setFeaturedContent(featured);
+        setMoviesContent(movies);
+        setSeriesContent(series);
+        setLiveChannels(live);
 
         setLoading(false);
       } catch (error) {

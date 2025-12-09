@@ -25,6 +25,7 @@ import Novelas from './pages/Novelas.jsx';
 import Colecciones from './pages/Colecciones.jsx';
 import ZonaKids from './pages/ZonaKids.jsx';
 import BulkUploadPage from './pages/BulkUploadPage.jsx';
+import MyList from './pages/MyList.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import TestPlayer from './pages/TestPlayer.jsx';
 // import NotFoundPage from './pages/NotFoundPage.jsx'; // Descomenta si tienes una página 404 personalizada
@@ -125,6 +126,14 @@ const router = createHashRouter([
         element: (
           <ProtectedRoute>
             <Colecciones />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "mi-lista",
+        element: (
+          <ProtectedRoute>
+            <MyList />
           </ProtectedRoute>
         ),
       },

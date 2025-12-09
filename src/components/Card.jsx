@@ -16,6 +16,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
     onPlayTrailer,
     progressPercent,
     onAddToCollectionClick,
+    onAddToMyList,
     showItemTypeBadge = false, // Nueva prop para controlar la visibilidad
   }) {
     console.log('Card item:', item);
@@ -200,7 +201,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         )}
 
         <div 
-          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end pointer-events-none"
+          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-3 w-full">
@@ -220,14 +221,14 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                   e.preventDefault();
                   handlePlayClick(e);
                 }}
-                className="flex-1 bg-[#00e5ff] hover:bg-[#00c4d9] text-black text-sm font-semibold py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-1.5 pointer-events-auto"
+                className="flex-1 bg-[#00e5ff] hover:bg-[#00c4d9] text-black text-sm font-semibold py-2 px-3 rounded-md transition-all duration-200 flex items-center justify-center gap-1.5 pointer-events-auto hover:scale-110 hover:shadow-[0_0_20px_rgba(0,229,255,0.8)] relative z-50 active:scale-95"
                 aria-label={`Ver ${item.name || item.title}`}
               >
                 <PlaySolidIcon className="w-4 h-4" />
                 <span>Ver</span>
               </button>
-              {/* Mostrar botón de trailer si está disponible */}
-              {item.trailerUrl && onPlayTrailer && (
+              {/* En Android TV, no mostrar botón de trailer - solo reproducir contenido */}
+              {!isAndroidTV() && item.trailerUrl && onPlayTrailer && (
                 <button
                   type="button"
                   onClick={handleTriggerPlayTrailer}
@@ -256,6 +257,21 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                   title="Agregar a colección"
                 >
                   <PlusCircleOutlineIcon className="w-5 h-5" />
+                </button>
+              )}
+              {!isAndroidTV() && onAddToMyList && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onAddToMyList(item);
+                  }}
+                  className="w-[44px] bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-md transition-all duration-200 flex items-center justify-center pointer-events-auto relative z-50 hover:scale-110 hover:shadow-[0_0_20px_rgba(239,68,68,0.8)]"
+                  aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
+                  title="Agregar a Mi Lista"
+                >
+                  ❤️
                 </button>
               )}
             </div>

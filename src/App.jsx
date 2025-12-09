@@ -204,6 +204,10 @@ function App() {
                   
                   <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2">Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2">Colecciones</Link>
+                  <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1">
+                    <span>❤️</span>
+                    Mi Lista
+                  </Link>
                 </nav>
               </div>
 
@@ -299,6 +303,10 @@ function App() {
                   
                   <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Colecciones</Link>
+                  <Link to="/mi-lista" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
+                    <span>❤️</span>
+                    Mi Lista
+                  </Link>
                   <Link to="/test-player" className="text-yellow-400 hover:text-yellow-300 block px-3 py-2 rounded-md text-base font-medium border border-yellow-600 mx-2 text-center" onClick={() => setMobileMenuOpen(false)}>🧪 Test ExoPlayer</Link>
                   <div className="border-t border-gray-700 pt-4">
                     {user?.role === 'admin' && (
