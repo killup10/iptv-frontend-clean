@@ -77,7 +77,7 @@ export function MyList() {
   const handleRemoveFromList = async (itemId) => {
     try {
       console.log('[MyList.jsx] Removiendo item:', itemId);
-      await axiosInstance.post(`/users/my-list/remove/${itemId}`);
+      await axiosInstance.post(`/api/users/my-list/remove/${itemId}`);
       
       // Actualizar la lista localmente
       setMyListItems(prevItems => prevItems.filter(item => item._id !== itemId && item.id !== itemId));

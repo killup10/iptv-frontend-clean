@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fetchUserSeries, getCollections, addItemsToCollection } from '../utils/api.js';
 import { normalizeSearchText } from '../utils/searchUtils.js'; // Para búsqueda sin tildes
+import useDataCache from '../hooks/useDataCache.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
@@ -25,6 +26,7 @@ const SUBCATEGORIAS = [
 export default function SeriesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const dataCache = useDataCache();
   
   const [series, setSeries] = useState([]);
   const [page, setPage] = useState(1);
@@ -82,7 +84,8 @@ export default function SeriesPage() {
       setError(null);
 
       try {
-                    const data = await fetchUserSeries(currentPage, 3000, subcategoria);
+                    // OPTIMIZADO: Reducido de 3000 a 20 items por página
+          const data = await fetchUserSeries(currentPage, 20, subcategoria);
           setSeries(prevSeries => currentPage === 1 ? data.videos : [...prevSeries, ...data.videos]);
           setTotalPages(data.totalPages);
           setPage(data.page);

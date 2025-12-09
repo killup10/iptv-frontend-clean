@@ -6,6 +6,7 @@ import Carousel from '../components/Carousel.jsx';
 import TVHome from '../components/TVHome.jsx';
 import { isAndroidTV } from '../utils/platformUtils.js';
 import axiosInstance from '../utils/axiosInstance.js';
+import useDataCache from '../hooks/useDataCache.js';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -28,6 +29,7 @@ import ContentAccessModal from '../components/ContentAccessModal.jsx';
 
 export function Home() {
   const { user, login } = useAuth();
+  const dataCache = useDataCache();
   const outletContext = useOutletContext();
   const setAllSearchItems = outletContext?.setAllSearchItems;
   const navigate = useNavigate();
@@ -87,13 +89,33 @@ export function Home() {
     }
 
     async function loadAllData() {
+      // Verificar si hay datos cacheados
+      const cachedData = dataCache.get('homeData');
+      if (cachedData) {
+        console.log('[Home.jsx] Cargando datos desde cache...');
+        setFeaturedChannels(cachedData.featuredChannels || []);
+        setFeaturedMovies(cachedData.featuredMovies || []);
+        setFeaturedSeries(cachedData.featuredSeries || []);
+        setFeaturedAnimes(cachedData.featuredAnimes || []);
+        setFeaturedDoramas(cachedData.featuredDoramas || []);
+        setFeaturedNovelas(cachedData.featuredNovelas || []);
+        setFeaturedDocumentales(cachedData.featuredDocumentales || []);
+        setRecentlyAdded(cachedData.recentlyAdded || []);
+        setContinueWatchingItems(cachedData.continueWatchingItems || []);
+        if (setAllSearchItems && cachedData.allSearchItems) {
+          setAllSearchItems(cachedData.allSearchItems);
+        }
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setContentError(null);
       console.log('[Home.jsx] Starting unified data load...');
 
       try {
         const results = await Promise.allSettled([
-          // Carousel data
+          // Carousel data - PRIORIDAD ALTA
           fetchContinueWatching(),
           fetchFeaturedChannels(),
           fetchFeaturedMovies(),
@@ -103,14 +125,14 @@ export function Home() {
           fetchFeaturedNovelas(),
           fetchFeaturedDocumentales(),
           fetchRecentlyAdded(),
-          // Full data for global search
+          // Full data for global search - OPTIMIZADO: Reducido a 500 items por tipo
           fetchUserChannels('Todos'),
-          fetchVideosByType('pelicula', 1, 5000),
-          fetchVideosByType('serie', 1, 5000),
-          fetchVideosByType('anime', 1, 5000),
-          fetchVideosByType('dorama', 1, 5000),
-          fetchVideosByType('novela', 1, 5000),
-          fetchVideosByType('documental', 1, 5000),
+          fetchVideosByType('pelicula', 1, 500),
+          fetchVideosByType('serie', 1, 500),
+          fetchVideosByType('anime', 1, 500),
+          fetchVideosByType('dorama', 1, 500),
+          fetchVideosByType('novela', 1, 500),
+          fetchVideosByType('documental', 1, 500),
         ]);
 
         const [
@@ -187,6 +209,20 @@ export function Home() {
           setAllSearchItems(uniqueItems);
         }
 
+        // GUARDAR EN CACHE para evitar recargas innecesarias
+        dataCache.set('homeData', {
+          featuredChannels,
+          featuredMovies,
+          featuredSeries,
+          featuredAnimes,
+          featuredDoramas,
+          featuredNovelas,
+          featuredDocumentales,
+          recentlyAdded,
+          continueWatchingItems,
+          allSearchItems: uniqueItems
+        });
+
       } catch (err) {
         console.error('[Home.jsx] ❌ General error in loadAllData:', err);
         setContentError(err.message || "Error loading content.");
@@ -245,7 +281,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
   const handleAddToMyList = async (item) => {
     try {
       console.log('[Home.jsx] Agregando a Mi Lista:', item);
-      const response = await axiosInstance.post('/users/my-list/add', {
+      const response = await axiosInstance.post('/api/users/my-list/add', {
         itemId: item._id || item.id,
         tipo: item.tipo || item.itemType || 'movie',
         title: item.name || item.title,

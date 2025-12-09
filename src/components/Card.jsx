@@ -260,19 +260,23 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                 </button>
               )}
               {!isAndroidTV() && onAddToMyList && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    onAddToMyList(item);
-                  }}
-                  className="w-[44px] bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-md transition-all duration-200 flex items-center justify-center pointer-events-auto relative z-50 hover:scale-110 hover:shadow-[0_0_20px_rgba(239,68,68,0.8)]"
-                  aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
-                  title="Agregar a Mi Lista"
-                >
-                  ❤️
-                </button>
+                <div className="group relative">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onAddToMyList(item);
+                    }}
+                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-2 sm:py-2 sm:px-2.5 rounded-md transition-all duration-200 flex items-center justify-center pointer-events-auto relative z-50 hover:scale-110 hover:shadow-[0_0_20px_rgba(239,68,68,0.8)] w-10 sm:w-11 h-10 sm:h-11"
+                    aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
+                  >
+                    <span className="text-lg sm:text-xl">❤️</span>
+                  </button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 shadow-lg">
+                    Agregar a Mi Lista
+                  </div>
+                </div>
               )}
             </div>
           </div>

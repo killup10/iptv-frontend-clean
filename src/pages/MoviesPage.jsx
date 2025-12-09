@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext.jsx';
 import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '@/utils/api.js';
 import { normalizeSearchText } from '@/utils/searchUtils.js';
+import useDataCache from '@/hooks/useDataCache.js';
 import Card from '@/components/Card.jsx';
 import MovieSectionCard from '@/components/MovieSectionCard.jsx';
 import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
@@ -47,6 +48,7 @@ export default function MoviesPage() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const dataCache = useDataCache();
 
     const [movies, setMovies] = useState([]);
     const [page, setPage] = useState(1);
@@ -145,6 +147,16 @@ export default function MoviesPage() {
 
     useEffect(() => {
         const loadInitialData = async () => {
+            // Verificar si hay datos cacheados
+            const cachedData = dataCache.get('moviesPageData');
+            if (cachedData) {
+                console.log('[MoviesPage] Cargando desde cache...');
+                setMainSections(cachedData.mainSections || []);
+                setMoviesBySection(cachedData.moviesBySection || {});
+                setIsLoading(false);
+                return;
+            }
+
             setIsLoading(true);
             try {
                 const sectionsDataFromAPI = await fetchMainMovieSections();
@@ -162,6 +174,12 @@ export default function MoviesPage() {
                 }
                 setMoviesBySection(moviesForSections);
 
+                // Guardar en cache
+                dataCache.set('moviesPageData', {
+                    mainSections: sectionsDataFromAPI,
+                    moviesBySection: moviesForSections
+                });
+
             } catch (err) {
                 console.error("MoviesPage: Error cargando secciones:", err);
                 setError(err.message || "No se pudieron cargar las secciones.");
@@ -170,7 +188,7 @@ export default function MoviesPage() {
         };
 
         loadInitialData();
-    }, [user?.token]);
+    }, [user?.token, dataCache]);
 
     useEffect(() => {
         if (selectedMainSectionKey) {
