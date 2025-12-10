@@ -33,13 +33,14 @@ export default function SearchBar({
   const [results, setResults] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
   const inputRef = useRef(null);
   const listRef = useRef(null);
   const isTV = isAndroidTV();
 
   // Debug: Loguear items disponibles
   useEffect(() => {
-    console.log('[SearchBar] Items disponibles:', items.length, items.slice(0, 5));
+    // console.log('[SearchBar] Items disponibles:', items.length, items.slice(0, 5));
   }, [items]);
 
   // Búsqueda ultra-rápida (debounce muy corto para TV)
@@ -114,11 +115,22 @@ export default function SearchBar({
     setResults([]);
   };
 
-  // Control de voz para TV
-  const startVoiceSearch = () => {
+  // Control de voz mejorado
+  const startVoiceSearch = async () => {
+    setVoiceError('');
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Tu dispositivo no soporta búsqueda por voz');
+      setVoiceError('Tu dispositivo no soporta la búsqueda por voz.');
       return;
+    }
+
+    try {
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+      if (permissionStatus.state === 'denied') {
+        setVoiceError('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.');
+        return;
+      }
+    } catch (error) {
+      console.warn('No se pudo verificar el permiso del micrófono:', error);
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -135,13 +147,18 @@ export default function SearchBar({
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.toLowerCase();
+      const transcript = event.results[0][0].transcript;
       setSearchQuery(transcript);
       performSearch(transcript);
     };
 
     recognition.onerror = (event) => {
-      console.error('Error de voz:', event.error);
+      console.error('Error de reconocimiento de voz:', event.error);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setVoiceError('Acceso al micrófono denegado. Por favor, habilita el permiso.');
+      } else {
+        setVoiceError('Ocurrió un error con la búsqueda por voz.');
+      }
       setIsListening(false);
     };
 
@@ -151,6 +168,7 @@ export default function SearchBar({
 
     recognition.start();
   };
+
 
   // Auto-scroll en resultados
   useEffect(() => {
@@ -216,7 +234,7 @@ export default function SearchBar({
 }
 
 .search-trigger-button:hover {
-  border-color: #0ea5e9; /* Celeste en hover */
+  border-color: #94a3b8; /* Gris claro en hover */
   background-color: rgba(30, 41, 59, 0.8);
 }
 
@@ -231,7 +249,7 @@ export default function SearchBar({
 }
 
 .search-trigger-icon {
-  color: #0ea5e9; /* Lupa celeste */
+  color: #94a3b8; /* Lupa gris */
   flex-shrink: 0; /* Evita que el icono se encoja */
 }
 
@@ -242,7 +260,7 @@ export default function SearchBar({
   inset: 0;
   background-color: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
-  z-index: 100;
+  z-index: 9999;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -276,7 +294,7 @@ export default function SearchBar({
 .search-icon {
   position: absolute;
   left: 1rem;
-  color: #0ea5e9;
+  color: #94a3b8;
   flex-shrink: 0;
 }
 
@@ -298,7 +316,7 @@ export default function SearchBar({
 
 .search-input:focus {
   outline: none;
-  border-color: #0ea5e9;
+  border-color: #e5e7eb;
   background-color: #0f172a;
 }
 
@@ -341,8 +359,12 @@ export default function SearchBar({
   transition: all 0.2s;
 }
 
+.search-voice-button.listening {
+  color: #e5e7eb;
+}
+
 .search-voice-button:hover:not(:disabled) {
-  color: #0ea5e9;
+  color: #e5e7eb;
 }
 
 /* --- NUEVO DISEÑO DE RESULTADOS EN GRID --- */
@@ -385,6 +407,7 @@ export default function SearchBar({
   object-fit: cover;
   border-radius: 0;
   border-bottom: 1px solid #334155;
+  background-color: #0f172a; /* Fondo para imágenes que no cargan */
 }
 
 .result-info {
@@ -433,10 +456,14 @@ export default function SearchBar({
 
 /* --- FIN DISEÑO DE GRID --- */
 
-.search-no-results, .search-hints, .search-listening {
+.search-no-results, .search-hints, .search-listening, .search-voice-error {
   text-align: center;
   padding: 2.5rem 1rem;
   color: #94a3b8;
+}
+
+.search-voice-error {
+  color: #f87171; /* Color rojo para errores */
 }
 
 /* Mobile */
@@ -536,11 +563,17 @@ export default function SearchBar({
             <div className="search-results">
               {isListening && (
                 <div className="search-listening">
-                  {/* ... (código de escucha sin cambios) ... */}
+                  <p>Escuchando...</p>
                 </div>
               )}
 
-              {!isListening && results.length > 0 && (
+              {voiceError && (
+                <div className="search-voice-error">
+                  <p>{voiceError}</p>
+                </div>
+              )}
+
+              {!isListening && !voiceError && results.length > 0 && (
                 <div className="results-list" ref={listRef}>
                   {results.map((item, index) => (
                     <div
@@ -549,30 +582,30 @@ export default function SearchBar({
                       onClick={() => handleSelectItem(item)}
                     >
                       <img
-                        src={item.image || item.logo || item.poster || '/placeholder.png'}
+                        src={item.customThumbnail || item.thumbnail || item.image || item.logo || item.poster || item.tmdbThumbnail || '/img/placeholder-thumbnail.png'}
                         alt={item.name || item.title}
                         className="result-image"
+                        onError={(e) => { e.target.onerror = null; e.target.src='/img/placeholder-thumbnail.png'; }}
                       />
                       <div className="result-info">
                         <div className="result-name">{item.name || item.title}</div>
                         <div className="result-meta">
-                          <span className="result-year">{item.year || ''}</span>
+                          {(item.releaseYear || item.year) && <span className="result-year">{item.releaseYear || item.year}</span>}
                           {item.type && <span className="result-category">{item.type}</span>}
                         </div>
                       </div>
-                      {/* El indicador de foco ahora es el borde del item seleccionado */}
                     </div>
                   ))}
                 </div>
               )}
 
-              {!isListening && searchQuery && results.length === 0 && (
+              {!isListening && !voiceError && searchQuery && results.length === 0 && (
                 <div className="search-no-results">
                   <p>No se encontraron resultados para "{searchQuery}"</p>
                 </div>
               )}
 
-              {!searchQuery && !isListening && (
+              {!searchQuery && !isListening && !voiceError && (
                 <div className="search-hints">
                   <p>💡 Escribe para buscar canales, películas, series...</p>
                   {isTV && (
