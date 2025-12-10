@@ -7,6 +7,7 @@ import TrailerModal from '../components/TrailerModal.jsx';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
+import Toast from '../components/Toast.jsx';
 
 
 
@@ -16,6 +17,8 @@ export function Animes() {
   const [animes, setAnimes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
   // Estados para modales
   const [showTrailerModal, setShowTrailerModal] = useState(false);
@@ -117,6 +120,35 @@ export function Animes() {
 
     // Verificar acceso antes de navegar
     checkContentAccess(anime, navigateToAnime);
+  };
+
+  const handleAddToMyList = async (item) => {
+    try {
+      console.log('[Animes.jsx] Agregando a Mi Lista:', item);
+      const response = await axiosInstance.post('/api/users/my-list/add', {
+        itemId: item._id || item.id,
+        tipo: item.tipo || 'anime',
+        title: item.name || item.title,
+        thumbnail: item.thumbnail,
+        description: item.description
+      });
+
+      console.log('[Animes.jsx] Agregado a Mi Lista exitosamente:', response.data);
+      setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
+      setToastType('success');
+    } catch (error) {
+      if (error.response?.status === 409) {
+        console.log('[Animes.jsx] Item ya está en Mi Lista');
+        setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
+        setToastType('info');
+      } else {
+        console.error('[Animes.jsx] Error al agregar a Mi Lista:', error);
+        setToastMessage('❌ Error al agregar a Mi Lista');
+        setToastType('error');
+      }
+    } finally {
+      setTimeout(() => setToastMessage(''), 3000);
+    }
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
@@ -242,6 +274,7 @@ export function Animes() {
                   onClick={() => handleAnimeClick(anime)}
                   itemType="anime"
                   onPlayTrailer={handlePlayTrailerClick}
+                  onAddToMyList={handleAddToMyList}
                 />
               ))}
             </div>
@@ -271,6 +304,8 @@ export function Animes() {
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
       />
+
+      {toastMessage && <Toast message={toastMessage} type={toastType} />}
     </>
   );
 }
