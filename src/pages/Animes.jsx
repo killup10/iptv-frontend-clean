@@ -7,8 +7,6 @@ import TrailerModal from '../components/TrailerModal.jsx';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
-import { addToMyList } from '../utils/api.js';
-import Toast from '../components/Toast.jsx';
 
 
 
@@ -18,8 +16,6 @@ export function Animes() {
   const [animes, setAnimes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState('success');
 
   // Estados para modales
   const [showTrailerModal, setShowTrailerModal] = useState(false);
@@ -121,20 +117,6 @@ export function Animes() {
 
     // Verificar acceso antes de navegar
     checkContentAccess(anime, navigateToAnime);
-  };
-
-  const handleAddToMyList = async (anime) => {
-    try {
-      await addToMyList(anime._id || anime.id);
-      setToastType('success');
-      setToastMessage(`✓ ${anime.title || anime.name} agregado a Mi Lista`);
-      setTimeout(() => setToastMessage(''), 3000);
-    } catch (error) {
-      setToastType('error');
-      setToastMessage('Error al agregar a Mi Lista');
-      setTimeout(() => setToastMessage(''), 3000);
-      console.error('Error adding to my list:', error);
-    }
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
@@ -260,7 +242,6 @@ export function Animes() {
                   onClick={() => handleAnimeClick(anime)}
                   itemType="anime"
                   onPlayTrailer={handlePlayTrailerClick}
-                  onAddToMyList={handleAddToMyList}
                 />
               ))}
             </div>
@@ -290,8 +271,6 @@ export function Animes() {
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
       />
-
-      {toastMessage && <Toast message={toastMessage} type={toastType} />}
     </>
   );
 }
