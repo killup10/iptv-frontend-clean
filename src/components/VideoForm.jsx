@@ -1,4 +1,4 @@
-import { useState } from "react";
+mport { useState } from "react";
 import axios from "axios";
 
 const VideoForm = () => {
@@ -82,11 +82,14 @@ const VideoForm = () => {
         customThumbnail,
       };
 
-      if (tipo === "serie") {
+      if (tipo === "serie" || tipo === "anime" || tipo === "dorama" || tipo === "novela" || tipo === "documental") {
         // Modificado: Enviar la estructura de temporadas
         videoData.seasons = seasons;
-        videoData.subtipo = subtipo;
-        videoData.subcategoria = subcategoria;
+        videoData.subtipo = tipo;
+        // Solo agregar subcategoria para series, no para doramas, animes, novelas, documentales
+        if (tipo === "serie") {
+          videoData.subcategoria = subcategoria;
+        }
         // Puedes mantener o ajustar watchProgress según necesites a nivel de serie o capítulo
         videoData.watchProgress = {
           lastSeason: 0, // Nuevo campo para la última temporada vista
@@ -221,41 +224,42 @@ const VideoForm = () => {
 
       <select
         value={tipo}
-        onChange={(e) => setTipo(e.target.value)}
+        onChange={(e) => {
+          setTipo(e.target.value);
+          if (e.target.value === "dorama" || e.target.value === "anime" || e.target.value === "novela" || e.target.value === "documental") {
+            setSubtipo(e.target.value);
+          } else {
+            setSubtipo("serie");
+          }
+        }}
         className="w-full p-2 rounded bg-gray-800 border border-gray-700"
       >
         <option value="pelicula">🎬 Película</option>
-        <option value="serie">📺 Serie/Anime/Dorama</option>
+        <option value="serie">📺 Serie</option>
+        <option value="anime">🎌 Anime</option>
+        <option value="dorama">🎭 Dorama</option>
+        <option value="novela">📖 Novela</option>
+        <option value="documental">🎥 Documental</option>
       </select>
 
-      {tipo === "serie" && (
+      {(tipo === "serie" || tipo === "anime" || tipo === "dorama" || tipo === "novela" || tipo === "documental") && (
         <>
-          <select
-            value={subtipo}
-            onChange={(e) => setSubtipo(e.target.value)}
-            className="w-full p-2 rounded bg-gray-800 border border-gray-700"
-          >
-            <option value="serie">📺 Serie</option>
-            <option value="anime">🎌 Anime</option>
-            <option value="dorama">🎭 Dorama</option>
-            <option value="novela">📖 Novela</option>
-            <option value="documental">🎥 Documental</option>
-          </select>
-
-          <select
-            value={subcategoria}
-            onChange={(e) => setSubcategoria(e.target.value)}
-            className="w-full p-2 rounded bg-gray-800 border border-gray-700"
-          >
-            <option value="Netflix">Netflix</option>
-            <option value="Prime Video">Prime Video</option>
-            <option value="Disney">Disney</option>
-            <option value="Apple TV">Apple TV</option>
-            <option value="HBO Max">HBO Max</option>
-            <option value="Hulu y Otros">Hulu y Otros</option>
-            <option value="Retro">Retro</option>
-            <option value="Animadas">Animadas</option>
-          </select>
+          {tipo === "serie" && (
+            <select
+              value={subcategoria}
+              onChange={(e) => setSubcategoria(e.target.value)}
+              className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+            >
+              <option value="Netflix">Netflix</option>
+              <option value="Prime Video">Prime Video</option>
+              <option value="Disney">Disney</option>
+              <option value="Apple TV">Apple TV</option>
+              <option value="HBO Max">HBO Max</option>
+              <option value="Hulu y Otros">Hulu y Otros</option>
+              <option value="Retro">Retro</option>
+              <option value="Animadas">Animadas</option>
+            </select>
+          )}
         </>
       )}
 

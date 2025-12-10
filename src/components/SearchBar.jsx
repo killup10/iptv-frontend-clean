@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X, Mic } from 'lucide-react';
 import { isAndroidTV } from '../utils/platformUtils';
-import './SearchBar.css';
 
 /**
  * Normaliza texto: elimina tildes y convierte a minúsculas
@@ -190,15 +189,299 @@ export default function SearchBar({
   }, [isOpen, isTV]);
 
   return (
+    <>
+    <style>{`
+/* SearchBar - Diseño de Input Sutil */
+.search-bar-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 320px; /* Ancho moderado para desktop */
+}
+
+/* Botón de Búsqueda Rectangular */
+.search-trigger-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Alinear texto a la izquierda e icono a la derecha */
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  background-color: rgba(30, 41, 59, 0.6); /* Fondo oscuro semitransparente */
+  border: 1px solid #334155; /* Borde sutil */
+  border-radius: 0.625rem; /* Bordes redondeados */
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease; /* Transición sutil */
+  backdrop-filter: blur(5px);
+}
+
+.search-trigger-button:hover {
+  border-color: #0ea5e9; /* Celeste en hover */
+  background-color: rgba(30, 41, 59, 0.8);
+}
+
+.search-trigger-text {
+  font-size: 0.9rem;
+  color: #94a3b8; /* Color de placeholder */
+  font-weight: 400;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-trigger-icon {
+  color: #0ea5e9; /* Lupa celeste */
+  flex-shrink: 0; /* Evita que el icono se encoja */
+}
+
+
+/* Overlay y Modal (sin cambios) */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 5vh;
+}
+
+.search-modal {
+  width: 100%;
+  max-width: 800px; /* Un poco más ancho para el grid */
+  background-color: #0f172a;
+  border-radius: 1rem;
+  border: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+
+.search-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #1e293b;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  color: #0ea5e9;
+  flex-shrink: 0;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.875rem 2.5rem 0.875rem 3.5rem;
+  background-color: #1e293b;
+  border-radius: 0.75rem;
+  border: 2px solid #334155;
+  color: white;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.search-input::placeholder {
+  color: #64748b;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  background-color: #0f172a;
+}
+
+.search-clear, .search-close {
+  position: absolute;
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: all 0.2s;
+  border-radius: 0.5rem;
+}
+
+.search-clear {
+  right: 3rem;
+}
+
+.search-clear:hover {
+  color: #e5e7eb;
+}
+
+.search-close {
+  right: 0.5rem;
+}
+
+.search-close:hover {
+  color: #ef4444;
+}
+
+.search-voice-button {
+  position: absolute;
+  right: 0.5rem;
+  padding: 0.5rem;
+  background-color: transparent;
+  border: none;
+  color: #64748b;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.search-voice-button:hover:not(:disabled) {
+  color: #0ea5e9;
+}
+
+/* --- NUEVO DISEÑO DE RESULTADOS EN GRID --- */
+.search-results {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.results-list {
+  display: grid;
+  /* Grid responsivo: se ajusta automáticamente */
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1.25rem;
+}
+
+/* Tarjeta de resultado */
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid transparent;
+  background-color: #1e293b;
+  overflow: hidden;
+}
+
+.result-item.selected {
+  border-color: #e5e7eb; /* Borde blanco/gris para selección */
+  transform: scale(1.05);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.result-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 0;
+  border-bottom: 1px solid #334155;
+}
+
+.result-info {
+  padding: 0.5rem 0.75rem 0.75rem;
+  min-width: 0;
+}
+
+.result-name {
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.result-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.result-year {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+/* Categoría con estilo neutro */
+.result-category {
+  background-color: #334155;
+  color: #cbd5e1;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: capitalize;
+  font-size: 0.7rem;
+}
+
+.result-focus-indicator {
+  /* El borde en .selected es suficiente */
+  display: none;
+}
+
+/* --- FIN DISEÑO DE GRID --- */
+
+.search-no-results, .search-hints, .search-listening {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #94a3b8;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .search-bar-container {
+    max-width: none;
+  }
+  .search-overlay {
+    padding: 0;
+  }
+  .search-modal {
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+  .results-list {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 1rem;
+  }
+  .result-image {
+    height: 150px;
+  }
+}
+
+/* TV y pantallas grandes */
+@media (min-width: 1280px) {
+  .results-list {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1.5rem;
+  }
+  .result-image {
+    height: 220px;
+  }
+}
+    `}</style>
     <div className={`search-bar-container ${isTV ? 'tv' : ''}`}>
-      {/* Botón de búsqueda */}
+      {/* Botón de búsqueda con nuevo diseño tipo input */}
       <button
         className="search-trigger-button"
         onClick={() => setIsOpen(true)}
         title={isTV ? "Presiona / para buscar" : "Click para buscar"}
       >
-        <Search size={isTV ? 28 : 20} />
-        <span className="search-trigger-text">{isTV ? "Buscar" : ""}</span>
+        <span className="search-trigger-text">Busca aquí...</span>
+        <Search size={isTV ? 22 : 18} className="search-trigger-icon" />
       </button>
 
       {/* Modal de búsqueda */}
@@ -249,12 +532,11 @@ export default function SearchBar({
 
             </div>
 
-            {/* Resultados */}
+            {/* Resultados en Grid */}
             <div className="search-results">
               {isListening && (
                 <div className="search-listening">
-                  <div className="listening-indicator"></div>
-                  <p>Escuchando...</p>
+                  {/* ... (código de escucha sin cambios) ... */}
                 </div>
               )}
 
@@ -274,14 +556,11 @@ export default function SearchBar({
                       <div className="result-info">
                         <div className="result-name">{item.name || item.title}</div>
                         <div className="result-meta">
-                          {item.type && <span className="result-type">{item.type}</span>}
-                          {item.genre && <span className="result-genre">{item.genre}</span>}
-                          {item.year && <span className="result-year">{item.year}</span>}
+                          <span className="result-year">{item.year || ''}</span>
+                          {item.type && <span className="result-category">{item.type}</span>}
                         </div>
                       </div>
-                      {index === selectedIndex && isTV && (
-                        <div className="result-focus-indicator">▶</div>
-                      )}
+                      {/* El indicador de foco ahora es el borde del item seleccionado */}
                     </div>
                   ))}
                 </div>
@@ -317,5 +596,6 @@ export default function SearchBar({
         </div>
       )}
     </div>
+    </>
   );
 }

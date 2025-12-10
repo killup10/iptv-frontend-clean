@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
+import { fetchUserChannels, fetchVideosByType } from './utils/api.js';
 import SearchBar from "./components/SearchBar.jsx";
 
 function App() {
@@ -213,14 +214,18 @@ function App() {
 
               {/* Menú de Usuario y Hamburguesa */}
               <div className="flex items-center space-x-4">
-                {/* Search Bar */}
-                <div className="hidden md:block">
-                  <SearchBar 
-                    items={allSearchItems}
-                    onSelectItem={handleSearchSelectItem}
-                    placeholder="Buscar..."
-                  />
-                </div>
+                {/* Search Bar - Solo en Home */}
+                {location.pathname === '/' && (
+                  <div className="flex-1 flex justify-center px-2 lg:ml-6 lg:justify-end">
+                    <div className="max-w-lg w-full lg:max-w-xs">
+                      <SearchBar 
+                        items={allSearchItems}
+                        onSelectItem={handleSearchSelectItem}
+                        placeholder="Buscar..."
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {user?.role === 'admin' && (
                   <Link

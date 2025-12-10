@@ -47,7 +47,7 @@ export async function fetchChannelForPlayback(channelId) {
 
 /* =================== VOD - USUARIO =================== */
 export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, genre = null, searchTerm = null) {
-  const relativePath = "/api/videos";
+  const relativePath = "/api/videos";
   const params = { tipo: "pelicula", page, limit };
   if (mainSection) {
     params.mainSection = mainSection;
@@ -56,7 +56,12 @@ export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, 
     params.genre = genre;
   }
   if (searchTerm) {
-    params.search = searchTerm;
+    // Normalizar búsqueda: eliminar tildes y convertir a minúsculas
+    const normalizedSearch = searchTerm
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    params.search = normalizedSearch;
   }
   console.log(`API (fetchUserMovies - axios): GET ${relativePath} con params:`, params);
   try {
