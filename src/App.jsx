@@ -279,7 +279,7 @@ function App() {
             </div>
 
             {mobileMenuOpen && (
-              <div id="mobile-menu" className="md:hidden">
+              <div id="mobile-menu" className="md:hidden fixed inset-0 top-20 z-50">
                 <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
                   <Link to="/tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
                   <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Películas</Link>

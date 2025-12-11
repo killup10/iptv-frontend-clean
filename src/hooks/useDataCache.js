@@ -8,7 +8,7 @@ import { useRef, useCallback } from 'react';
 export const useDataCache = () => {
   const cacheRef = useRef({});
   const timestampRef = useRef({});
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+  const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (aumentado de 5 para mejor performance)
 
   const get = useCallback((key) => {
     const timestamp = timestampRef.current[key];

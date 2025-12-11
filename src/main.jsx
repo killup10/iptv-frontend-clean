@@ -1,5 +1,5 @@
 // src/main.jsx
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import AppLayout from './App.jsx';
 import './index.css';
@@ -8,44 +8,53 @@ import { createHashRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
-// Importar Páginas
-import Home from './pages/Home.jsx';
-import Register from './pages/Register.jsx';
-import AdminPanel from './pages/AdminPanel.jsx';
-import Watch from './pages/Watch.jsx'; // Página de reproducción
-import LiveTVPage from './pages/LiveTVPage.jsx';
-import TVLiveTV from './pages/TVLiveTV.jsx';
-import { isAndroidTV } from './utils/platformUtils.js';
-import MoviesPage from './pages/MoviesPage.jsx';
-import SeriesPage from './pages/SeriesPage.jsx';
-import Animes from './pages/Animes.jsx';
-import Documentales from './pages/Documentales.jsx';
-import Doramas from './pages/Doramas.jsx';
-import Novelas from './pages/Novelas.jsx';
-import Colecciones from './pages/Colecciones.jsx';
-import ZonaKids from './pages/ZonaKids.jsx';
-import BulkUploadPage from './pages/BulkUploadPage.jsx';
-import MyList from './pages/MyList.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import TestPlayer from './pages/TestPlayer.jsx';
-// import NotFoundPage from './pages/NotFoundPage.jsx'; // Descomenta si tienes una página 404 personalizada
+// Lazy load de todas las páginas para mejorar performance
+const Home = React.lazy(() => import('./pages/Home.jsx'));
+const Register = React.lazy(() => import('./pages/Register.jsx'));
+const AdminPanel = React.lazy(() => import('./pages/AdminPanel.jsx'));
+const Watch = React.lazy(() => import('./pages/Watch.jsx'));
+const LiveTVPage = React.lazy(() => import('./pages/LiveTVPage.jsx'));
+const TVLiveTV = React.lazy(() => import('./pages/TVLiveTV.jsx'));
+const MoviesPage = React.lazy(() => import('./pages/MoviesPage.jsx'));
+const SeriesPage = React.lazy(() => import('./pages/SeriesPage.jsx'));
+const Animes = React.lazy(() => import('./pages/Animes.jsx'));
+const Documentales = React.lazy(() => import('./pages/Documentales.jsx'));
+const Doramas = React.lazy(() => import('./pages/Doramas.jsx'));
+const Novelas = React.lazy(() => import('./pages/Novelas.jsx'));
+const Colecciones = React.lazy(() => import('./pages/Colecciones.jsx'));
+const ZonaKids = React.lazy(() => import('./pages/ZonaKids.jsx'));
+const BulkUploadPage = React.lazy(() => import('./pages/BulkUploadPage.jsx'));
+const MyList = React.lazy(() => import('./pages/MyList.jsx'));
+const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
 
-// Usamos createHashRouter en lugar de createBrowserRouter
-// Esto es más adecuado para aplicaciones Electron cargadas con file://
-// ya que no requiere configuración del lado del servidor para manejar rutas.
+import { isAndroidTV } from './utils/platformUtils.js';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+
+// Loading component para Suspense
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen bg-black">
+    <div className="text-center">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mb-4"></div>
+      <p className="text-gray-400">Cargando...</p>
+    </div>
+  </div>
+);
+
 const router = createHashRouter([
   {
     path: "/", // En HashRouter, esto se traduce a la ruta base (ej. index.html#/)
     element: <AppLayout />,
     children: [
-      { path: "login", element: <Home /> },
-      { path: "register", element: <Register /> },
-      { index: true, element: <ProtectedRoute><Home /></ProtectedRoute> },
+      { path: "login", element: <Suspense fallback={<PageLoader />}><Home /></Suspense> },
+      { path: "register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense> },
+      { index: true, element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Home /></Suspense></ProtectedRoute> },
       {
         path: "admin",
         element: (
           <ProtectedRoute adminOnly={true}>
-            <AdminPanel />
+            <Suspense fallback={<PageLoader />}>
+              <AdminPanel />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -53,15 +62,19 @@ const router = createHashRouter([
         path: "watch/:itemType/:itemId",
         element: (
           <ProtectedRoute>
-            <Watch />
+            <Suspense fallback={<PageLoader />}>
+              <Watch />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
-            {
+      {
         path: "live-tv",
         element: (
           <ProtectedRoute>
-            {isAndroidTV() ? <TVLiveTV /> : <LiveTVPage />}
+            <Suspense fallback={<PageLoader />}>
+              {isAndroidTV() ? <TVLiveTV /> : <LiveTVPage />}
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -69,7 +82,9 @@ const router = createHashRouter([
         path: "peliculas",
         element: (
           <ProtectedRoute>
-            <MoviesPage />
+            <Suspense fallback={<PageLoader />}>
+              <MoviesPage />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -77,7 +92,9 @@ const router = createHashRouter([
         path: "series",
         element: (
           <ProtectedRoute>
-            <SeriesPage />
+            <Suspense fallback={<PageLoader />}>
+              <SeriesPage />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -85,7 +102,9 @@ const router = createHashRouter([
         path: "animes",
         element: (
           <ProtectedRoute>
-            <Animes />
+            <Suspense fallback={<PageLoader />}>
+              <Animes />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -93,7 +112,9 @@ const router = createHashRouter([
         path: "doramas",
         element: (
           <ProtectedRoute>
-            <Doramas />
+            <Suspense fallback={<PageLoader />}>
+              <Doramas />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -101,7 +122,9 @@ const router = createHashRouter([
         path: "novelas",
         element: (
           <ProtectedRoute>
-            <Novelas />
+            <Suspense fallback={<PageLoader />}>
+              <Novelas />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -109,7 +132,9 @@ const router = createHashRouter([
         path: "documentales",
         element: (
           <ProtectedRoute>
-            <Documentales />
+            <Suspense fallback={<PageLoader />}>
+              <Documentales />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -117,7 +142,9 @@ const router = createHashRouter([
         path: "kids",
         element: (
           <ProtectedRoute>
-            <ZonaKids />
+            <Suspense fallback={<PageLoader />}>
+              <ZonaKids />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -125,7 +152,9 @@ const router = createHashRouter([
         path: "colecciones",
         element: (
           <ProtectedRoute>
-            <Colecciones />
+            <Suspense fallback={<PageLoader />}>
+              <Colecciones />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -133,7 +162,9 @@ const router = createHashRouter([
         path: "mi-lista",
         element: (
           <ProtectedRoute>
-            <MyList />
+            <Suspense fallback={<PageLoader />}>
+              <MyList />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -141,7 +172,9 @@ const router = createHashRouter([
         path: "bulk-upload",
         element: (
           <ProtectedRoute adminOnly={true}>
-            <BulkUploadPage />
+            <Suspense fallback={<PageLoader />}>
+              <BulkUploadPage />
+            </Suspense>
           </ProtectedRoute>
         ),
       },
@@ -149,7 +182,9 @@ const router = createHashRouter([
         path: "test-player",
         element: (
           <ProtectedRoute>
-            <TestPlayer />
+            <Suspense fallback={<PageLoader />}>
+              <TestPlayer />
+            </Suspense>
           </ProtectedRoute>
         ),
       },

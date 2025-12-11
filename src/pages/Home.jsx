@@ -179,14 +179,14 @@ export function Home() {
         
         // Process carousel data
         processResult(continueWatchingResult, setContinueWatchingItems, 'Continue Watching');
-        processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 15);
-        processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 15);
-        processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 15);
-        processResult(featuredAnimesResult, setFeaturedAnimes, 'Featured Animes', 15);
-        processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 15);
-        processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 15);
-        processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 15);
-        processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 15);
+        processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 10);
+        processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 10);
+        processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 10);
+        processResult(featuredAnimesResult, setFeaturedAnimes, 'Featured Animes', 10);
+        processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
+        processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
+        processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
+        processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 10);
 
         // Process and combine all data for global search
         const allChannels = processResult(allChannelsResult, null, 'All Channels');

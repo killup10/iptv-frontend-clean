@@ -354,12 +354,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         });
 
         rewindButton.setOnClickListener(v -> {
-            mediaPlayer.setTime(mediaPlayer.getTime() - 10000);
+            mediaPlayer.setTime(mediaPlayer.getTime() - 15000);
             hideControls();
         });
 
         forwardButton.setOnClickListener(v -> {
-            mediaPlayer.setTime(mediaPlayer.getTime() + 10000);
+            mediaPlayer.setTime(mediaPlayer.getTime() + 15000);
             hideControls();
         });
 
