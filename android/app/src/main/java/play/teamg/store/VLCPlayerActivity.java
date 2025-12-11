@@ -472,11 +472,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         isScreenLocked = !isScreenLocked;
         
         if (isScreenLocked) {
-            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_idle_lock));
+            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_lock));
             controlsContainer.setAlpha(0.3f);
             Toast.makeText(this, "Pantalla bloqueada 🔒", Toast.LENGTH_SHORT).show();
         } else {
-            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_idle_unlock));
+            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_silent_mode_off));
             controlsContainer.setAlpha(1.0f);
             Toast.makeText(this, "Pantalla desbloqueada 🔓", Toast.LENGTH_SHORT).show();
         }
