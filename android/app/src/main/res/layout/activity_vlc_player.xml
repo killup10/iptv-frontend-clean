@@ -10,6 +10,18 @@
         android:layout_height="match_parent"
         android:layout_centerInParent="true" />
 
+    <ImageButton
+        android:id="@+id/lock_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@android:drawable/ic_lock_idle_lock"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true"
+        android:layout_margin="16dp"
+        android:contentDescription="Bloquear Pantalla"
+        android:tint="@android:color/white" />
+
     <ProgressBar
         android:id="@+id/brightness_bar"
         style="?android:attr/progressBarStyleHorizontal"
@@ -100,11 +112,21 @@
                 android:orientation="horizontal">
 
                 <ImageButton
+                    android:id="@+id/prev_episode_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@android:drawable/ic_media_previous"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Episodio Anterior"
+                    android:visibility="gone" />
+
+                <ImageButton
                     android:id="@+id/rewind_button"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
                     android:src="@android:drawable/ic_media_rew"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginStart="16dp"
                     android:contentDescription="Rewind" />
 
                 <ImageButton
@@ -123,7 +145,17 @@
                     android:layout_height="48dp"
                     android:src="@android:drawable/ic_media_ff"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:layout_marginEnd="16dp"
                     android:contentDescription="Forward" />
+
+                <ImageButton
+                    android:id="@+id/next_episode_button"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@android:drawable/ic_media_next"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Siguiente Episodio"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <ImageButton

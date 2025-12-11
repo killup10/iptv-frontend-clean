@@ -49,6 +49,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private SeekBar seekBar;
     private TextView currentTime, totalDuration;
     private ImageButton playPauseButton, rewindButton, forwardButton, tracksButton, channelsButton, aspectRatioButton;
+    private ImageButton prevEpisodeButton, nextEpisodeButton, lockButton;
     private View controlsContainer;
     private ProgressBar brightnessBar, volumeBar;
     private FrameLayout videoContainer;
@@ -58,6 +59,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     // Media data
     private String currentVideoUrl;
     private long lastPosition = 0L;
+    private boolean isScreenLocked = false;
     private boolean isSeekPending = false;
 
     // Gesture control
@@ -106,6 +108,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         playPauseButton = findViewById(R.id.play_pause_button);
         rewindButton = findViewById(R.id.rewind_button);
         forwardButton = findViewById(R.id.forward_button);
+        prevEpisodeButton = findViewById(R.id.prev_episode_button);
+        nextEpisodeButton = findViewById(R.id.next_episode_button);
+        lockButton = findViewById(R.id.lock_button);
         tracksButton = findViewById(R.id.tracks_button);
         aspectRatioButton = findViewById(R.id.aspect_ratio_button);
         channelsButton = findViewById(R.id.channels_button);
@@ -363,6 +368,25 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             hideControls();
         });
 
+        // Botones de Episodio Anterior/Siguiente
+        if (chapterUrls != null && !chapterUrls.isEmpty() && chapterUrls.size() > 1) {
+            prevEpisodeButton.setVisibility(View.VISIBLE);
+            nextEpisodeButton.setVisibility(View.VISIBLE);
+            
+            prevEpisodeButton.setOnClickListener(v -> {
+                goToPreviousEpisode();
+            });
+            
+            nextEpisodeButton.setOnClickListener(v -> {
+                goToNextEpisode();
+            });
+        }
+
+        // Botón de Bloqueo de Pantalla
+        lockButton.setOnClickListener(v -> {
+            toggleScreenLock();
+        });
+
         tracksButton.setOnClickListener(v -> {
             showTracksDialog();
             hideControls();
@@ -398,6 +422,64 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 hideControls();
             }
         });
+    }
+
+    private void goToPreviousEpisode() {
+        if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
+            Toast.makeText(this, "No hay episodios anteriores", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        if (currentIndex > 0) {
+            String prevTitle = (chapterTitles != null && currentIndex - 1 < chapterTitles.size()) 
+                ? chapterTitles.get(currentIndex - 1) 
+                : "Episodio " + currentIndex;
+            
+            releasePlayer();
+            currentVideoUrl = chapterUrls.get(currentIndex - 1);
+            lastPosition = 0;
+            initializePlayer();
+            Toast.makeText(this, "Reproduciendo: " + prevTitle, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Primer episodio", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void goToNextEpisode() {
+        if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
+            Toast.makeText(this, "No hay episodios siguientes", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        if (currentIndex >= 0 && currentIndex < chapterUrls.size() - 1) {
+            String nextTitle = (chapterTitles != null && currentIndex + 1 < chapterTitles.size()) 
+                ? chapterTitles.get(currentIndex + 1) 
+                : "Episodio " + (currentIndex + 2);
+            
+            releasePlayer();
+            currentVideoUrl = chapterUrls.get(currentIndex + 1);
+            lastPosition = 0;
+            initializePlayer();
+            Toast.makeText(this, "Reproduciendo: " + nextTitle, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Último episodio", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void toggleScreenLock() {
+        isScreenLocked = !isScreenLocked;
+        
+        if (isScreenLocked) {
+            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_idle_lock));
+            controlsContainer.setAlpha(0.3f);
+            Toast.makeText(this, "Pantalla bloqueada 🔒", Toast.LENGTH_SHORT).show();
+        } else {
+            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_idle_unlock));
+            controlsContainer.setAlpha(1.0f);
+            Toast.makeText(this, "Pantalla desbloqueada 🔓", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void toggleControls() {
@@ -576,6 +658,16 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        // Si la pantalla está bloqueada, permitir desbloqueo con doble tap en el centro
+        if (isScreenLocked) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                // Permitir unlock con doble tap en cualquier lugar
+                toggleScreenLock();
+                return true;
+            }
+            return true; // Consumir evento
+        }
+        
         if (gestureDetector.onTouchEvent(event)) {
             return true;
         }
