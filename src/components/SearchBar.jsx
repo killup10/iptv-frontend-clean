@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { Search, X, Mic } from 'lucide-react';
 import { isAndroidTV } from '../utils/platformUtils';
 
@@ -116,21 +117,11 @@ export default function SearchBar({
   };
 
   // Control de voz mejorado
-  const startVoiceSearch = async () => {
+  const startVoiceSearch = () => {
     setVoiceError('');
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       setVoiceError('Tu dispositivo no soporta la búsqueda por voz.');
       return;
-    }
-
-    try {
-      const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
-      if (permissionStatus.state === 'denied') {
-        setVoiceError('Permiso de micrófono denegado. Habilítalo en la configuración del navegador.');
-        return;
-      }
-    } catch (error) {
-      console.warn('No se pudo verificar el permiso del micrófono:', error);
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -260,7 +251,7 @@ export default function SearchBar({
   inset: 0;
   background-color: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
-  z-index: 9999;
+  z-index: 99999;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -511,8 +502,8 @@ export default function SearchBar({
         <Search size={isTV ? 22 : 18} className="search-trigger-icon" />
       </button>
 
-      {/* Modal de búsqueda */}
-      {isOpen && (
+      {/* Modal de búsqueda - renderizado como portal para estar al frente de todo */}
+      {isOpen && ReactDOM.createPortal(
         <div className="search-overlay" onClick={() => setIsOpen(false)}>
           <div className="search-modal" onClick={e => e.stopPropagation()}>
             {/* Header */}
@@ -627,7 +618,7 @@ export default function SearchBar({
             )}
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
     </>
   );

@@ -135,7 +135,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
 
   return (
     <div
-      className="group/card w-full"
+      className="group/card w-full relative"
       style={{
         display: 'block',
         maxWidth: '100%',
@@ -146,6 +146,25 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         e.stopPropagation();
       }}
     >
+      {/* Botón Mi Lista - Fijo en esquina superior derecha */}
+      {!isAndroidTV() && onAddToMyList && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onAddToMyList(item);
+          }}
+          className="absolute top-1.5 right-1.5 z-50 pointer-events-auto w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-red-500 bg-black/30 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-150 flex items-center justify-center backdrop-blur-sm hover:shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+          aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
+          title="Agregar a Mi Lista"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 016.364 6.364L12 20.364l-7.682-7.682a4.5 4.5 0 010-6.364z" />
+          </svg>
+        </button>
+      )}
+      
       <div className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover/card:scale-105 relative shadow-lg">
         <img
           src={displayThumbnail}
@@ -213,7 +232,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                 {item.description}
               </p>
             )}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={(e) => {
@@ -259,25 +278,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                   <PlusCircleOutlineIcon className="w-5 h-5" />
                 </button>
               )}
-              {!isAndroidTV() && onAddToMyList && (
-                <div className="group relative">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onAddToMyList(item);
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white font-semibold py-1.5 px-2 sm:py-2 sm:px-2.5 rounded-md transition-all duration-200 flex items-center justify-center pointer-events-auto relative z-50 hover:scale-110 hover:shadow-[0_0_20px_rgba(239,68,68,0.8)] w-10 sm:w-11 h-10 sm:h-11"
-                    aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
-                  >
-                    <span className="text-lg sm:text-xl">❤️</span>
-                  </button>
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 shadow-lg">
-                    Agregar a Mi Lista
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         </div>

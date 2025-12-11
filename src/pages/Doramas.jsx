@@ -4,6 +4,7 @@ import axiosInstance from '@/utils/axiosInstance';
 import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
+import Toast from '@/components/Toast';
 
 
 export function Doramas() {
@@ -11,6 +12,8 @@ export function Doramas() {
   const [doramas, setDoramas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
   const gridOptions = [5, 4, 3, 1];
   const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
 
@@ -40,6 +43,30 @@ export function Doramas() {
 
   const handleDoramaClick = (dorama) => {
     navigate(`/watch/serie/${dorama._id}`);
+  };
+
+  const handleAddToMyList = async (item) => {
+    try {
+      const response = await axiosInstance.post('/api/users/my-list/add', {
+        itemId: item._id || item.id,
+        tipo: item.tipo || 'dorama',
+        title: item.name || item.title,
+        thumbnail: item.thumbnail,
+        description: item.description
+      });
+      setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
+      setToastType('success');
+    } catch (error) {
+      if (error.response?.status === 409) {
+        setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
+        setToastType('info');
+      } else {
+        setToastMessage('❌ Error al agregar a Mi Lista');
+        setToastType('error');
+      }
+    } finally {
+      setTimeout(() => setToastMessage(''), 3000);
+    }
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
@@ -114,6 +141,7 @@ export function Doramas() {
 
   return (
     <>
+      {toastMessage && <Toast message={toastMessage} type={toastType} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
 
@@ -181,6 +209,7 @@ export function Doramas() {
                 onClick={() => handleDoramaClick(dorama)}
                 itemType="dorama"
                 onPlayTrailer={handlePlayTrailerClick}
+                onAddToMyList={handleAddToMyList}
               />
             ))}
           </div>

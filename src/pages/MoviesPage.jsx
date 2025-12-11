@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext.jsx';
-import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '@/utils/api.js';
-import { normalizeSearchText } from '@/utils/searchUtils.js';
-import useDataCache from '@/hooks/useDataCache.js';
-import Card from '@/components/Card.jsx';
-import MovieSectionCard from '@/components/MovieSectionCard.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '../utils/api.js';
+import { normalizeSearchText } from '../utils/searchUtils.js';
+import useDataCache from '../hooks/useDataCache.js';
+import Card from '../components/Card.jsx';
+import MovieSectionCard from '../components/MovieSectionCard.jsx';
 import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
-import { useContentAccess } from '@/hooks/useContentAccess.js';
-import ContentAccessModal from '@/components/ContentAccessModal.jsx';
-import TrailerModal from '@/components/TrailerModal.jsx';
-import { useDebounce } from '@/hooks/useDebounce.js';
-import CollectionsModal from '@/components/CollectionsModal.jsx';
+import { useContentAccess } from '../hooks/useContentAccess.js';
+import ContentAccessModal from '../components/ContentAccessModal.jsx';
+import TrailerModal from '../components/TrailerModal.jsx';
+import { useDebounce } from '../hooks/useDebounce.js';
+import CollectionsModal from '../components/CollectionsModal.jsx';
+import axiosInstance from '../utils/axiosInstance.js';
+import Toast from '../components/Toast.jsx';
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -75,6 +77,9 @@ export default function MoviesPage() {
     const [collections, setCollections] = useState([]);
     const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
     const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
+
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState('success');
 
     const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
 
@@ -296,6 +301,34 @@ export default function MoviesPage() {
         handleCloseCollectionsModal();
     };
 
+    const handleAddToMyList = async (item) => {
+        try {
+          console.log('[MoviesPage.jsx] Agregando a Mi Lista:', item);
+          const response = await axiosInstance.post('/api/users/my-list/add', {
+            itemId: item._id || item.id,
+            tipo: item.tipo || item.itemType || 'movie',
+            title: item.name || item.title,
+            thumbnail: item.thumbnail,
+            description: item.description
+          });
+    
+          console.log('[MoviesPage.jsx] Agregado a Mi Lista exitosamente:', response.data);
+          // Mostrar notificación de éxito
+          setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
+          setToastType('success');
+        } catch (error) {
+          if (error.response?.status === 409) {
+            console.log('[MoviesPage.jsx] Item ya está en Mi Lista');
+            setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
+            setToastType('info');
+          } else {
+            console.error('[MoviesPage.jsx] Error al agregar a Mi Lista:', error);
+            setToastMessage('❌ Error al agregar a Mi Lista');
+            setToastType('error');
+          }
+        }
+      };
+
     const handleSelectMainSection = (sectionKey) => {
         const planUsuario = user?.plan || "gratuito";
         if (sectionKey !== 'por-generos' && !isSectionAllowedForPlan(sectionKey, planUsuario)) {
@@ -404,6 +437,7 @@ export default function MoviesPage() {
                                         itemType="movie"
                                         onPlayTrailer={handlePlayTrailerClick}
                                         onAddToCollectionClick={handleOpenCollectionsModal}
+                                        onAddToMyList={handleAddToMyList}
                                     />
                                 </div>
                             );
@@ -416,6 +450,7 @@ export default function MoviesPage() {
                                     itemType="movie"
                                     onPlayTrailer={handlePlayTrailerClick}
                                     onAddToCollectionClick={handleOpenCollectionsModal}
+                                    onAddToMyList={handleAddToMyList}
                                 />
                             );
                         }
@@ -458,6 +493,15 @@ export default function MoviesPage() {
                 collections={collections.filter(c => c.itemsModel === 'Video')}
                 onAddToCollection={handleAddToCollection}
             />
+
+            {toastMessage && (
+                <Toast
+                message={toastMessage}
+                type={toastType}
+                duration={3000}
+                onClose={() => setToastMessage('')}
+                />
+            )}
         </div>
     );
 }

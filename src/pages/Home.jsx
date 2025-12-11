@@ -7,6 +7,7 @@ import TVHome from '../components/TVHome.jsx';
 import { isAndroidTV } from '../utils/platformUtils.js';
 import axiosInstance from '../utils/axiosInstance.js';
 import useDataCache from '../hooks/useDataCache.js';
+import Toast from '../components/Toast.jsx';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -56,6 +57,10 @@ export function Home() {
   // State for trailer modal
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
+
+  // State for toast notifications
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
   // Hook para verificación de acceso al contenido
   const {
@@ -290,12 +295,18 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
       });
 
       console.log('[Home.jsx] Agregado a Mi Lista exitosamente:', response.data);
-      // Aquí puedes mostrar una notificación de éxito si quieres
+      // Mostrar notificación de éxito
+      setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
+      setToastType('success');
     } catch (error) {
       if (error.response?.status === 409) {
         console.log('[Home.jsx] Item ya está en Mi Lista');
+        setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
+        setToastType('info');
       } else {
         console.error('[Home.jsx] Error al agregar a Mi Lista:', error);
+        setToastMessage('❌ Error al agregar a Mi Lista');
+        setToastType('error');
       }
     }
   };
@@ -727,6 +738,15 @@ onProceedWithTrial={proceedWithTrial}
         data={accessModalData}
         onProceedWithTrial={proceedWithTrial}
       />
+
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          type={toastType}
+          duration={3000}
+          onClose={() => setToastMessage('')}
+        />
+      )}
     </>
   );
 }

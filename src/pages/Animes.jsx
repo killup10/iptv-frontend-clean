@@ -305,7 +305,12 @@ export function Animes() {
         onProceedWithTrial={handleProceedWithTrial}
       />
 
-      {toastMessage && <Toast message={toastMessage} type={toastType} />}
+      {toastMessage && <Toast
+        message={toastMessage}
+        type={toastType}
+        duration={3000}
+        onClose={() => setToastMessage('')}
+      />}
     </>
   );
 }

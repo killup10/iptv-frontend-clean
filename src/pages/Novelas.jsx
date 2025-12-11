@@ -16,6 +16,8 @@ export function Novelas() {
 
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
 
   useEffect(() => {
     const fetchNovelas = async () => {
@@ -46,6 +48,30 @@ export function Novelas() {
     if (trailerUrl) {
       setCurrentTrailerUrl(trailerUrl);
       setShowTrailerModal(true);
+    }
+  };
+
+  const handleAddToMyList = async (item) => {
+    try {
+      const response = await axiosInstance.post('/api/users/my-list/add', {
+        itemId: item._id || item.id,
+        tipo: item.tipo || 'novela',
+        title: item.name || item.title,
+        thumbnail: item.thumbnail,
+        description: item.description
+      });
+      setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
+      setToastType('success');
+    } catch (error) {
+      if (error.response?.status === 409) {
+        setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
+        setToastType('info');
+      } else {
+        setToastMessage('❌ Error al agregar a Mi Lista');
+        setToastType('error');
+      }
+    } finally {
+      setTimeout(() => setToastMessage(''), 3000);
     }
   };
 
@@ -181,6 +207,7 @@ export function Novelas() {
                 onClick={() => handleNovelaClick(novela)}
                 itemType="novela"
                 onPlayTrailer={handlePlayTrailerClick}
+                onAddToMyList={handleAddToMyList}
               />
             ))}
           </div>
