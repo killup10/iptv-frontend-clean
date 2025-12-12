@@ -563,6 +563,17 @@ export function Watch() {
     };
   }, []);
 
+  // 6) Manejar botón de retroceso del navegador/dispositivo
+  useEffect(() => {
+    const handlePopState = () => {
+      console.log('[Watch.jsx] Browser back button pressed - calling handleBackNavigation');
+      handleBackNavigation();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleBackNavigation = () => {
     console.log('[Watch.jsx] handleBackNavigation: Iniciando navegación hacia atrás');
     isUnmountingRef.current = true;
@@ -686,7 +697,7 @@ export function Watch() {
   if (loading)
     return (
       <div className="flex justify-center items-center min-h-screen bg-black">
-        <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
 

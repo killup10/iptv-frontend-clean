@@ -174,6 +174,10 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
                   <button
                     key={index}
                     onClick={() => handleChapterClick(selectedSeasonIndex, index)}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      handleChapterClick(selectedSeasonIndex, index);
+                    }}
                     className={`w-full text-left p-4 rounded-lg transition-all duration-300 transform hover:scale-[1.02] ${
                       isPlaying ? 'chapter-button playing' : 'chapter-button'
                     }`}

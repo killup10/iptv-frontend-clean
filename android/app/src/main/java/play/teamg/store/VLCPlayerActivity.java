@@ -47,12 +47,16 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     // UI Controls
     private SeekBar seekBar;
-    private TextView currentTime, totalDuration;
+    private TextView currentTime, totalDuration, videoTitle;
     private ImageButton playPauseButton, rewindButton, forwardButton, tracksButton, channelsButton, aspectRatioButton;
-    private ImageButton prevEpisodeButton, nextEpisodeButton, lockButton;
-    private View controlsContainer;
+    private ImageButton prevEpisodeButton, nextEpisodeButton, lockButton, speedButton;
+    private View controlsContainer, topControlsContainer;
     private ProgressBar brightnessBar, volumeBar;
     private FrameLayout videoContainer;
+
+    // Velocidad de reproducción
+    private final float[] playbackSpeeds = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+    private int currentSpeedIndex = 2; // 1.0x por defecto
 
     private Handler controlsHandler = new Handler(Looper.getMainLooper());
 
@@ -102,9 +106,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         videoLayout = findViewById(R.id.videoLayout);
         controlsContainer = findViewById(R.id.controls_container);
+        topControlsContainer = findViewById(R.id.top_controls_container);
         seekBar = findViewById(R.id.seekBar);
         currentTime = findViewById(R.id.currentTime);
         totalDuration = findViewById(R.id.totalDuration);
+        videoTitle = findViewById(R.id.video_title);
         playPauseButton = findViewById(R.id.play_pause_button);
         rewindButton = findViewById(R.id.rewind_button);
         forwardButton = findViewById(R.id.forward_button);
@@ -113,14 +119,24 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         lockButton = findViewById(R.id.lock_button);
         tracksButton = findViewById(R.id.tracks_button);
         aspectRatioButton = findViewById(R.id.aspect_ratio_button);
+        speedButton = findViewById(R.id.speed_button);
         channelsButton = findViewById(R.id.channels_button);
         brightnessBar = findViewById(R.id.brightness_bar);
         volumeBar = findViewById(R.id.volume_bar);
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
+        String videoTitleText = getIntent().getStringExtra("video_title");
         lastPosition = getIntent().getLongExtra("start_time", 0L);
         if (lastPosition > 0) {
             isSeekPending = true;
+        }
+
+        // Mostrar título del video con información del capítulo si existe
+        if (videoTitleText != null && !videoTitleText.isEmpty()) {
+            videoTitle.setText(videoTitleText);
+            Log.d(TAG, "Video title set to: " + videoTitleText);
+        } else {
+            videoTitle.setText("Video");
         }
 
         gestureDetector = new GestureDetector(this, this);
@@ -213,6 +229,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         setupPlayerEvents();
         setupControls();
+        updateVideoTitleWithChapterInfo();
 
         Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
         media.setHWDecoderEnabled(true, false);
@@ -396,6 +413,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             cycleAspectRatio();
             hideControls();
         });
+
+        speedButton.setOnClickListener(v -> {
+            cyclePlaybackSpeed();
+            hideControls();
+        });
         
         if (chapterTitles == null || chapterTitles.isEmpty()) {
             channelsButton.setVisibility(View.GONE);
@@ -422,6 +444,28 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 hideControls();
             }
         });
+    }
+
+    private void updateVideoTitleWithChapterInfo() {
+        if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
+            return;
+        }
+        
+        // Encontrar el índice del capítulo actual
+        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        if (currentIndex >= 0 && chapterSeasonNumbers != null && chapterNumbers != null &&
+            currentIndex < chapterSeasonNumbers.size() && currentIndex < chapterNumbers.size()) {
+            
+            int seasonNum = chapterSeasonNumbers.get(currentIndex);
+            int chapterNum = chapterNumbers.get(currentIndex);
+            String title = (chapterTitles != null && currentIndex < chapterTitles.size()) 
+                ? chapterTitles.get(currentIndex) 
+                : "";
+            
+            String fullTitle = String.format("S%dE%d - %s", seasonNum, chapterNum, title);
+            videoTitle.setText(fullTitle);
+            Log.d(TAG, "Updated title to: " + fullTitle);
+        }
     }
 
     private void goToPreviousEpisode() {
@@ -482,22 +526,25 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
     }
 
-    private void toggleControls() {
-        if (controlsContainer.getVisibility() == View.VISIBLE) {
-            controlsContainer.setVisibility(View.GONE);
-        } else {
-            controlsContainer.setVisibility(View.VISIBLE);
-            hideControls();
-        }
-    }
-
     private void hideControls() {
         controlsHandler.removeCallbacksAndMessages(null);
         controlsHandler.postDelayed(() -> {
             if (mediaPlayer != null && mediaPlayer.isPlaying()) {
                 controlsContainer.setVisibility(View.GONE);
+                topControlsContainer.setVisibility(View.GONE);
             }
         }, 3000);
+    }
+
+    private void toggleControls() {
+        if (controlsContainer.getVisibility() == View.VISIBLE) {
+            controlsContainer.setVisibility(View.GONE);
+            topControlsContainer.setVisibility(View.GONE);
+        } else {
+            controlsContainer.setVisibility(View.VISIBLE);
+            topControlsContainer.setVisibility(View.VISIBLE);
+            hideControls();
+        }
     }
 
     private String formatTime(long millis) {
@@ -549,6 +596,49 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 mediaPlayer.setScale(0);
                 break;
         }
+    }
+
+    private void cyclePlaybackSpeed() {
+        if (mediaPlayer == null) return;
+
+        // Crear diálogo para seleccionar velocidad
+        String[] speedLabels = new String[playbackSpeeds.length];
+        for (int i = 0; i < playbackSpeeds.length; i++) {
+            float speed = playbackSpeeds[i];
+            if (speed == 1.0f) {
+                speedLabels[i] = "1x (Normal)";
+            } else if (speed == 0.5f) {
+                speedLabels[i] = "0.5x (Lento)";
+            } else if (speed == 0.75f) {
+                speedLabels[i] = "0.75x";
+            } else if (speed == 1.5f) {
+                speedLabels[i] = "1.5x";
+            } else if (speed == 1.75f) {
+                speedLabels[i] = "1.75x";
+            } else if (speed == 1.25f) {
+                speedLabels[i] = "1.25x";
+            } else if (speed == 2.0f) {
+                speedLabels[i] = "2x (Rápido)";
+            } else {
+                speedLabels[i] = String.format("%.2fx", speed);
+            }
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Velocidad de Reproducción");
+        builder.setSingleChoiceItems(speedLabels, currentSpeedIndex, (dialog, which) -> {
+            currentSpeedIndex = which;
+            float speed = playbackSpeeds[which];
+            mediaPlayer.setRate(speed);
+            
+            String speedText = speedLabels[which];
+            Toast.makeText(VLCPlayerActivity.this, "Velocidad: " + speedText, Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "Playback speed changed to: " + speedText);
+            
+            dialog.dismiss();
+            hideControls();
+        });
+        builder.show();
     }
 
     private void showChaptersDialog() {
@@ -656,16 +746,72 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         builder.create().show();
     }
 
+    private long lastDoubleTapTime = 0;
+    private float lastTapX = 0;
+    private float lastTapY = 0;
+    private static final long DOUBLE_TAP_TIMEOUT = 500; // ms (aumentado a 500 para mejor detección)
+    private static final float DOUBLE_TAP_SLOP = 150; // píxeles de tolerancia
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // Si la pantalla está bloqueada, permitir desbloqueo con doble tap en el centro
+        // Si la pantalla está bloqueada, permitir desbloqueo con doble tap
         if (isScreenLocked) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                // Permitir unlock con doble tap en cualquier lugar
-                toggleScreenLock();
+                long currentTime = System.currentTimeMillis();
+                float currentX = event.getX();
+                float currentY = event.getY();
+                
+                // Verificar si es doble tap (el segundo tap)
+                if (currentTime - lastDoubleTapTime < DOUBLE_TAP_TIMEOUT &&
+                    Math.abs(currentX - lastTapX) < DOUBLE_TAP_SLOP &&
+                    Math.abs(currentY - lastTapY) < DOUBLE_TAP_SLOP) {
+                    // Doble tap detectado - desbloquear
+                    toggleScreenLock();
+                    lastDoubleTapTime = 0;
+                    return true;
+                }
+                // Guardar tiempo y posición del tap
+                lastDoubleTapTime = currentTime;
+                lastTapX = currentX;
+                lastTapY = currentY;
+            }
+            return true; // Consumir evento cuando está bloqueado
+        }
+        
+        // Manejo de doble tap para +15/-15 segundos (cuando NO está bloqueado)
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            long currentTime = System.currentTimeMillis();
+            float currentX = event.getX();
+            float currentY = event.getY();
+            
+            // Verificar si es doble tap
+            if (currentTime - lastDoubleTapTime < DOUBLE_TAP_TIMEOUT &&
+                Math.abs(currentX - lastTapX) < DOUBLE_TAP_SLOP &&
+                Math.abs(currentY - lastTapY) < DOUBLE_TAP_SLOP &&
+                mediaPlayer != null && mediaPlayer.isPlaying()) {
+                
+                // Es doble tap - avanzar/retroceder
+                if (currentX < getWindow().getDecorView().getWidth() / 2) {
+                    // Lado izquierdo: retroceder 15 segundos
+                    long newTime = Math.max(0, mediaPlayer.getTime() - 15000);
+                    mediaPlayer.setTime(newTime);
+                    Toast.makeText(this, "⏪ -15s", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "Double tap left: rewind 15s");
+                } else {
+                    // Lado derecho: avanzar 15 segundos
+                    long newTime = mediaPlayer.getTime() + 15000;
+                    mediaPlayer.setTime(newTime);
+                    Toast.makeText(this, "⏩ +15s", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "Double tap right: forward 15s");
+                }
+                lastDoubleTapTime = 0;
                 return true;
             }
-            return true; // Consumir evento
+            
+            // Actualizar último tap
+            lastDoubleTapTime = currentTime;
+            lastTapX = currentX;
+            lastTapY = currentY;
         }
         
         if (gestureDetector.onTouchEvent(event)) {
@@ -691,6 +837,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     @Override
     public boolean onSingleTapUp(MotionEvent e) {
+        // Single tap: mostrar/ocultar controles
         toggleControls();
         return true;
     }
@@ -709,6 +856,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 layoutParams.screenBrightness = newBrightness;
                 getWindow().setAttributes(layoutParams);
                 showBrightnessBar(newBrightness);
+                Log.d(TAG, "Brightness gesture: " + (newBrightness * 100) + "%");
             } else {
                 // Control de volumen en el lado derecho
                 int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
@@ -720,9 +868,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 // Forzar el cambio de volumen
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, AudioManager.FLAG_SHOW_UI);
                 showVolumeBar(newVolume, maxVolume);
-                
-                // Log para debug
-                android.util.Log.d(TAG, "Volume gesture: delta=" + volumeDelta + ", change=" + volumeChange + ", newVolume=" + newVolume + "/" + maxVolume);
+                Log.d(TAG, "Volume gesture: " + newVolume + "/" + maxVolume);
             }
             return true;
         }

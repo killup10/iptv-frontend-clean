@@ -22,7 +22,13 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   
   const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
-  const allChapters = seasons?.flatMap(season => season.chapters) || [];
+  const allChapters = seasons?.flatMap((season, seasonIndex) => 
+    season.chapters?.map(chapter => ({
+      ...chapter,
+      seasonNumber: season.seasonNumber || (seasonIndex + 1),
+      chapterNumber: chapter.episodeNumber
+    })) || []
+  ) || [];
 
   console.log('[VideoPlayer] Reproductor simplificado - sin proxy');
 

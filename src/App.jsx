@@ -126,7 +126,7 @@ function App() {
   };
 
   const handleSearchSelectItem = (item) => {
-    const type = item.tipo || item.type || 'movie';
+    const type = item.itemType || item.tipo || item.type || 'movie';
     navigate(`/watch/${type}/${item._id || item.id}`);
   };
   

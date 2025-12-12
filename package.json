@@ -17,6 +17,7 @@
     "mobile:android": "npx cap open android",
     "mobile:ios": "npx cap open ios",
     "mobile:run": "npm run mobile:build && npx cap run android",
+    "mobile:run:device": "npm run mobile:build && npx cap run android --target=<your_device_id>",
     "tv:build": "npm run build:tv",
     "tv:sync": "npm run tv:build && npx cap sync --config capacitor-tv.config.json",
     "tv:open": "npx cap open android --config capacitor-tv.config.json",

@@ -12,7 +12,8 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 const Home = React.lazy(() => import('./pages/Home.jsx'));
 const Register = React.lazy(() => import('./pages/Register.jsx'));
 const AdminPanel = React.lazy(() => import('./pages/AdminPanel.jsx'));
-const Watch = React.lazy(() => import('./pages/Watch.jsx'));
+// Watch NO es lazy porque se usa constantemente desde búsqueda
+import Watch from './pages/Watch.jsx';
 const LiveTVPage = React.lazy(() => import('./pages/LiveTVPage.jsx'));
 const TVLiveTV = React.lazy(() => import('./pages/TVLiveTV.jsx'));
 const MoviesPage = React.lazy(() => import('./pages/MoviesPage.jsx'));
@@ -62,9 +63,7 @@ const router = createHashRouter([
         path: "watch/:itemType/:itemId",
         element: (
           <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <Watch />
-            </Suspense>
+            <Watch />
           </ProtectedRoute>
         ),
       },

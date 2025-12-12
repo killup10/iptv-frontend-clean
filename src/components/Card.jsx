@@ -22,23 +22,8 @@ import { isAndroidTV } from '../utils/platformUtils.js';
     console.log('Card item:', item);
     const handlePlayClick = (e) => {
       e.stopPropagation();
-      
-      // En Android TV, reproducir directamente SIN trailer primero
-      if (isAndroidTV()) {
-        if (onClick) {
-          onClick(item, itemType);
-        }
-        return;
-      }
-      
-      // En web, mostrar trailer primero (behavior antiguo)
-      if (item?.trailerUrl && typeof onPlayTrailer === 'function') {
-        onPlayTrailer(item.trailerUrl, () => {
-          if (onClick) onClick(item, itemType);
-        });
-        return;
-      }
-
+      // Reproducir contenido directamente (SIN trailer obligatorio)
+      // El trailer es un botón separado para quien lo quiera ver
       if (onClick) {
         onClick(item, itemType);
       }
@@ -146,7 +131,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         e.stopPropagation();
       }}
     >
-      {/* Botón Mi Lista - Fijo en esquina superior derecha */}
+      {/* Botón Mi Lista - Solo visible en desktop y hover */}
       {!isAndroidTV() && onAddToMyList && (
         <button
           type="button"
@@ -155,7 +140,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
             e.preventDefault();
             onAddToMyList(item);
           }}
-          className="absolute top-1.5 right-1.5 z-50 pointer-events-auto w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-red-500 bg-black/30 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-150 flex items-center justify-center backdrop-blur-sm hover:shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+          className="absolute top-1.5 right-1.5 z-50 pointer-events-auto w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-red-500 bg-black/30 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-150 flex items-center justify-center backdrop-blur-sm hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] opacity-0 group-hover/card:opacity-100 lg:opacity-100"
           aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
           title="Agregar a Mi Lista"
         >
