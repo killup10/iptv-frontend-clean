@@ -389,7 +389,7 @@ const handleAddToMyList = async (item) => {
             isOpen={isCollectionsModalOpen}
             onClose={handleCloseCollectionsModal}
             item={selectedItemForCollection}
-            collections={collections.filter(c => c.itemsModel === 'Serie')}
+            collections={collections.filter(c => c.itemsModel === 'Video')}
             onAddToCollection={handleAddToCollection}
         />
 

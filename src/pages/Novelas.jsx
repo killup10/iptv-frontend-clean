@@ -4,6 +4,8 @@ import axiosInstance from '@/utils/axiosInstance';
 import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
+import { getCollections, addItemsToCollection } from '../utils/api.js';
+import CollectionsModal from '../components/CollectionsModal.jsx';
 
 
 export function Novelas() {
@@ -18,6 +20,10 @@ export function Novelas() {
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+
+  const [collections, setCollections] = useState([]);
+  const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+  const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
   useEffect(() => {
     const fetchNovelas = async () => {
@@ -39,6 +45,55 @@ export function Novelas() {
 
     fetchNovelas();
   }, []);
+
+  useEffect(() => {
+    const loadCollections = async () => {
+        try {
+            const fetchedCollections = await getCollections();
+            setCollections(fetchedCollections);
+        } catch (error) {
+            console.error("Failed to load collections", error);
+        }
+    };
+    loadCollections();
+  }, []);
+
+  const handleOpenCollectionsModal = (item) => {
+    setSelectedItemForCollection(item);
+    setIsCollectionsModalOpen(true);
+  };
+
+  const handleCloseCollectionsModal = () => {
+      setIsCollectionsModalOpen(false);
+      setSelectedItemForCollection(null);
+  };
+
+  const handleAddToCollection = async ({ item, collectionName }) => {
+      try {
+          let collection = collections.find(c => c.name === collectionName);
+          
+          if (!collection) {
+              console.log('Colección no encontrada, recargando colecciones...');
+              const updatedCollections = await getCollections();
+              setCollections(updatedCollections);
+              collection = updatedCollections.find(c => c.name === collectionName);
+          }
+          
+          if (collection) {
+              await addItemsToCollection(collection._id, [item._id || item.id]);
+              alert(`${item.name || item.title} fue agregado a la colección ${collectionName}`);
+              
+              const refreshedCollections = await getCollections();
+              setCollections(refreshedCollections);
+          } else {
+              throw new Error(`No se pudo encontrar la colección "${collectionName}"`);
+          }
+      } catch (error) {
+          console.error("Failed to add item to collection", error);
+          alert(`Error al agregar a la colección: ${error.message}`);
+      }
+      handleCloseCollectionsModal();
+  };
 
   const handleNovelaClick = (novela) => {
     navigate(`/watch/serie/${novela._id}`);
@@ -208,6 +263,7 @@ export function Novelas() {
                 itemType="novela"
                 onPlayTrailer={handlePlayTrailerClick}
                 onAddToMyList={handleAddToMyList}
+                onAddToCollectionClick={handleOpenCollectionsModal}
               />
             ))}
           </div>
@@ -227,6 +283,13 @@ export function Novelas() {
           }}
         />
       )}
+      <CollectionsModal
+          isOpen={isCollectionsModalOpen}
+          onClose={handleCloseCollectionsModal}
+          item={selectedItemForCollection}
+          collections={collections.filter(c => c.itemsModel === 'Video')}
+          onAddToCollection={handleAddToCollection}
+      />
     </>
   );
 }

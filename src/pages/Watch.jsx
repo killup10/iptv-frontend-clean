@@ -8,6 +8,7 @@ import VideoPlayer from "@/components/VideoPlayer.jsx";
 import { backgroundPlaybackService } from '@/services/backgroundPlayback';
 import { getUserProgress, updateUserProgress } from "@/utils/api.js";
 import { throttle } from 'lodash';
+import { App as CapacitorApp } from '@capacitor/app';
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import DynamicTheme, { DynamicText, DynamicCard } from '@/components/DynamicTheme.jsx';
@@ -261,27 +262,21 @@ export function Watch() {
       watchProgress: itemData.watchProgress
     });
 
-    // 🔧 FIX ELECTRON: Intentar obtener seasonIndex/chapterIndex de localStorage si no está en location.state
+    // 🔥 NUEVO: Prioridad 1 - Chequear si vino desde SeriesChapters (seasonIndex/chapterIndex directo)
     let seasonIndexFromState = location.state?.seasonIndex;
     let chapterIndexFromState = location.state?.chapterIndex;
-    let continueWatchingFromState = location.state?.continueWatching || isContinueWatching;
-
-    if (isContinueWatching && (seasonIndexFromState === undefined || chapterIndexFromState === undefined)) {
-      const cacheKey = `continueWatching_${itemId}`;
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const data = JSON.parse(cached);
-          seasonIndexFromState = data.seasonIndex;
-          chapterIndexFromState = data.chapterIndex;
-          console.log('[Watch] ✅ Recuperado seasonIndex/chapterIndex desde localStorage:', { seasonIndexFromState, chapterIndexFromState });
-        }
-      } catch (e) {
-        console.error('[Watch] Error leyendo localStorage:', e);
+    
+    if (seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
+      seasonIdx = seasonIndexFromState;
+      chapterIdx = chapterIndexFromState;
+      if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
+        console.log('[Watch] ✅ Capítulo seleccionado desde SeriesChapters:', { seasonIdx, chapterIdx });
+        foundChapter = true;
       }
     }
 
-    if (continueWatchingFromState && seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
+    // Prioridad 2 - Continuar viendo desde state
+    if (!foundChapter && location.state?.continueWatching && seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
       seasonIdx = seasonIndexFromState;
       chapterIdx = chapterIndexFromState;
       if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
@@ -293,7 +288,8 @@ export function Watch() {
       }
     }
 
-    if (!foundChapter && continueWatchingFromState && itemData.watchProgress) {
+    // Prioridad 3 - Desde watchProgress
+    if (!foundChapter && isContinueWatching && itemData.watchProgress) {
       console.log('[Watch] Intentando cargar desde watchProgress:', itemData.watchProgress);
       const wp = itemData.watchProgress;
       
@@ -309,15 +305,7 @@ export function Watch() {
       }
     }
 
-    if (!foundChapter && seasonIndexFromState !== undefined && chapterIndexFromState !== undefined) {
-      seasonIdx = seasonIndexFromState;
-      chapterIdx = chapterIndexFromState;
-      if (itemData.seasons?.[seasonIdx]?.chapters?.[chapterIdx]) {
-        console.log('[Watch] ✅ Cargando desde estado de navegación directo:', { seasonIdx, chapterIdx });
-        foundChapter = true;
-      }
-    }
-
+    // Prioridad 4 - Fallback al primer capítulo
     if (!foundChapter) {
       if (itemData.seasons?.[0]?.chapters?.[0]) {
         seasonIdx = 0;
@@ -334,7 +322,7 @@ export function Watch() {
       console.error('[Watch] ❌ No se encontró ningún capítulo válido para reproducir');
       setError('No se encontró ningún capítulo válido para reproducir');
     }
-  }, [itemData, location.state, itemType, isContinueWatching, itemId]);
+  }, [itemData, location.state?.seasonIndex, location.state?.chapterIndex, location.state?.continueWatching, itemType, isContinueWatching, itemId]);
 
   // 2) Calcular URL reproducible
   useEffect(() => {
@@ -563,17 +551,6 @@ export function Watch() {
     };
   }, []);
 
-  // 6) Manejar botón de retroceso del navegador/dispositivo
-  useEffect(() => {
-    const handlePopState = () => {
-      console.log('[Watch.jsx] Browser back button pressed - calling handleBackNavigation');
-      handleBackNavigation();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   const handleBackNavigation = () => {
     console.log('[Watch.jsx] handleBackNavigation: Iniciando navegación hacia atrás');
     isUnmountingRef.current = true;
@@ -652,6 +629,52 @@ export function Watch() {
     handleBackNavigation();
   };
 
+  // 🔥 NUEVO: Manejar el botón atrás del dispositivo en Watch.jsx
+  // 🔥 IMPORTANTE: Usar ref para evitar reconfiguraciones cuando cambia location.state
+  const handleBackNavigationRef = useRef(handleBackNavigation);
+  
+  useEffect(() => {
+    handleBackNavigationRef.current = handleBackNavigation;
+  }, [handleBackNavigation]);
+
+  useEffect(() => {
+    let handleRef = null;
+    let unsub = null;
+
+    const setupBackButton = async () => {
+      try {
+        if (CapacitorApp.addListener) {
+          const handle = await CapacitorApp.addListener('backButton', () => {
+            console.log('[Watch.jsx] 🔥 Back button presionado en Watch - navegando hacia atrás');
+            handleBackNavigationRef.current();
+          });
+          handleRef = handle;
+          if (handle && typeof handle.remove === 'function') {
+            unsub = () => handle.remove();
+          } else if (typeof handle === 'function') {
+            unsub = handle;
+          }
+        }
+      } catch (err) {
+        console.warn('[Watch.jsx] Error al configurar backButton listener:', err);
+      }
+    };
+
+    setupBackButton();
+
+    return () => {
+      try {
+        if (typeof unsub === 'function') {
+          unsub();
+        } else if (handleRef && typeof handleRef.remove === 'function') {
+          handleRef.remove();
+        }
+      } catch (err) {
+        console.warn('[Watch.jsx] Error removiendo backButton listener:', err);
+      }
+    };
+  }, []); // ✅ Dependencias vacías - se configura una sola vez
+
   const handleNextEpisode = (seasonIndex, chapterIndex) => {
     navigate(`/watch/${itemType}/${itemId}`, { state: { seasonIndex, chapterIndex, continueWatching: true } });
   };
@@ -677,7 +700,7 @@ export function Watch() {
     const selectedCategory = location.state?.selectedCategory || 'Todos';
     const searchTerm = location.state?.searchTerm || '';
     
-    navigate('/tv', { 
+    navigate('/live-tv', { 
       state: { 
         selectedCategory,
         searchTerm
@@ -874,6 +897,7 @@ export function Watch() {
             >
               {videoUrl ? (
                 <VideoPlayer 
+                  key={`${itemData.id}-${currentChapterInfo?.seasonIndex}-${currentChapterInfo?.chapterIndex}`}
                   url={videoUrl}
                   itemId={itemData.id}
                   startTime={startTime}

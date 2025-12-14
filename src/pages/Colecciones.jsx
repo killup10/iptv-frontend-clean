@@ -169,16 +169,26 @@ export default function Colecciones() {
   };
 
   const groupedContent = useMemo(() => {
-    if (selectedColeccion === "TODAS") {
-        const groups = {};
-        collections.forEach(collection => {
-            groups[collection.name] = collection.items;
+    const sortByYear = (items) => {
+      if (!Array.isArray(items)) return [];
+      return [...items]
+        .filter(Boolean)
+        .sort((a, b) => {
+          const ay = Number(a?.releaseYear || a?.year || a?.release_year || 0) || 0;
+          const by = Number(b?.releaseYear || b?.year || b?.release_year || 0) || 0;
+          return ay - by; // Orden cronológico ascendente (más antiguo -> más nuevo)
         });
-        return groups;
+    };
+
+    if (selectedColeccion === "TODAS") {
+      const groups = {};
+      collections.forEach(collection => {
+        groups[collection.name] = sortByYear(collection.items);
+      });
+      return groups;
     }
     const selected = collections.find(c => c.name === selectedColeccion);
-    return selected ? { [selected.name]: selected.items } : {};
-
+    return selected ? { [selected.name]: sortByYear(selected.items) } : {};
   }, [collections, selectedColeccion]);
 
 

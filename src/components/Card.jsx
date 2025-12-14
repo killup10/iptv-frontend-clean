@@ -131,7 +131,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         e.stopPropagation();
       }}
     >
-      {/* Botón Mi Lista - Solo visible en desktop y hover */}
+      {/* Botón Mi Lista - Visible en móvil y desktop */}
       {!isAndroidTV() && onAddToMyList && (
         <button
           type="button"
@@ -140,7 +140,7 @@ import { isAndroidTV } from '../utils/platformUtils.js';
             e.preventDefault();
             onAddToMyList(item);
           }}
-          className="absolute top-1.5 right-1.5 z-50 pointer-events-auto w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-red-500 bg-black/30 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-150 flex items-center justify-center backdrop-blur-sm hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] opacity-0 group-hover/card:opacity-100 lg:opacity-100"
+          className="absolute top-1.5 right-1.5 z-40 pointer-events-auto w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-red-500 bg-black/30 hover:bg-red-500 text-red-500 hover:text-white transition-all duration-150 flex items-center justify-center backdrop-blur-sm hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] opacity-100"
           aria-label={`Agregar ${item.name || item.title} a Mi Lista`}
           title="Agregar a Mi Lista"
         >

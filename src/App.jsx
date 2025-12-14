@@ -72,6 +72,23 @@ function App() {
     const init = async () => {
       try {
         const handle = await CapacitorApp.addListener('backButton', () => {
+          // 🔥 NUEVO: Chequear si el SearchBar está abierto
+          if (window.searchBarOpen) {
+            console.log('[App.jsx] 🔥 SearchBar está abierto, ignorando navegación');
+            return;
+          }
+
+          // Si estamos en una ruta /watch dejar que el propio Watch.jsx maneje el back
+          try {
+            const path = window.location && window.location.pathname ? window.location.pathname : '';
+            if (path.startsWith('/watch')) {
+              console.log('[App.jsx] En /watch - ignorando handler global de backButton');
+              return;
+            }
+          } catch (e) {
+            // ignore
+          }
+
           if (window.history.length > 1) {
             navigate(-1);
           } else {
@@ -281,7 +298,7 @@ function App() {
             {mobileMenuOpen && (
               <div id="mobile-menu" className="md:hidden fixed inset-0 top-20 z-50">
                 <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
-                  <Link to="/tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
+                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
                   <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Películas</Link>
                   
                   {/* Contenido Submenu */}

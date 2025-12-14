@@ -93,6 +93,26 @@ export function Home() {
       return;
     }
 
+    // Force refresh "Continuar Viendo" cuando el usuario regresa a Home desde Watch
+    const handlePageFocus = async () => {
+      console.log('[Home.jsx] Página recuperó el foco - actualizando "Continuar Viendo"...');
+      try {
+        const updated = await fetchContinueWatching();
+        setContinueWatchingItems(updated || []);
+        console.log('[Home.jsx] ✅ "Continuar Viendo" actualizado:', updated?.length || 0, 'items');
+      } catch (err) {
+        console.error('[Home.jsx] Error actualizando "Continuar Viendo":', err);
+      }
+    };
+
+    // Escuchar cuando el usuario vuelve a la página
+    window.addEventListener('focus', handlePageFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        handlePageFocus();
+      }
+    });
+
     async function loadAllData() {
       // Verificar si hay datos cacheados
       const cachedData = dataCache.get('homeData');
@@ -240,6 +260,12 @@ export function Home() {
     }
 
     loadAllData();
+
+    // Limpiar listeners cuando se desmonta el componente
+    return () => {
+      window.removeEventListener('focus', handlePageFocus);
+      document.removeEventListener('visibilitychange', handlePageFocus);
+    };
   }, [user, setAllSearchItems]);
 
       const handleItemClick = (item, itemType) => {
@@ -475,7 +501,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                   <h3 className="text-lg font-bold text-primary mb-3 text-center">Descargar la aplicación</h3>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <a 
-                      href="https://dl.dropboxusercontent.com/scl/fi/byzfo9c143ggozcvool85/TeamG-Play-Desktop-Setup-1.0.0.exe?rlkey=uikis927zvfgj79914jip4gjk&dl=0" 
+                      href="https://dl.dropboxusercontent.com/scl/fi/byzfo9c143ggozcvool85/TeamG-Play-Desktop-Setup-1.0.0.exe?rlkey=uikis927zvfgj79914jip4gjk&dl=1" 
                       download="TeamG-Play-Desktop-Setup-1.0.0.exe"
                       className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
                     >
@@ -483,8 +509,8 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                       <span className="font-semibold text-sm">Windows</span>
                     </a>
                     <a 
-                      href="https://dl.dropboxusercontent.com/scl/fi/uz1t1p2sji067yeirw7er/TeamGPlayv.3.apk?rlkey=wf4jxeqwb4nqpr2dlpsghu037&dl=0" 
-                      download="TeamGPlayv.3.apk"
+                      href="https://dl.dropboxusercontent.com/scl/fi/nc11hgo5jkitdwg3a6c33/TeamGPlayv.3.3.apk?rlkey=u0mu0kqacxr98jiv3j1fsnfch&dl=0" 
+                      download="TeamGPlayv.3.3.apk"
                       className="group flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary/20 border border-secondary/40 text-secondary-foreground transition-all duration-300 hover:bg-secondary/40 hover:border-secondary/70 hover:scale-105"
                     >
                       <Smartphone className="h-5 w-5 text-secondary" />

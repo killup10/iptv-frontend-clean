@@ -32,126 +32,43 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
   console.log('[VideoPlayer] Reproductor simplificado - sin proxy');
 
-  // Progreso Android VLC
+  // Android VLC playback - ROBUST VERSION
   useEffect(() => {
-    if (platform !== 'android-vlc' || !itemId) return;
-
-    if (startTime > 0) {
-      setCurrentTime(startTime);
-      lastSavedTimeRef.current = startTime;
-    }
-
-    const saveProgress = async (currentTimeValue, completed = false) => {
-      if (currentTimeValue > 0 && itemId) {
-        try {
-          await videoProgressService.saveProgress(itemId, { 
-            lastTime: currentTimeValue,
-            completed,
-            lastSeason: currentChapterInfo?.seasonIndex,
-            lastChapter: currentChapterInfo?.chapterIndex
-          });
-          lastSavedTimeRef.current = currentTimeValue;
-        } catch (error) {
-          console.error('[VideoPlayer] Error guardando progreso:', error);
-        }
-      }
-    };
-
-    const handleTimeUpdate = (data) => {
-      const currentTimeValue = data.currentTime || 0;
-      const completed = data.completed || false;
-
-      setCurrentTime(currentTimeValue);
-      lastSavedTimeRef.current = currentTimeValue;
-
-      if (completed) {
-        saveProgress(currentTimeValue, true);
-        if (onNextEpisode && seasons && currentChapterInfo) {
-          const { seasonIndex, chapterIndex } = currentChapterInfo;
-          const currentSeason = seasons[seasonIndex];
-
-          if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
-            onNextEpisode(seasonIndex, chapterIndex + 1);
-          } else if (seasons.length > seasonIndex + 1) {
-            onNextEpisode(seasonIndex + 1, 0);
-          }
-        }
-      }
-    };
-
-    let progressListener = null;
-    let stopListener = null;
-    if (VideoPlayerPlugin?.addListener) {
-      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
-      stopListener = VideoPlayerPlugin.addListener('stopped', () => {
-        isPlayingRef.current = false;
-      });
-    }
-
-    const progressSaveInterval = setInterval(async () => {
-      const currentTimeValue = lastSavedTimeRef.current;
-      if (currentTimeValue > 0) {
-        await saveProgress(currentTimeValue, false);
-      }
-    }, 20000);
-
-    return () => {
-      clearInterval(progressSaveInterval);
-      
-      const finalTime = lastSavedTimeRef.current;
-      if (finalTime > 0) {
-        saveProgress(finalTime, false);
-      }
-
-      if (progressListener?.remove) progressListener.remove();
-      if (stopListener?.remove) stopListener.remove();
-    };
-  }, [platform, itemId, startTime, seasonNumber, chapterNumber, onNextEpisode, seasons, currentChapterInfo]);
-
-  // Android VLC playback - SIMPLIFICADO: Solo se ejecuta una vez
-  useEffect(() => {
-    if (!url || !platform || platform !== 'android-vlc') return;
-
-    // Guard: Si ya inicializó, no hacer nada
-    if (hasInitializedRef.current) {
-      console.log('[VideoPlayer] Android: Ya inicializó, evitando re-inicio');
+    if (!url || platform !== 'android-vlc') {
       return;
     }
 
-    // Guard: Si está desmontando, no iniciar
-    if (isUnmountingRef?.current === true) {
-      console.log('[VideoPlayer] Android: Desmontaje detectado, evitando inicio');
-      return;
-    }
+    let isCancelled = false;
 
     const handleAndroidPlayback = async () => {
-      // SEGUNDA VERIFICACIÓN antes de iniciar
-      if (isUnmountingRef?.current === true || hasInitializedRef.current) {
-        console.log('[VideoPlayer] Android: Cancelado - desmontaje o ya inicializó');
-        return;
-      }
-      
-      if (!initialAutoplay) {
-        console.log('[VideoPlayer] Android: initialAutoplay=false, no iniciando');
-        return;
-      }
-
-      if (!url) {
-        console.log('[VideoPlayer] Android: Sin URL, no iniciando');
+      // Guard: Si el efecto fue limpiado o el componente se está desmontando, no hacer nada.
+      if (isCancelled || isUnmountingRef?.current) {
+        console.log('[VideoPlayer] Android: Reproducción cancelada (cleanup o desmontaje).');
         return;
       }
 
       try {
-        console.log('[VideoPlayer] Android: Iniciando reproducción de:', url);
-        hasInitializedRef.current = true; // Marcar que ya inicializó
-        
+        // 1. Detener cualquier instancia anterior de VLC.
+        // Es seguro llamar a stopVideo() incluso si no hay nada reproduciendo.
+        console.log('[VideoPlayer] Android: Deteniendo reproductor anterior antes de iniciar nuevo...');
+        await VideoPlayerPlugin.stopVideo();
+
+        // 2. Pequeña pausa para que el sistema libere recursos.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if (isCancelled) return;
+
+        // 3. Iniciar el servicio de notificaciones en segundo plano.
+        console.log('[VideoPlayer] Android: Iniciando servicio en segundo plano...');
         await backgroundPlaybackService.startPlayback({
           title: title || "TeamG Play",
           artist: "Reproduciendo contenido",
           album: "TeamG Play",
           artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
         });
+        if (isCancelled) return;
 
+        // 4. Iniciar la reproducción del nuevo video.
+        console.log(`[VideoPlayer] Android: Iniciando reproducción de: ${url}`);
         await VideoPlayerPlugin.playVideo({
           url: url,
           title: title || "Video",
@@ -160,37 +77,39 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         });
 
         isPlayingRef.current = true;
-        console.log('[VideoPlayer] Android: VLC iniciado correctamente');
-        
-        try {
-          const initialTime = startTime || 0;
-          await videoProgressService.saveProgress(itemId, {
-            lastTime: initialTime,
-            lastSeason: currentChapterInfo?.seasonIndex,
-            lastChapter: currentChapterInfo?.chapterIndex,
-            completed: false
-          });
-          lastSavedTimeRef.current = initialTime;
-        } catch (err) {
-          console.warn('[VideoPlayer] Error guardando progreso inicial:', err);
-        }
+        console.log('[VideoPlayer] Android: VLC iniciado correctamente.');
+
+        // 5. Guardar el progreso inicial.
+        const initialTime = startTime || 0;
+        await videoProgressService.saveProgress(itemId, {
+          lastTime: initialTime,
+          lastSeason: currentChapterInfo?.seasonIndex,
+          lastChapter: currentChapterInfo?.chapterIndex,
+          completed: false
+        });
+        lastSavedTimeRef.current = initialTime;
+
       } catch (err) {
         console.error("Error iniciando Android player:", err);
         isPlayingRef.current = false;
-        hasInitializedRef.current = false; // Reset en caso de error
+        // Intentar detener el servicio de fondo si la reproducción falla.
         try {
           await backgroundPlaybackService.stopPlayback();
         } catch (bgErr) {
-          console.warn('[VideoPlayer] Error deteniendo background playback:', bgErr);
+          console.warn('[VideoPlayer] Error deteniendo background playback tras un fallo:', bgErr);
         }
       }
     };
 
-    // Pequeño delay para evitar race conditions
-    const timer = setTimeout(handleAndroidPlayback, 300);
+    handleAndroidPlayback();
 
     return () => {
-      clearTimeout(timer);
+      // La función de limpieza marca que el efecto ha sido cancelado.
+      // Esto previene que las operaciones asíncronas (como playVideo) se ejecuten
+      // si el usuario cambia de capítulo rápidamente.
+      isCancelled = true;
+      console.log('[VideoPlayer] Android: Cleanup del efecto de reproducción.');
+      // La detención global del video se maneja en el `useEffect` de desmontaje global.
     };
   }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo]);
 

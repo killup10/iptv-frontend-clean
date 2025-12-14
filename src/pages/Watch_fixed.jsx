@@ -606,12 +606,18 @@ export default Watch;
             >
               {videoUrl ? (
                 <VideoPlayer 
+                  key={`video-${location.state?.seasonIndex || 0}-${location.state?.chapterIndex || 0}`}
                   url={videoUrl}
                   itemId={itemData.id}
                   startTime={startTime}
                   initialAutoplay={true}
                   title={itemData.name}
                   chapters={itemData.chapters}
+                  seasons={itemData.seasons}
+                  currentChapterInfo={{
+                    seasonIndex: location.state?.seasonIndex || 0,
+                    chapterIndex: location.state?.chapterIndex || 0
+                  }}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">

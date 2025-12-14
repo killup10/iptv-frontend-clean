@@ -46,7 +46,8 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
     }
 
     // also listen to mpv-ended if exposed to mark completed
-    const endedHandler = async () => {
+    const endedHandler = async (data) => {
+      console.log('[useElectronMpvProgress] ✓✓✓ mpv-ended RECIBIDO:', data);
       try {
         const progressData = { completed: true };
         
@@ -55,16 +56,21 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
           progressData.lastSeason = currentChapterInfo.seasonIndex;
         }
         
+        console.log('[useElectronMpvProgress] Guardando progreso como completado:', progressData);
         await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
+        console.log('[useElectronMpvProgress] ✓ Progreso guardado como completado');
+        
         if (onNextEpisode && seasons && currentChapterInfo) {
           const { seasonIndex, chapterIndex } = currentChapterInfo;
           const currentSeason = seasons[seasonIndex];
           
           if (currentSeason && currentSeason.chapters.length > chapterIndex + 1) {
             // Next chapter in the same season
+            console.log('[useElectronMpvProgress] 🎬 Navegando a siguiente capítulo:', seasonIndex, chapterIndex + 1);
             onNextEpisode(seasonIndex, chapterIndex + 1);
           } else if (seasons.length > seasonIndex + 1) {
             // First chapter of the next season
+            console.log('[useElectronMpvProgress] 🎬 Navegando a primera capítulo siguiente temporada:', seasonIndex + 1, 0);
             onNextEpisode(seasonIndex + 1, 0);
           }
         }
@@ -76,7 +82,7 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
     try {
       window.electronAPI.on('mpv-ended', endedHandler);
     } catch (e) {
-      // optional
+      console.warn('[useElectronMpvProgress] could not subscribe to mpv-ended', e?.message || e);
     }
 
     // Listen to mpv-closed to capture final progress when user closes the video

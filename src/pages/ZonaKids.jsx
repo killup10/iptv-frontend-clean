@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { fetchVideosByType } from '../utils/api.js';
+import { fetchVideosByType, getCollections, addItemsToCollection } from '../utils/api.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
+import CollectionsModal from '../components/CollectionsModal.jsx';
 
 export default function ZonaKids() {
   const { user } = useAuth();
@@ -12,6 +13,10 @@ export default function ZonaKids() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [collections, setCollections] = useState([]);
+  const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
+  const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
   const {
     checkContentAccess,
@@ -40,6 +45,55 @@ export default function ZonaKids() {
     };
     loadData();
   }, [user?.token]);
+
+  useEffect(() => {
+    const loadCollections = async () => {
+        try {
+            const fetchedCollections = await getCollections();
+            setCollections(fetchedCollections);
+        } catch (error) {
+            console.error("Failed to load collections", error);
+        }
+    };
+    loadCollections();
+  }, []);
+
+  const handleOpenCollectionsModal = (item) => {
+    setSelectedItemForCollection(item);
+    setIsCollectionsModalOpen(true);
+  };
+
+  const handleCloseCollectionsModal = () => {
+      setIsCollectionsModalOpen(false);
+      setSelectedItemForCollection(null);
+  };
+
+  const handleAddToCollection = async ({ item, collectionName }) => {
+      try {
+          let collection = collections.find(c => c.name === collectionName);
+          
+          if (!collection) {
+              console.log('Colección no encontrada, recargando colecciones...');
+              const updatedCollections = await getCollections();
+              setCollections(updatedCollections);
+              collection = updatedCollections.find(c => c.name === collectionName);
+          }
+          
+          if (collection) {
+              await addItemsToCollection(collection._id, [item._id || item.id]);
+              alert(`${item.name || item.title} fue agregado a la colección ${collectionName}`);
+              
+              const refreshedCollections = await getCollections();
+              setCollections(refreshedCollections);
+          } else {
+              throw new Error(`No se pudo encontrar la colección "${collectionName}"`);
+          }
+      } catch (error) {
+          console.error("Failed to add item to collection", error);
+          alert(`Error al agregar a la colección: ${error.message}`);
+      }
+      handleCloseCollectionsModal();
+  };
 
   const handleContentClick = (item) => {
     const itemId = item.id || item._id;
@@ -110,10 +164,9 @@ export default function ZonaKids() {
               {filteredContent.map(item => (
                 <div
                   key={item.id || item._id}
-                  onClick={() => handleContentClick(item)}
                   className="cursor-pointer group"
                 >
-                  <div className="aspect-[2/3] bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover:scale-105 relative border-2 border-yellow-400">
+                  <div onClick={() => handleContentClick(item)} className="aspect-[2/3] bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover:scale-105 relative border-2 border-yellow-400">
                     <img 
                       src={item.customThumbnail || item.thumbnail || item.logo || '/placeholder-thumbnail.png'} 
                       alt={item.title} 
@@ -129,6 +182,12 @@ export default function ZonaKids() {
                       </div>
                     </div>
                   </div>
+                  <button
+                    onClick={() => handleOpenCollectionsModal(item)}
+                    className="w-full mt-2 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+                  >
+                    Agregar a Colección
+                  </button>
                 </div>
               ))}
             </div>
@@ -152,6 +211,13 @@ export default function ZonaKids() {
         data={accessModalData}
         onProceedWithTrial={handleProceedWithTrial}
         onGoBack={handleGoBack}
+      />
+      <CollectionsModal
+          isOpen={isCollectionsModalOpen}
+          onClose={handleCloseCollectionsModal}
+          item={selectedItemForCollection}
+          collections={collections.filter(c => c.itemsModel === 'Video')}
+          onAddToCollection={handleAddToCollection}
       />
     </div>
   );

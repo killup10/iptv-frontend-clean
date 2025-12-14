@@ -45,7 +45,7 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
       chapterTitle: seasons[seasonIdx]?.chapters[chapterIdx]?.title
     });
     
-    // Detener MPV antes de navegar si estamos en Electron
+    // Detener reproducción antes de navegar (Electron MPV)
     if (typeof window !== 'undefined' && window.electronMPV) {
       try {
         console.log('[SeriesChapters] Deteniendo MPV antes de cambiar capítulo...');
@@ -56,9 +56,25 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
         console.error('[SeriesChapters] Error al detener MPV:', err);
       }
     }
+
+    // Detener reproducción en Android VLC
+    if (typeof window !== 'undefined' && window.VideoPlayerPlugin) {
+      try {
+        console.log('[SeriesChapters] Deteniendo VLC en Android antes de cambiar capítulo...');
+        if (typeof window.VideoPlayerPlugin.stopVideo === 'function') {
+          await window.VideoPlayerPlugin.stopVideo();
+        }
+        // Pequeña pausa para asegurar que VLC se haya cerrado
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        console.error('[SeriesChapters] Error al detener VLC:', err);
+      }
+    }
     
+    // 🔥 NUEVO: Navegar SIN continueWatching para indicar que es selección manual
+    // Esto evita que se redispare automáticamente cuando se retrocede
     navigate(`/watch/serie/${serieId}`, {
-      state: { seasonIndex: seasonIdx, chapterIndex: chapterIdx }
+      state: { seasonIndex: seasonIdx, chapterIndex: chapterIdx, continueWatching: false }
     });
   };
 
@@ -174,10 +190,6 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
                   <button
                     key={index}
                     onClick={() => handleChapterClick(selectedSeasonIndex, index)}
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      handleChapterClick(selectedSeasonIndex, index);
-                    }}
                     className={`w-full text-left p-4 rounded-lg transition-all duration-300 transform hover:scale-[1.02] ${
                       isPlaying ? 'chapter-button playing' : 'chapter-button'
                     }`}

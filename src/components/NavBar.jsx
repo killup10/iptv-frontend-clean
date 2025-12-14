@@ -69,7 +69,7 @@ export default function NavBar() {
         
         {/* Desktop Navigation */}
         <div className="hidden lg:flex space-x-8 text-sm items-center">
-          <Link to="/tv" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">TV en Vivo</Link>
+          <Link to="/live-tv" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">TV en Vivo</Link>
           <Link to="/peliculas" className="text-gray-300 hover:text-primary hover:text-glow-primary transition-colors duration-300">Películas</Link>
           
           {/* Dropdown Contenido */}

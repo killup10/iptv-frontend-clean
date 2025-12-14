@@ -10,6 +10,7 @@ let isPipMode = false;  // Flag para controlar si está en modo PIP
 let mpvSocket = null;  // Socket para comunicación IPC con MPV
 let mpvSocketConnected = false;
 let mpvCommandId = 0;  // ID para rastrear comandos
+let mpvCurrentVideoId = null;  // Rastrear ID del video actual para auto-play
 
 // Helper para terminar el proceso de MPV
 async function forceKillVLC() {
@@ -64,7 +65,12 @@ async function forceKillVLC() {
 
 const isDev = process.env.NODE_ENV === 'development';
 
-// Función para conectar al socket IPC de MPV y escuchar cambios de time-pos
+// Variables para rastrear fin de video
+let mpvLastTimePos = 0;
+let mpvVideoDuration = 0;
+let mpvEndDetectionTimer = null;
+
+// Función para conectar al socket IPC de MPV y escuchar cambios de time-pos y eventos de fin de video
 function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
   console.log('[MPV Socket] Iniciando conexión a socket:', pipePath);
   
@@ -78,13 +84,19 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
         mpvSocketConnected = true;
         console.log('[MPV Socket] ✓ Conectado al servidor IPC de MPV');
         
-        // Enviar comando para observar la propiedad time-pos
-        const observeCommand = {
+        // Observar time-pos para detectar progreso
+        const observeTimeCommand = {
           command: ['observe_property', mpvCommandId++, 'time-pos']
         };
+        mpvSocket.write(JSON.stringify(observeTimeCommand) + '\n');
         
-        mpvSocket.write(JSON.stringify(observeCommand) + '\n');
-        console.log('[MPV Socket] Observando property: time-pos');
+        // Observar duration para saber cuándo está cerca del final
+        const observeDurationCommand = {
+          command: ['observe_property', mpvCommandId++, 'duration']
+        };
+        mpvSocket.write(JSON.stringify(observeDurationCommand) + '\n');
+        
+        console.log('[MPV Socket] Observando properties: time-pos, duration');
         resolve();
       });
       
@@ -101,13 +113,44 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
           try {
             const event = JSON.parse(line);
             
-            // Eventos de propiedad observada
-            if (event.event === 'property-change' && event.data !== null && event.data !== undefined) {
-              const timePos = event.data;
+            // Detectar cambios de propiedades
+            if (event.event === 'property-change' && event.id !== undefined) {
+              const { id, data: eventData } = event;
               
-              // Enviar al frontend cada cambio de time-pos (solo el número)
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('mpv-time-pos', timePos);
+              // ID 1 = time-pos
+              if (id === 1 && eventData !== null && eventData !== undefined) {
+                const timePos = parseFloat(eventData) || 0;
+                mpvLastTimePos = timePos;
+                
+                // Enviar al frontend cada cambio de time-pos
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('mpv-time-pos', timePos);
+                }
+                
+                // Detectar fin de video: si time-pos está muy cerca de duration
+                if (mpvVideoDuration > 0 && timePos >= mpvVideoDuration - 1.5) {
+                  console.log('[MPV Socket] ✓ VIDEO CASI TERMINADO - time-pos:', timePos, 'duration:', mpvVideoDuration);
+                  
+                  // Enviar evento de fin con un pequeño delay para asegurar que se alcanzó el final
+                  if (mpvEndDetectionTimer) clearTimeout(mpvEndDetectionTimer);
+                  mpvEndDetectionTimer = setTimeout(() => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                      console.log('[MPV Socket] 🎬 ENVIANDO mpv-ended event');
+                      mainWindow.webContents.send('mpv-ended', { 
+                        videoId: mpvCurrentVideoId || 'unknown',
+                        duration: mpvVideoDuration,
+                        finalTime: timePos
+                      });
+                    }
+                    mpvEndDetectionTimer = null;
+                  }, 500);
+                }
+              }
+              
+              // ID 2 = duration
+              if (id === 2 && eventData !== null && eventData !== undefined) {
+                mpvVideoDuration = parseFloat(eventData) || 0;
+                console.debug('[MPV Socket] Duración del video:', mpvVideoDuration);
               }
             }
           } catch (err) {
@@ -206,11 +249,15 @@ app.on('activate', () => {
 // -----------------------------------------------------------
 // IPC: reproducir video con MPV
 // -----------------------------------------------------------
-ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'TeamG Play' }) => {
+ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'TeamG Play', videoId = null }) => {
   try {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return { success: false, error: 'MainWindow no existe' };
     }
+
+    // Guardar ID del video actual para cuando termine
+    mpvCurrentVideoId = videoId;
+    console.log('[MPV] VideoId guardado para auto-play:', mpvCurrentVideoId);
 
     // Si ya había un MPV corriendo, lo detenemos
     if (mpvProcess) {

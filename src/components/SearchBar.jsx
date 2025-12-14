@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Search, X, Mic } from 'lucide-react';
 import { isAndroidTV } from '../utils/platformUtils';
+import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission';
+import { App as CapacitorApp } from '@capacitor/app';
 
 /**
  * Normaliza texto: elimina tildes y convierte a minúsculas
@@ -101,7 +103,6 @@ export default function SearchBar({
       case 'Escape':
         e.preventDefault();
         setIsOpen(false);
-        setSearchQuery('');
         break;
       default:
         break;
@@ -117,47 +118,77 @@ export default function SearchBar({
   };
 
   // Control de voz mejorado
-  const startVoiceSearch = () => {
+  const startVoiceSearch = async () => {
     setVoiceError('');
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    
+    // Verificar soporte de Web Speech API
+    if (!supportsSpeechRecognition()) {
       setVoiceError('Tu dispositivo no soporta la búsqueda por voz.');
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.lang = 'es-ES';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    setIsListening(true);
-
-    recognition.onstart = () => {
-      console.log('Escuchando...');
-    };
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setSearchQuery(transcript);
-      performSearch(transcript);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Error de reconocimiento de voz:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setVoiceError('Acceso al micrófono denegado. Por favor, habilita el permiso.');
-      } else {
-        setVoiceError('Ocurrió un error con la búsqueda por voz.');
+    try {
+      // Solicitar permiso de micrófono
+      console.log('[SearchBar] 🎤 Solicitando permiso de micrófono...');
+      const hasPermission = await checkAndRequestMicrophonePermission();
+      
+      if (!hasPermission) {
+        setVoiceError('🔒 PERMISO DENEGADO: Abre Ajustes > Aplicaciones > TeamG Play > Permisos > Micrófono y ACTÍVALO.\n\nLuego vuelve e intenta de nuevo.');
+        return;
       }
-      setIsListening(false);
-    };
 
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.lang = 'es-ES';
+      recognition.continuous = false;
+      recognition.interimResults = false;
 
-    recognition.start();
+      setIsListening(true);
+
+      recognition.onstart = () => {
+        console.log('[SearchBar] 🎤 Escuchando...');
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('[SearchBar] ✅ Transcripción:', transcript);
+        setSearchQuery(transcript);
+        performSearch(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('[SearchBar] ❌ Error de reconocimiento de voz:', event.error);
+        let errorMsg = 'Ocurrió un error con la búsqueda por voz.';
+        
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          errorMsg = '🔒 Permiso denegado: Ve a Ajustes > Aplicaciones > TeamG Play > Permisos > Micrófono y actívalo.';
+        } else if (event.error === 'no-speech') {
+          errorMsg = '🔇 No se detectó audio. Por favor, intenta de nuevo más cerca del micrófono.';
+        } else if (event.error === 'network') {
+          errorMsg = '🌐 Error de conexión. Verifica tu conexión a internet.';
+        } else if (event.error === 'bad-grammar') {
+          errorMsg = '❌ No entendí bien. Intenta hablar más claro.';
+        } else if (event.error === 'aborted') {
+          errorMsg = '⏹️ Búsqueda cancelada.';
+        }
+        
+        setVoiceError(errorMsg);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        console.log('[SearchBar] 🏁 Reconocimiento finalizado');
+        setIsListening(false);
+      };
+
+      console.log('[SearchBar] 🚀 Iniciando reconocimiento de voz...');
+      recognition.start();
+    } catch (err) {
+      console.error('[SearchBar] ❌ Error iniciando reconocimiento de voz:', err);
+      setVoiceError('No se pudo iniciar la búsqueda por voz.');
+      setIsListening(false);
+    }
   };
 
 
@@ -176,6 +207,57 @@ export default function SearchBar({
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
+  }, [isOpen]);
+
+  // 🔥 NUEVO: Manejar el botón atrás del dispositivo (Android)
+  useEffect(() => {
+    let handleRef = null;
+    let unsub = null;
+
+    const setupBackButton = async () => {
+      try {
+        if (isOpen && CapacitorApp.addListener) {
+          // 🔥 NUEVO: Setear flag global para que App.jsx NO navegue
+          window.searchBarOpen = true;
+          console.log('[SearchBar] 🔥 SearchBar abierto - flag global seteada');
+          
+          const handle = await CapacitorApp.addListener('backButton', () => {
+            console.log('[SearchBar] 🔥 Back button presionado - cerrando búsqueda');
+            setIsOpen(false);
+            setSearchQuery('');
+            setResults([]);
+            window.searchBarOpen = false;
+          });
+          handleRef = handle;
+          if (handle && typeof handle.remove === 'function') {
+            unsub = () => handle.remove();
+          } else if (typeof handle === 'function') {
+            unsub = handle;
+          }
+        } else {
+          // 🔥 NUEVO: Limpiar flag cuando se cierra
+          window.searchBarOpen = false;
+        }
+      } catch (err) {
+        console.warn('[SearchBar] Error al configurar backButton listener:', err);
+        window.searchBarOpen = false;
+      }
+    };
+
+    setupBackButton();
+
+    return () => {
+      try {
+        if (typeof unsub === 'function') {
+          unsub();
+        } else if (handleRef && typeof handleRef.remove === 'function') {
+          handleRef.remove();
+        }
+        window.searchBarOpen = false;
+      } catch (err) {
+        console.warn('[SearchBar] Error removiendo backButton listener:', err);
+      }
+    };
   }, [isOpen]);
 
   // Tecla "/" o "/" para abrir búsqueda
@@ -311,8 +393,9 @@ export default function SearchBar({
   background-color: #0f172a;
 }
 
-.search-clear, .search-close {
+.search-clear {
   position: absolute;
+  right: 3.5rem;
   background: none;
   border: none;
   color: #64748b;
@@ -320,22 +403,14 @@ export default function SearchBar({
   padding: 0.5rem;
   transition: all 0.2s;
   border-radius: 0.5rem;
-}
-
-.search-clear {
-  right: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .search-clear:hover {
-  color: #e5e7eb;
-}
-
-.search-close {
-  right: 0.5rem;
-}
-
-.search-close:hover {
   color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
 }
 
 .search-voice-button {
@@ -528,6 +603,7 @@ export default function SearchBar({
                       setResults([]);
                       inputRef.current?.focus();
                     }}
+                    title="Limpiar búsqueda"
                   >
                     <X size={isTV ? 24 : 18} />
                   </button>
@@ -539,12 +615,6 @@ export default function SearchBar({
                   title="Búsqueda por voz"
                 >
                   <Mic size={24} />
-                </button>
-                <button
-                  className="search-close"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <X size={isTV ? 24 : 18} />
                 </button>
               </div>
 

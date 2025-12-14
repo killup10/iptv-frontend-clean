@@ -89,12 +89,12 @@ try {
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {
-      if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed') {
+      if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed' || channel === 'mpv-ended') {
         ipcRenderer.on(channel, callback);
       }
     },
     removeListener: (channel, callback) => {
-            if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed') {
+            if (channel === 'mpv-error' || channel === 'mpv-time-pos' || channel === 'mpv-closed' || channel === 'mpv-ended') {
             ipcRenderer.removeListener(channel, callback);
       }
     }
