@@ -1,5 +1,5 @@
 // src/components/CollectionsModal.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createCollection } from '../utils/api.js';
 
 export default function CollectionsModal({
@@ -21,6 +21,13 @@ export default function CollectionsModal({
       setIsCreatingCollection(false);
     }
   }, [isOpen]);
+
+  const collectionNames = useMemo(() => {
+    const names = Array.isArray(collections) ? collections.map(c => c.name).filter(Boolean) : [];
+    const unique = Array.from(new Set(names));
+    unique.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return unique;
+  }, [collections]);
 
   if (!isOpen || !item) {
     return null;
@@ -61,8 +68,6 @@ export default function CollectionsModal({
       setIsCreatingCollection(false);
     }
   };
-
-  const collectionNames = collections.map(c => c.name);
 
   return (
     <div

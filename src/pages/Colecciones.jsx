@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getCollections, createCollection, addItemsToCollection } from '../utils/api.js';
+import { getCollections, createCollection, addItemsToCollection, removeItemsFromCollection } from '../utils/api.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import Card from '../components/Card.jsx';
@@ -121,6 +121,33 @@ export default function Colecciones() {
     handleCloseCollectionsModal();
   };
 
+  const handleRemoveFromCollection = async (item, collectionName) => {
+    const confirmDelete = window.confirm(
+      `¿Estás seguro de que deseas eliminar "${item.name || item.title}" de la colección "${collectionName}"?`
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      const collection = collections.find(c => c.name === collectionName);
+      
+      if (collection) {
+        await removeItemsFromCollection(collection._id, [item._id || item.id]);
+        alert(`${item.name || item.title} fue eliminado de la colección ${collectionName}`);
+        
+        // Recargar colecciones para mantener sincronización
+        const refreshedCollections = await getCollections();
+        setCollections(refreshedCollections);
+      } else {
+        throw new Error(`No se pudo encontrar la colección "${collectionName}"`);
+      }
+    } catch (error) {
+      console.error("Failed to remove item from collection", error);
+      alert(`Error al eliminar de la colección: ${error.message}`);
+    }
+    handleCloseCollectionsModal();
+  };
+
   const handleCreateCollection = async () => {
     const newCollectionName = prompt("Introduce el nombre de la nueva colección:");
     if (!newCollectionName || newCollectionName.trim() === '') {
@@ -168,6 +195,13 @@ export default function Colecciones() {
     }
   };
 
+  const collectionNames = useMemo(() => {
+    const names = Array.isArray(collections) ? collections.map(c => c.name).filter(Boolean) : [];
+    const unique = Array.from(new Set(names));
+    unique.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return ["TODAS", ...unique];
+  }, [collections]);
+
   const groupedContent = useMemo(() => {
     const sortByYear = (items) => {
       if (!Array.isArray(items)) return [];
@@ -191,7 +225,6 @@ export default function Colecciones() {
     return selected ? { [selected.name]: sortByYear(selected.items) } : {};
   }, [collections, selectedColeccion]);
 
-
   if (isLoading) return (
     <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
       <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
@@ -209,8 +242,6 @@ export default function Colecciones() {
       Debes <a href="/login" className="text-red-500 hover:underline">iniciar sesión</a> para ver este contenido.
     </p>
   );
-
-  const collectionNames = ["TODAS", ...collections.map(c => c.name)];
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -264,31 +295,42 @@ export default function Colecciones() {
 
           {Object.keys(groupedContent).length > 0 ? (
             <div className="space-y-8">
-              {Object.entries(groupedContent).map(([collectionName, items]) => (
-                <div key={collectionName} className="space-y-4">
-                  {selectedColeccion === "TODAS" && (
-                    <h2 className="text-2xl font-bold text-white border-l-4 border-purple-500 pl-4">
-                      {collectionName}
-                    </h2>
-                  )}
-                  <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
-                    {(items || []).filter(item => {
-                      if (!item) return false;
-                      const itemName = item.name || item.title || '';
-                      return itemName.toLowerCase().includes(searchTerm.toLowerCase());
-                    }).map(item => (
-                      <Card
-                        key={item.id || item._id}
-                        item={item}
-                        onClick={() => handleContentClick(item)}
-                        itemType={item.tipo === 'serie' ? 'serie' : 'movie'}
-                        onPlayTrailer={handlePlayTrailerClick}
-                        onAddToCollectionClick={handleOpenCollectionsModal}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {(() => {
+                const namesToRender = selectedColeccion === "TODAS" ? collectionNames.slice(1) : [selectedColeccion];
+                return namesToRender.map(collectionName => {
+                  const items = groupedContent[collectionName] || [];
+                  // If filtering by searchTerm, skip empty results
+                  const filtered = (items || []).filter(item => {
+                    if (!item) return false;
+                    const itemName = item.name || item.title || '';
+                    return itemName.toLowerCase().includes(searchTerm.toLowerCase());
+                  });
+                  if (filtered.length === 0 && selectedColeccion === "TODAS") return null;
+                  return (
+                    <div key={collectionName} className="space-y-4">
+                      {selectedColeccion === "TODAS" && (
+                        <h2 className="text-2xl font-bold text-white border-l-4 border-purple-500 pl-4">
+                          {collectionName}
+                        </h2>
+                      )}
+                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+                        {filtered.map(item => (
+                          <Card
+                            key={item.id || item._id}
+                            item={item}
+                            onClick={() => handleContentClick(item)}
+                            itemType={item.tipo === 'serie' ? 'serie' : 'movie'}
+                            onPlayTrailer={handlePlayTrailerClick}
+                            onAddToCollectionClick={handleOpenCollectionsModal}
+                            onRemoveFromCollection={() => handleRemoveFromCollection(item, collectionName)}
+                            showRemoveButton={true}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           ) : (
             <div className="text-center py-12">

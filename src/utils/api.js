@@ -558,6 +558,19 @@ export async function addItemsToCollection(collectionId, items) {
     }
 }
 
+export async function removeItemsFromCollection(collectionId, itemIds) {
+    const relativePath = `/api/collections/${collectionId}/items`;
+    console.log(`API (removeItemsFromCollection - axios): DELETE ${relativePath} con data:`, { items: itemIds });
+    try {
+        const response = await axiosInstance.delete(relativePath, { data: { items: itemIds } });
+        return response.data;
+    } catch (error) {
+        const errorMsg = error.response?.data?.error || error.response?.data?.message || "Error al eliminar elementos de la colección.";
+        console.error(`API Error (removeItemsFromCollection - axios): ${errorMsg}`, error.response?.data);
+        throw new Error(errorMsg);
+    }
+}
+
 /* =================== MI LISTA =================== */
 export async function fetchMyList() {
   const relativePath = "/api/my-list";

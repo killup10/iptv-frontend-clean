@@ -17,7 +17,9 @@ import { isAndroidTV } from '../utils/platformUtils.js';
     progressPercent,
     onAddToCollectionClick,
     onAddToMyList,
+    onRemoveFromCollection,
     showItemTypeBadge = false, // Nueva prop para controlar la visibilidad
+    showRemoveButton = false,
   }) {
     console.log('Card item:', item);
     const handlePlayClick = (e) => {
@@ -261,6 +263,21 @@ import { isAndroidTV } from '../utils/platformUtils.js';
                   title="Agregar a colección"
                 >
                   <PlusCircleOutlineIcon className="w-5 h-5" />
+                </button>
+              )}
+              {!isAndroidTV() && showRemoveButton && onRemoveFromCollection && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onRemoveFromCollection();
+                  }}
+                  className="w-[44px] bg-red-600 hover:bg-red-500 text-white text-sm font-semibold py-2 rounded-md transition-colors flex items-center justify-center pointer-events-auto relative z-50"
+                  aria-label={`Eliminar ${item.name || item.title} de la colección`}
+                  title="Eliminar de colección"
+                >
+                  ✕
                 </button>
               )}
 
