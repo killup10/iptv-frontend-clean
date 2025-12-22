@@ -218,19 +218,22 @@ export function Watch() {
 
     const saveInitialProgress = async () => {
       try {
-        // Solo guardar si aún no hay progreso registrado
+        // Solo guardar si aun no hay progreso registrado
         const existingProgress = await getUserProgress();
         const hasProgress = existingProgress.some(p => p.video?._id === itemId && (p.progress || 0) > 0);
-        
+
         if (!hasProgress) {
-          console.log(`[Watch.jsx] 📌 Guardando progreso inicial para ${itemId}`);
+          console.log(`[Watch.jsx] Guardando progreso inicial para ${itemId}`);
           // Guardar 1 segundo para que aparezca en "Continuar Viendo"
           await axiosInstance.put(`/api/videos/${itemId}/progress`, {
-            progress: 1,
+            lastTime: 1,
+            progress: 1, // compat con backends que lean progress
+            lastSeason: currentChapterInfo?.seasonIndex ?? 0,
+            lastChapter: currentChapterInfo?.chapterIndex ?? 0,
             completed: false,
-            totalDuration: 0
+            totalDuration: 0,
           });
-          console.log(`[Watch.jsx] ✅ Progreso inicial guardado`);
+          console.log(`[Watch.jsx] Progreso inicial guardado`);
         }
       } catch (err) {
         console.error('[Watch.jsx] Error guardando progreso inicial:', err);
@@ -676,7 +679,25 @@ export function Watch() {
   }, []); // ✅ Dependencias vacías - se configura una sola vez
 
   const handleNextEpisode = (seasonIndex, chapterIndex) => {
-    navigate(`/watch/${itemType}/${itemId}`, { state: { seasonIndex, chapterIndex, continueWatching: true } });
+    navigate(`/watch/${itemType}/${itemId}`, {
+      replace: true,
+      state: { seasonIndex, chapterIndex, continueWatching: true }
+    });
+  };
+
+  const handleChapterSelect = (seasonIndex, chapterIndex) => {
+    const season = itemData?.seasons?.[seasonIndex];
+    const chapter = season?.chapters?.[chapterIndex];
+
+    if (!chapter) {
+      console.warn('[Watch.jsx] handleChapterSelect: capitulo invalido', { seasonIndex, chapterIndex });
+      return;
+    }
+
+    setIsContinueWatching(false);
+    setStartTime(0);
+    setVideoUrl('');
+    setCurrentChapterInfo({ seasonIndex, chapterIndex });
   };
 
   const handleReturnToChannelList = () => {
@@ -953,6 +974,7 @@ export function Watch() {
                   currentChapter={currentChapterInfo.chapterIndex}
                   watchProgress={itemData.watchProgress}
                   currentSeason={currentChapterInfo.seasonIndex}
+                  onSelectChapter={handleChapterSelect}
                 />}
               </DynamicCard>
             )}

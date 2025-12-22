@@ -19,6 +19,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   
   const [currentTime, setCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
+  const lastProgressSentAtRef = useRef(0);
   
   const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
@@ -39,10 +40,11 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     }
 
     let isCancelled = false;
+    const shouldCancel = () => isCancelled || isUnmountingRef?.current || isNavigatingAwayRef?.current;
 
     const handleAndroidPlayback = async () => {
       // Guard: Si el efecto fue limpiado o el componente se está desmontando, no hacer nada.
-      if (isCancelled || isUnmountingRef?.current) {
+      if (shouldCancel()) {
         console.log('[VideoPlayer] Android: Reproducción cancelada (cleanup o desmontaje).');
         return;
       }
@@ -52,10 +54,11 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         // Es seguro llamar a stopVideo() incluso si no hay nada reproduciendo.
         console.log('[VideoPlayer] Android: Deteniendo reproductor anterior antes de iniciar nuevo...');
         await VideoPlayerPlugin.stopVideo();
+        if (shouldCancel()) return;
 
         // 2. Pequeña pausa para que el sistema libere recursos.
         await new Promise(resolve => setTimeout(resolve, 250));
-        if (isCancelled) return;
+        if (shouldCancel()) return;
 
         // 3. Iniciar el servicio de notificaciones en segundo plano.
         console.log('[VideoPlayer] Android: Iniciando servicio en segundo plano...');
@@ -65,7 +68,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           album: "TeamG Play",
           artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
         });
-        if (isCancelled) return;
+        if (shouldCancel()) return;
 
         // 4. Iniciar la reproducción del nuevo video.
         console.log(`[VideoPlayer] Android: Iniciando reproducción de: ${url}`);
@@ -75,6 +78,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           startTime: startTime || 0,
           chapters: allChapters,
         });
+        if (shouldCancel()) return;
 
         isPlayingRef.current = true;
         console.log('[VideoPlayer] Android: VLC iniciado correctamente.');
@@ -112,6 +116,68 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       // La detención global del video se maneja en el `useEffect` de desmontaje global.
     };
   }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo]);
+
+  // Android VLC progress tracking for "Continuar viendo"
+  useEffect(() => {
+    if (platform !== 'android-vlc' || !itemId) return;
+
+    const PROGRESS_INTERVAL_MS = 20000;
+    let progressListener = null;
+    let progressInterval = null;
+
+    const saveProgress = async (currentTimeValue, completed = false) => {
+      if (!completed && (!Number.isFinite(currentTimeValue) || currentTimeValue <= 0)) return;
+      await videoProgressService.saveProgress(itemId, {
+        lastTime: Math.max(0, Math.floor(currentTimeValue || 0)),
+        lastSeason: currentChapterInfo?.seasonIndex,
+        lastChapter: currentChapterInfo?.chapterIndex,
+        completed
+      });
+      lastProgressSentAtRef.current = Date.now();
+    };
+
+    const handleTimeUpdate = (data) => {
+      const currentTimeValue = Number(data?.currentTime || 0);
+      const completed = Boolean(data?.completed);
+
+      if (Number.isFinite(currentTimeValue) && currentTimeValue >= 0) {
+        lastSavedTimeRef.current = currentTimeValue;
+        setCurrentTime(currentTimeValue);
+      }
+
+      if (completed) {
+        saveProgress(currentTimeValue, true);
+        return;
+      }
+
+      const now = Date.now();
+      if (currentTimeValue > 0 && now - lastProgressSentAtRef.current >= PROGRESS_INTERVAL_MS) {
+        saveProgress(currentTimeValue, false);
+      }
+    };
+
+    if (VideoPlayerPlugin?.addListener) {
+      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
+    }
+
+    progressInterval = setInterval(() => {
+      const currentTimeValue = lastSavedTimeRef.current;
+      if (currentTimeValue > 0) {
+        saveProgress(currentTimeValue, false);
+      }
+    }, PROGRESS_INTERVAL_MS);
+
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+      const finalTime = lastSavedTimeRef.current;
+      if (finalTime > 0) {
+        saveProgress(finalTime, false);
+      }
+      if (progressListener?.remove) {
+        progressListener.remove();
+      }
+    };
+  }, [platform, itemId, currentChapterInfo]);
 
   // Android background events - SIMPLIFICADO
   useEffect(() => {
@@ -174,7 +240,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   useEffect(() => {
     return async () => {
       console.log('[VideoPlayer] Global cleanup starting...');
-      isUnmountingRef.current = true;
       hasInitializedRef.current = false; // Reset para permitir re-inicialización si es necesario
       
       // Pequeña espera para que otros effects vean la bandera
@@ -451,5 +516,6 @@ VideoPlayer.propTypes = {
   seasons: PropTypes.array,
   currentChapterInfo: PropTypes.object,
   onNextEpisode: PropTypes.func,
-  isUnmountingRef: PropTypes.object
+  isUnmountingRef: PropTypes.object,
+  isNavigatingAwayRef: PropTypes.object
 };

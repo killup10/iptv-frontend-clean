@@ -152,7 +152,8 @@
                     android:src="@android:drawable/ic_media_rew"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:layout_marginStart="16dp"
-                    android:contentDescription="Rewind" />
+                    android:contentDescription="Rewind"
+                    android:visibility="gone" />
 
                 <ImageButton
                     android:id="@+id/play_pause_button"
@@ -171,7 +172,8 @@
                     android:src="@android:drawable/ic_media_ff"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:layout_marginEnd="16dp"
-                    android:contentDescription="Forward" />
+                    android:contentDescription="Forward"
+                    android:visibility="gone" />
 
                 <ImageButton
                     android:id="@+id/next_episode_button"

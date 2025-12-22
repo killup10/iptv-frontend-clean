@@ -6,6 +6,7 @@ import axiosInstance from '../utils/axiosInstance';
 // and forward progress to backend for the given videoId.
 export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, currentChapterInfo, opts = {}) {
   const lastSentRef = useRef(0);
+  const lastTimeRef = useRef(0);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
@@ -15,21 +16,39 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
 
     const INTERVAL_MS = optsRef.current.intervalMs || 20000;
 
+    // Periodic save interval as fallback
+    const intervalId = setInterval(async () => {
+      try {
+        if (lastTimeRef.current > 0) {
+          const progressData = { lastTime: lastTimeRef.current };
+          if (currentChapterInfo) {
+            progressData.lastChapter = currentChapterInfo.chapterIndex;
+            progressData.lastSeason = currentChapterInfo.seasonIndex;
+          }
+          await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
+          console.debug('[useElectronMpvProgress] Progreso periódico guardado:', progressData);
+        }
+      } catch (e) {
+        console.warn('[useElectronMpvProgress] failed periodic save', e?.message || e);
+      }
+    }, INTERVAL_MS);
+
     const handler = async (timePos) => {
       try {
         const now = Date.now();
         if (now - lastSentRef.current < INTERVAL_MS) return; // throttle
 
         const lastTime = Math.floor(Number(timePos) || 0);
-        
+        lastTimeRef.current = lastTime; // Store last time position
+
         // Preparar datos de progreso con capítulo y temporada si está disponible
         const progressData = { lastTime };
-        
+
         if (currentChapterInfo) {
           progressData.lastChapter = currentChapterInfo.chapterIndex;
           progressData.lastSeason = currentChapterInfo.seasonIndex;
         }
-        
+
         await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
         lastSentRef.current = Date.now();
         console.debug('[useElectronMpvProgress] Progreso enviado:', progressData);
@@ -89,8 +108,16 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
     const closedHandler = async ({ code, signal, url }) => {
       try {
         console.log('[useElectronMpvProgress] MPV cerrado, capturando progreso final');
-        // El progreso ya fue enviado periódicamente, pero podemos asegurar que se sincronice
-        // Esta es una buena oportunidad para confirmar el último progreso conocido
+        // Save final progress if available
+        if (lastTimeRef.current > 0) {
+          const progressData = { lastTime: lastTimeRef.current };
+          if (currentChapterInfo) {
+            progressData.lastChapter = currentChapterInfo.chapterIndex;
+            progressData.lastSeason = currentChapterInfo.seasonIndex;
+          }
+          await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData);
+          console.log('[useElectronMpvProgress] Progreso final guardado:', progressData);
+        }
       } catch (e) {
         console.warn('[useElectronMpvProgress] failed on mpv-closed', e?.message || e);
       }
@@ -103,6 +130,7 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
     }
 
     return () => {
+      clearInterval(intervalId);
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-time-pos', handler); } catch (e) {}
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-ended', endedHandler); } catch (e) {}
       try { window.electronAPI.removeListener && window.electronAPI.removeListener('mpv-closed', closedHandler); } catch (e) {}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, currentSeason: initialCurrentSeason }) => {
+const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, currentSeason: initialCurrentSeason, onSelectChapter }) => {
   const navigate = useNavigate();
   const [progressData, setProgressData] = useState(watchProgress || {});
   // Estado para la temporada seleccionada
@@ -38,42 +38,50 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
   });
 
   const handleChapterClick = async (seasonIdx, chapterIdx) => {
-    console.log("[SeriesChapters] Navegando a capítulo:", {
+    console.log("[SeriesChapters] Navegando a capitulo:", {
       serieId,
       seasonIndex: seasonIdx,
       chapterIndex: chapterIdx,
       chapterTitle: seasons[seasonIdx]?.chapters[chapterIdx]?.title
     });
     
-    // Detener reproducción antes de navegar (Electron MPV)
+    // Detener reproduccion antes de navegar (Electron MPV) con timeout corto para no bloquear el tap
     if (typeof window !== 'undefined' && window.electronMPV) {
       try {
-        console.log('[SeriesChapters] Deteniendo MPV antes de cambiar capítulo...');
-        await window.electronMPV.stop();
-        // Pequeña pausa para asegurar que MPV se haya cerrado
-        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('[SeriesChapters] Deteniendo MPV antes de cambiar capitulo...');
+        await Promise.race([
+          window.electronMPV.stop(),
+          new Promise(resolve => setTimeout(resolve, 400))
+        ]);
       } catch (err) {
         console.error('[SeriesChapters] Error al detener MPV:', err);
       }
     }
 
-    // Detener reproducción en Android VLC
+    // Detener reproduccion en Android VLC con fallback rapido para evitar que stopVideo cuelgue el click
     if (typeof window !== 'undefined' && window.VideoPlayerPlugin) {
       try {
-        console.log('[SeriesChapters] Deteniendo VLC en Android antes de cambiar capítulo...');
+        console.log('[SeriesChapters] Deteniendo VLC en Android antes de cambiar capitulo (con timeout)...');
         if (typeof window.VideoPlayerPlugin.stopVideo === 'function') {
-          await window.VideoPlayerPlugin.stopVideo();
+          await Promise.race([
+            window.VideoPlayerPlugin.stopVideo(),
+            new Promise(resolve => setTimeout(resolve, 400))
+          ]);
         }
-        // Pequeña pausa para asegurar que VLC se haya cerrado
-        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (err) {
         console.error('[SeriesChapters] Error al detener VLC:', err);
       }
     }
     
-    // 🔥 NUEVO: Navegar SIN continueWatching para indicar que es selección manual
-    // Esto evita que se redispare automáticamente cuando se retrocede
+    if (typeof onSelectChapter === 'function') {
+      onSelectChapter(seasonIdx, chapterIdx);
+      return;
+    }
+
+    // Navegar SIN continueWatching para indicar seleccion manual
+    // Esto evita que se redispare automaticamente cuando se retrocede
     navigate(`/watch/serie/${serieId}`, {
+      replace: true,
       state: { seasonIndex: seasonIdx, chapterIndex: chapterIdx, continueWatching: false }
     });
   };

@@ -3,7 +3,11 @@ import { storage } from './storage.js';
 
 const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
 
-const baseURL = isElectron ? 'http://localhost:3000' : 'https://iptv-backend-qhbr.onrender.com';
+// Prefer explicit env var (packs fine in Electron), otherwise fall back to cloud backend.
+// Esto evita que la app de escritorio apunte a localhost cuando no hay backend local corriendo.
+const baseURL =
+  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL)) ||
+  'https://iptv-backend-qhbr.onrender.com';
 
 const axiosInstance = axios.create({
   baseURL,
@@ -61,8 +65,12 @@ axiosInstance.interceptors.response.use(
         console.log('axiosInstance: Deslogueando usuario debido a token inválido/expirado.');
         await storage.removeItem('user');
         await storage.removeItem('token');
-        if (!window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login?session_expired=true';
+        
+        // Disparar evento personalizado para que AuthContext se entere inmediatamente
+        window.dispatchEvent(new CustomEvent('auth-logout', { detail: { reason: '401' } }));
+        
+        if (!window.location.hash.includes('#/login')) {
+          window.location.hash = '#/login?session_expired=true';
         }
       } else if (status === 403) {
         // 403: Acceso denegado (permisos insuficientes, plan insuficiente, etc.)

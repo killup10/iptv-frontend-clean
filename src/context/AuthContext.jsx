@@ -39,7 +39,52 @@ export function AuthProvider({ children }) {
       }
     };
 
+    const handleStorageChange = async (e) => {
+      // Detectar cambios en el storage desde otras pestañas o desde axiosInstance
+      if (e.key === 'user' || e.key === 'token' || e.key === null) {
+        console.log("AuthContext: Cambio detectado en storage. Verificando sesión...");
+        const token = await storage.getItem('token');
+        const storedUserString = await storage.getItem('user');
+        
+        if (!token || !storedUserString) {
+          console.log("AuthContext: Token o usuario no encontrado - deslogueando usuario.");
+          setUser(null);
+        } else {
+          try {
+            const storedUser = JSON.parse(storedUserString);
+            setUser({
+              username: storedUser.username,
+              role: storedUser.role,
+              plan: storedUser.plan,
+              token: token
+            });
+            console.log("AuthContext: Sesión actualizada desde storage.");
+          } catch (error) {
+            console.error("AuthContext: Error al parsear usuario del storage", error);
+            setUser(null);
+          }
+        }
+      }
+    };
+
+    const handleAuthLogout = (event) => {
+      // Escuchar evento personalizado de logout desde axiosInstance (401)
+      console.log("AuthContext: Evento auth-logout recibido. Deslogueando usuario inmediatamente.");
+      setUser(null);
+    };
+
     checkStoredSession();
+
+    // Escuchar cambios de storage (desde otras pestañas o desde axiosInstance)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Escuchar evento personalizado de logout
+    window.addEventListener('auth-logout', handleAuthLogout);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-logout', handleAuthLogout);
+    };
   }, []);
 
   const login = async (credentials) => {

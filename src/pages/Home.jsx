@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Link, useOutletContext } from 'react-router-dom';
+import { useNavigate, useLocation, Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
 import TVHome from '../components/TVHome.jsx';
@@ -27,9 +27,11 @@ import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import { Laptop, Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
+import HeroBanner from '../components/HeroBanner.jsx';
 
 export function Home() {
   const { user, login } = useAuth();
+  const location = useLocation();
   const dataCache = useDataCache();
   const outletContext = useOutletContext();
   const setAllSearchItems = outletContext?.setAllSearchItems;
@@ -41,6 +43,7 @@ export function Home() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // State for content
   const [featuredChannels, setFeaturedChannels] = useState([]);
@@ -105,13 +108,16 @@ export function Home() {
       }
     };
 
-    // Escuchar cuando el usuario vuelve a la página
-    window.addEventListener('focus', handlePageFocus);
-    document.addEventListener('visibilitychange', () => {
+    // Handler para visibilitychange
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         handlePageFocus();
       }
-    });
+    };
+
+    // Escuchar cuando el usuario vuelve a la página
+    window.addEventListener('focus', handlePageFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     async function loadAllData() {
       // Verificar si hay datos cacheados
@@ -131,6 +137,22 @@ export function Home() {
           setAllSearchItems(cachedData.allSearchItems);
         }
         setLoading(false);
+
+        // Refrescar siempre la sección "Continuar Viendo" incluso si usamos cache,
+        // para que refleje el último playback de Electron sin esperar a un change de foco.
+        (async () => {
+          try {
+            const fresh = await fetchContinueWatching();
+            setContinueWatchingItems(fresh || []);
+            dataCache.set('homeData', {
+              ...cachedData,
+              continueWatchingItems: fresh || []
+            });
+            console.log('[Home.jsx] ƒo. Continuar Viendo actualizado tras usar cache');
+          } catch (err) {
+            console.error('[Home.jsx] Error refrescando Continuar Viendo tras cache:', err);
+          }
+        })();
         return;
       }
 
@@ -198,15 +220,15 @@ export function Home() {
         };
         
         // Process carousel data
-        processResult(continueWatchingResult, setContinueWatchingItems, 'Continue Watching');
-        processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 10);
-        processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 10);
-        processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 10);
-        processResult(featuredAnimesResult, setFeaturedAnimes, 'Featured Animes', 10);
-        processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
-        processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
-        processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
-        processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 10);
+        const processedContinueWatching = processResult(continueWatchingResult, setContinueWatchingItems, 'Continue Watching');
+        const processedFeaturedChannels = processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 10);
+        const processedFeaturedMovies = processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 10);
+        const processedFeaturedSeries = processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 10);
+        const processedFeaturedAnimes = processResult(featuredAnimesResult, setFeaturedAnimes, 'Featured Animes', 10);
+        const processedFeaturedDoramas = processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
+        const processedFeaturedNovelas = processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
+        const processedFeaturedDocumentales = processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
+        const processedRecentlyAdded = processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 10);
 
         // Process and combine all data for global search
         const allChannels = processResult(allChannelsResult, null, 'All Channels');
@@ -234,17 +256,17 @@ export function Home() {
           setAllSearchItems(uniqueItems);
         }
 
-        // GUARDAR EN CACHE para evitar recargas innecesarias
+        // GUARDAR EN CACHE usando los valores procesados (no los del estado que son async)
         dataCache.set('homeData', {
-          featuredChannels,
-          featuredMovies,
-          featuredSeries,
-          featuredAnimes,
-          featuredDoramas,
-          featuredNovelas,
-          featuredDocumentales,
-          recentlyAdded,
-          continueWatchingItems,
+          featuredChannels: processedFeaturedChannels,
+          featuredMovies: processedFeaturedMovies,
+          featuredSeries: processedFeaturedSeries,
+          featuredAnimes: processedFeaturedAnimes,
+          featuredDoramas: processedFeaturedDoramas,
+          featuredNovelas: processedFeaturedNovelas,
+          featuredDocumentales: processedFeaturedDocumentales,
+          recentlyAdded: processedRecentlyAdded,
+          continueWatchingItems: processedContinueWatching,
           allSearchItems: uniqueItems
         });
 
@@ -261,10 +283,10 @@ export function Home() {
 
     loadAllData();
 
-    // Limpiar listeners cuando se desmonta el componente
+    // Cleanup: remover ambos listeners
     return () => {
       window.removeEventListener('focus', handlePageFocus);
-      document.removeEventListener('visibilitychange', handlePageFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user, setAllSearchItems]);
 
@@ -448,20 +470,43 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground mb-2">Contraseña</label>
-                    <input 
-                      type="password" 
-                      placeholder="Tu contraseña"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 sm:py-3 rounded-lg text-foreground focus:outline-none focus:ring-2 text-base"
-                      style={{
-                        backgroundColor: 'hsl(var(--input-background))',
-                        border: '1px solid hsl(var(--input-border))',
-                        '--tw-ring-color': 'hsl(var(--primary))'
-                      }}
-                      disabled={isLoggingIn}
-                      autoComplete="current-password"
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? 'text' : 'password'} 
+                        placeholder="Tu contraseña"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 sm:py-3 pr-12 rounded-lg text-foreground focus:outline-none focus:ring-2 text-base"
+                        style={{
+                          backgroundColor: 'hsl(var(--input-background))',
+                          border: '1px solid hsl(var(--input-border))',
+                          '--tw-ring-color': 'hsl(var(--primary))'
+                        }}
+                        disabled={isLoggingIn}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                        disabled={isLoggingIn}
+                        tabIndex="-1"
+                      >
+                        {showPassword ? (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-14-14zM10 5a3 3 0 00-2.88 4.049l4.929 4.929A3 3 0 1010 5zm7.757 4.171A5.002 5.002 0 0017 10a7 7 0 10-9.757 6.171M10 7a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <Link to="/forgot-password" className="text-xs text-secondary hover:underline mt-2 inline-block">
+                      ¿Olvidaste tu contraseña?
+                    </Link>
                   </div>
 
                   {loginError && <p className="text-red-500 text-sm text-center">{loginError}</p>}
@@ -629,6 +674,18 @@ onProceedWithTrial={proceedWithTrial}
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8 space-y-8 md:space-y-12">
+        {/* Hero Banner con trailer de contenidos recien agregados */}
+        {recentlyAdded.length > 0 && (
+          <div className="mb-8 md:mb-12 -mx-4 sm:-mx-6 lg:-mx-8">
+            <HeroBanner
+              items={recentlyAdded}
+              onPlayClick={(item, itemType) => handleItemClick(item, itemType)}
+              onPlayTrailerClick={handlePlayTrailerClick}
+              onAddToMyListClick={handleAddToMyList}
+            />
+          </div>
+        )}
+        
         {recentlyAdded.length > 0 && (
           <Carousel
             title="Recien Agregados"
