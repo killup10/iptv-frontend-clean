@@ -163,6 +163,7 @@ export default function AdminPanel() {
   // Información temporal de arrastre (drag): { fromSeason, fromChapter }
   const [dragInfo, setDragInfo] = useState(null);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [userEdits, setUserEdits] = useState({}); // Estado local para ediciones de usuarios
 
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -714,13 +715,43 @@ export default function AdminPanel() {
     } finally { setIsSubmitting(false); }
   };
 
-  const handleUserExpirationChange = async (userId, expiresAt) => {
+  const handleUserExpirationChange = (userId, expiresAt) => {
+    setUserEdits(prev => ({
+      ...prev,
+      [userId]: {
+        ...prev[userId],
+        expiresAt
+      }
+    }));
+  };
+
+  const handleUserObservationsChange = (userId, observations) => {
+    setUserEdits(prev => ({
+      ...prev,
+      [userId]: {
+        ...prev[userId],
+        observations
+      }
+    }));
+  };
+
+  const handleSaveUserChanges = async (userId) => {
     setIsSubmitting(true); clearMessages();
     try {
-      await updateAdminUserStatus(userId, undefined, expiresAt);
-      setSuccessMsg("Fecha de expiración del usuario actualizada.");
+      const edits = userEdits[userId] || {};
+      const expiresAt = edits.expiresAt !== undefined ? edits.expiresAt : null;
+      const observations = edits.observations !== undefined ? edits.observations : null;
+      
+      await updateAdminUserStatus(userId, undefined, expiresAt, observations);
+      setSuccessMsg("Cambios del usuario guardados correctamente.");
+      // Limpiar los edits para ese usuario
+      setUserEdits(prev => {
+        const updated = { ...prev };
+        delete updated[userId];
+        return updated;
+      });
       fetchAdminUsersList();
-    } catch (err) { setErrorMsg(err.message || "Error al actualizar la fecha de expiración.");
+    } catch (err) { setErrorMsg(err.message || "Error al guardar los cambios del usuario.");
     } finally { setIsSubmitting(false); }
   };
 
@@ -1208,13 +1239,53 @@ export default function AdminPanel() {
                         <label className="block text-gray-300 text-xs font-medium mb-1">Fecha de Expiración</label>
                         <input
                           type="date"
-                          value={usr.expiresAt ? usr.expiresAt.split('T')[0] : ''}
+                          value={userEdits[usr._id]?.expiresAt !== undefined ? userEdits[usr._id].expiresAt : (usr.expiresAt ? usr.expiresAt.split('T')[0] : '')}
                           onChange={(e) => handleUserExpirationChange(usr._id, e.target.value || null)}
                           disabled={isSubmitting}
                           className="w-full sm:w-48 px-2 py-1.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none"
                         />
                         {usr.expiresAt && (
                           <p className="text-gray-400 text-xs mt-1">Expira: {new Date(usr.expiresAt).toLocaleDateString()}</p>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="block text-gray-300 text-xs font-medium mb-1">Observaciones</label>
+                        <textarea
+                          value={userEdits[usr._id]?.observations !== undefined ? userEdits[usr._id].observations : (usr.observations || '')}
+                          onChange={(e) => handleUserObservationsChange(usr._id, e.target.value)}
+                          disabled={isSubmitting}
+                          placeholder="Añade notas sobre este usuario (máximo 500 caracteres)"
+                          className="w-full px-2 py-1.5 text-xs bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none resize-none h-20"
+                          maxLength={500}
+                        />
+                        <p className="text-gray-500 text-xs mt-1">
+                          {(userEdits[usr._id]?.observations !== undefined ? userEdits[usr._id].observations : (usr.observations || '')).length}/500
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        {userEdits[usr._id] && (
+                          <Button
+                            onClick={() => handleSaveUserChanges(usr._id)}
+                            isLoading={isSubmitting}
+                            className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700"
+                          >
+                            Guardar Cambios
+                          </Button>
+                        )}
+                        {userEdits[usr._id] && (
+                          <button
+                            onClick={() => setUserEdits(prev => {
+                              const updated = { ...prev };
+                              delete updated[usr._id];
+                              return updated;
+                            })}
+                            disabled={isSubmitting}
+                            className="text-xs px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded font-semibold transition-colors"
+                          >
+                            Cancelar
+                          </button>
                         )}
                       </div>
 

@@ -33,12 +33,13 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
       }
     }, INTERVAL_MS);
 
-    const handler = async (timePos) => {
+    const handler = async (event, timePos) => {
       try {
         const now = Date.now();
         if (now - lastSentRef.current < INTERVAL_MS) return; // throttle
 
-        const lastTime = Math.floor(Number(timePos) || 0);
+        const rawTimePos = timePos !== undefined ? timePos : event;
+        const lastTime = Math.floor(Number(rawTimePos) || 0);
         lastTimeRef.current = lastTime; // Store last time position
 
         // Preparar datos de progreso con capítulo y temporada si está disponible

@@ -490,11 +490,14 @@ export async function updateAdminUserPlan(userId, plan) {
   }
 }
 
-export async function updateAdminUserStatus(userId, isActive, expiresAt = null) {
+export async function updateAdminUserStatus(userId, isActive, expiresAt = null, observations = null) {
   const relativePath = `/api/admin/users/${userId}/status`;
   const payload = { isActive };
   if (expiresAt !== null) { // Solo incluir expiresAt si se proporciona un valor
     payload.expiresAt = expiresAt;
+  }
+  if (observations !== null) { // Solo incluir observations si se proporciona un valor
+    payload.observations = observations;
   }
   console.log(`API (updateAdminUserStatus - axios): PUT ${relativePath} con payload:`, payload);
   try {
