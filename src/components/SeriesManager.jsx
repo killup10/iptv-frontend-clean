@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { normalizeSearchText } from "../utils/searchUtils.js";
 
 const SeriesManager = () => {
   const [series, setSeries] = useState([]);
@@ -58,9 +59,11 @@ const SeriesManager = () => {
     }
   };
 
-  const filteredSeries = series.filter(serie => 
-    serie.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSeries = series.filter(serie => {
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    const normalizedTitle = normalizeSearchText(serie.title || '');
+    return normalizedTitle.includes(normalizedSearch);
+  });
 
   if (loading) return <div className="text-center p-4">Cargando series...</div>;
   if (error) return <div className="text-red-500 p-4">{error}</div>;

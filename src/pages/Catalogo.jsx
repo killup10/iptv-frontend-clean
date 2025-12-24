@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import { normalizeSearchText } from "../utils/searchUtils.js";
 
 export function Catalogo({ type }) {
   const [contenido, setContenido] = useState([]);
@@ -20,9 +21,11 @@ export function Catalogo({ type }) {
         const filtradoTipo = type ? data.filter(item => item.tipo === type) : data;
 
         // Filtrar por búsqueda
-        const filtradoBusqueda = filtradoTipo.filter(item =>
-          item.title?.toLowerCase().includes(busqueda.toLowerCase())
-        );
+        const normalizedSearch = normalizeSearchText(busqueda);
+        const filtradoBusqueda = filtradoTipo.filter(item => {
+          const normalizedTitle = normalizeSearchText(item.title || '');
+          return normalizedTitle.includes(normalizedSearch);
+        });
 
         setContenido(filtradoBusqueda);
       } catch (error) {

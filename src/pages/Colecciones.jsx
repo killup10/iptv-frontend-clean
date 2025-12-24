@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getCollections, createCollection, addItemsToCollection, removeItemsFromCollection } from '../utils/api.js';
+import { normalizeSearchText } from '../utils/searchUtils.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import Card from '../components/Card.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
 import CollectionsModal from '../components/CollectionsModal.jsx';
+import { Squares2X2Icon } from '@heroicons/react/24/solid';
 
 export default function Colecciones() {
   const { user } = useAuth();
@@ -16,6 +18,8 @@ export default function Colecciones() {
   const [error, setError] = useState(null);
   const [selectedColeccion, setSelectedColeccion] = useState("TODAS");
   const [searchTerm, setSearchTerm] = useState("");
+  const gridOptions = [5, 4, 3, 1];
+  const [gridCols, setGridCols] = useState(gridOptions[0]);
 
   // Trailer functionality
   const [showTrailerModal, setShowTrailerModal] = useState(false);
@@ -73,6 +77,22 @@ export default function Colecciones() {
 
   const handleGoBack = () => {
     navigate('/');
+  };
+
+  const toggleGridView = () => {
+    const currentIndex = gridOptions.indexOf(gridCols);
+    const nextIndex = (currentIndex + 1) % gridOptions.length;
+    setGridCols(gridOptions[nextIndex]);
+  };
+
+  const getGridClass = () => {
+    switch (gridCols) {
+      case 1: return 'grid-cols-1';
+      case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+      case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+      case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+      default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+    }
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
@@ -284,13 +304,22 @@ export default function Colecciones() {
             <h1 className="text-3xl font-bold text-white flex items-center">
               🎬 Colecciones: {selectedColeccion}
             </h1>
-            <input
-              type="text"
-              placeholder="Buscar en colecciones..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            />
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <button
+                onClick={toggleGridView}
+                className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                aria-label="Cambiar vista de cuadrícula"
+              >
+                <Squares2X2Icon className="w-5 h-5" />
+              </button>
+              <input
+                type="text"
+                placeholder="Buscar en colecciones..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 sm:flex-initial sm:w-64 px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              />
+            </div>
           </div>
 
           {Object.keys(groupedContent).length > 0 ? (
@@ -303,7 +332,9 @@ export default function Colecciones() {
                   const filtered = (items || []).filter(item => {
                     if (!item) return false;
                     const itemName = item.name || item.title || '';
-                    return itemName.toLowerCase().includes(searchTerm.toLowerCase());
+                    const normalizedSearch = normalizeSearchText(searchTerm);
+                    const normalizedName = normalizeSearchText(itemName);
+                    return normalizedName.includes(normalizedSearch);
                   });
                   if (filtered.length === 0 && selectedColeccion === "TODAS") return null;
                   return (
@@ -313,7 +344,7 @@ export default function Colecciones() {
                           {collectionName}
                         </h2>
                       )}
-                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
+                      <div className={`grid ${getGridClass()} gap-6`}>
                         {filtered.map(item => (
                           <Card
                             key={item.id || item._id}

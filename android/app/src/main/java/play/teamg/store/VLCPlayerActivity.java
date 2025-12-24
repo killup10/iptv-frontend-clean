@@ -51,7 +51,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ImageButton playPauseButton, rewindButton, forwardButton, tracksButton, channelsButton, aspectRatioButton;
     private ImageButton prevEpisodeButton, nextEpisodeButton, lockButton, speedButton;
     private View controlsContainer, topControlsContainer;
-    private ProgressBar brightnessBar, volumeBar;
+    private ProgressBar brightnessBar, volumeBar, unlockProgressBar;
     private FrameLayout videoContainer;
 
     // Velocidad de reproducción
@@ -123,6 +123,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelsButton = findViewById(R.id.channels_button);
         brightnessBar = findViewById(R.id.brightness_bar);
         volumeBar = findViewById(R.id.volume_bar);
+        unlockProgressBar = findViewById(R.id.unlock_progress_bar);
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
         String videoTitleText = getIntent().getStringExtra("video_title");
@@ -197,6 +198,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         super.onStop();
         unregisterControlReceiver();
         unregisterFinishReceiver();
+        // Limpiar long press handler
+        if (longPressRunnable != null) {
+            longPressHandler.removeCallbacks(longPressRunnable);
+            longPressRunnable = null;
+        }
         if (!isInPictureInPictureMode()) {
             releasePlayer();
         }
@@ -205,6 +211,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Limpiar long press handler
+        if (longPressRunnable != null) {
+            longPressHandler.removeCallbacks(longPressRunnable);
+            longPressRunnable = null;
+        }
         if (isInPictureInPictureMode() && mediaPlayer != null && mediaPlayer.isPlaying()) {
             Log.d(TAG, "Stopping playback when activity is destroyed in PiP mode");
             mediaPlayer.stop();
@@ -752,28 +763,72 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private static final long DOUBLE_TAP_TIMEOUT = 500; // ms (aumentado a 500 para mejor detección)
     private static final float DOUBLE_TAP_SLOP = 150; // píxeles de tolerancia
 
+    // Long Press Lock/Unlock
+    private long pressStartTime = 0;
+    private float pressStartX = 0;
+    private float pressStartY = 0;
+    private static final long LONG_PRESS_DURATION = 3000; // 3 segundos para desbloquear
+    private static final float LONG_PRESS_SLOP = 50; // tolerancia de movimiento (píxeles)
+    private Handler longPressHandler = new Handler(Looper.getMainLooper());
+    private Runnable longPressRunnable = null;
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // Si la pantalla está bloqueada, permitir desbloqueo con doble tap
+        // Si la pantalla está bloqueada, detectar long press para desbloquear
         if (isScreenLocked) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                long currentTime = System.currentTimeMillis();
-                float currentX = event.getX();
-                float currentY = event.getY();
-                
-                // Verificar si es doble tap (el segundo tap)
-                if (currentTime - lastDoubleTapTime < DOUBLE_TAP_TIMEOUT &&
-                    Math.abs(currentX - lastTapX) < DOUBLE_TAP_SLOP &&
-                    Math.abs(currentY - lastTapY) < DOUBLE_TAP_SLOP) {
-                    // Doble tap detectado - desbloquear
-                    toggleScreenLock();
-                    lastDoubleTapTime = 0;
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    // Inicio de presión
+                    pressStartTime = System.currentTimeMillis();
+                    pressStartX = event.getX();
+                    pressStartY = event.getY();
+                    
+                    // Mostrar barra de progreso
+                    unlockProgressBar.setVisibility(View.VISIBLE);
+                    unlockProgressBar.setProgress(0);
+                    
+                    // Cancelar cualquier long press anterior
+                    if (longPressRunnable != null) {
+                        longPressHandler.removeCallbacks(longPressRunnable);
+                    }
+                    
+                    // Actualizar progreso cada 50ms
+                    updateUnlockProgress();
+                    
+                    // Configurar el callback para long press (3 segundos)
+                    longPressRunnable = () -> {
+                        toggleScreenLock();
+                        unlockProgressBar.setVisibility(View.GONE);
+                        longPressRunnable = null;
+                        Toast.makeText(this, "🔓 Pantalla desbloqueada", Toast.LENGTH_SHORT).show();
+                    };
+                    longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_DURATION);
                     return true;
-                }
-                // Guardar tiempo y posición del tap
-                lastDoubleTapTime = currentTime;
-                lastTapX = currentX;
-                lastTapY = currentY;
+                    
+                case MotionEvent.ACTION_MOVE:
+                    // Si se mueve demasiado, cancelar el long press
+                    if (Math.abs(event.getX() - pressStartX) > LONG_PRESS_SLOP ||
+                        Math.abs(event.getY() - pressStartY) > LONG_PRESS_SLOP) {
+                        if (longPressRunnable != null) {
+                            longPressHandler.removeCallbacks(longPressRunnable);
+                            longPressRunnable = null;
+                        }
+                        unlockProgressBar.setVisibility(View.GONE);
+                    } else {
+                        // Actualizar progreso
+                        updateUnlockProgress();
+                    }
+                    return true;
+                    
+                case MotionEvent.ACTION_UP:
+                    // Cancelar el long press si se suelta antes de 3 segundos
+                    if (longPressRunnable != null) {
+                        longPressHandler.removeCallbacks(longPressRunnable);
+                        longPressRunnable = null;
+                    }
+                    pressStartTime = 0;
+                    unlockProgressBar.setVisibility(View.GONE);
+                    return true;
             }
             return true; // Consumir evento cuando está bloqueado
         }
@@ -987,6 +1042,17 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 Log.e(TAG, "Error unregistering finish receiver", e);
             }
         }
+    }
+
+    // Actualizar barra de progreso de desbloqueo
+    private void updateUnlockProgress() {
+        if (pressStartTime == 0) return;
+        
+        long elapsedTime = System.currentTimeMillis() - pressStartTime;
+        int progress = (int) ((elapsedTime * 100) / LONG_PRESS_DURATION);
+        progress = Math.min(progress, 100); // Máximo 100%
+        
+        unlockProgressBar.setProgress(progress);
     }
 
     public void enterPictureInPictureMode() {

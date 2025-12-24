@@ -673,10 +673,10 @@ onProceedWithTrial={proceedWithTrial}
           backgroundAttachment: 'fixed'
         }}
       >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8 space-y-8 md:space-y-12">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-2 sm:pt-3 md:pt-4 pb-8 space-y-8 md:space-y-12">
         {/* Hero Banner con trailer de contenidos recien agregados */}
         {recentlyAdded.length > 0 && (
-          <div className="mb-8 md:mb-12 -mx-4 sm:-mx-6 lg:-mx-8">
+          <div className="mb-6 md:mb-8 -mx-4 sm:-mx-6 lg:-mx-8">
             <HeroBanner
               items={recentlyAdded}
               onPlayClick={(item, itemType) => handleItemClick(item, itemType)}

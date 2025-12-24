@@ -94,6 +94,7 @@ export function Watch() {
   const isNavigatingAwayRef = useRef(false); // 🔥 NUEVO: Ref para detectar navegación
   const currentTimeRef = useRef(0);
   const playbackStartTsRef = useRef(null);
+  const initialProgressSavedRef = useRef(false); // 🔥 NUEVO: Evitar duplicados
 
   const {
     contentInfo,
@@ -195,54 +196,84 @@ export function Watch() {
   }, [itemId, itemType, reloadKey, useTrial]);
 
   // Cargar progreso guardado
+  // 🔥 OPTIMIZADO: Usar caché local primero, background fetch después
   useEffect(() => {
-    async function loadSavedProgress() {
-      if (startTimeFromState > 0 || !itemId || itemType === 'channel') return;
+    if (startTimeFromState > 0 || !itemId || itemType === 'channel') return;
+    
+    const loadSavedProgress = async () => {
       try {
+        // Intentar caché primero
+        const cacheKey = `videoProgress_${itemId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data.progress > 0) {
+            console.log(`[Watch.jsx] ⚡ Progreso cargado desde caché: ${data.progress}s`);
+            setStartTime(data.progress);
+            return; // No esperar al servidor
+          }
+        }
+
+        // Fetch del servidor en background
         const progressData = await getUserProgress();
         const videoProgress = progressData.find(p => p.video?._id === itemId);
-        if (videoProgress?.progress) {
-          console.log(`[Watch.jsx] Progreso cargado para ${itemId}: ${videoProgress.progress}`);
+        if (videoProgress?.progress && videoProgress.progress > 0) {
+          console.log(`[Watch.jsx] Progreso cargado del servidor para ${itemId}: ${videoProgress.progress}`);
           setStartTime(videoProgress.progress);
+          // Actualizar caché
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ progress: videoProgress.progress }));
+          } catch (e) {
+            console.error('[Watch.jsx] Error actualizando caché:', e);
+          }
         }
       } catch (err) {
         console.error('[Watch.jsx] Error cargando progreso:', err);
       }
-    }
+    };
+    
     loadSavedProgress();
   }, [itemId, itemType, startTimeFromState]);
 
   // Guardar progreso inicial cuando se carga el video (para que aparezca en "Continuar Viendo")
+  // 🔥 OPTIMIZADO: Guardar INMEDIATAMENTE sin esperar getUserProgress()
   useEffect(() => {
-    if (!itemData || !itemId || itemType === 'channel') return;
+    if (!itemData || !itemId || itemType === 'channel' || initialProgressSavedRef.current) return;
 
     const saveInitialProgress = async () => {
       try {
-        // Solo guardar si aun no hay progreso registrado
-        const existingProgress = await getUserProgress();
-        const hasProgress = existingProgress.some(p => p.video?._id === itemId && (p.progress || 0) > 0);
-
-        if (!hasProgress) {
-          console.log(`[Watch.jsx] Guardando progreso inicial para ${itemId}`);
-          // Guardar 1 segundo para que aparezca en "Continuar Viendo"
-          await axiosInstance.put(`/api/videos/${itemId}/progress`, {
-            lastTime: 1,
-            progress: 1, // compat con backends que lean progress
-            lastSeason: currentChapterInfo?.seasonIndex ?? 0,
-            lastChapter: currentChapterInfo?.chapterIndex ?? 0,
-            completed: false,
-            totalDuration: 0,
-          });
-          console.log(`[Watch.jsx] Progreso inicial guardado`);
-        }
+        console.log(`[Watch.jsx] 🚀 Guardando progreso inicial INMEDIATAMENTE para ${itemId}`);
+        console.log(`[Watch.jsx] 📊 Item data:`, itemData?.nombre || itemData?.title);
+        
+        const progressPayload = {
+          lastTime: 1,
+          progress: 1,
+          lastSeason: currentChapterInfo?.seasonIndex ?? 0,
+          lastChapter: currentChapterInfo?.chapterIndex ?? 0,
+          completed: false,
+          totalDuration: 0,
+        };
+        
+        console.log(`[Watch.jsx] 📋 Payload a enviar:`, progressPayload);
+        
+        const response = await axiosInstance.put(`/api/videos/${itemId}/progress`, progressPayload);
+        
+        initialProgressSavedRef.current = true;
+        console.log(`[Watch.jsx] ✅ Progreso inicial guardado INMEDIATAMENTE. Respuesta:`, response.data);
       } catch (err) {
-        console.error('[Watch.jsx] Error guardando progreso inicial:', err);
-        // No es crítico si falla, continúa con la reproducción
+        console.error('[Watch.jsx] ❌ Error guardando progreso inicial:', err?.response?.data || err.message);
+        // Reintentar una sola vez después de 1 segundo
+        setTimeout(() => {
+          if (!initialProgressSavedRef.current) {
+            console.log('[Watch.jsx] 🔄 Reintentando guardar progreso inicial...');
+            saveInitialProgress();
+          }
+        }, 1000);
       }
     };
 
     saveInitialProgress();
-  }, [itemData, itemId, itemType]);
+  }, [itemData, itemId, itemType, currentChapterInfo]);
 
   // Determinar capítulo actual
   useEffect(() => {

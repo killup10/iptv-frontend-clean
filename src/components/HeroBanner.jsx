@@ -11,6 +11,8 @@ export default function HeroBanner({
   const [isMuted, setIsMuted] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const [randomItems, setRandomItems] = useState([]);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isExpandedText, setIsExpandedText] = useState(false);
   const videoRef = useRef(null);
 
   // Seleccionar 3 items al azar
@@ -29,6 +31,7 @@ export default function HeroBanner({
   // Reiniciar el video cuando cambia el índice
   useEffect(() => {
     if (videoRef.current && trailerUrl) {
+      setIsVideoLoading(true);
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {
         // Silenciar errores de autoplay
@@ -134,12 +137,12 @@ export default function HeroBanner({
 
   return (
     <div 
-      className="relative w-full h-screen md:h-[500px] lg:h-[600px] overflow-hidden rounded-lg group"
+      className="relative w-full h-[55vh] sm:h-[60vh] md:h-[500px] lg:h-[600px] overflow-hidden rounded-lg group bg-black"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Video Background o Imagen */}
-      <div className="absolute inset-0 w-full h-full overflow-hidden">
+      <div className="absolute inset-0 w-full h-full overflow-hidden bg-black">
         {trailerUrl ? (
           <video
             key={`${currentIndex}-${trailerUrl}`}
@@ -148,9 +151,17 @@ export default function HeroBanner({
             muted={isMuted}
             loop
             playsInline
-            className="w-full h-full object-cover"
+            preload="auto"
+            disablePictureInPicture
+            controlsList="nodownload"
+            className="w-full h-full object-cover bg-black"
             poster={backgroundImage}
-            onError={() => console.warn('Error cargando video')}
+            onLoadedData={() => setIsVideoLoading(false)}
+            onCanPlay={() => setIsVideoLoading(false)}
+            onError={() => {
+              console.warn('Error cargando video');
+              setIsVideoLoading(false);
+            }}
           >
             <source src={trailerUrl} type="video/mp4" />
           </video>
@@ -169,11 +180,11 @@ export default function HeroBanner({
       <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
 
       {/* Contenido */}
-      <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 md:p-8 lg:p-12 z-10">
+      <div className="absolute inset-0 flex flex-col justify-end p-3 sm:p-4 md:p-8 lg:p-12 z-10">
         <div className="max-w-2xl">
           {/* Badge de tipo de contenido */}
-          <div className="mb-4 flex gap-2 items-center flex-wrap">
-            <span className="inline-block px-3 py-1 bg-primary/80 text-primary-foreground text-xs sm:text-sm font-bold rounded-full">
+          <div className="mb-2 sm:mb-4 flex gap-2 items-center flex-wrap">
+            <span className="inline-block px-2 sm:px-3 py-0.5 sm:py-1 bg-primary/80 text-primary-foreground text-xs sm:text-sm font-bold rounded-full">
               {contentType === 'movie' ? '🎬 PELÍCULA' : contentType === 'serie' ? '📺 SERIE' : contentType === 'anime' ? '🎨 ANIME' : contentType === 'dorama' ? '🌸 DORAMA' : contentType === 'novela' ? '💔 NOVELA' : '📚 DOCUMENTAL'}
             </span>
             {ratingDisplay && (
@@ -189,25 +200,39 @@ export default function HeroBanner({
           </div>
 
           {/* Título */}
-          <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-black text-white mb-2 md:mb-4 drop-shadow-lg line-clamp-2 leading-tight">
+          <h1 className={`text-xl sm:text-3xl lg:text-5xl xl:text-6xl font-black text-white mb-1 sm:mb-2 md:mb-4 drop-shadow-lg leading-tight transition-all duration-300 ${
+            isExpandedText ? 'line-clamp-none' : 'line-clamp-2'
+          }`}>
             {title}
           </h1>
 
           {/* Sinopsis */}
           {synopsis && (
-            <p className="text-xs sm:text-sm md:text-lg text-gray-200 mb-4 md:mb-8 max-w-2xl line-clamp-2 md:line-clamp-3 leading-relaxed drop-shadow-md">
-              {synopsis}
-            </p>
+            <div>
+              <p className={`text-xs sm:text-sm lg:text-base xl:text-lg text-gray-200 mb-2 sm:mb-3 md:mb-4 max-w-3xl leading-relaxed drop-shadow-md transition-all duration-300 ${
+                isExpandedText ? 'line-clamp-none' : 'line-clamp-2 lg:line-clamp-3'
+              }`}>
+                {synopsis}
+              </p>
+              {synopsis.length > 100 && (
+                <button
+                  onClick={() => setIsExpandedText(!isExpandedText)}
+                  className="text-xs sm:text-sm text-gray-300 hover:text-white transition-colors duration-300 font-semibold mb-3 sm:mb-4 md:mb-6"
+                >
+                  {isExpandedText ? '...Menos' : 'Más...'}
+                </button>
+              )}
+            </div>
           )}
 
           {/* Botones */}
-          <div className={`flex flex-col sm:flex-row gap-2 md:gap-4 transition-all duration-300 ${isHovered ? 'opacity-100' : 'opacity-90'} flex-wrap`}>
+          <div className={`flex flex-col sm:flex-row gap-2 sm:gap-3 lg:gap-4 transition-all duration-300 ${isHovered ? 'opacity-100' : 'opacity-90'} flex-wrap`}>
             {/* Botón Reproducir */}
             <button
               onClick={handlePlayClick}
-              className="flex items-center justify-center gap-2 px-4 md:px-8 py-2 md:py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-all duration-300 hover:scale-105 active:scale-95 text-xs md:text-base group/btn shadow-lg"
+              className="flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-all duration-300 hover:scale-105 active:scale-95 text-xs sm:text-sm lg:text-base group/btn shadow-lg"
             >
-              <Play className="w-4 md:w-5 h-4 md:h-5 fill-current group-hover/btn:translate-x-1 transition-transform" />
+              <Play className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5 fill-current group-hover/btn:translate-x-1 transition-transform" />
               <span>Reproducir</span>
             </button>
 
@@ -215,9 +240,9 @@ export default function HeroBanner({
             {trailerUrl && (
               <button
                 onClick={handleTrailerClick}
-                className="flex items-center justify-center gap-2 px-4 md:px-8 py-2 md:py-3 bg-gray-500/70 hover:bg-gray-600 text-white font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs md:text-base backdrop-blur-sm shadow-lg"
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-gray-500/70 hover:bg-gray-600 text-white font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs sm:text-sm lg:text-base backdrop-blur-sm shadow-lg"
               >
-                <Info className="w-4 md:w-5 h-4 md:h-5" />
+                <Info className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5" />
                 <span>Trailer</span>
               </button>
             )}
@@ -226,9 +251,9 @@ export default function HeroBanner({
             {onAddToMyListClick && (
               <button
                 onClick={handleAddToList}
-                className="flex items-center justify-center gap-2 px-4 md:px-8 py-2 md:py-3 bg-secondary/70 hover:bg-secondary text-secondary-foreground font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs md:text-base backdrop-blur-sm shadow-lg"
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-secondary/70 hover:bg-secondary text-secondary-foreground font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs sm:text-sm lg:text-base backdrop-blur-sm shadow-lg"
               >
-                <svg className="w-4 md:w-5 h-4 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 <span>Mi Lista</span>
@@ -239,13 +264,13 @@ export default function HeroBanner({
             {trailerUrl && (
               <button
                 onClick={toggleMute}
-                className="flex items-center justify-center gap-2 px-4 py-2 md:py-3 bg-gray-500/70 hover:bg-gray-600 text-white font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs md:text-base backdrop-blur-sm shadow-lg"
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-gray-500/70 hover:bg-gray-600 text-white font-bold rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 text-xs sm:text-sm lg:text-base backdrop-blur-sm shadow-lg"
                 title={isMuted ? 'Activar sonido' : 'Desactivar sonido'}
               >
                 {isMuted ? (
-                  <VolumeX className="w-4 md:w-5 h-4 md:h-5" />
+                  <VolumeX className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5" />
                 ) : (
-                  <Volume2 className="w-4 md:w-5 h-4 md:h-5" />
+                  <Volume2 className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5" />
                 )}
               </button>
             )}
@@ -253,7 +278,7 @@ export default function HeroBanner({
 
           {/* Información adicional */}
           {(ratingDisplay || year) && (
-            <div className="mt-4 md:mt-8 text-xs md:text-sm text-gray-300 flex gap-4">
+            <div className="mt-2 sm:mt-4 md:mt-8 text-xs md:text-sm text-gray-300 flex gap-4">
               {ratingDisplay && (
                 <span className="flex items-center gap-1">
                   <svg className="w-3 md:w-4 h-3 md:h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -271,34 +296,34 @@ export default function HeroBanner({
       </div>
 
       {/* Flechas de navegación */}
-      <div className="absolute bottom-20 md:bottom-32 right-4 md:right-8 flex gap-2 z-20">
+      <div className="absolute bottom-12 sm:bottom-20 md:bottom-32 right-3 sm:right-4 md:right-8 flex gap-1.5 sm:gap-2 z-20">
         <button
           onClick={handlePrevItem}
-          className="p-2 md:p-3 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm"
+          className="p-1.5 sm:p-2 md:p-3 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm"
           title="Anterior"
         >
-          <ChevronLeft className="w-4 md:w-6 h-4 md:h-6" />
+          <ChevronLeft className="w-3 sm:w-4 md:w-6 h-3 sm:h-4 md:h-6" />
         </button>
         <button
           onClick={handleNextItem}
-          className="p-2 md:p-3 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm"
+          className="p-1.5 sm:p-2 md:p-3 bg-white/20 hover:bg-white/40 text-white rounded-full transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm"
           title="Siguiente"
         >
-          <ChevronRight className="w-4 md:w-6 h-4 md:h-6" />
+          <ChevronRight className="w-3 sm:w-4 md:w-6 h-3 sm:h-4 md:h-6" />
         </button>
       </div>
 
       {/* Overlay de gradiente inferior para mobile */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent pointer-events-none md:hidden" />
+      <div className="absolute bottom-0 left-0 right-0 h-24 sm:h-32 bg-gradient-to-t from-black to-transparent pointer-events-none md:hidden" />
 
       {/* Indicadores de posición (puntos) - Mobile */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 md:hidden z-20">
+      <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 flex gap-1.5 sm:gap-2 md:hidden z-20">
         {randomItems.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentIndex(index)}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${
-              index === currentIndex ? 'bg-white w-8' : 'bg-white/50'
+            className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all duration-300 ${
+              index === currentIndex ? 'bg-white w-6 sm:w-8' : 'bg-white/50'
             }`}
           />
         ))}

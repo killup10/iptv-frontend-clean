@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext.jsx";
 import axiosInstance from "@/utils/axiosInstance.js";
+import { normalizeSearchText } from "@/utils/searchUtils.js";
 import {
   fetchAdminChannels, createAdminChannel, updateAdminChannel,
   deleteAdminChannel, processM3UForAdmin,

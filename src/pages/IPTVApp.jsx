@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import VideoPlayer from '../components/VideoPlayer.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { normalizeSearchText } from '../utils/searchUtils.js';
 
 export default function IPTVApp({ defaultTab = 'live' }) {
   // ... (otros estados y hooks como estaban: user, channels, videoFiles, etc.)
@@ -125,13 +126,19 @@ export default function IPTVApp({ defaultTab = 'live' }) {
     setSelectedVideoUrl(urlOriginal);
   };
 
-  const filteredChannels = Array.isArray(channels) ? channels.filter(c =>
-    c && c.name && c.name.toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const filteredChannels = Array.isArray(channels) ? channels.filter(c => {
+    if (!c || !c.name) return false;
+    const normalizedSearch = normalizeSearchText(search);
+    const normalizedName = normalizeSearchText(c.name);
+    return normalizedName.includes(normalizedSearch);
+  }) : [];
 
-  const filteredVideos = Array.isArray(videoFiles) ? videoFiles.filter(v =>
-    v && v.title && v.title.toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const filteredVideos = Array.isArray(videoFiles) ? videoFiles.filter(v => {
+    if (!v || !v.title) return false;
+    const normalizedSearch = normalizeSearchText(search);
+    const normalizedTitle = normalizeSearchText(v.title);
+    return normalizedTitle.includes(normalizedSearch);
+  }) : [];
 
   if (!user) return <p className="p-4 text-center">Debes iniciar sesión para acceder.</p>;
 

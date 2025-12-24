@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { fetchVideosByType, getCollections, addItemsToCollection } from '../utils/api.js';
+import { normalizeSearchText } from '../utils/searchUtils.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import CollectionsModal from '../components/CollectionsModal.jsx';
@@ -119,9 +120,11 @@ export default function ZonaKids() {
   };
 
   const filteredContent = content.filter(item => {
-    return searchTerm === "" ||
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (searchTerm === "") return true;
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    const titleMatch = normalizeSearchText(item.title).includes(normalizedSearch);
+    const descMatch = item.description && normalizeSearchText(item.description).includes(normalizedSearch);
+    return titleMatch || descMatch;
   });
 
   if (isLoading) return (
