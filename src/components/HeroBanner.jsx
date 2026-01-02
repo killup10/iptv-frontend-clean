@@ -97,9 +97,9 @@ export default function HeroBanner({
   }
 
   // Determinar el tipo de contenido
-  const contentType = item.tipo || item.itemType || 'movie';
-  const isMovie = contentType === 'movie';
-  const isSerie = contentType === 'serie' || contentType === 'serie';
+  const contentType = item.tipo || item.itemType || 'pelicula';
+  const isMovie = contentType === 'pelicula';
+  const isSerie = contentType === 'serie';
   
   // Obtener imagen de fondo
   const backgroundImage = item.poster || item.portada || item.image || item.imagen || '';
@@ -185,7 +185,7 @@ export default function HeroBanner({
           {/* Badge de tipo de contenido */}
           <div className="mb-2 sm:mb-4 flex gap-2 items-center flex-wrap">
             <span className="inline-block px-2 sm:px-3 py-0.5 sm:py-1 bg-primary/80 text-primary-foreground text-xs sm:text-sm font-bold rounded-full">
-              {contentType === 'movie' ? '🎬 PELÍCULA' : contentType === 'serie' ? '📺 SERIE' : contentType === 'anime' ? '🎨 ANIME' : contentType === 'dorama' ? '🌸 DORAMA' : contentType === 'novela' ? '💔 NOVELA' : '📚 DOCUMENTAL'}
+              {contentType === 'pelicula' ? '🎬 PELÍCULA' : contentType === 'serie' ? '📺 SERIE' : contentType === 'anime' ? '🎨 ANIME' : contentType === 'dorama' ? '🌸 DORAMA' : contentType === 'novela' ? '💔 NOVELA' : contentType === 'documental' ? '📚 DOCUMENTAL' : '📚 DOCUMENTAL'}
             </span>
             {ratingDisplay && (
               <span className="text-yellow-400 text-xs sm:text-sm font-bold">

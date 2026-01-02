@@ -129,7 +129,8 @@ export default function TVHome() {
               alt="TeamG Play Logo" 
               className="h-32 mx-auto mb-8"
               style={{
-                filter: 'drop-shadow(0 0 30px rgba(0,255,255,0.6)) drop-shadow(0 0 15px rgba(255,0,255,0.4))'
+                filter: 'drop-shadow(0 0 30px rgba(0,255,255,0.6)) drop-shadow(0 0 15px rgba(255,0,255,0.4))',
+                objectFit: 'contain'
               }}
             />
             <h1 className="tv-welcome-text text-6xl font-bold mb-6">

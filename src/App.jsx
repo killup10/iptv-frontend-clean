@@ -193,7 +193,8 @@ function App() {
                   <img 
                     src="./logo-teamg.png" 
                     alt="TeamG Play Logo" 
-                    className="h-16 sm:h-18 drop-shadow-glow-logo hover:scale-105 transition-transform duration-300" 
+                    className="h-16 sm:h-18 drop-shadow-glow-logo hover:scale-105 transition-transform duration-300"
+                    style={{ objectFit: 'contain' }}
                   />
                 </Link>
                 
@@ -358,7 +359,7 @@ function App() {
           <div className="container mx-auto px-4">
             <div className="flex flex-col md:flex-row justify-between">
               <div className="mb-6 md:mb-0">
-                <img src="./logo-teamg.png" alt="TeamG Play Logo" className="h-12 mb-4 drop-shadow-glow-logo" />
+                <img src="./logo-teamg.png" alt="TeamG Play Logo" className="h-12 mb-4 drop-shadow-glow-logo" style={{ objectFit: 'contain' }} />
                 <p className="mt-2 max-w-md">La mejor plataforma de streaming para disfrutar de canales en vivo, películas, series y mas.</p>
               </div>
               <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-6">

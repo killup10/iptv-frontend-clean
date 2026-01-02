@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { getPlayerType, isAndroidTV } from '../utils/platformUtils';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
@@ -14,6 +14,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
   const hasInitializedRef = useRef(false); // 🔥 CLAVE: Detecta si ya inicializó
+  const playbackKeyRef = useRef('');
+  const isStartingRef = useRef(false);
   
   const [autoplayFailed, setAutoplayFailed] = useState(false);
   
@@ -23,13 +25,15 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   
   const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
-  const allChapters = seasons?.flatMap((season, seasonIndex) => 
-    season.chapters?.map(chapter => ({
-      ...chapter,
-      seasonNumber: season.seasonNumber || (seasonIndex + 1),
-      chapterNumber: chapter.episodeNumber
-    })) || []
-  ) || [];
+  const allChapters = useMemo(() => {
+    return seasons?.flatMap((season, seasonIndex) =>
+      season.chapters?.map(chapter => ({
+        ...chapter,
+        seasonNumber: season.seasonNumber || (seasonIndex + 1),
+        chapterNumber: chapter.episodeNumber
+      })) || []
+    ) || [];
+  }, [seasons]);
 
   console.log('[VideoPlayer] Reproductor simplificado - sin proxy');
 
@@ -38,13 +42,26 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     if (!url || platform !== 'android-vlc') {
       return;
     }
+    if (isUnmountingRef?.current || isNavigatingAwayRef?.current) {
+      isStartingRef.current = false;
+      return;
+    }
+
+    const playbackKey = `${itemId || ''}|${url}|${currentChapterInfo?.seasonIndex ?? ''}|${currentChapterInfo?.chapterIndex ?? ''}`;
+    if (playbackKeyRef.current === playbackKey && (isPlayingRef.current || isStartingRef.current)) {
+      return;
+    }
+    playbackKeyRef.current = playbackKey;
+    isStartingRef.current = true;
 
     let isCancelled = false;
     const shouldCancel = () => isCancelled || isUnmountingRef?.current || isNavigatingAwayRef?.current;
+    const normalizedStartTime = Number.isFinite(startTime) ? Math.max(0, Math.floor(startTime)) : 0;
 
     const handleAndroidPlayback = async () => {
       // Guard: Si el efecto fue limpiado o el componente se está desmontando, no hacer nada.
       if (shouldCancel()) {
+        isStartingRef.current = false;
         console.log('[VideoPlayer] Android: Reproducción cancelada (cleanup o desmontaje).');
         return;
       }
@@ -53,6 +70,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         // 1. Detener cualquier instancia anterior de VLC.
         // Es seguro llamar a stopVideo() incluso si no hay nada reproduciendo.
         console.log('[VideoPlayer] Android: Deteniendo reproductor anterior antes de iniciar nuevo...');
+        isPlayingRef.current = false;
         await VideoPlayerPlugin.stopVideo();
         if (shouldCancel()) return;
 
@@ -75,16 +93,17 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         await VideoPlayerPlugin.playVideo({
           url: url,
           title: title || "Video",
-          startTime: startTime || 0,
+          startTime: normalizedStartTime,
           chapters: allChapters,
         });
         if (shouldCancel()) return;
 
         isPlayingRef.current = true;
+        isStartingRef.current = false;
         console.log('[VideoPlayer] Android: VLC iniciado correctamente.');
 
         // 5. Guardar el progreso inicial.
-        const initialTime = startTime || 0;
+        const initialTime = normalizedStartTime;
         await videoProgressService.saveProgress(itemId, {
           lastTime: initialTime,
           lastSeason: currentChapterInfo?.seasonIndex,
@@ -96,6 +115,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       } catch (err) {
         console.error("Error iniciando Android player:", err);
         isPlayingRef.current = false;
+        isStartingRef.current = false;
         // Intentar detener el servicio de fondo si la reproducción falla.
         try {
           await backgroundPlaybackService.stopPlayback();
@@ -112,6 +132,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       // Esto previene que las operaciones asíncronas (como playVideo) se ejecuten
       // si el usuario cambia de capítulo rápidamente.
       isCancelled = true;
+      isStartingRef.current = false;
       console.log('[VideoPlayer] Android: Cleanup del efecto de reproducción.');
       // La detención global del video se maneja en el `useEffect` de desmontaje global.
     };

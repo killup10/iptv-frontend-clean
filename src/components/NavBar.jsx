@@ -64,6 +64,7 @@ export default function NavBar() {
             src="./logo-teamg.png" 
             alt="TeamG Play Logo" 
             className="h-10 sm:h-12 drop-shadow-glow-logo hover:scale-105 transition-transform duration-300" 
+            style={{ objectFit: 'contain', minWidth: '40px' }}
           />
         </Link>
         

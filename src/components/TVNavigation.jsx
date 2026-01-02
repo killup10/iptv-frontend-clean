@@ -80,6 +80,7 @@ export default function TVNavigation() {
               src="./logo-teamg.png" 
               alt="TeamG Play Logo" 
               className="h-20 tv-logo" 
+              style={{ objectFit: 'contain' }}
             />
           </div>
           

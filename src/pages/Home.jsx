@@ -291,9 +291,47 @@ export function Home() {
   }, [user, setAllSearchItems]);
 
       const handleItemClick = (item, itemType) => {
+      const buildContinueWatchingState = (resolvedItem) => {
+        const watchProgress = resolvedItem?.watchProgress || {};
+        const lastTime = Number(watchProgress.lastTime ?? watchProgress.progress ?? 0);
+        const lastSeason = Number(watchProgress.lastSeason);
+        const lastChapter = Number(watchProgress.lastChapter);
+        const hasSeasons = Array.isArray(resolvedItem?.seasons) && resolvedItem.seasons.length > 0;
+        let seasonIndex = Number.isFinite(lastSeason) ? Math.max(0, Math.floor(lastSeason)) : undefined;
+        let chapterIndex = Number.isFinite(lastChapter) ? Math.max(0, Math.floor(lastChapter)) : undefined;
+
+        if (hasSeasons) {
+          if (!Number.isFinite(seasonIndex) || seasonIndex < 0 || seasonIndex >= resolvedItem.seasons.length) {
+            seasonIndex = 0;
+          }
+
+          const chapters = resolvedItem.seasons?.[seasonIndex]?.chapters;
+          if (Array.isArray(chapters) && chapters.length > 0) {
+            if (!Number.isFinite(chapterIndex) || chapterIndex < 0 || chapterIndex >= chapters.length) {
+              chapterIndex = 0;
+            }
+          }
+        }
+
+        const navigationState = { continueWatching: true };
+
+        if (Number.isFinite(lastTime) && lastTime > 0) {
+          navigationState.startTime = Math.floor(lastTime);
+        }
+        if (hasSeasons && Number.isFinite(seasonIndex)) {
+          navigationState.seasonIndex = seasonIndex;
+        }
+        if (hasSeasons && Number.isFinite(chapterIndex)) {
+          navigationState.chapterIndex = chapterIndex;
+        }
+
+        return navigationState;
+      };
+
       const navigateToPlayer = (resolvedItem, resolvedType) => {
         const id = resolvedItem._id || resolvedItem.id;
         let path;
+        let navigationState;
   
         if (resolvedType === 'continue-watching') {
           const actualType = resolvedItem.tipo || resolvedItem.itemType;
@@ -302,12 +340,22 @@ export function Home() {
             return;
           }
           path = `/watch/${actualType}/${id}`;
+          navigationState = buildContinueWatchingState(resolvedItem);
+          try {
+            const cacheKey = `continueWatching_${id}`;
+            localStorage.setItem(cacheKey, JSON.stringify({
+              ...navigationState,
+              timestamp: Date.now()
+            }));
+          } catch (err) {
+            console.warn('[Home.jsx] No se pudo guardar continueWatching en cache:', err);
+          }
         } else {
           path = `/watch/${resolvedType}/${id}`;
         }
         
         console.log(`Navigating to: ${path}`);
-        navigate(path);
+        navigate(path, navigationState ? { state: navigationState } : undefined);
       };
   
       checkContentAccess(item, () => navigateToPlayer(item, itemType));
@@ -421,7 +469,8 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
               <img 
                 src="./logo-teamg.png" 
                 alt="Logo de TeamG Play" 
-                className="w-48 sm:w-56 drop-shadow-glow-logo mb-4" 
+                className="drop-shadow-glow-logo mb-4"
+                style={{ objectFit: 'contain', maxWidth: '95vw', height: 'auto', width: 'auto' }}
               />
             </div>
             
@@ -432,7 +481,8 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                 <img 
                   src="./logo-teamg.png" 
                   alt="Logo de TeamG Play" 
-                  className="w-full max-w-xs drop-shadow-glow-logo" 
+                  className="drop-shadow-glow-logo"
+                  style={{ objectFit: 'contain', maxWidth: '90%', height: 'auto', width: 'auto' }}
                 />
                 <p className="text-xl text-muted-foreground mt-4 max-w-md">
                   Inicia sesión para descubrir un mundo de entretenimiento.
@@ -595,7 +645,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     else if (sectionTitle.includes('Doramas')) itemType = 'dorama';
     else if (sectionTitle.includes('Novelas')) itemType = 'novela';
     else if (sectionTitle.includes('Documentales')) itemType = 'documental';
-    else if (sectionTitle.includes('Continuar')) itemType = item.tipo || item.itemType || 'movie';
+    else if (sectionTitle.includes('Continuar')) itemType = 'continue-watching';
     
     handleItemClick(item, itemType);
   };

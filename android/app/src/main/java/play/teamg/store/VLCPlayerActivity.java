@@ -767,7 +767,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private long pressStartTime = 0;
     private float pressStartX = 0;
     private float pressStartY = 0;
-    private static final long LONG_PRESS_DURATION = 3000; // 3 segundos para desbloquear
+    private static final long LONG_PRESS_DURATION = 1500; // 1.5 segundos para desbloquear
     private static final float LONG_PRESS_SLOP = 50; // tolerancia de movimiento (píxeles)
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable = null;
