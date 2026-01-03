@@ -470,7 +470,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                 src="./logo-teamg.png" 
                 alt="Logo de TeamG Play" 
                 className="drop-shadow-glow-logo mb-4"
-                style={{ objectFit: 'contain', maxWidth: '95vw', height: 'auto', width: 'auto' }}
+                style={{ objectFit: 'contain', maxWidth: '200px', height: 'auto', width: 'auto' }}
               />
             </div>
             
@@ -482,7 +482,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                   src="./logo-teamg.png" 
                   alt="Logo de TeamG Play" 
                   className="drop-shadow-glow-logo"
-                  style={{ objectFit: 'contain', maxWidth: '90%', height: 'auto', width: 'auto' }}
+                  style={{ objectFit: 'contain', maxWidth: '300px', height: 'auto', width: 'auto' }}
                 />
                 <p className="text-xl text-muted-foreground mt-4 max-w-md">
                   Inicia sesión para descubrir un mundo de entretenimiento.
