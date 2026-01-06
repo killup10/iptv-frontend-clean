@@ -38,6 +38,7 @@ const isSectionAllowedForPlan = (sectionKey, userPlan) => {
     const restricciones = {
         "CINE_4K": ["cinefilo", "premium"],
         "CINE_60FPS": ["cinefilo", "premium"],
+        "CINE_2026": ["cinefilo", "premium"],
         "CINE_2025": ["cinefilo", "premium"],
         "TV_EN_VIVO": ["premium"],
         "DORAMAS": ["estandar", "cinefilo", "premium"]

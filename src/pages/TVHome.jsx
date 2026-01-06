@@ -10,6 +10,7 @@ export default function TVHome() {
   const [moviesContent, setMoviesContent] = useState([]);
   const [seriesContent, setSeriesContent] = useState([]);
   const [liveChannels, setLiveChannels] = useState([]);
+  const [cine2026Content, setCine2026Content] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,10 +59,21 @@ export default function TVHome() {
           videoUrl: v.url
         }));
 
+        const cine2026 = videos.filter(v => v.mainSection === 'CINE_2026').map(v => ({
+          id: v._id,
+          title: v.title,
+          thumbnail: v.customThumbnail || v.thumbnail,
+          year: v.year,
+          genre: v.genre,
+          isPremium: v.isPremium,
+          videoUrl: v.url
+        }));
+
         setFeaturedContent(featured);
         setMoviesContent(movies);
         setSeriesContent(series);
         setLiveChannels(live);
+        setCine2026Content(cine2026);
 
         setLoading(false);
       } catch (error) {
@@ -182,6 +194,11 @@ export default function TVHome() {
           <TVCard 
             items={seriesContent}
             title="📽️ Series Trending"
+          />
+
+          <TVCard 
+            items={cine2026Content}
+            title="🍿 Cine 2026"
           />
         </div>
 
