@@ -185,7 +185,7 @@ export default function HeroBanner({
           {/* Badge de tipo de contenido */}
           <div className="mb-2 sm:mb-4 flex gap-2 items-center flex-wrap">
             <span className="inline-block px-2 sm:px-3 py-0.5 sm:py-1 bg-primary/80 text-primary-foreground text-xs sm:text-sm font-bold rounded-full">
-              {contentType === 'pelicula' ? '🎬 PELÍCULA' : contentType === 'serie' ? '📺 SERIE' : contentType === 'anime' ? '🎨 ANIME' : contentType === 'dorama' ? '🌸 DORAMA' : contentType === 'novela' ? '💔 NOVELA' : contentType === 'documental' ? '📚 DOCUMENTAL' : '📚 DOCUMENTAL'}
+              {contentType === 'pelicula' ? '🎬 PELÍCULA' : contentType === 'serie' ? '📺 SERIE' : contentType === 'anime' ? '🎨 ANIME' : contentType === 'dorama' ? '🌸 DORAMA' : contentType === 'novela' ? '💔 NOVELA' : contentType === 'documental' ? '📚 DOCUMENTAL' : contentType === 'zona kids' ? '👶 ZONA KIDS' : '📺 CONTENIDO'}
             </span>
             {ratingDisplay && (
               <span className="text-yellow-400 text-xs sm:text-sm font-bold">
