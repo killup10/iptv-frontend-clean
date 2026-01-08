@@ -155,7 +155,8 @@ export default function AdminPanel() {
     subcategoria: "Netflix",
     hasNewEpisodes: false,
     is4K: false,
-    is60FPS: false
+    is60FPS: false,
+    showInBanner: false
   });
 
 
@@ -389,7 +390,8 @@ export default function AdminPanel() {
       subcategoria: "Netflix",
       hasNewEpisodes: false,
       is4K: false,
-      is60FPS: false
+      is60FPS: false,
+      showInBanner: false
     });
   }, []);
 
@@ -420,7 +422,8 @@ export default function AdminPanel() {
       subcategoria: video.subcategoria || "Netflix",
       hasNewEpisodes: video.hasNewEpisodes || false,
       is4K: video.is4K || false,
-      is60FPS: video.is60FPS || false
+      is60FPS: video.is60FPS || false,
+      showInBanner: video.showInBanner || false
     });
 
     setActiveTab("add_vod"); 
@@ -476,6 +479,7 @@ export default function AdminPanel() {
         seasons: (vodForm.tipo !== 'pelicula' && Array.isArray(vodForm.seasons)) ? vodForm.seasons : [],
         is4K: Boolean(vodForm.is4K),
         is60FPS: Boolean(vodForm.is60FPS),
+        showInBanner: Boolean(vodForm.showInBanner),
       };
       delete dataToSend.chapters;
       
@@ -633,6 +637,7 @@ export default function AdminPanel() {
     setDragInfo(null);
   };
 
+  // --- Funciones para upload de portada VOD ---
 
   const handleVodSelect = (vodId) => {
     setSelectedVods((prev) =>
@@ -971,7 +976,24 @@ export default function AdminPanel() {
               </>
             )}
 
-            <Input name="customThumbnail" type="url" placeholder="URL del Poster/Cover (vertical)" value={vodForm.customThumbnail} onChange={handleVodFormChange} />
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Portada del VOD (URL)</label>
+              <p className="text-xs text-gray-400 mb-2">Ingresa la URL de una imagen JPG o PNG para usar como portada (se mostrará en el carrusel de la Home)</p>
+              <Input name="customThumbnail" type="url" placeholder="https://ejemplo.com/portada.jpg" value={vodForm.customThumbnail} onChange={handleVodFormChange} />
+              {vodForm.customThumbnail && (
+                <div className="mt-3 p-3 bg-gray-700/50 rounded">
+                  <p className="text-sm text-gray-300 mb-2">Vista previa:</p>
+                  <img
+                    src={vodForm.customThumbnail}
+                    alt="Portada actual"
+                    className="h-32 object-cover rounded border border-gray-600"
+                    onError={(e) => {
+                      e.target.src = '/img/placeholder-thumbnail.png';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <Textarea name="description" placeholder="Descripción/Sinopsis" value={vodForm.description} onChange={handleVodFormChange} />
             <Input name="trailerUrl" type="url" placeholder="URL del Tráiler (YouTube u otro)" value={vodForm.trailerUrl} onChange={handleVodFormChange} />
             <Input name="releaseYear" type="number" placeholder="Año de Estreno" value={vodForm.releaseYear} onChange={handleVodFormChange} />
@@ -1001,6 +1023,7 @@ export default function AdminPanel() {
             <div className="flex items-center space-x-6 pt-2">
               <Checkbox label="Activo" name="active" checked={vodForm.active} onChange={handleVodFormChange} />
               <Checkbox label="Destacado" name="isFeatured" checked={vodForm.isFeatured} onChange={handleVodFormChange} />
+              <Checkbox label="Mostrar en Banner" name="showInBanner" checked={vodForm.showInBanner} onChange={handleVodFormChange} />
               {vodForm.tipo !== 'pelicula' && (
                 <Checkbox 
                   label="Nuevos Episodios" 

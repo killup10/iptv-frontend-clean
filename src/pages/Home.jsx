@@ -27,7 +27,7 @@ import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import { Laptop, Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
-import HeroBanner from '../components/HeroBanner.jsx';
+import CoverCarousel from '../components/CoverCarousel.jsx';
 
 // Helper to process settled promises
 const processResult = (result, setter, name, slice = 0) => {
@@ -776,20 +776,17 @@ onProceedWithTrial={proceedWithTrial}
           backgroundAttachment: 'fixed'
         }}
       >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-2 sm:pt-3 md:pt-4 pb-8 space-y-8 md:space-y-12">
-        {/* Hero Banner con trailer de contenidos recien agregados */}
+        {/* Cover Carousel - EDGE-TO-EDGE (fuera del container) */}
         {recentlyAdded.length > 0 && (
-          <div className="mb-6 md:mb-8 -mx-4 sm:-mx-6 lg:-mx-8">
-            <HeroBanner
-              items={recentlyAdded}
-              onPlayClick={(item, itemType) => handleItemClick(item, itemType)}
-              onPlayTrailerClick={handlePlayTrailerClick}
-              onAddToMyListClick={handleAddToMyList}
-            />
-          </div>
+          <CoverCarousel
+            items={recentlyAdded.filter(item => item.showInBanner) || recentlyAdded}
+            onItemClick={(item, itemType) => handleItemClick(item, itemType)}
+            onTrailerClick={(item) => handlePlayTrailerClick(item.trailerUrl)}
+            interval={5500}
+          />
         )}
-        
-        {recentlyAdded.length > 0 && (
+
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-2 sm:pt-3 md:pt-4 pb-8 space-y-8 md:space-y-12">{recentlyAdded.length > 0 && (
           <Carousel
             title="Recien Agregados"
             items={recentlyAdded}
