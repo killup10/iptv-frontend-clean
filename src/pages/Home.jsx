@@ -515,7 +515,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                 src="./logo-teamg.png" 
                 alt="Logo de TeamG Play" 
                 style={{
-                  width: '17.5rem',
+                  width: 'min(280px, 50vw)',
                   height: 'auto',
                   objectFit: 'contain'
                 }}
@@ -531,7 +531,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                   src="./logo-teamg.png" 
                   alt="Logo de TeamG Play" 
                   style={{
-                    width: '25rem',
+                    width: 'min(400px, 70vw)',
                     height: 'auto',
                     objectFit: 'contain'
                   }}
