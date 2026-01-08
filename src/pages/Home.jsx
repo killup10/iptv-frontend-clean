@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation, Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
@@ -28,6 +28,24 @@ import { useContentAccess } from '../hooks/useContentAccess.js';
 import { Laptop, Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import HeroBanner from '../components/HeroBanner.jsx';
+
+// Helper to process settled promises
+const processResult = (result, setter, name, slice = 0) => {
+  if (result.status === 'fulfilled' && result.value) {
+    let data = result.value;
+    // Handle API responses that might be { videos: [...] }
+    if (data.videos && Array.isArray(data.videos)) {
+      data = data.videos;
+    }
+    if (Array.isArray(data)) {
+      if (setter) setter(slice > 0 ? data.slice(0, slice) : data);
+      return data;
+    }
+  }
+  console.error(`[Home.jsx] Error loading ${name}:`, result.reason || 'Invalid data format');
+  if (setter) setter([]);
+  return [];
+};
 
 export function Home() {
   const { user, login } = useAuth();
@@ -89,6 +107,8 @@ export function Home() {
   }
 };
 
+  const isLoadingRef = useRef(false);
+
   // Refactored useEffect to load all data for Home and Search
   useEffect(() => {
     if (!user) {
@@ -120,6 +140,12 @@ export function Home() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     async function loadAllData() {
+      if (isLoadingRef.current) {
+        console.log('[Home.jsx] Data load already in progress. Skipping.');
+        return;
+      }
+      isLoadingRef.current = true;
+
       // Verificar si hay datos cacheados
       const cachedData = dataCache.get('homeData');
       if (cachedData) {
@@ -137,6 +163,7 @@ export function Home() {
           setAllSearchItems(cachedData.allSearchItems);
         }
         setLoading(false);
+        isLoadingRef.current = false; // Release lock
 
         // Refrescar siempre la sección "Continuar Viendo" incluso si usamos cache,
         // para que refleje el último playback de Electron sin esperar a un change de foco.
@@ -158,12 +185,14 @@ export function Home() {
 
       setLoading(true);
       setContentError(null);
-      console.log('[Home.jsx] Starting unified data load...');
+      console.log('[Home.jsx] Starting progressive data load...');
 
       try {
-        const results = await Promise.allSettled([
-          // Carousel data - PRIORIDAD ALTA
+        // PHASE 1: Cargar SOLO datos críticos para mostrar UI rápido (2-3 segundos)
+        console.time('[Home.jsx] Phase 1: Critical data load time');
+        const criticalResults = await Promise.allSettled([
           fetchContinueWatching(),
+          fetchRecentlyAdded(),
           fetchFeaturedChannels(),
           fetchFeaturedMovies(),
           fetchFeaturedSeries(),
@@ -171,19 +200,12 @@ export function Home() {
           fetchFeaturedDoramas(),
           fetchFeaturedNovelas(),
           fetchFeaturedDocumentales(),
-          fetchRecentlyAdded(),
-          // Full data for global search - OPTIMIZADO: Reducido a 500 items por tipo
-          fetchUserChannels('Todos'),
-          fetchVideosByType('pelicula', 1, 500),
-          fetchVideosByType('serie', 1, 500),
-          fetchVideosByType('anime', 1, 500),
-          fetchVideosByType('dorama', 1, 500),
-          fetchVideosByType('novela', 1, 500),
-          fetchVideosByType('documental', 1, 500),
         ]);
+        console.timeEnd('[Home.jsx] Phase 1: Critical data load time');
 
         const [
           continueWatchingResult,
+          recentlyAddedResult,
           featuredChannelsResult,
           featuredMoviesResult,
           featuredSeriesResult,
@@ -191,36 +213,11 @@ export function Home() {
           featuredDoramasResult,
           featuredNovelasResult,
           featuredDocumentalesResult,
-          recentlyAddedResult,
-          allChannelsResult,
-          allMoviesResult,
-          allSeriesResult,
-          allAnimesResult,
-          allDoramasResult,
-          allNovelasResult,
-          allDocumentalesResult,
-        ] = results;
+        ] = criticalResults;
 
-        // Helper to process settled promises
-        const processResult = (result, setter, name, slice = 0) => {
-          if (result.status === 'fulfilled' && result.value) {
-            let data = result.value;
-            // Handle API responses that might be { videos: [...] }
-            if (data.videos && Array.isArray(data.videos)) {
-              data = data.videos;
-            }
-            if (Array.isArray(data)) {
-              if (setter) setter(slice > 0 ? data.slice(0, slice) : data);
-              return data;
-            }
-          }
-          console.error(`[Home.jsx] Error loading ${name}:`, result.reason || 'Invalid data format');
-          if (setter) setter([]);
-          return [];
-        };
-        
-        // Process carousel data
+        // Procesar datos visuales
         const processedContinueWatching = processResult(continueWatchingResult, setContinueWatchingItems, 'Continue Watching');
+        const processedRecentlyAdded = processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 10);
         const processedFeaturedChannels = processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 10);
         const processedFeaturedMovies = processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 10);
         const processedFeaturedSeries = processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 10);
@@ -228,36 +225,16 @@ export function Home() {
         const processedFeaturedDoramas = processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
         const processedFeaturedNovelas = processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
         const processedFeaturedDocumentales = processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
-        const processedRecentlyAdded = processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 10);
 
-        // Process and combine all data for global search
-        const allChannels = processResult(allChannelsResult, null, 'All Channels');
-        const allMovies = processResult(allMoviesResult, null, 'All Movies');
-        const allSeries = processResult(allSeriesResult, null, 'All Series');
-        const allAnimes = processResult(allAnimesResult, null, 'All Animes');
-        const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
-        const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
-        const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
+        // Mostrar UI inmediatamente
+        setLoading(false);
+        console.log('[Home.jsx] ✅ Phase 1 complete. UI displayed.');
+        isLoadingRef.current = false; // Release lock after Phase 1
 
-        const searchItems = [
-          ...allChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
-          ...allMovies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
-          ...allSeries.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
-          ...allAnimes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
-          ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
-          ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
-          ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
-        ];
-
-        const uniqueItems = Array.from(new Map(searchItems.map(item => [item._id || item.id, item])).values());
-        
-        if (setAllSearchItems) {
-          console.log('[Home.jsx] ✅ Unified data load complete. Populating global search with items:', uniqueItems.length);
-          setAllSearchItems(uniqueItems);
-        }
-
-        // GUARDAR EN CACHE usando los valores procesados (no los del estado que son async)
-        dataCache.set('homeData', {
+        // Cache de Phase 1
+        const phase1CacheData = {
+          continueWatchingItems: processedContinueWatching,
+          recentlyAdded: processedRecentlyAdded,
           featuredChannels: processedFeaturedChannels,
           featuredMovies: processedFeaturedMovies,
           featuredSeries: processedFeaturedSeries,
@@ -265,30 +242,98 @@ export function Home() {
           featuredDoramas: processedFeaturedDoramas,
           featuredNovelas: processedFeaturedNovelas,
           featuredDocumentales: processedFeaturedDocumentales,
-          recentlyAdded: processedRecentlyAdded,
-          continueWatchingItems: processedContinueWatching,
-          allSearchItems: uniqueItems
-        });
+          allSearchItems: [], // Iniciar vacío
+        };
+        dataCache.set('homeData', phase1CacheData);
 
+        // PHASE 2: Cargar datos de búsqueda en background SIN BLOQUEAR
+        // Capturar setAllSearchItems en scope local para evitar issues con closure
+        const searchSetter = setAllSearchItems;
+        (async () => {
+          console.log('[Home.jsx] Starting Phase 2: Loading search data...');
+          console.time('[Home.jsx] Phase 2: Search data load time');
+
+          const searchFetchResults = await Promise.allSettled([
+            fetchUserChannels('Todos'),
+            fetchVideosByType('pelicula', 1, 500),
+            fetchVideosByType('serie', 1, 500),
+            fetchVideosByType('anime', 1, 500),
+            fetchVideosByType('dorama', 1, 500),
+            fetchVideosByType('novela', 1, 500),
+            fetchVideosByType('documental', 1, 500),
+          ]);
+          console.timeEnd('[Home.jsx] Phase 2: Search data load time');
+
+          const [
+            allChannelsResult,
+            allMoviesResult,
+            allSeriesResult,
+            allAnimesResult,
+            allDoramasResult,
+            allNovelasResult,
+            allDocumentalesResult,
+          ] = searchFetchResults;
+
+          const allChannels = processResult(allChannelsResult, null, 'All Channels');
+          const allMovies = processResult(allMoviesResult, null, 'All Movies');
+          const allSeries = processResult(allSeriesResult, null, 'All Series');
+          const allAnimes = processResult(allAnimesResult, null, 'All Animes');
+          const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
+          const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
+          const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
+
+          const searchItems = [
+            ...allChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
+            ...allMovies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
+            ...allSeries.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
+            ...allAnimes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
+            ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
+            ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
+            ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
+          ];
+
+          const uniqueItems = Array.from(new Map(searchItems.map(item => [item._id || item.id, item])).values());
+
+          // Actualizar buscador con datos de búsqueda (SIN AFECTAR UI)
+          if (searchSetter) {
+            console.log('[Home.jsx] ✅ Phase 2 complete. Populating global search with items:', uniqueItems.length);
+            searchSetter(uniqueItems);
+          } else {
+            console.warn('[Home.jsx] ⚠️ setAllSearchItems not available in Phase 2');
+          }
+
+          // Cache completo con todos los datos
+          const fullCacheData = {
+            ...phase1CacheData,
+            allSearchItems: uniqueItems,
+          };
+          dataCache.set('homeData', fullCacheData);
+          console.log('[Home.jsx] ✅ Full cache updated with search data.');
+        })();
       } catch (err) {
         console.error('[Home.jsx] ❌ General error in loadAllData:', err);
         setContentError(err.message || "Error loading content.");
         if (setAllSearchItems) {
           setAllSearchItems([]);
         }
-      } finally {
         setLoading(false);
+        isLoadingRef.current = false; // Release lock on error
       }
     }
 
     loadAllData();
 
-    // Cleanup: remover ambos listeners
+    // Cleanup: remover listeners
     return () => {
       window.removeEventListener('focus', handlePageFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // Considerar si resetear el lock aquí. Si el componente se desmonta y remonta rápido,
+      // podríamos querer que la carga se reinicie.
+      // isLoadingRef.current = false;
     };
-  }, [user, setAllSearchItems]);
+    // La dependencia de setAllSearchItems puede causar re-ejecuciones si no está memoizada
+    // con useCallback en el componente padre. El lock (isLoadingRef) previene los efectos negativos.
+  }, [user, setAllSearchItems, dataCache]);
 
       const handleItemClick = (item, itemType) => {
       const buildContinueWatchingState = (resolvedItem) => {
@@ -469,8 +514,12 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
               <img 
                 src="./logo-teamg.png" 
                 alt="Logo de TeamG Play" 
-                className="drop-shadow-glow-logo mb-4"
-                style={{ objectFit: 'contain', maxWidth: '200px', height: 'auto', width: 'auto' }}
+                style={{
+                  width: '17.5rem',
+                  height: 'auto',
+                  objectFit: 'contain'
+                }}
+                className="drop-shadow-glow-logo mb-4" 
               />
             </div>
             
@@ -481,8 +530,12 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
                 <img 
                   src="./logo-teamg.png" 
                   alt="Logo de TeamG Play" 
-                  className="drop-shadow-glow-logo"
-                  style={{ objectFit: 'contain', maxWidth: '300px', height: 'auto', width: 'auto' }}
+                  style={{
+                    width: '25rem',
+                    height: 'auto',
+                    objectFit: 'contain'
+                  }}
+                  className="drop-shadow-glow-logo" 
                 />
                 <p className="text-xl text-muted-foreground mt-4 max-w-md">
                   Inicia sesión para descubrir un mundo de entretenimiento.

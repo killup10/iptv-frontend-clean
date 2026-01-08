@@ -16,64 +16,53 @@ export default function TVHome() {
   useEffect(() => {
     const loadContent = async () => {
       try {
-        const response = await axios.get('/api/videos');
-        const videos = response.data;
+        // Load content from optimized endpoints in parallel
+        const requests = {
+          featured: axios.get('/api/videos?isFeatured=true&limit=10'),
+          movies: axios.get('/public/featured-movies'),
+          series: axios.get('/public/featured-series'),
+          animes: axios.get('/public/featured-animes'),
+          doramas: axios.get('/public/featured-doramas'),
+          novelas: axios.get('/public/featured-novelas'),
+          documentales: axios.get('/public/featured-documentales'),
+          live: axios.get('/api/videos?tipo=live&limit=10'),
+          cine2026: axios.get('/api/videos?mainSection=CINE_2026&limit=10')
+        };
 
-        // Categorize videos
-        const featured = videos.filter(v => v.featured).map(v => ({
-          id: v._id,
+        const responses = await Promise.all(Object.values(requests));
+        const data = {
+          featured: responses[0].data.videos || responses[0].data,
+          movies: responses[1].data,
+          series: responses[2].data,
+          animes: responses[3].data,
+          doramas: responses[4].data,
+          novelas: responses[5].data,
+          documentales: responses[6].data,
+          live: responses[7].data.videos || responses[7].data,
+          cine2026: responses[8].data.videos || responses[8].data
+        };
+
+        // Map to consistent format
+        const mapVideo = (v) => ({
+          id: v._id || v.id,
           title: v.title,
-          thumbnail: v.customThumbnail || v.thumbnail,
-          year: v.year,
-          genre: v.genre,
-          isPremium: v.isPremium,
+          thumbnail: v.customThumbnail || v.thumbnail || v.logo,
+          year: v.releaseYear || v.year,
+          genre: v.genres ? v.genres.join(', ') : (v.genre || ''),
+          isPremium: v.requiresPlan && v.requiresPlan.length > 1,
           videoUrl: v.url
-        }));
+        });
 
-        const movies = videos.filter(v => v.tipo === 'pelicula').map(v => ({
-          id: v._id,
-          title: v.title,
-          thumbnail: v.customThumbnail || v.thumbnail,
-          year: v.year,
-          genre: v.genre,
-          isPremium: v.isPremium,
-          videoUrl: v.url
-        }));
+        const mapSeries = (v) => ({
+          ...mapVideo(v),
+          seasons: v.seasons || []
+        });
 
-        const series = videos.filter(v => v.tipo === 'serie').map(v => ({
-          id: v._id,
-          title: v.title,
-          thumbnail: v.customThumbnail || v.thumbnail,
-          year: v.year,
-          genre: v.subtipo,
-          isPremium: v.isPremium,
-          videoUrl: v.url,
-          seasons: v.seasons
-        }));
-
-        const live = videos.filter(v => v.tipo === 'live').map(v => ({
-          id: v._id,
-          title: v.title,
-          thumbnail: v.customThumbnail || v.thumbnail,
-          genre: v.genre,
-          videoUrl: v.url
-        }));
-
-        const cine2026 = videos.filter(v => v.mainSection === 'CINE_2026').map(v => ({
-          id: v._id,
-          title: v.title,
-          thumbnail: v.customThumbnail || v.thumbnail,
-          year: v.year,
-          genre: v.genre,
-          isPremium: v.isPremium,
-          videoUrl: v.url
-        }));
-
-        setFeaturedContent(featured);
-        setMoviesContent(movies);
-        setSeriesContent(series);
-        setLiveChannels(live);
-        setCine2026Content(cine2026);
+        setFeaturedContent(data.featured.map(mapVideo));
+        setMoviesContent(data.movies.map(mapVideo));
+        setSeriesContent(data.series.map(mapSeries));
+        setLiveChannels(data.live.map(mapVideo));
+        setCine2026Content(data.cine2026.map(mapVideo));
 
         setLoading(false);
       } catch (error) {
