@@ -776,10 +776,10 @@ onProceedWithTrial={proceedWithTrial}
           backgroundAttachment: 'fixed'
         }}
       >
-        {/* Cover Carousel - EDGE-TO-EDGE (fuera del container) */}
+        {/* Cover Carousel - EDGE-TO-EDGE (fuera del container) - Agarra 4 items al azar */}
         {recentlyAdded.length > 0 && (
           <CoverCarousel
-            items={recentlyAdded.filter(item => item.showInBanner) || recentlyAdded}
+            items={recentlyAdded}
             onItemClick={(item, itemType) => handleItemClick(item, itemType)}
             onTrailerClick={(item) => handlePlayTrailerClick(item.trailerUrl)}
             interval={5500}
