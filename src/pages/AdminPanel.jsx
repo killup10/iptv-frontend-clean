@@ -142,6 +142,7 @@ export default function AdminPanel() {
     url: "",
     logo: "",
     customThumbnail: "",
+    bannerImage: "",
     description: "",
     trailerUrl: "",
     releaseYear: new Date().getFullYear().toString(),
@@ -377,6 +378,7 @@ export default function AdminPanel() {
       title: "",
       url: "",
       customThumbnail: "",
+      bannerImage: "",
       description: "",
       trailerUrl: "",
       releaseYear: new Date().getFullYear().toString(),
@@ -409,6 +411,7 @@ export default function AdminPanel() {
       title: video.title || "",
       url: video.url || "",
       customThumbnail: video.customThumbnail || "",
+      bannerImage: video.bannerImage || "",
       description: video.description || "",
       trailerUrl: video.trailerUrl || "",
       releaseYear: video.releaseYear?.toString() || new Date().getFullYear().toString(),
@@ -480,6 +483,7 @@ export default function AdminPanel() {
         is4K: Boolean(vodForm.is4K),
         is60FPS: Boolean(vodForm.is60FPS),
         showInBanner: Boolean(vodForm.showInBanner),
+        bannerImage: vodForm.bannerImage || "",
       };
       delete dataToSend.chapters;
       
@@ -977,16 +981,35 @@ export default function AdminPanel() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Portada del VOD (URL)</label>
-              <p className="text-xs text-gray-400 mb-2">Ingresa la URL de una imagen JPG o PNG para usar como portada (se mostrará en el carrusel de la Home)</p>
-              <Input name="customThumbnail" type="url" placeholder="https://ejemplo.com/portada.jpg" value={vodForm.customThumbnail} onChange={handleVodFormChange} />
+              <label className="block text-sm font-medium text-gray-300 mb-2">Portada del VOD (Vertical - Para Cards)</label>
+              <p className="text-xs text-gray-400 mb-2">Ingresa la URL de una imagen JPG o PNG para usar como portada vertical (se mostrará en las caratulas/cards)</p>
+              <Input name="customThumbnail" type="url" placeholder="https://ejemplo.com/portada-vertical.jpg" value={vodForm.customThumbnail} onChange={handleVodFormChange} />
               {vodForm.customThumbnail && (
                 <div className="mt-3 p-3 bg-gray-700/50 rounded">
-                  <p className="text-sm text-gray-300 mb-2">Vista previa:</p>
+                  <p className="text-sm text-gray-300 mb-2">Vista previa vertical:</p>
                   <img
                     src={vodForm.customThumbnail}
-                    alt="Portada actual"
-                    className="h-32 object-cover rounded border border-gray-600"
+                    alt="Portada vertical"
+                    className="h-40 object-cover rounded border border-gray-600"
+                    onError={(e) => {
+                      e.target.src = '/img/placeholder-thumbnail.png';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Banner del VOD (Horizontal - Para Hero Banner)</label>
+              <p className="text-xs text-gray-400 mb-2">Ingresa la URL de una imagen JPG o PNG para usar como banner horizontal (se mostrará en el hero banner de inicio)</p>
+              <Input name="bannerImage" type="url" placeholder="https://ejemplo.com/banner-horizontal.jpg" value={vodForm.bannerImage} onChange={handleVodFormChange} />
+              {vodForm.bannerImage && (
+                <div className="mt-3 p-3 bg-gray-700/50 rounded">
+                  <p className="text-sm text-gray-300 mb-2">Vista previa horizontal:</p>
+                  <img
+                    src={vodForm.bannerImage}
+                    alt="Banner horizontal"
+                    className="w-full h-24 object-cover rounded border border-gray-600"
                     onError={(e) => {
                       e.target.src = '/img/placeholder-thumbnail.png';
                     }}

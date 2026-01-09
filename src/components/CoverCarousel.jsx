@@ -37,7 +37,7 @@ export default function CoverCarousel({
   }
 
   const currentItem = displayItems[currentIndex];
-  const coverUrl = currentItem?.customThumbnail || currentItem?.thumbnail || currentItem?.portada || '';
+  const coverUrl = currentItem?.bannerImage || currentItem?.customThumbnail || currentItem?.thumbnail || currentItem?.portada || '';
   const year = currentItem?.releaseYear || '';
 
   const handlePrev = () => {
