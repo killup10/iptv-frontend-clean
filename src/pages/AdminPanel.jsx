@@ -406,11 +406,15 @@ export default function AdminPanel() {
       plansForForm = video.requiresPlan.map(p => p === "basico" ? "gplay" : String(p)); 
     } else if (video.requiresPlan) { 
       plansForForm = [video.requiresPlan === "basico" ? "gplay" : String(video.requiresPlan)]; 
-    } 
+    }
+    
+    // Usar customThumbnail si existe, si no usar tmdbThumbnail o thumbnail
+    const customThumb = video.customThumbnail || video.tmdbThumbnail || video.thumbnail || "";
+    
     setVodForm({
       title: video.title || "",
       url: video.url || "",
-      customThumbnail: video.customThumbnail || "",
+      customThumbnail: customThumb,
       bannerImage: video.bannerImage || "",
       description: video.description || "",
       trailerUrl: video.trailerUrl || "",
@@ -483,6 +487,7 @@ export default function AdminPanel() {
         is4K: Boolean(vodForm.is4K),
         is60FPS: Boolean(vodForm.is60FPS),
         showInBanner: Boolean(vodForm.showInBanner),
+        customThumbnail: vodForm.customThumbnail || "",
         bannerImage: vodForm.bannerImage || "",
       };
       delete dataToSend.chapters;

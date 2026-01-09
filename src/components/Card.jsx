@@ -58,7 +58,15 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         if (onClick) onClick(item, itemType);
       };
 
-  const displayThumbnail = rewriteImageUrl(item?.thumbnail) || '/img/placeholder-thumbnail.png';
+  // Priorizar customThumbnail (vertical) para las cards, con múltiples fallbacks
+  const customThumb = (item?.customThumbnail && item.customThumbnail.trim()) 
+    ? item.customThumbnail 
+    : (item?.tmdbThumbnail && item.tmdbThumbnail.trim())
+    ? item.tmdbThumbnail
+    : (item?.thumbnail && item.thumbnail.trim())
+    ? item.thumbnail
+    : null;
+  const displayThumbnail = rewriteImageUrl(customThumb) || '/img/placeholder-thumbnail.png';
 
   const rawRating = (
   item?.ratingDisplay ??

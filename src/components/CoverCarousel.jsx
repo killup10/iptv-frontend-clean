@@ -37,7 +37,10 @@ export default function CoverCarousel({
   }
 
   const currentItem = displayItems[currentIndex];
-  const coverUrl = currentItem?.bannerImage || currentItem?.customThumbnail || currentItem?.thumbnail || currentItem?.portada || '';
+  // Validar que la imagen tenga contenido real (no vacía)
+  const bannerUrl = currentItem?.bannerImage && currentItem.bannerImage.trim() ? currentItem.bannerImage : null;
+  const verticalUrl = currentItem?.customThumbnail && currentItem.customThumbnail.trim() ? currentItem.customThumbnail : null;
+  const coverUrl = bannerUrl || verticalUrl || currentItem?.thumbnail || currentItem?.portada || '';
   const year = currentItem?.releaseYear || '';
 
   const handlePrev = () => {
