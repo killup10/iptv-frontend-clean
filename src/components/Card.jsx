@@ -198,7 +198,18 @@ import { isAndroidTV } from '../utils/platformUtils.js';
         )}
 
         {item.hasNewEpisodes && (
-          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-lg z-10 animate-pulse">
+          <style>{`
+            @keyframes elegantPulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50% { opacity: 0.6; transform: scale(1.05); }
+            }
+            .animate-elegant-pulse { 
+              animation: elegantPulse 3s ease-in-out infinite;
+            }
+          `}</style>
+        )}
+        {item.hasNewEpisodes && (
+          <div className="absolute top-2 right-2 bg-gradient-to-r from-red-600 to-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg shadow-red-500/50 z-20 animate-elegant-pulse whitespace-nowrap border border-red-400/30 backdrop-blur-md">
             NUEVOS EPISODIOS
           </div>
         )}
