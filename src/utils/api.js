@@ -704,3 +704,41 @@ export async function fetchVideosByGenre(genre, tipo = null, limit = 20, page = 
     throw new Error(errorMsg);
   }
 }
+
+/**
+ * 🔍 BÚSQUEDA GLOBAL INSTANTÁNEA
+ * Busca en todos los tipos de contenido sin cargar datos previos
+ * @param {string} searchQuery - Término de búsqueda
+ * @param {number} limit - Número máximo de resultados (default: 20)
+ * @param {number} page - Número de página (default: 1)
+ * @returns {Promise<Array>} Array de videos que coinciden con la búsqueda
+ */
+export async function searchGlobal(searchQuery, limit = 20, page = 1) {
+  if (!searchQuery || !searchQuery.trim()) {
+    return [];
+  }
+
+  const relativePath = "/api/videos";
+  const params = { 
+    search: searchQuery,
+    limit, 
+    page
+  };
+  
+  console.log(`🔍 [SearchGlobal] Buscando: "${searchQuery}" (limit: ${limit}, page: ${page})`);
+  
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    const data = response.data;
+    
+    // Manejar respuestas que vienen en formato { videos: [...] } o directamente []
+    let videos = Array.isArray(data) ? data : (data?.videos || []);
+    
+    console.log(`✅ [SearchGlobal] ${videos.length} resultados encontrados para "${searchQuery}"`);
+    return videos;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || `Error al buscar "${searchQuery}".`;
+    console.error(`❌ [SearchGlobal] Error:`, errorMsg);
+    throw new Error(errorMsg);
+  }
+}

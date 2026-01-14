@@ -1,6 +1,6 @@
 // src/pages/LiveTVPage.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { 
     fetchUserChannels,          // Para obtener la lista de canales filtrada por categoría/sección
@@ -13,7 +13,6 @@ export default function LiveTVPage() {
   const { user } = useAuth(); // Para verificar si el usuario está logueado si es necesario
   const navigate = useNavigate();
   const location = useLocation();
-  const { setAllSearchItems } = useOutletContext();
 
   const [allChannels, setAllChannels] = useState([]); // Canales de la categoría seleccionada
   const [filterCategories, setFilterCategories] = useState(['Todos']); // Ej: ["Todos", "KIDS", "Deportes"]
@@ -63,16 +62,6 @@ export default function LiveTVPage() {
               console.log(`LiveTVPage: Cargando canales para categoría: ${category} (fetchUserChannels)...`);
               const channelsData = await fetchUserChannels(category); // Llama a /api/channels/list?section=CATEGORY
               setAllChannels(channelsData || []);
-              
-              // Actualizar SearchBar con los canales (agregar tipo 'channel' a cada uno)
-              if (setAllSearchItems && channelsData) {
-                const channelsForSearch = channelsData.map(ch => ({
-                  ...ch,
-                  tipo: 'channel',
-                  type: 'channel'
-                }));
-                setAllSearchItems(channelsForSearch);
-              }
             } catch (err) {
               console.error(`LiveTVPage: Error cargando canales para categoría ${category}:`, err.message);
               setError(err.message || `Error al cargar canales de ${category}.`);

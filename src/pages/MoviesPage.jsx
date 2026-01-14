@@ -136,6 +136,9 @@ export default function MoviesPage() {
                 });
             }
 
+            // 🔴 CAMBIO IMPORTANTE: NO actualizar SearchBar aquí
+            // Cada página tiene su propio buscador local
+
         } catch (err) {
             console.error("MoviesPage: Error cargando películas:", err);
             setError(err.message || "No se pudieron cargar las películas.");

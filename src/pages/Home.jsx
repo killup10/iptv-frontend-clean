@@ -108,6 +108,7 @@ export function Home() {
 };
 
   const isLoadingRef = useRef(false);
+  const searchDataLoadedRef = useRef(false); // Evita recargar datos de búsqueda en cada render
 
   // Refactored useEffect to load all data for Home and Search
   useEffect(() => {
@@ -159,9 +160,6 @@ export function Home() {
         setFeaturedDocumentales(cachedData.featuredDocumentales || []);
         setRecentlyAdded(cachedData.recentlyAdded || []);
         setContinueWatchingItems(cachedData.continueWatchingItems || []);
-        if (setAllSearchItems && cachedData.allSearchItems) {
-          setAllSearchItems(cachedData.allSearchItems);
-        }
         setLoading(false);
         isLoadingRef.current = false; // Release lock
 
@@ -242,80 +240,106 @@ export function Home() {
           featuredDoramas: processedFeaturedDoramas,
           featuredNovelas: processedFeaturedNovelas,
           featuredDocumentales: processedFeaturedDocumentales,
-          allSearchItems: [], // Iniciar vacío
         };
         dataCache.set('homeData', phase1CacheData);
 
-        // PHASE 2: Cargar datos de búsqueda en background SIN BLOQUEAR
-        // Capturar setAllSearchItems en scope local para evitar issues con closure
-        const searchSetter = setAllSearchItems;
-        (async () => {
-          console.log('[Home.jsx] Starting Phase 2: Loading search data...');
-          console.time('[Home.jsx] Phase 2: Search data load time');
+        // ⚡ CONSTRUIR ITEMS PARA BÚSQUEDA INSTANTÁNEA
+        // Compilar todos los items locales de Home para que SearchBar busque digito por digito
+        // Sin esperar Phase 2, sin debounce - búsqueda instantánea como era ANTES
+        const allLocalItems = [
+          ...processedContinueWatching.map(item => ({ ...item, type: 'continuar-viendo', itemType: 'continuar' })),
+          ...processedRecentlyAdded.map(item => ({ ...item, type: 'recién-agregado', itemType: 'recently-added' })),
+          ...processedFeaturedChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
+          ...processedFeaturedMovies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
+          ...processedFeaturedSeries.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
+          ...processedFeaturedAnimes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
+          ...processedFeaturedDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
+          ...processedFeaturedNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
+          ...processedFeaturedDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
+        ];
 
-          const searchFetchResults = await Promise.allSettled([
-            fetchUserChannels('Todos'),
-            fetchVideosByType('pelicula', 1, 500),
-            fetchVideosByType('serie', 1, 500),
-            fetchVideosByType('anime', 1, 500),
-            fetchVideosByType('dorama', 1, 500),
-            fetchVideosByType('novela', 1, 500),
-            fetchVideosByType('documental', 1, 500),
-          ]);
-          console.timeEnd('[Home.jsx] Phase 2: Search data load time');
+        // Remover duplicados por ID
+        let uniqueItems = Array.from(new Map(allLocalItems.map(item => [item._id || item.id, item])).values());
 
-          const [
-            allChannelsResult,
-            allMoviesResult,
-            allSeriesResult,
-            allAnimesResult,
-            allDoramasResult,
-            allNovelasResult,
-            allDocumentalesResult,
-          ] = searchFetchResults;
+        // 🚀 Actualizar SearchBar INMEDIATAMENTE con los items locales (para búsqueda instantánea)
+        if (setAllSearchItems) {
+          console.log('[Home.jsx] ✅ SearchBar actualizado con', uniqueItems.length, 'items locales - Búsqueda instantánea disponible');
+          setAllSearchItems(uniqueItems);
+        }
 
-          const allChannels = processResult(allChannelsResult, null, 'All Channels');
-          const allMovies = processResult(allMoviesResult, null, 'All Movies');
-          const allSeries = processResult(allSeriesResult, null, 'All Series');
-          const allAnimes = processResult(allAnimesResult, null, 'All Animes');
-          const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
-          const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
-          const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
+        // 🔥 EN BACKGROUND: Cargar TODO el contenido (sin bloquear UI) para completar el índice de búsqueda
+        // Phase 2: Los items locales ya están en SearchBar, ahora cargamos TODO para tener índice completo
+        if (!searchDataLoadedRef.current) {
+          searchDataLoadedRef.current = true;
+          const searchSetter = setAllSearchItems;
+          
+          // Iniciar carga en background SIN esperar
+          (async () => {
+            console.log('[Home.jsx] 🚀 Phase 2: Indexando TODO el contenido en background...');
+            console.time('[Home.jsx] Phase 2: Full content index load time');
 
-          const searchItems = [
-            ...allChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
-            ...allMovies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
-            ...allSeries.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
-            ...allAnimes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
-            ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
-            ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
-            ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
-          ];
+            try {
+              // Cargar TODOS los items de cada categoría (no solo destacados)
+              const fullIndexResults = await Promise.allSettled([
+                fetchUserChannels('Todos'),
+                fetchVideosByType('pelicula', 1, 500),
+                fetchVideosByType('serie', 1, 500),
+                fetchVideosByType('anime', 1, 500),
+                fetchVideosByType('dorama', 1, 500),
+                fetchVideosByType('novela', 1, 500),
+                fetchVideosByType('documental', 1, 500),
+              ]);
+              console.timeEnd('[Home.jsx] Phase 2: Full content index load time');
 
-          const uniqueItems = Array.from(new Map(searchItems.map(item => [item._id || item.id, item])).values());
+              const [
+                allChannelsResult,
+                allMoviesResult,
+                allSeriesResult,
+                allAnimesResult,
+                allDoramasResult,
+                allNovelasResult,
+                allDocumentalesResult,
+              ] = fullIndexResults;
 
-          // Actualizar buscador con datos de búsqueda (SIN AFECTAR UI)
-          if (searchSetter) {
-            console.log('[Home.jsx] ✅ Phase 2 complete. Populating global search with items:', uniqueItems.length);
-            searchSetter(uniqueItems);
-          } else {
-            console.warn('[Home.jsx] ⚠️ setAllSearchItems not available in Phase 2');
-          }
+              const allChannels = processResult(allChannelsResult, null, 'All Channels');
+              const allMovies = processResult(allMoviesResult, null, 'All Movies');
+              const allSeries = processResult(allSeriesResult, null, 'All Series');
+              const allAnimes = processResult(allAnimesResult, null, 'All Animes');
+              const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
+              const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
+              const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
 
-          // Cache completo con todos los datos
-          const fullCacheData = {
-            ...phase1CacheData,
-            allSearchItems: uniqueItems,
-          };
-          dataCache.set('homeData', fullCacheData);
-          console.log('[Home.jsx] ✅ Full cache updated with search data.');
-        })();
+              const fullSearchItems = [
+                ...allChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
+                ...allMovies.map(item => ({ ...item, type: 'película', itemType: 'movie' })),
+                ...allSeries.map(item => ({ ...item, type: 'serie', itemType: 'serie' })),
+                ...allAnimes.map(item => ({ ...item, type: 'anime', itemType: 'anime' })),
+                ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
+                ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
+                ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
+              ];
+
+              const fullUniqueItems = Array.from(new Map(fullSearchItems.map(item => [item._id || item.id, item])).values());
+
+              if (searchSetter) {
+                console.log('[Home.jsx] ✅ Phase 2 complete. SearchBar indexado con', fullUniqueItems.length, 'items totales');
+                searchSetter(fullUniqueItems);
+              }
+
+              const fullCacheData = {
+                ...phase1CacheData,
+                allSearchItems: fullUniqueItems,
+              };
+              dataCache.set('homeData', fullCacheData);
+            } catch (err) {
+              console.error('[Home.jsx] ❌ Error en Phase 2:', err);
+              // Mantener los items locales ya cargados, no limpiar
+            }
+          })();
+        }
       } catch (err) {
         console.error('[Home.jsx] ❌ General error in loadAllData:', err);
         setContentError(err.message || "Error loading content.");
-        if (setAllSearchItems) {
-          setAllSearchItems([]);
-        }
         setLoading(false);
         isLoadingRef.current = false; // Release lock on error
       }
@@ -331,9 +355,8 @@ export function Home() {
       // podríamos querer que la carga se reinicie.
       // isLoadingRef.current = false;
     };
-    // La dependencia de setAllSearchItems puede causar re-ejecuciones si no está memoizada
-    // con useCallback en el componente padre. El lock (isLoadingRef) previene los efectos negativos.
-  }, [user, setAllSearchItems, dataCache]);
+    // Sin Phase 2, la carga es más rápida y limpia
+  }, [user, dataCache, setAllSearchItems]);
 
       const handleItemClick = (item, itemType) => {
       const buildContinueWatchingState = (resolvedItem) => {
@@ -459,7 +482,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
   if (contentError) {
       return <div className="text-center text-red-400 p-10 pt-24">Error loading content: {contentError}</div>;
   }
-  
+
   if (!user?.token && !loading) {
     return (
       <>

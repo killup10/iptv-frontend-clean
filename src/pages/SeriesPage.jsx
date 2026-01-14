@@ -38,6 +38,7 @@ export default function SeriesPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const setAllSearchItems = null; // SearchBar global solo vive en Home
   const [selectedSubcategoria, setSelectedSubcategoria] = useState("TODOS");
   const [searchTerm, setSearchTerm] = useState("");
   const gridOptions = [5, 4, 3, 1];
@@ -95,6 +96,10 @@ export default function SeriesPage() {
           setTotalPages(data.totalPages);
           setPage(data.page);
           setHasMore(data.page < data.totalPages);
+
+          // 🔴 CAMBIO IMPORTANTE: NO actualizar SearchBar aquí
+          // Cada página tiene su propio buscador local
+
       } catch (err) {
           console.error("Error cargando series en SeriesPage:", err);
           setError(err.message);
@@ -103,6 +108,35 @@ export default function SeriesPage() {
           setLoadingMore(false);
       }
   };
+
+  // 🆕 useEffect SEPARADO: Solo carga SearchBar cuando cambias de SUBCATEGORÍA
+  // No cuando haces búsquedas locales (evita recargar 3000+ títulos)
+  useEffect(() => {
+    const loadSearchItemsForSubcategory = async () => {
+      if (!user?.token || !setAllSearchItems) return;
+
+      try {
+        console.log('[SeriesPage] 🔄 Cargando series para SearchBar global...', selectedSubcategoria);
+        
+        // Cargar datos de esta subcategoría (SIN búsqueda, para el SearchBar)
+        const data = await fetchUserSeries(1, 100, selectedSubcategoria);
+        
+        if (data.videos && data.videos.length > 0) {
+          const seriesForSearch = data.videos.map(serie => ({
+            ...serie,
+            type: 'serie',
+            itemType: 'serie'
+          }));
+          setAllSearchItems(seriesForSearch);
+          console.log('[SeriesPage] ✅ SearchBar actualizado con', seriesForSearch.length, 'series');
+        }
+      } catch (err) {
+        console.error('[SeriesPage] Error cargando datos para SearchBar:', err);
+      }
+    };
+
+    loadSearchItemsForSubcategory();
+  }, [selectedSubcategoria, user?.token, setAllSearchItems]); // 🔴 SIN searchTerm
 
   const loadMoreSeries = () => {
       if (page < totalPages) {

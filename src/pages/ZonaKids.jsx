@@ -13,6 +13,7 @@ export default function ZonaKids() {
   const [content, setContent] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const setAllSearchItems = null; // SearchBar global solo en Home
   const [searchTerm, setSearchTerm] = useState("");
 
   const [collections, setCollections] = useState([]);
@@ -36,7 +37,8 @@ export default function ZonaKids() {
       setIsLoading(true);
       try {
         const response = await fetchVideosByType('zona kids');
-        setContent(response.videos || []);
+        const kidsContent = response.videos || [];
+        setContent(kidsContent);
       } catch (err) {
         console.error("Error cargando contenido kids en ZonaKids:", err);
         setError(err.message);
@@ -46,6 +48,19 @@ export default function ZonaKids() {
     };
     loadData();
   }, [user?.token]);
+
+  // 🆕 useEffect SEPARADO: Actualizar SearchBar solo una vez al cargar
+  useEffect(() => {
+    if (content.length > 0 && setAllSearchItems) {
+      const kidsForSearch = content.map(item => ({
+        ...item,
+        type: 'kids',
+        itemType: 'kids'
+      }));
+      setAllSearchItems(kidsForSearch);
+      console.log('[ZonaKids] ✅ SearchBar actualizado con', kidsForSearch.length, 'items');
+    }
+  }, [content.length, setAllSearchItems]); // Solo cuando content.length cambia
 
   useEffect(() => {
     const loadCollections = async () => {

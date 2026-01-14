@@ -16,6 +16,7 @@ export default function Colecciones() {
   const [collections, setCollections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const setAllSearchItems = null; // SearchBar global solo en Home
   const [selectedColeccion, setSelectedColeccion] = useState("TODAS");
   const [searchTerm, setSearchTerm] = useState("");
   const gridOptions = [5, 4, 3, 1];
@@ -57,6 +58,29 @@ export default function Colecciones() {
       window.removeEventListener('focus', loadCollections);
     };
   }, [user?.token]);
+
+  // 🆕 useEffect SEPARADO: Actualizar SearchBar solo cuando collections cambia
+  useEffect(() => {
+    if (collections.length > 0 && setAllSearchItems) {
+      const allCollectionItems = [];
+      collections.forEach(collection => {
+        if (collection.items && Array.isArray(collection.items)) {
+          collection.items.forEach(item => {
+            allCollectionItems.push({
+              ...item,
+              type: 'collection',
+              itemType: 'collection',
+              collectionName: collection.name
+            });
+          });
+        }
+      });
+      if (allCollectionItems.length > 0) {
+        setAllSearchItems(allCollectionItems);
+        console.log('[Colecciones] ✅ SearchBar actualizado con', allCollectionItems.length, 'items');
+      }
+    }
+  }, [collections.length, setAllSearchItems]); // Solo cuando collections cambia
 
   const handleContentClick = (item) => {
     const itemId = item.id || item._id;

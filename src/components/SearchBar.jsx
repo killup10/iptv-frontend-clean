@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { Search, X, Mic } from 'lucide-react';
 import { isAndroidTV } from '../utils/platformUtils';
@@ -18,12 +18,17 @@ function normalizeText(text) {
 }
 
 /**
- * SearchBar - Buscador global ultra-rápido
+ * SearchBar - Buscador global ULTRA-RÁPIDO (búsqueda LOCAL en memoria)
  * Funciona en Web, Mobile y TV
- * - Búsqueda instantánea (digito por digito)
+ * - ⚡ Búsqueda INSTANTÁNEA mientras escribes (digito por digito)
+ * - Sin esperar Phase 2, SIN debounce, resultados inmediatos
+ * - Busca en items locales de Home (destacados, recién agregados, etc.)
  * - Soporte para control de voz en TV
- * - Resultados en tiempo real
  * - SIN diferenciar tildes/mayúsculas
+ * - Optimizado con memoización para máximo rendimiento
+ * 
+ * ⚡ VENTAJA: Funciona EXACTAMENTE como antes (con video trailer en hero)
+ * Búsqueda instantánea digito a digito, sin esperar nada
  */
 export default function SearchBar({ 
   items = [], 
@@ -43,43 +48,61 @@ export default function SearchBar({
 
   // Debug: Loguear items disponibles
   useEffect(() => {
-    // console.log('[SearchBar] Items disponibles:', items.length, items.slice(0, 5));
+    console.log('[SearchBar] Items disponibles para búsqueda:', items.length);
   }, [items]);
 
-  // Búsqueda ultra-rápida (debounce muy corto para TV)
+  // Memoizar items normalizados para no recalcular en cada búsqueda
+  // ⚡ CLAVE: Esto convierte los datos a formato normalizado UNA SOLA VEZ
+  const normalizedItems = useMemo(() => {
+    return items.map(item => ({
+      ...item,
+      normalizedName: normalizeText(item.name || item.title || ''),
+      normalizedDescription: normalizeText(item.description || ''),
+      normalizedGenre: normalizeText(item.genre || '')
+    }));
+  }, [items]);
+
+  // 🚀 Búsqueda INSTANTÁNEA en memoria - SIN debounce, resultados inmediatos
   const performSearch = useCallback((query) => {
     if (!query.trim()) {
       setResults([]);
       setSelectedIndex(0);
+      onSearchChange?.([]);
       return;
     }
 
     // Normaliza la búsqueda (sin tildes, mayúsculas)
     const normalizedQuery = normalizeText(query);
     
-    const filtered = items.filter(item => {
-      const name = normalizeText(item.name || item.title || '');
-      const description = normalizeText(item.description || '');
-      const genre = normalizeText(item.genre || '');
-      
+    // Búsqueda en memoria: extremadamente rápida
+    const filtered = normalizedItems.filter(item => {
       return (
-        name.includes(normalizedQuery) ||
-        description.includes(normalizedQuery) ||
-        genre.includes(normalizedQuery)
+        item.normalizedName.includes(normalizedQuery) ||
+        item.normalizedDescription.includes(normalizedQuery) ||
+        item.normalizedGenre.includes(normalizedQuery)
       );
     }).slice(0, 20); // Máximo 20 resultados
 
     setResults(filtered);
     setSelectedIndex(0);
     onSearchChange?.(filtered);
-  }, [items, onSearchChange]);
+  }, [normalizedItems, onSearchChange]);
 
-  // Manejo de búsqueda con input
+  // Manejo de búsqueda con input - Mostrar resultados instantáneamente
   const handleSearchInput = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
     performSearch(query);
   };
+
+  // Re-ejecutar búsqueda si cambian los datos o la query para mantener resultados al día
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      performSearch('');
+      return;
+    }
+    performSearch(searchQuery);
+  }, [normalizedItems, searchQuery, performSearch]);
 
   // Teclas en TV
   const handleKeyDown = (e) => {
