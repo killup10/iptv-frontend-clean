@@ -288,6 +288,8 @@ export function Home() {
                 fetchVideosByType('dorama', 1, 500),
                 fetchVideosByType('novela', 1, 500),
                 fetchVideosByType('documental', 1, 500),
+                fetchUserMovies(1, 500, 'CINE_2025'), // Cine 2025
+                fetchUserMovies(1, 500, 'CINE_2026'), // Cine 2026
               ]);
               console.timeEnd('[Home.jsx] Phase 2: Full content index load time');
 
@@ -299,6 +301,8 @@ export function Home() {
                 allDoramasResult,
                 allNovelasResult,
                 allDocumentalesResult,
+                cine2025Result,
+                cine2026Result,
               ] = fullIndexResults;
 
               const allChannels = processResult(allChannelsResult, null, 'All Channels');
@@ -308,6 +312,8 @@ export function Home() {
               const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
               const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
               const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
+              const cine2025 = processResult(cine2025Result, null, 'Cine 2025');
+              const cine2026 = processResult(cine2026Result, null, 'Cine 2026');
 
               const fullSearchItems = [
                 ...allChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
@@ -317,6 +323,8 @@ export function Home() {
                 ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
                 ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
                 ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
+                ...cine2025.map(item => ({ ...item, type: 'cine-2025', itemType: 'cine2025' })),
+                ...cine2026.map(item => ({ ...item, type: 'cine-2026', itemType: 'cine2026' })),
               ];
 
               const fullUniqueItems = Array.from(new Map(fullSearchItems.map(item => [item._id || item.id, item])).values());
