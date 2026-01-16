@@ -50,17 +50,33 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<Integer> chapterNumbers = new ArrayList<>();
 
                 try {
+                    // Rastrear el número de capítulo dentro de cada temporada
+                    int currentSeason = -1;
+                    int chapterCount = 0;
+                    
                     for (int i = 0; i < chaptersArray.length(); i++) {
                         JSONObject chapter = chaptersArray.getJSONObject(i);
+                        int seasonNumber = chapter.optInt("seasonNumber", 1);
+                        
+                        // Si cambiamos de temporada, reiniciar el contador
+                        if (seasonNumber != currentSeason) {
+                            currentSeason = seasonNumber;
+                            chapterCount = 1;
+                        } else {
+                            chapterCount++;
+                        }
+                        
                         chapterTitles.add(chapter.getString("title"));
                         chapterUrls.add(chapter.getString("url"));
-                        chapterSeasonNumbers.add(chapter.optInt("seasonNumber", 1));
-                        chapterNumbers.add(chapter.optInt("chapterNumber", i + 1));
+                        chapterSeasonNumbers.add(seasonNumber);
+                        chapterNumbers.add(chapterCount);  // Usar número dentro de la temporada, no el global
                     }
                     intent.putStringArrayListExtra("chapter_titles", chapterTitles);
                     intent.putStringArrayListExtra("chapter_urls", chapterUrls);
                     intent.putIntegerArrayListExtra("chapter_season_numbers", chapterSeasonNumbers);
                     intent.putIntegerArrayListExtra("chapter_numbers", chapterNumbers);
+                    
+                    Log.d(TAG, "Capítulos procesados - Temporadas: " + chapterSeasonNumbers.toString() + ", Números: " + chapterNumbers.toString());
                 } catch (JSONException e) {
                     Log.e(TAG, "Error processing chapters", e);
                 }
