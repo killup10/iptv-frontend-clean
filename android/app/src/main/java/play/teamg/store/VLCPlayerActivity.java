@@ -86,6 +86,44 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ArrayList<String> chapterUrls;
     private ArrayList<Integer> chapterSeasonNumbers;
     private ArrayList<Integer> chapterNumbers;
+    private ArrayList<Integer> chapterSeasonIndices;
+    private ArrayList<Integer> chapterIndices;
+
+    private static final int MAX_AUTO_RECOVERY_ATTEMPTS = 6;
+    private static final long RECOVERY_BASE_DELAY_MS = 2500L;
+    private static final long STALL_TIMEOUT_MS = 20000L;
+    private static final long STALL_CHECK_INTERVAL_MS = 5000L;
+
+    private boolean isActivityClosing = false;
+    private boolean isRecoveringPlayback = false;
+    private boolean forceAudioRecoveryPending = false;
+    private boolean hasSentPlayerClosedEvent = false;
+    private String closeReason = "unknown";
+    private int recoveryAttempts = 0;
+    private long lastTimeChangedSystemMs = 0L;
+    private long lastPlaybackPositionMs = 0L;
+    private final Handler recoveryHandler = new Handler(Looper.getMainLooper());
+    private final Runnable stallWatchdogRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (mediaPlayer != null && mediaPlayer.isPlaying() && !isRecoveringPlayback && !isActivityClosing) {
+                    long now = System.currentTimeMillis();
+                    long stalledFor = now - lastTimeChangedSystemMs;
+                    if (stalledFor >= STALL_TIMEOUT_MS) {
+                        Log.w(TAG, "Playback stall detected (" + stalledFor + "ms without time updates)");
+                        attemptPlaybackRecovery("stalled stream");
+                    }
+                }
+            } catch (Exception watchdogError) {
+                Log.e(TAG, "Error in playback stall watchdog", watchdogError);
+            } finally {
+                if (!isActivityClosing) {
+                    recoveryHandler.postDelayed(this, STALL_CHECK_INTERVAL_MS);
+                }
+            }
+        }
+    };
 
     private BroadcastReceiver controlReceiver;
     private BroadcastReceiver finishReceiver;
@@ -97,6 +135,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         // Verificar si se debe cerrar inmediatamente
         if (getIntent().getBooleanExtra("FORCE_CLOSE", false)) {
             Log.d(TAG, "FORCE_CLOSE flag detected - finishing immediately");
+            closeReason = "force_close_intent";
             finish();
             return;
         }
@@ -156,6 +195,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         chapterUrls = getIntent().getStringArrayListExtra("chapter_urls");
         chapterSeasonNumbers = getIntent().getIntegerArrayListExtra("chapter_season_numbers");
         chapterNumbers = getIntent().getIntegerArrayListExtra("chapter_numbers");
+        chapterSeasonIndices = getIntent().getIntegerArrayListExtra("chapter_season_indices");
+        chapterIndices = getIntent().getIntegerArrayListExtra("chapter_indices");
     }
 
     @Override
@@ -164,13 +205,26 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         // Verificar si se debe cerrar
         if (intent.getBooleanExtra("FORCE_CLOSE", false)) {
             Log.d(TAG, "FORCE_CLOSE flag in onNewIntent - finishing activity");
+            closeReason = "force_close_intent";
             finish();
+            return;
         }
+
+        // Actualizar metadata cuando la actividad es reutilizada con REORDER_TO_FRONT
+        chapterTitles = intent.getStringArrayListExtra("chapter_titles");
+        chapterUrls = intent.getStringArrayListExtra("chapter_urls");
+        chapterSeasonNumbers = intent.getIntegerArrayListExtra("chapter_season_numbers");
+        chapterNumbers = intent.getIntegerArrayListExtra("chapter_numbers");
+        chapterSeasonIndices = intent.getIntegerArrayListExtra("chapter_season_indices");
+        chapterIndices = intent.getIntegerArrayListExtra("chapter_indices");
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+        isActivityClosing = false;
+        hasSentPlayerClosedEvent = false;
+        closeReason = "active";
         initializePlayer();
         registerControlReceiver();
         registerFinishReceiver();
@@ -181,6 +235,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             enterPictureInPictureMode();
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        closeReason = "user_back";
+        super.onBackPressed();
     }
 
     @Override
@@ -204,6 +264,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             longPressRunnable = null;
         }
         if (!isInPictureInPictureMode()) {
+            isActivityClosing = true;
             releasePlayer();
         }
     }
@@ -211,6 +272,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        isActivityClosing = true;
+        recoveryHandler.removeCallbacksAndMessages(null);
         // Limpiar long press handler
         if (longPressRunnable != null) {
             longPressHandler.removeCallbacks(longPressRunnable);
@@ -221,6 +284,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             mediaPlayer.stop();
             notifyProgressUpdate(mediaPlayer.getTime());
         }
+        notifyPlayerClosed(closeReason);
         releasePlayer();
     }
 
@@ -229,6 +293,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             Log.e(TAG, "Video URL is null, cannot initialize player.");
             return;
         }
+        isActivityClosing = false;
+        lastTimeChangedSystemMs = System.currentTimeMillis();
+        recoveryHandler.removeCallbacks(stallWatchdogRunnable);
 
         libVlc = VLCInstance.getInstance(getApplicationContext());
         mediaPlayer = new MediaPlayer(libVlc);
@@ -251,15 +318,19 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         media.release();
         
         mediaPlayer.play();
+        recoveryHandler.postDelayed(stallWatchdogRunnable, STALL_CHECK_INTERVAL_MS);
     }
 
     private void releasePlayer() {
+        recoveryHandler.removeCallbacks(stallWatchdogRunnable);
         if (mediaPlayer != null) {
-            lastPosition = mediaPlayer.getTime();
+            long currentPositionMs = Math.max(0L, mediaPlayer.getTime());
+            lastPlaybackPositionMs = currentPositionMs;
+            lastPosition = currentPositionMs / 1000L;
             // Guardar progreso final antes de cerrar
-            if (lastPosition > 0) {
-                Log.d(TAG, "Saving final progress before closing: " + (lastPosition / 1000) + "s");
-                notifyProgressUpdate(lastPosition);
+            if (currentPositionMs > 0) {
+                Log.d(TAG, "Saving final progress before closing: " + (currentPositionMs / 1000) + "s");
+                notifyProgressUpdate(currentPositionMs, false, true);
             }
             mediaPlayer.stop();
             mediaPlayer.detachViews();
@@ -278,22 +349,40 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             switch (event.type) {
                 case MediaPlayer.Event.EncounteredError:
                     Log.e(TAG, "An error was encountered during playback");
+                    attemptPlaybackRecovery("vlc error event");
+                    break;
+                case MediaPlayer.Event.Buffering:
+                    // Solo refrescar el watchdog cuando el buffer está prácticamente lleno.
+                    if (event.getBuffering() >= 95f) {
+                        lastTimeChangedSystemMs = System.currentTimeMillis();
+                    }
                     break;
                 case MediaPlayer.Event.Playing:
                     playPauseButton.setImageResource(android.R.drawable.ic_media_pause);
+                    recoveryAttempts = 0;
+                    isRecoveringPlayback = false;
+                    lastTimeChangedSystemMs = System.currentTimeMillis();
                     if (isSeekPending) {
                         mediaPlayer.setTime(lastPosition * 1000);
                         isSeekPending = false;
                     }
+                    if (forceAudioRecoveryPending) {
+                        recoveryHandler.postDelayed(() -> restoreAudioOutputAfterRecovery(), 350L);
+                    }
                     hideControls();
                     break;
                 case MediaPlayer.Event.Paused:
-                case MediaPlayer.Event.Stopped:
                     playPauseButton.setImageResource(android.R.drawable.ic_media_play);
                     // Enviar progreso cuando se pausa (siempre)
-                    notifyProgressUpdate(mediaPlayer.getTime());
+                    notifyProgressUpdate(mediaPlayer.getTime(), false, true);
+                    break;
+                case MediaPlayer.Event.Stopped:
+                    playPauseButton.setImageResource(android.R.drawable.ic_media_play);
+                    notifyProgressUpdate(mediaPlayer.getTime(), false, true);
                     break;
                 case MediaPlayer.Event.TimeChanged:
+                    lastTimeChangedSystemMs = System.currentTimeMillis();
+                    lastPlaybackPositionMs = event.getTimeChanged();
                     currentTime.setText(formatTime(event.getTimeChanged()));
                     seekBar.setProgress((int) event.getTimeChanged());
                     // Enviar progreso con throttling (cada 10 segundos)
@@ -310,7 +399,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 case MediaPlayer.Event.EndReached:
                     Log.d(TAG, "Video ended, checking for next episode");
                     // Enviar progreso final cuando termina el video
-                    notifyProgressUpdate(mediaPlayer.getTime(), true);
+                    notifyProgressUpdate(mediaPlayer.getTime(), true, true);
                     playNextEpisode();
                     break;
             }
@@ -318,11 +407,172 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     }
 
     // Método para notificar progreso al plugin JavaScript
+    private void attemptPlaybackRecovery(String reason) {
+        if (isActivityClosing || currentVideoUrl == null) {
+            return;
+        }
+        if (isRecoveringPlayback) {
+            return;
+        }
+        if (recoveryAttempts >= MAX_AUTO_RECOVERY_ATTEMPTS) {
+            Log.e(TAG, "Max playback recovery attempts reached. Last reason: " + reason);
+            return;
+        }
+
+        isRecoveringPlayback = true;
+        forceAudioRecoveryPending = true;
+        recoveryAttempts++;
+
+        long currentPositionMs = 0L;
+        if (mediaPlayer != null) {
+            currentPositionMs = Math.max(0L, mediaPlayer.getTime());
+        }
+        if (currentPositionMs <= 0 && lastPlaybackPositionMs > 0) {
+            currentPositionMs = lastPlaybackPositionMs;
+        }
+        if (currentPositionMs > 0) {
+            lastPosition = currentPositionMs / 1000L;
+            isSeekPending = true;
+            notifyProgressUpdate(currentPositionMs);
+        }
+
+        final long delayMs = RECOVERY_BASE_DELAY_MS * Math.min(recoveryAttempts, 3);
+        Log.w(TAG, "Recovery attempt " + recoveryAttempts + "/" + MAX_AUTO_RECOVERY_ATTEMPTS + " due to: " + reason + " (delay " + delayMs + "ms)");
+
+        runOnUiThread(() -> Toast.makeText(
+                VLCPlayerActivity.this,
+                "Reconectando transmisión...",
+                Toast.LENGTH_SHORT
+        ).show());
+
+        recoveryHandler.postDelayed(() -> {
+            if (isActivityClosing) {
+                isRecoveringPlayback = false;
+                return;
+            }
+            try {
+                releasePlayer();
+                initializePlayer();
+            } catch (Exception recoveryError) {
+                Log.e(TAG, "Error during playback recovery", recoveryError);
+            } finally {
+                isRecoveringPlayback = false;
+            }
+        }, delayMs);
+    }
+
+    private void restoreAudioOutputAfterRecovery() {
+        if (mediaPlayer == null) {
+            return;
+        }
+
+        try {
+            // Recuperar foco de audio del sistema
+            if (audioManager != null) {
+                int focusResult = audioManager.requestAudioFocus(
+                        null,
+                        AudioManager.STREAM_MUSIC,
+                        AudioManager.AUDIOFOCUS_GAIN
+                );
+                Log.d(TAG, "Audio focus requested after recovery. Result=" + focusResult);
+            }
+
+            // Asegurar volumen interno de VLC
+            mediaPlayer.setVolume(100);
+
+            // Reasignar pista de audio válida si VLC quedó sin pista (-1)
+            MediaPlayer.TrackDescription[] audioTracks = mediaPlayer.getAudioTracks();
+            int currentAudioTrack = mediaPlayer.getAudioTrack();
+            int firstValidTrackId = -1;
+
+            if (audioTracks != null) {
+                for (MediaPlayer.TrackDescription track : audioTracks) {
+                    if (track != null && track.id != -1) {
+                        firstValidTrackId = track.id;
+                        break;
+                    }
+                }
+            }
+
+            if (currentAudioTrack == -1 && firstValidTrackId != -1) {
+                mediaPlayer.setAudioTrack(firstValidTrackId);
+                Log.d(TAG, "Audio track restored with fallback id=" + firstValidTrackId);
+            } else if (currentAudioTrack != -1) {
+                // Reaplicar pista actual para forzar reenganche del decoder de audio
+                mediaPlayer.setAudioTrack(currentAudioTrack);
+                Log.d(TAG, "Audio track re-applied id=" + currentAudioTrack);
+            } else {
+                Log.w(TAG, "No valid audio tracks found after recovery");
+            }
+        } catch (Exception audioError) {
+            Log.e(TAG, "Failed to restore audio output after recovery", audioError);
+        } finally {
+            forceAudioRecoveryPending = false;
+        }
+    }
+
+    private int getCurrentChapterGlobalIndex() {
+        if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
+            return -1;
+        }
+        return chapterUrls.indexOf(currentVideoUrl);
+    }
+
+    private void appendCurrentChapterProgress(Intent progressIntent) {
+        int currentIndex = getCurrentChapterGlobalIndex();
+        if (currentIndex < 0) {
+            return;
+        }
+
+        int seasonIndex = -1;
+        int chapterIndex = -1;
+
+        if (chapterSeasonIndices != null && currentIndex < chapterSeasonIndices.size()) {
+            seasonIndex = chapterSeasonIndices.get(currentIndex);
+        } else if (chapterSeasonNumbers != null && currentIndex < chapterSeasonNumbers.size()) {
+            seasonIndex = Math.max(0, chapterSeasonNumbers.get(currentIndex) - 1);
+        }
+
+        if (chapterIndices != null && currentIndex < chapterIndices.size()) {
+            chapterIndex = chapterIndices.get(currentIndex);
+        } else if (chapterNumbers != null && currentIndex < chapterNumbers.size()) {
+            chapterIndex = Math.max(0, chapterNumbers.get(currentIndex) - 1);
+        }
+
+        if (seasonIndex >= 0) {
+            progressIntent.putExtra("seasonIndex", seasonIndex);
+        }
+        if (chapterIndex >= 0) {
+            progressIntent.putExtra("chapterIndex", chapterIndex);
+        }
+        progressIntent.putExtra("chapterGlobalIndex", currentIndex);
+    }
+
+    private void notifyPlayerClosed(String reason) {
+        if (hasSentPlayerClosedEvent) {
+            return;
+        }
+        hasSentPlayerClosedEvent = true;
+        try {
+            Intent closedIntent = new Intent("VIDEO_PLAYER_CLOSED");
+            closedIntent.putExtra("reason", reason != null ? reason : "unknown");
+            closedIntent.setPackage(getPackageName());
+            sendBroadcast(closedIntent);
+            Log.d(TAG, "Player closed event sent. Reason: " + reason);
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending player closed event", e);
+        }
+    }
+
     private void notifyProgressUpdate(long currentTimeMs) {
-        notifyProgressUpdate(currentTimeMs, false);
+        notifyProgressUpdate(currentTimeMs, false, false);
     }
 
     private void notifyProgressUpdate(long currentTimeMs, boolean completed) {
+        notifyProgressUpdate(currentTimeMs, completed, completed);
+    }
+
+    private void notifyProgressUpdate(long currentTimeMs, boolean completed, boolean forceSync) {
         try {
             // Convertir de milisegundos a segundos para consistencia con el frontend
             long currentTimeSec = currentTimeMs / 1000;
@@ -331,10 +581,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             Intent progressIntent = new Intent("VIDEO_PROGRESS_UPDATE");
             progressIntent.putExtra("currentTime", currentTimeSec);
             progressIntent.putExtra("completed", completed);
+            progressIntent.putExtra("forceSync", forceSync);
+            appendCurrentChapterProgress(progressIntent);
             progressIntent.setPackage(getPackageName());
             sendBroadcast(progressIntent);
             
-            Log.d(TAG, "Progress update sent: " + currentTimeSec + "s, completed: " + completed);
+            Log.d(TAG, "Progress update sent: " + currentTimeSec + "s, completed: " + completed + ", forceSync=" + forceSync + ", chapterGlobalIndex=" + getCurrentChapterGlobalIndex());
         } catch (Exception e) {
             Log.e(TAG, "Error sending progress update", e);
         }
@@ -976,6 +1228,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                                 break;
                             case "stop":
                                 Log.d(TAG, "Stop command received - finishing activity");
+                                isActivityClosing = true;
+                                recoveryHandler.removeCallbacksAndMessages(null);
+                                closeReason = "stop_command";
                                 mediaPlayer.stop();
                                 finish(); // Cerrar la actividad cuando se recibe stop
                                 break;
@@ -1005,9 +1260,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 String action = intent.getAction();
                 if ("FINISH_VLC_ACTIVITY".equals(action) || "FORCE_FINISH_VLC_ACTIVITY".equals(action)) {
                     Log.d(TAG, "Received finish broadcast: " + action + " - closing activity");
+                    isActivityClosing = true;
+                    recoveryHandler.removeCallbacksAndMessages(null);
+                    closeReason = "FORCE_FINISH_VLC_ACTIVITY".equals(action) ? "force_finish_broadcast" : "finish_broadcast";
                     // Guardar progreso antes de cerrar
                     if (mediaPlayer != null) {
-                        notifyProgressUpdate(mediaPlayer.getTime());
+                        notifyProgressUpdate(mediaPlayer.getTime(), false, true);
                     }
                     // Cerrar la actividad
                     finish();

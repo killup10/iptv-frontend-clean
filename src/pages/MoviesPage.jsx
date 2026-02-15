@@ -47,6 +47,10 @@ const isSectionAllowedForPlan = (sectionKey, userPlan) => {
     return restricciones[sectionKey].includes(userPlan);
 };
 
+const HIDDEN_MOVIE_SECTION_KEYS = new Set(["CINE_2025"]);
+const filterVisibleMovieSections = (sections = []) =>
+    sections.filter(section => section && !HIDDEN_MOVIE_SECTION_KEYS.has(section.key));
+
 export default function MoviesPage() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -160,7 +164,7 @@ export default function MoviesPage() {
             const cachedData = dataCache.get('moviesPageData');
             if (cachedData) {
                 console.log('[MoviesPage] Cargando desde cache...');
-                setMainSections(cachedData.mainSections || []);
+                setMainSections(filterVisibleMovieSections(cachedData.mainSections || []));
                 setMoviesBySection(cachedData.moviesBySection || {});
                 setIsLoading(false);
                 return;
@@ -168,7 +172,7 @@ export default function MoviesPage() {
 
             setIsLoading(true);
             try {
-                const sectionsDataFromAPI = await fetchMainMovieSections();
+                const sectionsDataFromAPI = filterVisibleMovieSections(await fetchMainMovieSections());
                 setMainSections(sectionsDataFromAPI || []);
 
                 const moviesForSections = {};

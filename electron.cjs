@@ -9,8 +9,9 @@ let mpvProcess = null;
 let isPipMode = false;  // Flag para controlar si está en modo PIP
 let mpvSocket = null;  // Socket para comunicación IPC con MPV
 let mpvSocketConnected = false;
-let mpvCommandId = 0;  // ID para rastrear comandos
 let mpvCurrentVideoId = null;  // Rastrear ID del video actual para auto-play
+const MPV_OBSERVE_TIME_POS_ID = 1;
+const MPV_OBSERVE_DURATION_ID = 2;
 
 // Helper para terminar el proceso de MPV
 async function forceKillVLC() {
@@ -23,6 +24,10 @@ async function forceKillVLC() {
     } catch (err) {
       console.error('[MPV Socket] Error cerrando socket:', err);
     }
+  }
+  if (mpvEndDetectionTimer) {
+    clearTimeout(mpvEndDetectionTimer);
+    mpvEndDetectionTimer = null;
   }
 
   return new Promise(resolve => {
@@ -86,13 +91,13 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
         
         // Observar time-pos para detectar progreso
         const observeTimeCommand = {
-          command: ['observe_property', mpvCommandId++, 'time-pos']
+          command: ['observe_property', MPV_OBSERVE_TIME_POS_ID, 'time-pos']
         };
         mpvSocket.write(JSON.stringify(observeTimeCommand) + '\n');
         
         // Observar duration para saber cuándo está cerca del final
         const observeDurationCommand = {
-          command: ['observe_property', mpvCommandId++, 'duration']
+          command: ['observe_property', MPV_OBSERVE_DURATION_ID, 'duration']
         };
         mpvSocket.write(JSON.stringify(observeDurationCommand) + '\n');
         
@@ -114,11 +119,12 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
             const event = JSON.parse(line);
             
             // Detectar cambios de propiedades
-            if (event.event === 'property-change' && event.id !== undefined) {
-              const { id, data: eventData } = event;
+            if (event.event === 'property-change') {
+              const { id, name, data: eventData } = event;
+              const isTimePosEvent = name === 'time-pos' || id === MPV_OBSERVE_TIME_POS_ID;
+              const isDurationEvent = name === 'duration' || id === MPV_OBSERVE_DURATION_ID;
               
-              // ID 1 = time-pos
-              if (id === 1 && eventData !== null && eventData !== undefined) {
+              if (isTimePosEvent && eventData !== null && eventData !== undefined) {
                 const timePos = parseFloat(eventData) || 0;
                 mpvLastTimePos = timePos;
                 
@@ -147,8 +153,7 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
                 }
               }
               
-              // ID 2 = duration
-              if (id === 2 && eventData !== null && eventData !== undefined) {
+              if (isDurationEvent && eventData !== null && eventData !== undefined) {
                 mpvVideoDuration = parseFloat(eventData) || 0;
                 console.debug('[MPV Socket] Duración del video:', mpvVideoDuration);
               }
@@ -257,6 +262,12 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     // Guardar ID del video actual para cuando termine
     mpvCurrentVideoId = videoId;
+    mpvLastTimePos = 0;
+    mpvVideoDuration = 0;
+    if (mpvEndDetectionTimer) {
+      clearTimeout(mpvEndDetectionTimer);
+      mpvEndDetectionTimer = null;
+    }
     console.log('[MPV] VideoId guardado para auto-play:', mpvCurrentVideoId);
 
     // Si ya había un MPV corriendo, lo detenemos
@@ -290,8 +301,14 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     // Construir argumentos para MPV
     const args = [];
+    const safeMediaTitle = (String(title || 'TeamG Play'))
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180) || 'TeamG Play';
     // Usar título simple "mpv" para que nircmd lo encuentre fácilmente
     args.push('--title=mpv');
+    args.push(`--force-media-title=${safeMediaTitle}`);
     args.push('--ontop');
     
     // NUEVO: Añadir socket IPC para monitorear time-pos

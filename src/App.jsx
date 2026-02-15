@@ -78,15 +78,10 @@ function App() {
             return;
           }
 
-          // Si estamos en una ruta /watch dejar que el propio Watch.jsx maneje el back
-          try {
-            const path = window.location && window.location.pathname ? window.location.pathname : '';
-            if (path.startsWith('/watch')) {
-              console.log('[App.jsx] En /watch - ignorando handler global de backButton');
-              return;
-            }
-          } catch (e) {
-            // ignore
+          // En HashRouter, usar location.pathname para detectar /watch correctamente.
+          if (isWatchPage) {
+            console.log('[App.jsx] En /watch - ignorando handler global de backButton');
+            return;
           }
 
           if (window.history.length > 1) {
@@ -123,7 +118,7 @@ function App() {
         console.warn('[App.jsx] Error removing backButton listener:', err);
       }
     };
-  }, [navigate]);
+  }, [navigate, isWatchPage]);
 
   useEffect(() => {
     const globalClickLogger = (e) => {

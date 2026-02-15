@@ -16,26 +16,42 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   const hasInitializedRef = useRef(false); // 🔥 CLAVE: Detecta si ya inicializó
   const playbackKeyRef = useRef('');
   const isStartingRef = useRef(false);
+  const suppressNextAutoplayRef = useRef(false);
   
   const [autoplayFailed, setAutoplayFailed] = useState(false);
   
   const [currentTime, setCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
   const lastProgressSentAtRef = useRef(0);
+  const nativeChapterInfoRef = useRef({
+    seasonIndex: currentChapterInfo?.seasonIndex,
+    chapterIndex: currentChapterInfo?.chapterIndex
+  });
   
   const seasonNumber = seasons?.[currentChapterInfo?.seasonIndex]?.seasonNumber;
   const chapterNumber = seasons?.[currentChapterInfo?.seasonIndex]?.chapters?.[currentChapterInfo?.chapterIndex]?.episodeNumber;
   const allChapters = useMemo(() => {
     return seasons?.flatMap((season, seasonIndex) =>
-      season.chapters?.map(chapter => ({
+      season.chapters?.map((chapter, chapterIndex) => ({
         ...chapter,
         seasonNumber: season.seasonNumber || (seasonIndex + 1),
-        chapterNumber: chapter.episodeNumber
+        chapterNumber: Number.isFinite(Number(chapter?.episodeNumber)) ? Number(chapter.episodeNumber) : (chapterIndex + 1),
+        seasonIndex,
+        chapterIndex
       })) || []
     ) || [];
   }, [seasons]);
 
   console.log('[VideoPlayer] Reproductor simplificado - sin proxy');
+
+  useEffect(() => {
+    if (Number.isInteger(currentChapterInfo?.seasonIndex) && currentChapterInfo.seasonIndex >= 0) {
+      nativeChapterInfoRef.current.seasonIndex = currentChapterInfo.seasonIndex;
+    }
+    if (Number.isInteger(currentChapterInfo?.chapterIndex) && currentChapterInfo.chapterIndex >= 0) {
+      nativeChapterInfoRef.current.chapterIndex = currentChapterInfo.chapterIndex;
+    }
+  }, [currentChapterInfo?.seasonIndex, currentChapterInfo?.chapterIndex]);
 
   // Android VLC playback - ROBUST VERSION
   useEffect(() => {
@@ -44,6 +60,12 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     }
     if (isUnmountingRef?.current || isNavigatingAwayRef?.current) {
       isStartingRef.current = false;
+      return;
+    }
+    if (suppressNextAutoplayRef.current) {
+      suppressNextAutoplayRef.current = false;
+      isStartingRef.current = false;
+      console.log('[VideoPlayer] Android: auto-reproduccion suprimida tras cierre manual de VLC');
       return;
     }
 
@@ -145,21 +167,49 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     const PROGRESS_INTERVAL_MS = 20000;
     let progressListener = null;
     let progressInterval = null;
+    const normalizeIndex = (value) => (Number.isInteger(value) && value >= 0 ? value : undefined);
 
-    const saveProgress = async (currentTimeValue, completed = false) => {
+    const resolveChapterInfo = (data = {}) => {
+      const seasonIndexFromNative = normalizeIndex(data?.seasonIndex);
+      const chapterIndexFromNative = normalizeIndex(data?.chapterIndex);
+
+      if (seasonIndexFromNative !== undefined) {
+        nativeChapterInfoRef.current.seasonIndex = seasonIndexFromNative;
+      }
+      if (chapterIndexFromNative !== undefined) {
+        nativeChapterInfoRef.current.chapterIndex = chapterIndexFromNative;
+      }
+
+      const fallbackSeasonIndex = normalizeIndex(currentChapterInfo?.seasonIndex);
+      const fallbackChapterIndex = normalizeIndex(currentChapterInfo?.chapterIndex);
+
+      return {
+        seasonIndex: normalizeIndex(nativeChapterInfoRef.current?.seasonIndex) ?? fallbackSeasonIndex,
+        chapterIndex: normalizeIndex(nativeChapterInfoRef.current?.chapterIndex) ?? fallbackChapterIndex
+      };
+    };
+
+    const saveProgress = async (currentTimeValue, completed = false, data = {}) => {
       if (!completed && (!Number.isFinite(currentTimeValue) || currentTimeValue <= 0)) return;
-      await videoProgressService.saveProgress(itemId, {
+      const chapterInfo = resolveChapterInfo(data);
+      const progressPayload = {
         lastTime: Math.max(0, Math.floor(currentTimeValue || 0)),
-        lastSeason: currentChapterInfo?.seasonIndex,
-        lastChapter: currentChapterInfo?.chapterIndex,
         completed
-      });
+      };
+      if (chapterInfo.seasonIndex !== undefined) {
+        progressPayload.lastSeason = chapterInfo.seasonIndex;
+      }
+      if (chapterInfo.chapterIndex !== undefined) {
+        progressPayload.lastChapter = chapterInfo.chapterIndex;
+      }
+      await videoProgressService.saveProgress(itemId, progressPayload);
       lastProgressSentAtRef.current = Date.now();
     };
 
     const handleTimeUpdate = (data) => {
       const currentTimeValue = Number(data?.currentTime || 0);
       const completed = Boolean(data?.completed);
+      const forceSync = Boolean(data?.forceSync);
 
       if (Number.isFinite(currentTimeValue) && currentTimeValue >= 0) {
         lastSavedTimeRef.current = currentTimeValue;
@@ -167,13 +217,18 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
 
       if (completed) {
-        saveProgress(currentTimeValue, true);
+        saveProgress(currentTimeValue, true, data);
+        return;
+      }
+
+      if (forceSync) {
+        saveProgress(currentTimeValue, false, data);
         return;
       }
 
       const now = Date.now();
       if (currentTimeValue > 0 && now - lastProgressSentAtRef.current >= PROGRESS_INTERVAL_MS) {
-        saveProgress(currentTimeValue, false);
+        saveProgress(currentTimeValue, false, data);
       }
     };
 
@@ -184,7 +239,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     progressInterval = setInterval(() => {
       const currentTimeValue = lastSavedTimeRef.current;
       if (currentTimeValue > 0) {
-        saveProgress(currentTimeValue, false);
+        saveProgress(currentTimeValue, false, nativeChapterInfoRef.current);
       }
     }, PROGRESS_INTERVAL_MS);
 
@@ -192,7 +247,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       if (progressInterval) clearInterval(progressInterval);
       const finalTime = lastSavedTimeRef.current;
       if (finalTime > 0) {
-        saveProgress(finalTime, false);
+        saveProgress(finalTime, false, nativeChapterInfoRef.current);
       }
       if (progressListener?.remove) {
         progressListener.remove();
@@ -256,6 +311,24 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       };
     }
   }, [platform, onReturnToChannelList]);
+
+  // Cuando VLC se cierra manualmente (boton atras), evitar auto-reproduccion inmediata al volver al selector.
+  useEffect(() => {
+    if (platform !== 'android-vlc') return;
+    if (!VideoPlayerPlugin?.addListener) return;
+
+    const handlePlayerClosed = (data) => {
+      console.log('[VideoPlayer] playerClosed recibido desde nativo:', data);
+      isPlayingRef.current = false;
+      isStartingRef.current = false;
+      suppressNextAutoplayRef.current = true;
+    };
+
+    const closedListener = VideoPlayerPlugin.addListener('playerClosed', handlePlayerClosed);
+    return () => {
+      if (closedListener?.remove) closedListener.remove();
+    };
+  }, [platform]);
 
   // Global cleanup - SIMPLE Y EFECTIVO
   useEffect(() => {

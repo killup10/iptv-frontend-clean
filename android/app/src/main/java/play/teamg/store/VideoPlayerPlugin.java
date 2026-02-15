@@ -21,6 +21,7 @@ import java.util.ArrayList;
 public class VideoPlayerPlugin extends Plugin {
     private static final String TAG = "VideoPlayerPlugin";
     private BroadcastReceiver progressReceiver;
+    private BroadcastReceiver playerClosedReceiver;
 
     @PluginMethod
     public void playVideo(PluginCall call) {
@@ -48,6 +49,8 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<String> chapterUrls = new ArrayList<>();
                 ArrayList<Integer> chapterSeasonNumbers = new ArrayList<>();
                 ArrayList<Integer> chapterNumbers = new ArrayList<>();
+                ArrayList<Integer> chapterSeasonIndices = new ArrayList<>();
+                ArrayList<Integer> chapterIndices = new ArrayList<>();
 
                 try {
                     // Rastrear el número de capítulo dentro de cada temporada
@@ -70,13 +73,17 @@ public class VideoPlayerPlugin extends Plugin {
                         chapterUrls.add(chapter.getString("url"));
                         chapterSeasonNumbers.add(seasonNumber);
                         chapterNumbers.add(chapterCount);  // Usar número dentro de la temporada, no el global
+                        chapterSeasonIndices.add(Math.max(0, chapter.optInt("seasonIndex", seasonNumber - 1)));
+                        chapterIndices.add(Math.max(0, chapter.optInt("chapterIndex", chapterCount - 1)));
                     }
                     intent.putStringArrayListExtra("chapter_titles", chapterTitles);
                     intent.putStringArrayListExtra("chapter_urls", chapterUrls);
                     intent.putIntegerArrayListExtra("chapter_season_numbers", chapterSeasonNumbers);
                     intent.putIntegerArrayListExtra("chapter_numbers", chapterNumbers);
+                    intent.putIntegerArrayListExtra("chapter_season_indices", chapterSeasonIndices);
+                    intent.putIntegerArrayListExtra("chapter_indices", chapterIndices);
                     
-                    Log.d(TAG, "Capítulos procesados - Temporadas: " + chapterSeasonNumbers.toString() + ", Números: " + chapterNumbers.toString());
+                    Log.d(TAG, "Capítulos procesados - Temporadas: " + chapterSeasonNumbers.toString() + ", Números: " + chapterNumbers.toString() + ", Índices temporada/capítulo: " + chapterSeasonIndices + "/" + chapterIndices);
                 } catch (JSONException e) {
                     Log.e(TAG, "Error processing chapters", e);
                 }
@@ -212,12 +219,14 @@ public class VideoPlayerPlugin extends Plugin {
     protected void handleOnStart() {
         super.handleOnStart();
         registerProgressReceiver();
+        registerPlayerClosedReceiver();
     }
 
     @Override
     protected void handleOnStop() {
         super.handleOnStop();
         unregisterProgressReceiver();
+        unregisterPlayerClosedReceiver();
     }
 
     @Override
@@ -244,13 +253,23 @@ public class VideoPlayerPlugin extends Plugin {
                     if ("VIDEO_PROGRESS_UPDATE".equals(intent.getAction())) {
                         long currentTime = intent.getLongExtra("currentTime", 0);
                         boolean completed = intent.getBooleanExtra("completed", false);
+                        boolean forceSync = intent.getBooleanExtra("forceSync", false);
+                        int seasonIndex = intent.getIntExtra("seasonIndex", -1);
+                        int chapterIndex = intent.getIntExtra("chapterIndex", -1);
                         
-                        Log.d(TAG, "Progress received: " + currentTime + "s, completed: " + completed);
+                        Log.d(TAG, "Progress received: " + currentTime + "s, completed: " + completed + ", forceSync=" + forceSync + ", seasonIndex=" + seasonIndex + ", chapterIndex=" + chapterIndex);
                         
                         // Enviar evento al JavaScript
                         JSObject data = new JSObject();
                         data.put("currentTime", currentTime);
                         data.put("completed", completed);
+                        data.put("forceSync", forceSync);
+                        if (seasonIndex >= 0) {
+                            data.put("seasonIndex", seasonIndex);
+                        }
+                        if (chapterIndex >= 0) {
+                            data.put("chapterIndex", chapterIndex);
+                        }
                         notifyListeners("timeupdate", data);
                     }
                 }
@@ -274,6 +293,45 @@ public class VideoPlayerPlugin extends Plugin {
                 Log.d(TAG, "Progress receiver unregistered");
             } catch (Exception e) {
                 Log.e(TAG, "Error unregistering progress receiver", e);
+            }
+        }
+    }
+
+    private void registerPlayerClosedReceiver() {
+        if (playerClosedReceiver == null) {
+            playerClosedReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if ("VIDEO_PLAYER_CLOSED".equals(intent.getAction())) {
+                        String reason = intent.getStringExtra("reason");
+                        if (reason == null) reason = "unknown";
+                        Log.d(TAG, "Player closed event received. Reason: " + reason);
+
+                        JSObject data = new JSObject();
+                        data.put("reason", reason);
+                        notifyListeners("playerClosed", data);
+                    }
+                }
+            };
+
+            IntentFilter filter = new IntentFilter("VIDEO_PLAYER_CLOSED");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getContext().registerReceiver(playerClosedReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getContext().registerReceiver(playerClosedReceiver, filter);
+            }
+            Log.d(TAG, "Player closed receiver registered");
+        }
+    }
+
+    private void unregisterPlayerClosedReceiver() {
+        if (playerClosedReceiver != null) {
+            try {
+                getContext().unregisterReceiver(playerClosedReceiver);
+                playerClosedReceiver = null;
+                Log.d(TAG, "Player closed receiver unregistered");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering player closed receiver", e);
             }
         }
     }

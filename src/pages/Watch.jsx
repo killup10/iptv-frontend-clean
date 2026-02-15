@@ -107,6 +107,54 @@ export function Watch() {
   const playbackStartTsRef = useRef(null);
   const initialProgressSavedRef = useRef(false); // 🔥 NUEVO: Evitar duplicados
 
+  // Construye un título legible para MPV (canal/película/serie + episodio cuando aplique)
+  const buildMpvDisplayTitle = () => {
+    const baseTitle = (
+      itemData?.name ||
+      itemData?.title ||
+      location.state?.title ||
+      location.state?.name ||
+      'TeamG Play'
+    ).toString().trim();
+
+    if (!baseTitle) return 'TeamG Play';
+
+    const isSeriesContent = itemData?.tipo !== 'pelicula' && itemData?.tipo !== 'movie' && itemType !== 'channel';
+    if (!isSeriesContent) return baseTitle;
+
+    const seasonIndex = currentChapterInfo?.seasonIndex;
+    const chapterIndex = currentChapterInfo?.chapterIndex;
+    const season = itemData?.seasons?.[currentChapterInfo?.seasonIndex];
+    const chapter = season?.chapters?.[currentChapterInfo?.chapterIndex];
+    let chapterTitle = (chapter?.title || '').toString().trim();
+
+    const seasonNumberFromData = Number(season?.seasonNumber);
+    const chapterNumberFromData = Number(chapter?.episodeNumber);
+    const seasonNumber = Number.isFinite(seasonNumberFromData) && seasonNumberFromData > 0
+      ? seasonNumberFromData
+      : (Number.isFinite(seasonIndex) ? seasonIndex + 1 : null);
+    const chapterNumber = Number.isFinite(chapterNumberFromData) && chapterNumberFromData > 0
+      ? chapterNumberFromData
+      : (Number.isFinite(chapterIndex) ? chapterIndex + 1 : null);
+
+    if (chapterTitle) {
+      chapterTitle = chapterTitle
+        .replace(/^T(?:emporada)?\s*\d+\s*E(?:pisodio)?\s*\d+\s*[-:]\s*/i, '')
+        .replace(/^S(?:eason)?\s*\d+\s*E(?:pisode)?\s*\d+\s*[-:]\s*/i, '')
+        .replace(/^\d+\s*x\s*\d+\s*[-:]\s*/i, '')
+        .trim();
+    }
+
+    const episodeLabel = (seasonNumber && chapterNumber)
+      ? `T${seasonNumber} E${chapterNumber}`
+      : (chapterNumber ? `E${chapterNumber}` : (seasonNumber ? `T${seasonNumber}` : ''));
+
+    if (episodeLabel && chapterTitle) return `${baseTitle} - ${episodeLabel} - ${chapterTitle}`;
+    if (episodeLabel) return `${baseTitle} - ${episodeLabel}`;
+    if (chapterTitle) return `${baseTitle} - ${chapterTitle}`;
+    return baseTitle;
+  };
+
   const {
     contentInfo,
     visualTheme,
@@ -212,6 +260,24 @@ export function Watch() {
     if (startTimeFromState > 0 || !itemId || itemType === 'channel') return;
     
     const loadSavedProgress = async () => {
+      const applyRecoveredProgress = (rawProgress, sourceLabel) => {
+        const progress = Math.max(0, Math.floor(Number(rawProgress) || 0));
+        if (!Number.isFinite(progress) || progress <= 0) return false;
+
+        // Evita que un progreso tardio reinicie MPV mientras ya esta reproduciendo.
+        if (playbackStartTsRef.current || currentTimeRef.current > 0) {
+          console.log('[Watch.jsx] Ignorando progreso recuperado porque MPV ya inicio:', {
+            source: sourceLabel,
+            progress,
+            currentTime: currentTimeRef.current
+          });
+          return false;
+        }
+
+        setStartTime(prev => (prev > 0 ? prev : progress));
+        return true;
+      };
+
       try {
         // Intentar caché primero
         const cacheKey = `videoProgress_${itemId}`;
@@ -219,9 +285,8 @@ export function Watch() {
         if (cached) {
           const data = JSON.parse(cached);
           const cachedProgress = data.progress ?? data.lastTime ?? 0;
-          if (cachedProgress > 0) {
+          if (applyRecoveredProgress(cachedProgress, 'cache')) {
             console.log(`[Watch.jsx] ⚡ Progreso cargado desde caché: ${cachedProgress}s`);
-            setStartTime(cachedProgress);
             return; // No esperar al servidor
           }
         }
@@ -230,9 +295,8 @@ export function Watch() {
         const progressData = await getUserProgress();
         const videoProgress = progressData.find(p => p.video?._id === itemId);
         const progressSeconds = videoProgress?.progress ?? videoProgress?.lastTime ?? 0;
-        if (progressSeconds > 0) {
+        if (applyRecoveredProgress(progressSeconds, 'server')) {
           console.log(`[Watch.jsx] Progreso cargado del servidor para ${itemId}: ${progressSeconds}`);
-          setStartTime(progressSeconds);
           // Actualizar caché
           try {
             localStorage.setItem(cacheKey, JSON.stringify({ progress: progressSeconds }));
@@ -299,6 +363,11 @@ export function Watch() {
     
     if (itemData.tipo === 'pelicula' || itemData.tipo === 'movie' || itemType === 'channel') {
       console.log('[Watch] Contenido tipo película/canal, no se requiere currentChapterInfo');
+      return;
+    }
+
+    // Si ya hay un capítulo seleccionado manualmente, no sobrescribirlo con estado viejo.
+    if (currentChapterInfo && !isContinueWatching) {
       return;
     }
 
@@ -490,7 +559,8 @@ export function Watch() {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${maskUrl(videoUrl)}`);
-        const result = await window.electronMPV.play(videoUrl, bounds, { startTime });
+        const mpvTitle = buildMpvDisplayTitle();
+        const result = await window.electronMPV.play(videoUrl, bounds, { startTime, title: mpvTitle });
         console.log('--- DEBUG: Resultado de window.electronMPV.play ---', result);
 
         if (!result.success) {
@@ -739,6 +809,41 @@ export function Watch() {
     });
   };
 
+  const persistManualEpisodeSelection = (seasonIndex, chapterIndex) => {
+    if (!itemId || itemType === 'channel') return;
+
+    // Guardado inmediato para que Continuar viendo respete el capitulo elegido,
+    // incluso si el usuario sale antes del siguiente guardado periodico.
+    const progressPayload = {
+      lastSeason: seasonIndex,
+      lastChapter: chapterIndex,
+      lastTime: 6,
+      completed: false
+    };
+
+    axiosInstance.put(`/api/videos/${itemId}/progress`, progressPayload)
+      .then(() => {
+        setItemData(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            watchProgress: {
+              ...(prev.watchProgress || {}),
+              ...progressPayload
+            }
+          };
+        });
+        try {
+          localStorage.setItem(`videoProgress_${itemId}`, JSON.stringify({ progress: progressPayload.lastTime }));
+        } catch (e) {
+          console.warn('[Watch.jsx] No se pudo actualizar cache local de progreso:', e);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Watch.jsx] No se pudo guardar progreso al seleccionar capitulo:', err?.message || err);
+      });
+  };
+
   const handleChapterSelect = (seasonIndex, chapterIndex) => {
     const season = itemData?.seasons?.[seasonIndex];
     const chapter = season?.chapters?.[chapterIndex];
@@ -747,8 +852,9 @@ export function Watch() {
       console.warn('[Watch.jsx] handleChapterSelect: capitulo invalido', { seasonIndex, chapterIndex });
       return;
     }
-
+    persistManualEpisodeSelection(seasonIndex, chapterIndex);
     setIsContinueWatching(false);
+    setContinueWatchingState(null);
     setStartTime(0);
     setVideoUrl('');
     setCurrentChapterInfo({ seasonIndex, chapterIndex });
@@ -837,7 +943,7 @@ export function Watch() {
               if (window.electronMPV && videoUrl && bounds) {
                 window.electronMPV.stop()
                   .then(() => new Promise(resolve => setTimeout(resolve, 1000)))
-                  .then(() => window.electronMPV.play(videoUrl, bounds, { startTime }))
+                  .then(() => window.electronMPV.play(videoUrl, bounds, { startTime, title: buildMpvDisplayTitle() }))
                   .catch(err => {
                     console.error('[Watch.jsx] Error al reintentar reproducción:', err);
                     setError(`Error al reintentar: ${err.message}`);
