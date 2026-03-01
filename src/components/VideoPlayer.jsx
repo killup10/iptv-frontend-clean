@@ -9,7 +9,7 @@ import TVVideoPlayer from './TVVideoPlayer';
 import { videoProgressService } from '../services/videoProgress';
 import { App as CapacitorApp } from '@capacitor/app';
 
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef, isNavigatingAwayRef, onReturnToChannelList }) {
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef, isNavigatingAwayRef, onReturnToChannelList, disableProgressTracking = false }) {
   const platform = getPlayerType();
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
@@ -126,13 +126,15 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
         // 5. Guardar el progreso inicial.
         const initialTime = normalizedStartTime;
-        await videoProgressService.saveProgress(itemId, {
-          lastTime: initialTime,
-          lastSeason: currentChapterInfo?.seasonIndex,
-          lastChapter: currentChapterInfo?.chapterIndex,
-          completed: false
-        });
-        lastSavedTimeRef.current = initialTime;
+        if (!disableProgressTracking && itemId) {
+          await videoProgressService.saveProgress(itemId, {
+            lastTime: initialTime,
+            lastSeason: currentChapterInfo?.seasonIndex,
+            lastChapter: currentChapterInfo?.chapterIndex,
+            completed: false
+          });
+          lastSavedTimeRef.current = initialTime;
+        }
 
       } catch (err) {
         console.error("Error iniciando Android player:", err);
@@ -158,11 +160,11 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       console.log('[VideoPlayer] Android: Cleanup del efecto de reproducción.');
       // La detención global del video se maneja en el `useEffect` de desmontaje global.
     };
-  }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo]);
+  }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo, disableProgressTracking]);
 
   // Android VLC progress tracking for "Continuar viendo"
   useEffect(() => {
-    if (platform !== 'android-vlc' || !itemId) return;
+    if (platform !== 'android-vlc' || !itemId || disableProgressTracking) return;
 
     const PROGRESS_INTERVAL_MS = 20000;
     let progressListener = null;
@@ -253,7 +255,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         progressListener.remove();
       }
     };
-  }, [platform, itemId, currentChapterInfo]);
+  }, [platform, itemId, currentChapterInfo, disableProgressTracking]);
 
   // Android background events - SIMPLIFICADO
   useEffect(() => {
@@ -586,7 +588,10 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   }
 
   if (platform === 'electron') {
-    useElectronMpvProgress(itemId, onNextEpisode, seasons, currentChapterInfo, { intervalMs: 20000 });
+    useElectronMpvProgress(itemId, onNextEpisode, seasons, currentChapterInfo, {
+      intervalMs: 20000,
+      enabled: !disableProgressTracking
+    });
     return (
       <div className="w-full aspect-video bg-black rounded-lg flex items-center justify-center text-white">
         {/* Electron MPV */}
@@ -611,5 +616,6 @@ VideoPlayer.propTypes = {
   currentChapterInfo: PropTypes.object,
   onNextEpisode: PropTypes.func,
   isUnmountingRef: PropTypes.object,
-  isNavigatingAwayRef: PropTypes.object
+  isNavigatingAwayRef: PropTypes.object,
+  disableProgressTracking: PropTypes.bool
 };

@@ -27,6 +27,12 @@ export function Watch() {
   const [videoUrl, setVideoUrl] = useState("");
   const [bounds, setBounds] = useState(null);
   const [currentChapterInfo, setCurrentChapterInfo] = useState(null);
+  const [channelList, setChannelList] = useState([]);
+  const [currentChannelIndex, setCurrentChannelIndex] = useState(-1);
+  const [isReloadingChannel, setIsReloadingChannel] = useState(false);
+  const [channelPlaybackIssue, setChannelPlaybackIssue] = useState(null);
+  const [isChannelPickerOpen, setIsChannelPickerOpen] = useState(false);
+  const [channelSearch, setChannelSearch] = useState('');
   
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessModalData, setAccessModalData] = useState(null);
@@ -106,6 +112,8 @@ export function Watch() {
   const currentTimeRef = useRef(0);
   const playbackStartTsRef = useRef(null);
   const initialProgressSavedRef = useRef(false); // 🔥 NUEVO: Evitar duplicados
+  const suppressMpvClosedRef = useRef(false);
+  const nextEpisodeNavigationRef = useRef({ key: null, ts: 0 });
 
   // Construye un título legible para MPV (canal/película/serie + episodio cuando aplique)
   const buildMpvDisplayTitle = () => {
@@ -212,6 +220,7 @@ export function Watch() {
           description: data.description || data.descripcion || "",
           releaseYear: data.releaseYear,
           tipo: data.tipo || itemType,
+          section: data.section || null,
           seasons: data.seasons || [],
           chapters: (data.seasons || []).flatMap(season => season.chapters || []),
           watchProgress: data.watchProgress || null
@@ -253,6 +262,56 @@ export function Watch() {
     };
     fetchItemDetails();
   }, [itemId, itemType, reloadKey, useTrial]);
+
+  // Cargar catálogo de canales para permitir cambio directo (canal anterior/siguiente)
+  useEffect(() => {
+    if (itemType !== 'channel') {
+      setChannelList([]);
+      setCurrentChannelIndex(-1);
+      return;
+    }
+
+    let cancelled = false;
+    const loadChannels = async () => {
+      try {
+        const response = await axiosInstance.get('/api/channels/list');
+        if (cancelled) return;
+        const rawChannels = Array.isArray(response.data)
+          ? response.data
+          : (Array.isArray(response.data?.channels) ? response.data.channels : []);
+
+        const normalizedChannels = rawChannels
+          .map((channel) => ({
+            id: channel?._id || channel?.id,
+            name: channel?.name || channel?.title || 'Canal',
+            section: channel?.section || 'General'
+          }))
+          .filter((channel) => channel.id);
+
+        setChannelList(normalizedChannels);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[Watch.jsx] No se pudo cargar lista de canales para zapping:', err?.message || err);
+          setChannelList([]);
+        }
+      }
+    };
+
+    loadChannels();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itemType]);
+
+  useEffect(() => {
+    if (itemType !== 'channel') {
+      setCurrentChannelIndex(-1);
+      return;
+    }
+    const index = channelList.findIndex((channel) => String(channel.id) === String(itemId));
+    setCurrentChannelIndex(index);
+  }, [itemType, channelList, itemId]);
 
   // Cargar progreso guardado
   // 🔥 OPTIMIZADO: Usar caché local primero, background fetch después
@@ -516,6 +575,14 @@ export function Watch() {
 
   }, [itemData, currentChapterInfo, loading]);
 
+  useEffect(() => {
+    if (itemType === 'channel') {
+      setChannelPlaybackIssue(null);
+      setChannelSearch('');
+      setIsChannelPickerOpen(false);
+    }
+  }, [itemType, itemId, videoUrl]);
+
   // 3) Medir bounds
   useEffect(() => {
     if (videoUrl && videoAreaRef.current) {
@@ -553,14 +620,19 @@ export function Watch() {
     }
 
     const initializeMPV = async (retryCount = 0) => {
+      suppressMpvClosedRef.current = true;
       try {
         console.log('[Watch.jsx] Deteniendo MPV anterior antes de iniciar nuevo...');
         await window.electronMPV.stop();
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, itemType === 'channel' ? 220 : 700));
         
         console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${maskUrl(videoUrl)}`);
         const mpvTitle = buildMpvDisplayTitle();
-        const result = await window.electronMPV.play(videoUrl, bounds, { startTime, title: mpvTitle });
+        const result = await window.electronMPV.play(videoUrl, bounds, {
+          startTime,
+          title: mpvTitle,
+          videoId: itemData?.id || itemId
+        });
         console.log('--- DEBUG: Resultado de window.electronMPV.play ---', result);
 
         if (!result.success) {
@@ -568,6 +640,7 @@ export function Watch() {
         }
 
         setError(null);
+        setChannelPlaybackIssue(null);
         playbackStartTsRef.current = Date.now();
       } catch (err) {
         console.error('[Watch.jsx] Error al iniciar MPV:', err);
@@ -579,6 +652,13 @@ export function Watch() {
         }
         
         setError(`Error al iniciar el reproductor: ${err.message}`);
+        if (itemType === 'channel') {
+          setChannelPlaybackIssue('La señal del canal no se pudo iniciar. Usa "Recargar canal".');
+        }
+      } finally {
+        setTimeout(() => {
+          suppressMpvClosedRef.current = false;
+        }, 1200);
       }
     };
 
@@ -587,6 +667,9 @@ export function Watch() {
     const handleMpvError = (event, message) => {
       console.error('[Watch.jsx] MPV Error:', message);
       setError(`Error del reproductor: ${message}`);
+      if (itemType === 'channel') {
+        setChannelPlaybackIssue('La señal del canal tuvo un error. Usa "Recargar canal".');
+      }
     };
 
     const handleTimePos = (event, time) => {
@@ -595,25 +678,49 @@ export function Watch() {
         currentTimeRef.current = t;
       }
     };
+
+    const handleMpvClosed = (event, data = {}) => {
+      if (suppressMpvClosedRef.current) {
+        return;
+      }
+      if (itemType !== 'channel') {
+        return;
+      }
+      if (isUnmountingRef.current || isNavigatingAwayRef.current) {
+        return;
+      }
+
+      const closeCode = data?.code;
+      const detail = Number.isFinite(closeCode)
+        ? ` (código ${closeCode})`
+        : '';
+      setChannelPlaybackIssue(`La señal del canal se detuvo${detail}. Usa "Recargar canal".`);
+    };
     
     if (window.electronAPI) {
       window.electronAPI.on('mpv-error', handleMpvError);
-      window.electronAPI.on('mpv-time-pos', handleTimePos); 
+      window.electronAPI.on('mpv-time-pos', handleTimePos);
+      window.electronAPI.on('mpv-closed', handleMpvClosed);
     }
 
     return () => {
       if (window.electronMPV) {
+        suppressMpvClosedRef.current = true;
         window.electronMPV.stop().catch(err => {
           console.error('[Watch.jsx] Error al detener MPV en cleanup:', err);
         });
+        setTimeout(() => {
+          suppressMpvClosedRef.current = false;
+        }, 1200);
       }
       playbackStartTsRef.current = null;
       if (window.electronAPI) {
         window.electronAPI.removeListener('mpv-error', handleMpvError);
         window.electronAPI.removeListener('mpv-time-pos', handleTimePos);
+        window.electronAPI.removeListener('mpv-closed', handleMpvClosed);
       }
     };
-  }, [videoUrl, bounds, startTime]);
+  }, [videoUrl, bounds, startTime, itemType, itemId, itemData?.id]);
 
   // 5) Sincronización de bounds
   useEffect(() => {
@@ -803,6 +910,16 @@ export function Watch() {
   }, []); // ✅ Dependencias vacías - se configura una sola vez
 
   const handleNextEpisode = (seasonIndex, chapterIndex) => {
+    const targetKey = `${seasonIndex}:${chapterIndex}`;
+    const now = Date.now();
+    if (
+      nextEpisodeNavigationRef.current.key === targetKey &&
+      now - nextEpisodeNavigationRef.current.ts < 2500
+    ) {
+      console.log('[Watch.jsx] handleNextEpisode duplicado ignorado:', targetKey);
+      return;
+    }
+    nextEpisodeNavigationRef.current = { key: targetKey, ts: now };
     navigate(`/watch/${itemType}/${itemId}`, {
       replace: true,
       state: { seasonIndex, chapterIndex, continueWatching: true }
@@ -889,6 +1006,80 @@ export function Watch() {
     });
   };
 
+  const handleReloadChannel = async () => {
+    if (itemType !== 'channel' || isReloadingChannel) return;
+
+    setIsReloadingChannel(true);
+    setChannelPlaybackIssue(null);
+    setError(null);
+    suppressMpvClosedRef.current = true;
+
+    try {
+      if (window.electronMPV && videoUrl && bounds) {
+        await window.electronMPV.stop().catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, 350));
+
+        const result = await window.electronMPV.play(videoUrl, bounds, {
+          startTime: 0,
+          title: buildMpvDisplayTitle(),
+          videoId: itemData?.id || itemId
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.error || 'Fallo al recargar MPV');
+        }
+        playbackStartTsRef.current = Date.now();
+      } else {
+        setReloadKey(prev => prev + 1);
+      }
+    } catch (err) {
+      console.error('[Watch.jsx] Error recargando canal:', err);
+      setError(`No se pudo recargar el canal: ${err.message}`);
+      setChannelPlaybackIssue('No se pudo restablecer la señal. Intenta nuevamente.');
+    } finally {
+      setIsReloadingChannel(false);
+      setTimeout(() => {
+        suppressMpvClosedRef.current = false;
+      }, 1200);
+    }
+  };
+
+  const handleSelectChannel = (targetChannel) => {
+    if (itemType !== 'channel') return;
+    if (!targetChannel?.id || String(targetChannel.id) === String(itemId)) {
+      setIsChannelPickerOpen(false);
+      return;
+    }
+
+    suppressMpvClosedRef.current = true;
+    setTimeout(() => {
+      suppressMpvClosedRef.current = false;
+    }, 1200);
+
+    setChannelPlaybackIssue(null);
+    setError(null);
+    setLoading(true);
+    setVideoUrl('');
+    setItemData(null);
+    setIsChannelPickerOpen(false);
+    setChannelSearch('');
+
+    const nextState = {
+      ...(location.state || {}),
+      channelName: targetChannel.name,
+      selectedCategory: location.state?.selectedCategory || targetChannel.section || 'Todos',
+      continueWatching: false,
+      startTime: 0
+    };
+    delete nextState.seasonIndex;
+    delete nextState.chapterIndex;
+
+    navigate(`/watch/channel/${targetChannel.id}`, {
+      replace: true,
+      state: nextState
+    });
+  };
+
   const handleProceedWithTrial = () => {
     if (accessModalData?.trialMinutesRemaining > 0) {
       setShowAccessModal(false);
@@ -940,14 +1131,32 @@ export function Watch() {
           <button
             onClick={() => {
               setError(null);
+              setChannelPlaybackIssue(null);
               if (window.electronMPV && videoUrl && bounds) {
+                suppressMpvClosedRef.current = true;
                 window.electronMPV.stop()
-                  .then(() => new Promise(resolve => setTimeout(resolve, 1000)))
-                  .then(() => window.electronMPV.play(videoUrl, bounds, { startTime, title: buildMpvDisplayTitle() }))
+                  .then(() => new Promise(resolve => setTimeout(resolve, itemType === 'channel' ? 220 : 700)))
+                  .then(() => window.electronMPV.play(videoUrl, bounds, {
+                    startTime,
+                    title: buildMpvDisplayTitle(),
+                    videoId: itemData?.id || itemId
+                  }))
+                  .then((result) => {
+                    if (!result?.success) {
+                      throw new Error(result?.error || 'Fallo al reintentar reproducción');
+                    }
+                  })
                   .catch(err => {
                     console.error('[Watch.jsx] Error al reintentar reproducción:', err);
                     setError(`Error al reintentar: ${err.message}`);
+                  })
+                  .finally(() => {
+                    setTimeout(() => {
+                      suppressMpvClosedRef.current = false;
+                    }, 1200);
                   });
+              } else if (itemType === 'channel') {
+                handleReloadChannel();
               }
             }}
             className="mt-3 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-sm"
@@ -991,6 +1200,10 @@ export function Watch() {
     );
 
   const currentChapter = currentChapterInfo && itemData.seasons[currentChapterInfo.seasonIndex]?.chapters[currentChapterInfo.chapterIndex];
+  const normalizedChannelSearch = channelSearch.trim().toLowerCase();
+  const filteredChannelList = normalizedChannelSearch
+    ? channelList.filter((channel) => (channel.name || '').toLowerCase().includes(normalizedChannelSearch))
+    : channelList;
 
   return (
     <DynamicTheme 
@@ -1086,10 +1299,11 @@ export function Watch() {
                   title={itemData.name}
                   seasons={itemData.seasons}
                   currentChapterInfo={currentChapterInfo}
-                  onNextEpisode={itemData.tipo !== 'pelicula' ? handleNextEpisode : undefined}
+                  onNextEpisode={itemData.tipo !== 'pelicula' && itemData.tipo !== 'movie' && itemData.tipo !== 'channel' ? handleNextEpisode : undefined}
                   isUnmountingRef={isUnmountingRef}
                   isNavigatingAwayRef={isNavigatingAwayRef}
                   onReturnToChannelList={itemType === 'channel' ? handleReturnToChannelList : undefined}
+                  disableProgressTracking={itemType === 'channel'}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">
@@ -1105,6 +1319,81 @@ export function Watch() {
                 </div>
               )}
             </div>
+
+            {itemType === 'channel' && (
+              <div className="w-full max-w-5xl mx-auto mb-8">
+                <div className="flex flex-wrap items-center justify-center gap-3 rounded-xl border border-cyan-400/30 bg-black/45 px-4 py-3 backdrop-blur-sm">
+                  <button
+                    onClick={() => setIsChannelPickerOpen(true)}
+                    disabled={channelList.length === 0}
+                    className="px-4 py-2 rounded-md text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Seleccionar canal
+                  </button>
+                  <button
+                    onClick={handleReloadChannel}
+                    disabled={isReloadingChannel}
+                    className="px-4 py-2 rounded-md text-sm font-semibold bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isReloadingChannel ? 'Recargando...' : 'Recargar canal'}
+                  </button>
+                  <span className="text-xs text-gray-300">
+                    {currentChannelIndex >= 0 && channelList.length > 0
+                      ? `Canal ${currentChannelIndex + 1} de ${channelList.length}: ${itemData?.name || ''}`
+                      : 'Canal actual'}
+                  </span>
+                </div>
+                {channelPlaybackIssue && (
+                  <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
+                    {channelPlaybackIssue}
+                  </div>
+                )}
+                {isChannelPickerOpen && (
+                  <div className="mt-3 rounded-xl border border-indigo-400/30 bg-black/85 p-3 backdrop-blur-md">
+                    <div className="flex items-center gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={channelSearch}
+                        onChange={(e) => setChannelSearch(e.target.value)}
+                        placeholder="Buscar canal..."
+                        className="flex-1 rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400"
+                      />
+                      <button
+                        onClick={() => setIsChannelPickerOpen(false)}
+                        className="px-3 py-2 rounded-md text-sm bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+                      {filteredChannelList.length > 0 ? (
+                        filteredChannelList.map((channel) => {
+                          const isCurrent = String(channel.id) === String(itemId);
+                          return (
+                            <button
+                              key={String(channel.id)}
+                              onClick={() => handleSelectChannel(channel)}
+                              className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors ${
+                                isCurrent
+                                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-200'
+                                  : 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100'
+                              }`}
+                            >
+                              {channel.name}
+                              {isCurrent ? ' (actual)' : ''}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-sm text-zinc-300 px-2 py-4 text-center">
+                          No se encontraron canales.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-8 w-full max-w-screen-xl">

@@ -12,6 +12,7 @@ let mpvSocketConnected = false;
 let mpvCurrentVideoId = null;  // Rastrear ID del video actual para auto-play
 const MPV_OBSERVE_TIME_POS_ID = 1;
 const MPV_OBSERVE_DURATION_ID = 2;
+let mpvEndEventSent = false;
 
 // Helper para terminar el proceso de MPV
 async function forceKillVLC() {
@@ -29,6 +30,7 @@ async function forceKillVLC() {
     clearTimeout(mpvEndDetectionTimer);
     mpvEndDetectionTimer = null;
   }
+  mpvEndEventSent = false;
 
   return new Promise(resolve => {
     if (!mpvProcess) {
@@ -133,14 +135,15 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
                   mainWindow.webContents.send('mpv-time-pos', timePos);
                 }
                 
-                // Detectar fin de video: si time-pos está muy cerca de duration
-                if (mpvVideoDuration > 0 && timePos >= mpvVideoDuration - 1.5) {
+                // Detectar fin de video una sola vez por reproducción.
+                if (mpvVideoDuration > 0 && timePos >= mpvVideoDuration - 1.5 && !mpvEndEventSent) {
                   console.log('[MPV Socket] ✓ VIDEO CASI TERMINADO - time-pos:', timePos, 'duration:', mpvVideoDuration);
                   
                   // Enviar evento de fin con un pequeño delay para asegurar que se alcanzó el final
                   if (mpvEndDetectionTimer) clearTimeout(mpvEndDetectionTimer);
                   mpvEndDetectionTimer = setTimeout(() => {
-                    if (mainWindow && !mainWindow.isDestroyed()) {
+                    if (!mpvEndEventSent && mainWindow && !mainWindow.isDestroyed()) {
+                      mpvEndEventSent = true;
                       console.log('[MPV Socket] 🎬 ENVIANDO mpv-ended event');
                       mainWindow.webContents.send('mpv-ended', { 
                         videoId: mpvCurrentVideoId || 'unknown',
@@ -264,6 +267,7 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     mpvCurrentVideoId = videoId;
     mpvLastTimePos = 0;
     mpvVideoDuration = 0;
+    mpvEndEventSent = false;
     if (mpvEndDetectionTimer) {
       clearTimeout(mpvEndDetectionTimer);
       mpvEndDetectionTimer = null;
@@ -387,6 +391,7 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     mpvProcess.on('exit', (code, signal) => {
       console.log(`[MPV] Proceso terminado - código: ${code}, señal: ${signal}`);
+      mpvEndEventSent = false;
       
       // Notificar al frontend que MPV se cerró para que guarde el progreso
       if (mainWindow && !mainWindow.isDestroyed()) {

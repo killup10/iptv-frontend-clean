@@ -7,12 +7,15 @@ import axiosInstance from '../utils/axiosInstance';
 export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, currentChapterInfo, opts = {}) {
   const lastSentRef = useRef(0);
   const lastTimeRef = useRef(0);
+  const endedHandledRef = useRef(false);
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
   useEffect(() => {
+    if (optsRef.current?.enabled === false) return;
     if (!videoId) return;
     if (typeof window === 'undefined' || !window.electronAPI || !window.electronAPI.on) return;
+    endedHandledRef.current = false;
 
     const INTERVAL_MS = optsRef.current.intervalMs || 20000;
 
@@ -67,6 +70,11 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
 
     // also listen to mpv-ended if exposed to mark completed
     const endedHandler = async (data) => {
+      if (endedHandledRef.current) {
+        console.log('[useElectronMpvProgress] mpv-ended duplicado ignorado');
+        return;
+      }
+      endedHandledRef.current = true;
       console.log('[useElectronMpvProgress] ✓✓✓ mpv-ended RECIBIDO:', data);
       try {
         const progressData = { completed: true };
