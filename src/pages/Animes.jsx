@@ -4,12 +4,15 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import Toast from '../components/Toast.jsx';
 import { getCollections, addItemsToCollection } from '../utils/api.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 
 
@@ -23,8 +26,6 @@ export function Animes() {
   const [toastType, setToastType] = useState('success');
 
   // Estados para modales
-  const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
   const gridOptions = [5, 4, 3, 1];
   const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns for better mobile view
 
@@ -42,6 +43,25 @@ export function Animes() {
     closeAccessModal,
     proceedWithTrial
   } = useContentAccess();
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    checkContentAccess,
+    getNavigationState: () => ({
+      fromSection: 'animes',
+    }),
+  });
 
   useEffect(() => {
     const fetchAnimes = async () => {
@@ -160,6 +180,8 @@ export function Animes() {
   };
 
   const handleAnimeClick = (anime) => {
+    openVodDetail(anime, anime?.tipo || 'anime');
+    return;
     const animeId = anime.id || anime._id;
     if (!animeId) {
       console.error("Animes: Clic en anime sin ID válido.", anime);
@@ -207,10 +229,8 @@ export function Animes() {
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
-    if (trailerUrl) {
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-    }
+    openTrailer(trailerUrl);
+    return;
   };
 
   const handleProceedWithTrial = () => {
@@ -347,10 +367,22 @@ export function Animes() {
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal
           trailerUrl={currentTrailerUrl}
-          onClose={() => {
-            setShowTrailerModal(false);
-            setCurrentTrailerUrl('');
-          }}
+          onClose={closeTrailer}
+        />
+      )}
+
+      {vodDetail?.item && (
+        <MobileVodDetailModal
+          isOpen={Boolean(vodDetail?.item)}
+          item={vodDetail.item}
+          itemType={vodDetail.itemType}
+          canContinue={detailCanContinue}
+          progressPercent={detailProgressPercent}
+          onClose={closeVodDetail}
+          onContinue={handleContinueFromDetail}
+          onPlay={handlePlayFromDetail}
+          onAddToMyList={addItemToMyList}
+          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
         />
       )}
 

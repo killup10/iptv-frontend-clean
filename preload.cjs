@@ -86,6 +86,15 @@ try {
     },
 
     /**
+     * Ejecuta peticiones HTTP desde el proceso principal para evitar CORS en Electron.
+     * @param {object} requestConfig
+     * @returns {Promise<{ status: number, data: any, headers: Record<string, string> }>}
+     */
+    request: (requestConfig) => {
+      return ipcRenderer.invoke('teamg-http-request', requestConfig);
+    },
+
+    /**
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {

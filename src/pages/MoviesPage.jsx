@@ -10,10 +10,14 @@ import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import { useDebounce } from '../hooks/useDebounce.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import Toast from '../components/Toast.jsx';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import { getAccessLockState } from '../utils/planAccess.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -25,27 +29,7 @@ const getUniqueValuesFromArray = (items, field) => {
     return ['Todas', ...new Set(values.sort((a,b) => a.localeCompare(b)))];
 };
 
-const normalizeString = (str) => {
-    if (!str && str !== 0) return '';
-    try {
-        return String(str).normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
-    } catch (e) {
-        return String(str).replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-    }
-};
-
-const isSectionAllowedForPlan = (sectionKey, userPlan) => {
-    const restricciones = {
-        "CINE_4K": ["cinefilo", "premium"],
-        "CINE_60FPS": ["cinefilo", "premium"],
-        "CINE_2026": ["cinefilo", "premium"],
-        "CINE_2025": ["cinefilo", "premium"],
-        "TV_EN_VIVO": ["premium"],
-        "DORAMAS": ["estandar", "cinefilo", "premium"]
-    };
-    if (!restricciones[sectionKey]) return true;
-    return restricciones[sectionKey].includes(userPlan);
-};
+const isSectionAllowedForPlan = () => true;
 
 const HIDDEN_MOVIE_SECTION_KEYS = new Set(["CINE_2025"]);
 const filterVisibleMovieSections = (sections = []) =>
@@ -76,9 +60,6 @@ export default function MoviesPage() {
     const gridOptions = [5, 4, 3, 1];
     const [gridCols, setGridCols] = useState(gridOptions[0]);
 
-    const [showTrailerModal, setShowTrailerModal] = useState(false);
-    const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
-
     const [collections, setCollections] = useState([]);
     const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
     const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
@@ -87,6 +68,28 @@ export default function MoviesPage() {
     const [toastType, setToastType] = useState('success');
 
     const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+    const {
+        vodDetail,
+        openVodDetail,
+        closeVodDetail,
+        showTrailerModal,
+        currentTrailerUrl,
+        openTrailer,
+        closeTrailer,
+        detailProgressPercent,
+        detailCanContinue,
+        detailTrailerUrl,
+        handleContinueFromDetail,
+        handlePlayFromDetail,
+    } = useVodDetailOverlay({
+        checkContentAccess,
+        getNavigationState: () => ({
+            fromSection: 'movies',
+            sectionKey: selectedMainSectionKey,
+            genre: selectedGenre,
+            searchTerm: debouncedSearchTerm,
+        }),
+    });
 
     useEffect(() => {
         const loadCollections = async () => {
@@ -214,6 +217,8 @@ export default function MoviesPage() {
     }, [selectedMainSectionKey, selectedGenre, debouncedSearchTerm, user?.token]);
 
     const handleMovieClick = (movie) => {
+        openVodDetail(movie, 'movie');
+        return;
         const movieId = movie.id || movie._id;
         if (!movieId) {
             console.error("MoviesPage: Clic en película sin ID válido.", movie);
@@ -264,6 +269,8 @@ export default function MoviesPage() {
     };
 
     const handlePlayTrailerClick = (trailerUrl) => {
+        openTrailer(trailerUrl);
+        return;
         if (trailerUrl) {
             setCurrentTrailerUrl(trailerUrl);
             setShowTrailerModal(true);
@@ -350,6 +357,28 @@ export default function MoviesPage() {
         setSearchTerm('');
     };
 
+    const openMainSection = (sectionKey) => {
+        setSelectedMainSectionKey(sectionKey);
+        setSelectedGenre('Todas');
+        setSearchTerm('');
+    };
+
+    const handleAddToMyListSafe = async (item) => {
+        try {
+          const result = await addItemToMyList(item);
+          setToastMessage(
+            result.status === 'duplicate'
+              ? `"${item.name || item.title}" ya estaba en Mi Lista`
+              : `"${item.name || item.title}" agregado a Mi Lista`,
+          );
+          setToastType(result.status === 'duplicate' ? 'info' : 'success');
+        } catch (error) {
+          console.error('[MoviesPage.jsx] Error al agregar a Mi Lista:', error);
+          setToastMessage('Error al agregar a Mi Lista');
+          setToastType('error');
+        }
+      };
+
     if (isLoading && page === 1) {
         return <div className="flex justify-center items-center min-h-[calc(100vh-128px)]"><div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div></div>;
     }
@@ -362,19 +391,23 @@ export default function MoviesPage() {
 
     if (!selectedMainSectionKey) {
         return (
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
                 <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 text-center sm:text-left">Explorar Películas</h1>
                 {mainSections.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        {mainSections.map(section => (
-                            <MovieSectionCard
-                                key={section.key}
-                                section={section}
-                                onClick={handleSelectMainSection}
-                                userPlan={user.plan || 'gratuito'}
-                                moviesInSection={moviesBySection[section.key] || []}
-                            />
-                        ))}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+                        {mainSections.map(section => {
+                            const sectionLockState = getAccessLockState({ ...section, mainSection: section.key }, user?.plan);
+                            return (
+                                <MovieSectionCard
+                                    key={section.key}
+                                    section={section}
+                                    onClick={openMainSection}
+                                    moviesInSection={moviesBySection[section.key] || []}
+                                    isLocked={sectionLockState.locked}
+                                    lockHint={sectionLockState.lockMessage}
+                                />
+                            );
+                        })}
                     </div>
                 ) : (
                     <p className="text-center text-gray-500 mt-10 text-lg">No hay secciones de películas disponibles.</p>
@@ -445,7 +478,7 @@ export default function MoviesPage() {
                                         itemType="movie"
                                         onPlayTrailer={handlePlayTrailerClick}
                                         onAddToCollectionClick={handleOpenCollectionsModal}
-                                        onAddToMyList={handleAddToMyList}
+                                        onAddToMyList={handleAddToMyListSafe}
                                     />
                                 </div>
                             );
@@ -458,7 +491,7 @@ export default function MoviesPage() {
                                     itemType="movie"
                                     onPlayTrailer={handlePlayTrailerClick}
                                     onAddToCollectionClick={handleOpenCollectionsModal}
-                                    onAddToMyList={handleAddToMyList}
+                                    onAddToMyList={handleAddToMyListSafe}
                                 />
                             );
                         }
@@ -487,10 +520,22 @@ export default function MoviesPage() {
             {showTrailerModal && currentTrailerUrl && (
                 <TrailerModal
                     trailerUrl={currentTrailerUrl}
-                    onClose={() => {
-                        setShowTrailerModal(false);
-                        setCurrentTrailerUrl('');
-                    }}
+                    onClose={closeTrailer}
+                />
+            )}
+
+            {vodDetail?.item && (
+                <MobileVodDetailModal
+                    isOpen={Boolean(vodDetail?.item)}
+                    item={vodDetail.item}
+                    itemType={vodDetail.itemType}
+                    canContinue={detailCanContinue}
+                    progressPercent={detailProgressPercent}
+                    onClose={closeVodDetail}
+                    onContinue={handleContinueFromDetail}
+                    onPlay={handlePlayFromDetail}
+                    onAddToMyList={handleAddToMyListSafe}
+                    onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
                 />
             )}
 

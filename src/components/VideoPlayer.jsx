@@ -1,28 +1,40 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { getPlayerType, isAndroidTV } from '../utils/platformUtils';
+import { getPlayerType } from '../utils/platformUtils';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin';
 import { backgroundPlaybackService } from '../services/backgroundPlayback';
-import useProgressReporter from '../hooks/useProgressReporter';
 import useElectronMpvProgress from '../hooks/useElectronMpvProgress';
-import TVVideoPlayer from './TVVideoPlayer';
 import { videoProgressService } from '../services/videoProgress';
 import { App as CapacitorApp } from '@capacitor/app';
+import { storage } from '../utils/storage';
+import { apiBaseURL } from '../utils/axiosInstance';
 
-export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef, isNavigatingAwayRef, onReturnToChannelList, disableProgressTracking = false }) {
+const DEFAULT_WEB_PLAYBACK_MESSAGE =
+  'La reproduccion en navegador web esta deshabilitada. Instala la app de TeamG Play para continuar.';
+const WINDOWS_APP_URL = 'https://teamg.store/teamgplay-desktop.exe';
+const ANDROID_APP_URL = 'https://teamg.store/teamgplay.apk';
+
+export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, title, metaLine, seasons, currentChapterInfo, onNextEpisode, isUnmountingRef, isNavigatingAwayRef, onReturnToChannelList, onNativePlayerClosed, disableProgressTracking = false, channels, isLiveTV, contentType, nativePlayerType, webPlaybackMessage }) {
   const platform = getPlayerType();
+  const effectivePlayerType = nativePlayerType || platform;
+  const isAndroidVlc = effectivePlayerType === 'android-vlc';
+  const isAndroidExoplayer = effectivePlayerType === 'android-exoplayer';
+  const isAndroidMobileVlc = platform === 'android' && isAndroidVlc;
+  const supportsNativeProgress = isAndroidVlc || isAndroidExoplayer;
+  const shouldBlockBrowserPlayback = platform === 'web';
   const videoRef = useRef(null);
   const isPlayingRef = useRef(false);
   const hasInitializedRef = useRef(false); // 🔥 CLAVE: Detecta si ya inicializó
   const playbackKeyRef = useRef('');
   const isStartingRef = useRef(false);
   const suppressNextAutoplayRef = useRef(false);
-  
-  const [autoplayFailed, setAutoplayFailed] = useState(false);
-  
+  const nativePlaybackSessionIdRef = useRef(
+    `teamg-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
   const [currentTime, setCurrentTime] = useState(0);
   const lastSavedTimeRef = useRef(0);
   const lastProgressSentAtRef = useRef(0);
+  const latestProgressPayloadRef = useRef(null);
   const nativeChapterInfoRef = useRef({
     seasonIndex: currentChapterInfo?.seasonIndex,
     chapterIndex: currentChapterInfo?.chapterIndex
@@ -53,9 +65,61 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     }
   }, [currentChapterInfo?.seasonIndex, currentChapterInfo?.chapterIndex]);
 
+  const persistProgressCache = useCallback(async (payload) => {
+    if (!itemId || !payload) return;
+    latestProgressPayloadRef.current = payload;
+    try {
+      localStorage.setItem(`videoProgress_${itemId}`, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('[VideoPlayer] No se pudo guardar cache local de progreso:', error);
+    }
+  }, [itemId]);
+
+  const syncNativeProgressSnapshot = useCallback(async () => {
+    if (!supportsNativeProgress || !itemId || disableProgressTracking || !VideoPlayerPlugin?.getCurrentTime) {
+      return;
+    }
+
+    try {
+      const snapshot = await VideoPlayerPlugin.getCurrentTime();
+      const snapshotTime = Math.max(0, Math.floor(Number(snapshot?.currentTime || 0)));
+      if (!Number.isFinite(snapshotTime) || snapshotTime < 0) {
+        return;
+      }
+
+      const progressPayload = {
+        lastTime: snapshotTime,
+        progress: snapshotTime,
+        completed: Boolean(snapshot?.completed),
+      };
+
+      if (Number.isInteger(snapshot?.seasonIndex) && snapshot.seasonIndex >= 0) {
+        progressPayload.lastSeason = snapshot.seasonIndex;
+      } else if (Number.isInteger(nativeChapterInfoRef.current?.seasonIndex) && nativeChapterInfoRef.current.seasonIndex >= 0) {
+        progressPayload.lastSeason = nativeChapterInfoRef.current.seasonIndex;
+      }
+
+      if (Number.isInteger(snapshot?.chapterIndex) && snapshot.chapterIndex >= 0) {
+        progressPayload.lastChapter = snapshot.chapterIndex;
+      } else if (Number.isInteger(nativeChapterInfoRef.current?.chapterIndex) && nativeChapterInfoRef.current.chapterIndex >= 0) {
+        progressPayload.lastChapter = nativeChapterInfoRef.current.chapterIndex;
+      }
+
+      lastSavedTimeRef.current = snapshotTime;
+      setCurrentTime(snapshotTime);
+      await videoProgressService.saveProgress(itemId, progressPayload);
+      await persistProgressCache(progressPayload);
+    } catch (error) {
+      console.warn('[VideoPlayer] No se pudo sincronizar snapshot nativo:', error);
+    }
+  }, [disableProgressTracking, itemId, persistProgressCache, supportsNativeProgress]);
+
   // Android VLC playback - ROBUST VERSION
   useEffect(() => {
-    if (!url || platform !== 'android-vlc') {
+    if (!url || !isAndroidVlc) {
+      return;
+    }
+    if (!initialAutoplay) {
       return;
     }
     if (isUnmountingRef?.current || isNavigatingAwayRef?.current) {
@@ -89,34 +153,55 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
 
       try {
-        // 1. Detener cualquier instancia anterior de VLC.
-        // Es seguro llamar a stopVideo() incluso si no hay nada reproduciendo.
-        console.log('[VideoPlayer] Android: Deteniendo reproductor anterior antes de iniciar nuevo...');
-        isPlayingRef.current = false;
-        await VideoPlayerPlugin.stopVideo();
-        if (shouldCancel()) return;
+        // Live TV keeps its hard reset. VOD must not send a stop broadcast here
+        // because it can arrive after VLC opens and close the new player.
+        if (isLiveTV) {
+          console.log('[VideoPlayer] Android: Deteniendo reproductor anterior antes de iniciar Live TV...');
+          isPlayingRef.current = false;
+          await VideoPlayerPlugin.stopVideo();
+          if (shouldCancel()) return;
+        }
 
         // 2. Pequeña pausa para que el sistema libere recursos.
-        await new Promise(resolve => setTimeout(resolve, 250));
-        if (shouldCancel()) return;
+        if (isLiveTV) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          if (shouldCancel()) return;
+        }
 
         // 3. Iniciar el servicio de notificaciones en segundo plano.
-        console.log('[VideoPlayer] Android: Iniciando servicio en segundo plano...');
-        await backgroundPlaybackService.startPlayback({
-          title: title || "TeamG Play",
-          artist: "Reproduciendo contenido",
-          album: "TeamG Play",
-          artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
-        });
-        if (shouldCancel()) return;
+        if (isAndroidMobileVlc) {
+          console.log('[VideoPlayer] Android: Iniciando servicio en segundo plano...');
+          await backgroundPlaybackService.startPlayback({
+            title: title || "TeamG Play",
+            artist: "Reproduciendo contenido",
+            album: "TeamG Play",
+            artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
+          });
+          if (shouldCancel()) return;
+        }
 
         // 4. Iniciar la reproducción del nuevo video.
         console.log(`[VideoPlayer] Android: Iniciando reproducción de: ${url}`);
+        const [sessionToken, deviceId] = await Promise.all([
+          storage.getItem('token'),
+          storage.getItem('deviceId'),
+        ]);
         await VideoPlayerPlugin.playVideo({
           url: url,
           title: title || "Video",
+          metaLine: metaLine || "",
+          sessionId: nativePlaybackSessionIdRef.current,
           startTime: normalizedStartTime,
           chapters: allChapters,
+          channels: channels,
+          isLiveTV: isLiveTV,
+          contentType: contentType,
+          playerType: effectivePlayerType,
+          seasonIndex: currentChapterInfo?.seasonIndex,
+          chapterIndex: currentChapterInfo?.chapterIndex,
+          sessionToken: sessionToken || "",
+          deviceId: deviceId || "",
+          apiBaseUrl: apiBaseURL,
         });
         if (shouldCancel()) return;
 
@@ -127,12 +212,15 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         // 5. Guardar el progreso inicial.
         const initialTime = normalizedStartTime;
         if (!disableProgressTracking && itemId) {
-          await videoProgressService.saveProgress(itemId, {
+          const initialProgressPayload = {
             lastTime: initialTime,
+            progress: initialTime,
             lastSeason: currentChapterInfo?.seasonIndex,
             lastChapter: currentChapterInfo?.chapterIndex,
             completed: false
-          });
+          };
+          await videoProgressService.saveProgress(itemId, initialProgressPayload);
+          await persistProgressCache(initialProgressPayload);
           lastSavedTimeRef.current = initialTime;
         }
 
@@ -141,10 +229,12 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         isPlayingRef.current = false;
         isStartingRef.current = false;
         // Intentar detener el servicio de fondo si la reproducción falla.
-        try {
-          await backgroundPlaybackService.stopPlayback();
-        } catch (bgErr) {
-          console.warn('[VideoPlayer] Error deteniendo background playback tras un fallo:', bgErr);
+        if (isAndroidMobileVlc) {
+          try {
+            await backgroundPlaybackService.stopPlayback();
+          } catch (bgErr) {
+            console.warn('[VideoPlayer] Error deteniendo background playback tras un fallo:', bgErr);
+          }
         }
       }
     };
@@ -160,11 +250,125 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       console.log('[VideoPlayer] Android: Cleanup del efecto de reproducción.');
       // La detención global del video se maneja en el `useEffect` de desmontaje global.
     };
-  }, [platform, url, initialAutoplay, title, startTime, allChapters, itemId, currentChapterInfo, disableProgressTracking]);
+  }, [allChapters, contentType, currentChapterInfo, disableProgressTracking, effectivePlayerType, initialAutoplay, isAndroidMobileVlc, isAndroidVlc, isLiveTV, itemId, metaLine, startTime, title, url]);
+
+  // Android TV / ExoPlayer playback
+  useEffect(() => {
+    if (!url || !isAndroidExoplayer) {
+      return;
+    }
+    if (!initialAutoplay) {
+      return;
+    }
+    if (isUnmountingRef?.current || isNavigatingAwayRef?.current) {
+      isStartingRef.current = false;
+      return;
+    }
+    if (suppressNextAutoplayRef.current) {
+      suppressNextAutoplayRef.current = false;
+      isStartingRef.current = false;
+      console.log('[VideoPlayer] Android TV: auto-reproduccion suprimida tras cierre manual del reproductor');
+      return;
+    }
+
+    const playbackKey = `${itemId || ''}|${url}|${currentChapterInfo?.seasonIndex ?? ''}|${currentChapterInfo?.chapterIndex ?? ''}`;
+    if (playbackKeyRef.current === playbackKey && (isPlayingRef.current || isStartingRef.current)) {
+      return;
+    }
+    playbackKeyRef.current = playbackKey;
+    isStartingRef.current = true;
+
+    let isCancelled = false;
+    const shouldCancel = () => isCancelled || isUnmountingRef?.current || isNavigatingAwayRef?.current;
+    const normalizedStartTime = Number.isFinite(startTime) ? Math.max(0, Math.floor(startTime)) : 0;
+
+    const handleAndroidTvPlayback = async () => {
+      if (shouldCancel()) {
+        isStartingRef.current = false;
+        return;
+      }
+
+      try {
+        console.log('[VideoPlayer] Android TV: deteniendo reproductor anterior antes de iniciar ExoPlayer...');
+        isPlayingRef.current = false;
+        await VideoPlayerPlugin.stopVideo();
+        if (shouldCancel()) return;
+
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        if (shouldCancel()) return;
+
+        const [sessionToken, deviceId] = await Promise.all([
+          storage.getItem('token'),
+          storage.getItem('deviceId'),
+        ]);
+        await VideoPlayerPlugin.playVideo({
+          url: url,
+          title: title || "Video",
+          metaLine: metaLine || "",
+          sessionId: nativePlaybackSessionIdRef.current,
+          startTime: normalizedStartTime,
+          chapters: allChapters,
+          channels: channels,
+          isLiveTV: isLiveTV,
+          contentType: contentType,
+          playerType: effectivePlayerType,
+          seasonIndex: currentChapterInfo?.seasonIndex,
+          chapterIndex: currentChapterInfo?.chapterIndex,
+          sessionToken: sessionToken || "",
+          deviceId: deviceId || "",
+          apiBaseUrl: apiBaseURL,
+        });
+        if (shouldCancel()) return;
+
+        isPlayingRef.current = true;
+        isStartingRef.current = false;
+        console.log('[VideoPlayer] Android TV: ExoPlayer iniciado correctamente.');
+
+        if (!disableProgressTracking && itemId) {
+          const initialProgressPayload = {
+            lastTime: normalizedStartTime,
+            progress: normalizedStartTime,
+            lastSeason: currentChapterInfo?.seasonIndex,
+            lastChapter: currentChapterInfo?.chapterIndex,
+            completed: false
+          };
+          await videoProgressService.saveProgress(itemId, initialProgressPayload);
+          await persistProgressCache(initialProgressPayload);
+          lastSavedTimeRef.current = normalizedStartTime;
+        }
+      } catch (err) {
+        console.error('Error iniciando Android TV player:', err);
+        isPlayingRef.current = false;
+        isStartingRef.current = false;
+      }
+    };
+
+    handleAndroidTvPlayback();
+
+    return () => {
+      isCancelled = true;
+      isStartingRef.current = false;
+      console.log('[VideoPlayer] Android TV: cleanup del efecto de reproduccion.');
+    };
+  }, [allChapters, contentType, currentChapterInfo, disableProgressTracking, effectivePlayerType, initialAutoplay, isAndroidExoplayer, isLiveTV, isNavigatingAwayRef, isUnmountingRef, itemId, metaLine, persistProgressCache, startTime, title, url]);
+
+  useEffect(() => {
+    if ((!isAndroidVlc && !isAndroidExoplayer) || !isLiveTV || !Array.isArray(channels) || channels.length === 0) {
+      return;
+    }
+
+    if (typeof VideoPlayerPlugin?.updateLiveChannels !== 'function') {
+      return;
+    }
+
+    VideoPlayerPlugin.updateLiveChannels({ channels }).catch((error) => {
+      console.warn('[VideoPlayer] No se pudo actualizar lista nativa de canales:', error);
+    });
+  }, [channels, isAndroidExoplayer, isAndroidVlc, isLiveTV]);
 
   // Android VLC progress tracking for "Continuar viendo"
   useEffect(() => {
-    if (platform !== 'android-vlc' || !itemId || disableProgressTracking) return;
+    if (!supportsNativeProgress || !itemId || disableProgressTracking) return;
 
     const PROGRESS_INTERVAL_MS = 20000;
     let progressListener = null;
@@ -196,6 +400,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       const chapterInfo = resolveChapterInfo(data);
       const progressPayload = {
         lastTime: Math.max(0, Math.floor(currentTimeValue || 0)),
+        progress: Math.max(0, Math.floor(currentTimeValue || 0)),
         completed
       };
       if (chapterInfo.seasonIndex !== undefined) {
@@ -205,6 +410,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         progressPayload.lastChapter = chapterInfo.chapterIndex;
       }
       await videoProgressService.saveProgress(itemId, progressPayload);
+      await persistProgressCache(progressPayload);
       lastProgressSentAtRef.current = Date.now();
     };
 
@@ -234,9 +440,19 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
     };
 
-    if (VideoPlayerPlugin?.addListener) {
-      progressListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
-    }
+    const registerProgressListener = async () => {
+      if (!VideoPlayerPlugin?.addListener) {
+        return;
+      }
+
+      try {
+        progressListener = await VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
+      } catch (error) {
+        console.warn('[VideoPlayer] No se pudo registrar listener de progreso nativo:', error);
+      }
+    };
+
+    registerProgressListener();
 
     progressInterval = setInterval(() => {
       const currentTimeValue = lastSavedTimeRef.current;
@@ -247,6 +463,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     return () => {
       if (progressInterval) clearInterval(progressInterval);
+      syncNativeProgressSnapshot();
       const finalTime = lastSavedTimeRef.current;
       if (finalTime > 0) {
         saveProgress(finalTime, false, nativeChapterInfoRef.current);
@@ -255,11 +472,11 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         progressListener.remove();
       }
     };
-  }, [platform, itemId, currentChapterInfo, disableProgressTracking]);
+  }, [currentChapterInfo, disableProgressTracking, itemId, persistProgressCache, supportsNativeProgress, syncNativeProgressSnapshot]);
 
   // Android background events - SIMPLIFICADO
   useEffect(() => {
-    if (platform !== 'android-vlc') return;
+    if (!isAndroidMobileVlc) return;
 
     const handlers = {
       'backgroundPlayback:play': () => {
@@ -293,11 +510,11 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         window.removeEventListener(event, handler);
       });
     };
-  }, [platform]);
+  }, [isAndroidMobileVlc]);
 
   // 🔥 NUEVO: Listener para eventos del VLC (cambiar canal, etc)
   useEffect(() => {
-    if (platform !== 'android-vlc' || !onReturnToChannelList) return;
+    if (!isAndroidVlc || !onReturnToChannelList) return;
 
     const handleChannelChangeRequest = () => {
       console.log('[VideoPlayer] Channel change requested from VLC');
@@ -312,25 +529,29 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         if (listener?.remove) listener.remove();
       };
     }
-  }, [platform, onReturnToChannelList]);
+  }, [isAndroidVlc, onReturnToChannelList]);
 
   // Cuando VLC se cierra manualmente (boton atras), evitar auto-reproduccion inmediata al volver al selector.
   useEffect(() => {
-    if (platform !== 'android-vlc') return;
+    if (!isAndroidVlc && !isAndroidExoplayer) return;
     if (!VideoPlayerPlugin?.addListener) return;
 
     const handlePlayerClosed = (data) => {
       console.log('[VideoPlayer] playerClosed recibido desde nativo:', data);
+      syncNativeProgressSnapshot();
       isPlayingRef.current = false;
       isStartingRef.current = false;
       suppressNextAutoplayRef.current = true;
+      if (typeof onNativePlayerClosed === 'function') {
+        onNativePlayerClosed(data || {});
+      }
     };
 
     const closedListener = VideoPlayerPlugin.addListener('playerClosed', handlePlayerClosed);
     return () => {
       if (closedListener?.remove) closedListener.remove();
     };
-  }, [platform]);
+  }, [isAndroidExoplayer, isAndroidVlc, onNativePlayerClosed, syncNativeProgressSnapshot]);
 
   // Global cleanup - SIMPLE Y EFECTIVO
   useEffect(() => {
@@ -342,17 +563,24 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       await new Promise(resolve => setTimeout(resolve, 50));
 
       try {
-        console.log('[VideoPlayer] Stopping VLC...');
-        if (window.VideoPlayerPlugin?.stopVideo) {
-          await window.VideoPlayerPlugin.stopVideo();
+        if (supportsNativeProgress) {
+          await syncNativeProgressSnapshot();
+          if ((isUnmountingRef?.current || isNavigatingAwayRef?.current) && VideoPlayerPlugin?.stopVideo) {
+            console.log('[VideoPlayer] Stopping native player for current session...');
+            await VideoPlayerPlugin.stopVideo({
+              sessionId: nativePlaybackSessionIdRef.current
+            });
+          } else {
+            console.log('[VideoPlayer] Cleanup without navigation; preserving native playback session.');
+          }
         }
       } catch (err) {
-        console.warn('[VideoPlayer] Error stopping VLC:', err);
+        console.warn('[VideoPlayer] Error stopping native player:', err);
       }
 
       try {
-        console.log('[VideoPlayer] Stopping background playback...');
-        if (backgroundPlaybackService?.stopPlayback) {
+        if (isAndroidMobileVlc && backgroundPlaybackService?.stopPlayback) {
+          console.log('[VideoPlayer] Stopping background playback...');
           await backgroundPlaybackService.stopPlayback();
         }
       } catch (err) {
@@ -373,167 +601,65 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       isPlayingRef.current = false;
       console.log('[VideoPlayer] Global cleanup complete');
     };
-  }, []);
+  }, [isAndroidMobileVlc, supportsNativeProgress, syncNativeProgressSnapshot]);
 
-  // App state listener - SIMPLE
+  // Android pauses the WebView while the native VLC activity is in front. Do not
+  // stop VLC from these lifecycle events; Watch/VideoPlayer cleanup handles real exits.
   useEffect(() => {
-    if (platform !== 'android-vlc') return;
+    if (!isAndroidMobileVlc) return;
 
-    const forceStop = () => {
-      console.log('[VideoPlayer] Force stop triggered (app inactive)');
+    let appStateListener = null;
+    let pauseListener = null;
+    let disposed = false;
+
+    const syncProgressOnly = () => {
+      console.log('[VideoPlayer] App lifecycle event while native VLC is active; syncing progress without stopping playback.');
       try {
-        if (window.VideoPlayerPlugin?.stopVideo) {
-          window.VideoPlayerPlugin.stopVideo();
-        }
-        if (backgroundPlaybackService?.stopPlayback) {
-          backgroundPlaybackService.stopPlayback();
-        }
-        isPlayingRef.current = false;
+        syncNativeProgressSnapshot();
       } catch (err) {
-        console.warn('[VideoPlayer] Error in force stop:', err);
+        console.warn('[VideoPlayer] Error syncing native progress on lifecycle event:', err);
       }
     };
 
-    const appStateListener = CapacitorApp.addListener('appStateChange', (state) => {
-      console.log('[VideoPlayer] App state changed:', state.isActive);
-      if (!state.isActive) forceStop();
-    });
+    const setupListeners = async () => {
+      try {
+        appStateListener = await CapacitorApp.addListener('appStateChange', (state) => {
+          if (disposed) return;
+          console.log('[VideoPlayer] App state changed:', state.isActive);
+          if (!state.isActive) syncProgressOnly();
+        });
 
-    const pauseListener = CapacitorApp.addListener('pause', () => {
-      console.log('[VideoPlayer] Pause event received');
-      forceStop();
-    });
+        pauseListener = await CapacitorApp.addListener('pause', () => {
+          if (disposed) return;
+          console.log('[VideoPlayer] Pause event received');
+          syncProgressOnly();
+        });
+      } catch (err) {
+        console.warn('[VideoPlayer] Error registering lifecycle listeners:', err);
+      }
+    };
+
+    setupListeners();
 
     return () => {
-      appStateListener.remove();
-      pauseListener.remove();
+      disposed = true;
+      if (appStateListener?.remove) appStateListener.remove();
+      if (pauseListener?.remove) pauseListener.remove();
     };
-  }, [platform]);
+  }, [isAndroidMobileVlc, syncNativeProgressSnapshot]);
 
-  // Web player
+  // Web playback is intentionally disabled to force app-based playback.
   useEffect(() => {
-    let cleanupDone = false;
-
-    if (platform === 'web' && url && videoRef.current) {
-      const video = videoRef.current;
-
-      try {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-        if (isPlayingRef.current) {
-          backgroundPlaybackService.stopPlayback();
-          isPlayingRef.current = false;
-        }
-      } catch (e) {
-        console.warn('[VideoPlayer] Error cleanup:', e);
-      }
-
-      const initBackgroundPlayback = async () => {
-        try {
-          if (!cleanupDone) {
-            await backgroundPlaybackService.startPlayback({
-              title: title || "TeamG Play",
-              artist: "Reproduciendo contenido",
-              album: "TeamG Play",
-              artwork: [{ src: '/TeamG Play.png', sizes: '512x512', type: 'image/png' }]
-            });
-          }
-        } catch (err) {
-          console.warn('[VideoPlayer] Error background playback:', err);
-        }
-      };
-      
-      const handleLoadedMetadata = async () => {
-        if (startTime > 0) video.currentTime = startTime;
-
-        if (initialAutoplay) {
-          try {
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              await playPromise;
-              isPlayingRef.current = true;
-              await initBackgroundPlayback();
-            }
-          } catch (error) {
-            try {
-              video.muted = true;
-              const mutedPlayPromise = video.play();
-              if (mutedPlayPromise !== undefined) {
-                await mutedPlayPromise;
-                isPlayingRef.current = true;
-                await initBackgroundPlayback();
-                
-                setTimeout(() => {
-                  try {
-                    video.muted = false;
-                    video.play().catch(e => console.warn('[VideoPlayer] Error desmutear:', e));
-                  } catch (e) {
-                    console.warn('[VideoPlayer] Error:', e);
-                  }
-                }, 1500);
-              }
-            } catch (mutedErr) {
-              console.error('[VideoPlayer] Muted autoplay fallido:', mutedErr.message);
-              setAutoplayFailed(true);
-            }
-          }
-        }
-      };
-
-      const handleVideoError = (ev) => {
-        try {
-          const err = ev.target.error;
-          console.error('[VideoPlayer] Error de video:', err?.message);
-          setAutoplayFailed(true);
-        } catch (e) {
-          console.error('[VideoPlayer] Error:', e);
-        }
-      };
-
-      video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      video.addEventListener('error', handleVideoError);
-      
-      video.src = url;
-
-      return () => {
-        cleanupDone = true;
-        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        video.removeEventListener('error', handleVideoError);
-        
-        if (isPlayingRef.current) {
-          backgroundPlaybackService.stopPlayback();
-          isPlayingRef.current = false;
-        }
-
-        try { 
-          video.pause();
-          video.removeAttribute('src');
-          video.load();
-        } catch (e) {
-          console.warn('[VideoPlayer] Error cleanup:', e);
-        }
-      };
+    if (platform !== 'web' || shouldBlockBrowserPlayback || !videoRef.current) {
+      return;
     }
-  }, [platform, url, startTime, initialAutoplay, title]);
+
+    return undefined;
+  }, [platform, shouldBlockBrowserPlayback]);
 
   // Render
   
-  // Android TV - usa reproductor nativo
-  if (isAndroidTV()) {
-    return (
-      <TVVideoPlayer
-        videoUrl={url}
-        title={title}
-        chapters={allChapters}
-        onBack={onReturnToChannelList}
-        onNextEpisode={onNextEpisode}
-        autoPlay={initialAutoplay}
-      />
-    );
-  }
-
-  if (platform === 'android-vlc') {
+  if (isAndroidVlc) {
     return (
       <div 
         className="w-full aspect-video rounded-lg flex items-center justify-center text-white relative overflow-hidden group"
@@ -561,28 +687,78 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
   }
 
   if (platform === 'web') {
-    useProgressReporter(videoRef, itemId, { 
-      intervalMs: 20000,
-      seasonIndex: currentChapterInfo?.seasonIndex,
-      chapterIndex: currentChapterInfo?.chapterIndex
-    });
+    const installMessage = webPlaybackMessage || DEFAULT_WEB_PLAYBACK_MESSAGE;
 
     return (
-      <div className="w-full aspect-video bg-black rounded-lg overflow-hidden">
-        <video
-          ref={videoRef}
-          className="w-full h-full"
-          controls
-          controlsList="nodownload"
-          preload="auto"
-          playsInline
-          autoPlay={false}
-          muted={initialAutoplay}
-          crossOrigin="anonymous"
-          style={{ backgroundColor: '#000' }}
-        >
-          Tu navegador no soporta el elemento video.
-        </video>
+      <div
+        className="w-full aspect-video rounded-lg overflow-hidden text-white relative"
+        style={{
+          background: 'radial-gradient(circle at top, rgba(34, 211, 238, 0.18), rgba(2, 6, 23, 0.98) 58%)',
+          border: '1px solid rgba(34, 211, 238, 0.22)'
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/10 via-slate-950 to-black" />
+        <div className="relative z-10 h-full flex items-center justify-center p-6 sm:p-8">
+          <div className="max-w-2xl text-center">
+            <div className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs sm:text-sm font-semibold uppercase tracking-[0.24em] text-cyan-200">
+              Solo disponible en la app
+            </div>
+            <h3 className="mt-5 text-2xl sm:text-4xl font-bold leading-tight text-white">
+              Instala TeamG Play para reproducir este contenido
+            </h3>
+            <p className="mt-4 text-sm sm:text-base text-slate-300 leading-relaxed">
+              {installMessage}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <a
+                href={WINDOWS_APP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-md bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-transform hover:scale-[1.02]"
+              >
+                Descargar para Windows
+              </a>
+              <a
+                href={ANDROID_APP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                Descargar APK Android
+              </a>
+            </div>
+            <p className="mt-4 text-xs sm:text-sm text-slate-400">
+              La reproduccion en navegador fue deshabilitada por seguridad.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAndroidExoplayer) {
+    return (
+      <div
+        className="w-full aspect-video rounded-lg flex items-center justify-center text-white relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, rgba(3, 7, 18, 1) 0%, rgba(12, 74, 110, 0.78) 48%, rgba(8, 145, 178, 0.35) 100%)',
+          border: '1px solid rgba(34, 211, 238, 0.35)'
+        }}
+      >
+        <div className="text-center z-10">
+          <h3 className="text-lg font-semibold mb-2" style={{
+            color: 'rgb(207 250 254)',
+            textShadow: '0 0 14px rgba(34, 211, 238, 0.35)'
+          }}>
+            {title}
+          </h3>
+          <p className="text-sm" style={{
+            color: 'rgb(103 232 249)',
+            textShadow: '0 0 10px rgba(34, 211, 238, 0.25)'
+          }}>
+            Reproduciendo en ExoPlayer
+          </p>
+        </div>
       </div>
     );
   }
@@ -612,10 +788,18 @@ VideoPlayer.propTypes = {
   startTime: PropTypes.number,
   initialAutoplay: PropTypes.bool,
   title: PropTypes.string,
+  metaLine: PropTypes.string,
   seasons: PropTypes.array,
   currentChapterInfo: PropTypes.object,
   onNextEpisode: PropTypes.func,
   isUnmountingRef: PropTypes.object,
   isNavigatingAwayRef: PropTypes.object,
-  disableProgressTracking: PropTypes.bool
+  disableProgressTracking: PropTypes.bool,
+  channels: PropTypes.array,
+  isLiveTV: PropTypes.bool,
+  contentType: PropTypes.string,
+  nativePlayerType: PropTypes.string,
+  onReturnToChannelList: PropTypes.func,
+  onNativePlayerClosed: PropTypes.func,
+  webPlaybackMessage: PropTypes.string
 };

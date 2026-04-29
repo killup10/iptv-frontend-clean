@@ -4,7 +4,7 @@ import { getPlayableUrl } from "@/utils/playerUtils.js";
 import axiosInstance from "@/utils/axiosInstance.js";
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
-import { getUserProgress, updateUserProgress } from "@/utils/api.js";
+import { getUserProgress, updateUserProgress, fetchUserChannels } from "@/utils/api.js";
 import { throttle } from 'lodash'; // Se necesita lodash para throttling
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
@@ -23,7 +23,10 @@ export function Watch() {
   const [error, setError] = useState(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [bounds, setBounds] = useState(null);
-  
+
+  // Estado para canales en vivo (TV en Vivo)
+  const [liveChannels, setLiveChannels] = useState(null);
+
   // Estado para el modal de acceso
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessModalData, setAccessModalData] = useState(null);
@@ -111,6 +114,19 @@ export function Watch() {
           console.log("[Watch.jsx] Datos normalizados:", normalizedData);
         }
         setItemData(normalizedData);
+
+        // Si es un canal en vivo, obtener la lista de canales de la misma categoría
+        if (itemType === "channel" && data.section) {
+          console.log(`[Watch.jsx] Es un canal en vivo. Obteniendo lista de canales de la sección: ${data.section}`);
+          try {
+            const channels = await fetchUserChannels(data.section);
+            setLiveChannels(channels || []);
+            console.log(`[Watch.jsx] Canales obtenidos (${channels?.length || 0}):`, channels);
+          } catch (channelErr) {
+            console.warn("[Watch.jsx] Error al obtener lista de canales en vivo:", channelErr);
+            setLiveChannels([]);
+          }
+        }
       } catch (err) {
         // Manejar errores 401 (sesión expirada)
         if (err.response?.status === 401) {
@@ -122,7 +138,7 @@ export function Watch() {
         } else if (err.response?.status === 403) {
           // Manejar específicamente errores 403 relacionados con planes
           const errorData = err.response.data || {};
-          
+
           // SIEMPRE mostrar modal personalizado para errores 403
           setAccessModalData({
             title: errorData.title || location.state?.title || location.state?.name || 'Contenido Premium',
@@ -219,14 +235,14 @@ export function Watch() {
         // Primero, asegurar que cualquier instancia anterior de MPV esté detenida
         console.log('[Watch.jsx] Deteniendo MPV anterior antes de iniciar nuevo...');
         await window.electronMPV.stop();
-        
+
         // Pausa más larga para asegurar que MPV se haya cerrado completamente
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         if (process.env.NODE_ENV === "development") {
           console.log('[Watch.jsx] Iniciando MPV con URL:', videoUrl);
         }
-        
+
         const result = await window.electronMPV.play(videoUrl, bounds, { startTime });
         if (!result.success) {
           throw new Error(result.error || 'Error desconocido al iniciar MPV');
@@ -236,17 +252,17 @@ export function Watch() {
         setError(null);
         // Marcar timestamp de inicio para fallback de progreso
         playbackStartTsRef.current = Date.now();
-        
+
       } catch (err) {
         console.error('[Watch.jsx] Error al iniciar MPV:', err);
-        
+
         // Si es un error de código 1 y no hemos excedido los reintentos, intentar de nuevo
         if (err.message.includes('código: 1') && retryCount < 2) {
           console.log(`[Watch.jsx] Reintentando reproducción (intento ${retryCount + 1})...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
           return initializeMPV(retryCount + 1);
         }
-        
+
         setError(`Error al iniciar el reproductor: ${err.message}`);
       }
     };
@@ -275,12 +291,12 @@ export function Watch() {
             }
         }
     };
-    
+
     if (window.electronAPI) {
       console.log('[Watch.jsx] Suscribiendo a eventos MPV (error y time-pos)...');
       window.electronAPI.on('mpv-error', handleMpvError);
       // Suscribirse al evento que notifica la posición del tiempo
-      window.electronAPI.on('mpv-time-pos', handleTimePos); 
+      window.electronAPI.on('mpv-time-pos', handleTimePos);
     }
 
     return () => {
@@ -340,7 +356,7 @@ export function Watch() {
     // Verificar si hay información de dónde vino en el estado de navegación
     const fromLocation = location.state?.from;
     const fromSection = location.state?.fromSection;
-    
+
     if (fromLocation) {
       // Si tenemos información específica de dónde vino, ir ahí
       navigate(fromLocation);
@@ -478,7 +494,7 @@ export default Watch;
     );
 
   const hasValidContent = itemData.url || (itemData.chapters && itemData.chapters.length > 0);
-  
+
   if (!hasValidContent)
     return (
       <div className="text-white p-10 text-center min-h-screen bg-black pt-20">
@@ -496,29 +512,29 @@ export default Watch;
     );
 
   return (
-    <DynamicTheme 
-      theme={visualTheme} 
+    <DynamicTheme
+      theme={visualTheme}
       className="min-h-screen flex flex-col pt-16 relative"
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; }
       `}</style>
-      
+
       {/* Background image with dynamic overlay */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-fixed"
         style={{
-          backgroundImage: itemData?.poster || itemData?.backdrop || itemData?.thumbnail 
-            ? `url(${itemData.poster || itemData.backdrop || itemData.thumbnail})` 
+          backgroundImage: itemData?.poster || itemData?.backdrop || itemData?.thumbnail
+            ? `url(${itemData.poster || itemData.backdrop || itemData.thumbnail})`
             : "url('/fondo.png')",
           filter: 'brightness(0.3) blur(1px)'
         }}
       />
-      
+
       <div className="relative z-10 container mx-auto px-2 sm:px-4 py-4 flex-grow flex flex-col">
         {showError}
-        
+
         {/* Navigation */}
         <div className="mb-4 flex items-center justify-between w-full max-w-screen-xl mx-auto">
           <button
@@ -544,11 +560,11 @@ export default Watch;
                   {itemData.name}
                 </DynamicText>
               </h1>
-              
+
               {/* Enhanced metadata badges */}
               <div className="flex flex-wrap gap-3 mb-4 justify-center sm:justify-start">
                 {itemData.releaseYear && (
-                  <span 
+                  <span
                     className="px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm"
                     style={{
                       backgroundColor: visualTheme ? `${visualTheme.primaryColor}20` : 'rgba(59, 130, 246, 0.2)',
@@ -560,7 +576,7 @@ export default Watch;
                   </span>
                 )}
                 {itemData.genres && itemData.genres.length > 0 && (
-                  <span 
+                  <span
                     className="px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm"
                     style={{
                       backgroundColor: visualTheme ? `${visualTheme.secondaryColor}20` : 'rgba(236, 72, 153, 0.2)',
@@ -572,7 +588,7 @@ export default Watch;
                   </span>
                 )}
                 {itemData.ratingDisplay && (
-                  <span 
+                  <span
                     className="px-4 py-2 rounded-full text-sm font-medium backdrop-blur-sm"
                     style={{
                       backgroundColor: visualTheme ? `${visualTheme.accentColor}20` : 'rgba(255, 255, 255, 0.2)',
@@ -584,7 +600,7 @@ export default Watch;
                   </span>
                 )}
               </div>
-              
+
               {itemData.chapters?.length > 0 && location.state?.chapterIndex !== undefined && (
                 <p className="text-sm mb-4">
                   <DynamicText theme={visualTheme} variant="secondary">
@@ -593,19 +609,19 @@ export default Watch;
                 </p>
               )}
             </div>
-            
+
             {/* Video Player */}
             <div
               ref={videoAreaRef}
               className="w-full max-w-5xl mx-auto mb-8 rounded-2xl overflow-hidden"
-              style={{ 
-                position: "relative", 
+              style={{
+                position: "relative",
                 aspectRatio: "16/9",
                 boxShadow: visualTheme ? `0 0 40px ${visualTheme.primaryColor}30` : '0 0 40px rgba(59, 130, 246, 0.3)'
               }}
             >
               {videoUrl ? (
-                <VideoPlayer 
+                <VideoPlayer
                   key={`video-${location.state?.seasonIndex || 0}-${location.state?.chapterIndex || 0}`}
                   url={videoUrl}
                   itemId={itemData.id}
@@ -614,6 +630,9 @@ export default Watch;
                   title={itemData.name}
                   chapters={itemData.chapters}
                   seasons={itemData.seasons}
+                  channels={liveChannels}
+                  isLiveTV={itemType === "channel"}
+                  contentType={itemType}
                   currentChapterInfo={{
                     seasonIndex: location.state?.seasonIndex || 0,
                     chapterIndex: location.state?.chapterIndex || 0
@@ -622,7 +641,7 @@ export default Watch;
               ) : (
                 <div className="flex items-center justify-center h-full bg-black rounded-2xl">
                   <div className="text-center">
-                    <div 
+                    <div
                       className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4"
                       style={{ borderColor: visualTheme?.primaryColor || '#3b82f6' }}
                     ></div>
@@ -641,10 +660,10 @@ export default Watch;
             {itemData.description && (
               <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
                 <h3 className="text-2xl font-bold mb-4 flex items-center">
-                  <span 
+                  <span
                     className="w-1 h-8 rounded-full mr-3"
                     style={{
-                      background: visualTheme 
+                      background: visualTheme
                         ? `linear-gradient(to bottom, ${visualTheme.primaryColor}, ${visualTheme.secondaryColor})`
                         : 'linear-gradient(to bottom, #3b82f6, #ec4899)'
                     }}
@@ -654,7 +673,7 @@ export default Watch;
                   </DynamicText>
                 </h3>
                 <div className="prose prose-invert max-w-none">
-                  <p className="text-base leading-relaxed whitespace-pre-wrap" 
+                  <p className="text-base leading-relaxed whitespace-pre-wrap"
                      style={{ color: visualTheme?.textColor || '#ffffff' }}>
                     {itemData.description}
                   </p>
@@ -688,10 +707,10 @@ export default Watch;
             ) && (
               <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
                 <h3 className="text-2xl font-bold mb-4 flex items-center">
-                  <span 
+                  <span
                     className="w-1 h-8 rounded-full mr-3"
                     style={{
-                      background: visualTheme 
+                      background: visualTheme
                         ? `linear-gradient(to bottom, ${visualTheme.primaryColor}, ${visualTheme.secondaryColor})`
                         : 'linear-gradient(to bottom, #3b82f6, #ec4899)'
                     }}

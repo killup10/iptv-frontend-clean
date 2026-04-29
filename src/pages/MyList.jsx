@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 export function MyList() {
   const { user } = useAuth();
@@ -12,8 +15,6 @@ export function MyList() {
   const [myListItems, setMyListItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
 
   const {
     checkContentAccess,
@@ -22,6 +23,25 @@ export function MyList() {
     closeAccessModal,
     proceedWithTrial
   } = useContentAccess();
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    checkContentAccess,
+    getNavigationState: () => ({
+      fromSection: 'my-list',
+    }),
+  });
 
   // Cargar Mi Lista
   useEffect(() => {
@@ -53,6 +73,8 @@ export function MyList() {
   }, [user?.token]);
 
   const handleItemClick = (item, itemType) => {
+    openVodDetail(item, itemType);
+    return;
     const navigateToPlayer = (resolvedItem, resolvedType) => {
       const id = resolvedItem._id || resolvedItem.id;
       const path = `/watch/${resolvedType}/${id}`;
@@ -64,14 +86,7 @@ export function MyList() {
   };
 
   const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
-    if (trailerUrl) {
-      console.log('[MyList.jsx] Playing trailer:', trailerUrl);
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-      if (onCloseCallback && typeof onCloseCallback === 'function') {
-        window.__lastTrailerOnClose = onCloseCallback;
-      }
-    }
+    openTrailer(trailerUrl, onCloseCallback);
   };
 
   const handleRemoveFromList = async (itemId) => {
@@ -142,7 +157,10 @@ export function MyList() {
                     key={item._id || item.id}
                     className="group/card relative"
                   >
-                    <div className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover/card:scale-105 relative shadow-lg">
+                    <div
+                      className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover/card:scale-105 relative shadow-lg"
+                      onClick={() => handleItemClick(item, item.tipo || item.itemType || 'movie')}
+                    >
                       <img
                         src={item.thumbnail || '/img/placeholder-thumbnail.png'}
                         alt={item.name || item.title || 'Póster'}
@@ -206,20 +224,22 @@ export function MyList() {
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal
           trailerUrl={currentTrailerUrl}
-          onClose={() => {
-            setShowTrailerModal(false);
-            setCurrentTrailerUrl('');
-            try {
-              const cb = window.__lastTrailerOnClose;
-              if (typeof cb === 'function') {
-                cb();
-              }
-            } catch (err) {
-              console.warn('[MyList.jsx] Error calling trailer onClose callback', err);
-            } finally {
-              window.__lastTrailerOnClose = null;
-            }
-          }}
+          onClose={closeTrailer}
+        />
+      )}
+
+      {vodDetail?.item && (
+        <MobileVodDetailModal
+          isOpen={Boolean(vodDetail?.item)}
+          item={vodDetail.item}
+          itemType={vodDetail.itemType}
+          canContinue={detailCanContinue}
+          progressPercent={detailProgressPercent}
+          onClose={closeVodDetail}
+          onContinue={handleContinueFromDetail}
+          onPlay={handlePlayFromDetail}
+          onAddToMyList={addItemToMyList}
+          onTrailer={detailTrailerUrl ? () => handlePlayTrailerClick(detailTrailerUrl) : null}
         />
       )}
 

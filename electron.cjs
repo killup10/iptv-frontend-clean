@@ -1,8 +1,51 @@
 // electron.cjs
 const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net');
+const isDev = process.env.NODE_ENV === 'development';
+const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
+const MAIN_DEBUG_LOG = path.join(__dirname, 'electron-main-debug.log');
+
+function logMainDebug(...parts) {
+  const message = parts
+    .map((part) => {
+      if (part instanceof Error) {
+        return `${part.stack || part.message}`;
+      }
+      if (typeof part === 'object') {
+        try {
+          return JSON.stringify(part);
+        } catch {
+          return String(part);
+        }
+      }
+      return String(part);
+    })
+    .join(' ');
+
+  try {
+    fs.appendFileSync(MAIN_DEBUG_LOG, `[${new Date().toISOString()}] ${message}\n`);
+  } catch {}
+}
+
+console.log('[Electron Main] Booting', {
+  isDev,
+  rendererUrl: DEV_SERVER_URL,
+  pid: process.pid,
+});
+logMainDebug('Booting', { isDev, rendererUrl: DEV_SERVER_URL, pid: process.pid });
+
+process.on('uncaughtException', (error) => {
+  console.error('[Electron Main] Uncaught exception:', error);
+  logMainDebug('Uncaught exception', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Electron Main] Unhandled rejection:', reason);
+  logMainDebug('Unhandled rejection', reason);
+});
 
 let mainWindow = null;
 let mpvProcess = null;
@@ -13,6 +56,21 @@ let mpvCurrentVideoId = null;  // Rastrear ID del video actual para auto-play
 const MPV_OBSERVE_TIME_POS_ID = 1;
 const MPV_OBSERVE_DURATION_ID = 2;
 let mpvEndEventSent = false;
+let isAppQuitting = false;
+
+function emitMpvEnded(payload = {}) {
+  if (mpvEndEventSent) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mpvEndEventSent = true;
+  console.log('[MPV Socket] 🎬 ENVIANDO mpv-ended event', payload);
+  mainWindow.webContents.send('mpv-ended', {
+    videoId: mpvCurrentVideoId || 'unknown',
+    duration: mpvVideoDuration || 0,
+    finalTime: mpvLastTimePos || 0,
+    ...payload
+  });
+}
 
 // Helper para terminar el proceso de MPV
 async function forceKillVLC() {
@@ -69,8 +127,6 @@ async function forceKillVLC() {
     }
   });
 }
-
-const isDev = process.env.NODE_ENV === 'development';
 
 // Variables para rastrear fin de video
 let mpvLastTimePos = 0;
@@ -142,15 +198,11 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
                   // Enviar evento de fin con un pequeño delay para asegurar que se alcanzó el final
                   if (mpvEndDetectionTimer) clearTimeout(mpvEndDetectionTimer);
                   mpvEndDetectionTimer = setTimeout(() => {
-                    if (!mpvEndEventSent && mainWindow && !mainWindow.isDestroyed()) {
-                      mpvEndEventSent = true;
-                      console.log('[MPV Socket] 🎬 ENVIANDO mpv-ended event');
-                      mainWindow.webContents.send('mpv-ended', { 
-                        videoId: mpvCurrentVideoId || 'unknown',
-                        duration: mpvVideoDuration,
-                        finalTime: timePos
-                      });
-                    }
+                    emitMpvEnded({
+                      duration: mpvVideoDuration,
+                      finalTime: timePos,
+                      source: 'duration-threshold'
+                    });
                     mpvEndDetectionTimer = null;
                   }, 500);
                 }
@@ -159,6 +211,19 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
               if (isDurationEvent && eventData !== null && eventData !== undefined) {
                 mpvVideoDuration = parseFloat(eventData) || 0;
                 console.debug('[MPV Socket] Duración del video:', mpvVideoDuration);
+              }
+            }
+
+            // Fallback robusto: MPV notifica fin real del archivo aunque duration/time-pos no sean confiables.
+            if (event.event === 'end-file') {
+              const reason = String(event.reason || '').toLowerCase();
+              if (reason === 'eof') {
+                emitMpvEnded({
+                  reason,
+                  source: 'end-file'
+                });
+              } else {
+                console.log('[MPV Socket] end-file recibido sin EOF, no se auto-avanza:', reason || 'sin reason');
               }
             }
           } catch (err) {
@@ -197,6 +262,8 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
 }
 
 function createMainWindow() {
+  console.log('[Electron Main] Creating main window...');
+  logMainDebug('Creating main window');
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -211,28 +278,46 @@ function createMainWindow() {
   // Quitar el menú por defecto (File, Edit, View, etc)
   mainWindow.removeMenu();
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Electron Main] Renderer loaded successfully.');
+    logMainDebug('Renderer loaded successfully');
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('[Electron Main] Renderer failed to load:', {
+      errorCode,
+      errorDescription,
+      validatedURL,
+    });
+    logMainDebug('Renderer failed to load', { errorCode, errorDescription, validatedURL });
+  });
+
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.loadURL(DEV_SERVER_URL).catch((error) => {
+      console.error('[Electron Main] Failed to load development URL:', error);
+      logMainDebug('Failed to load development URL', error);
+    });
   } else {
-    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html')).catch((error) => {
+      console.error('[Electron Main] Failed to load production index.html:', error);
+      logMainDebug('Failed to load production index.html', error);
+    });
   }
 
   mainWindow.once('ready-to-show', () => {
+    console.log('[Electron Main] Window ready to show.');
+    logMainDebug('Window ready to show');
     mainWindow.show();
   });
 
-  mainWindow.on('close', (event) => {
-    if (mpvProcess) {
-      try {
-        mpvProcess.kill();
-        console.log('[Window] MPV detenido correctamente');
-      } catch (err) {
-        console.error('[Window] Error al detener MPV:', err);
-      } finally {
-        mpvProcess = null;
-      }
+  mainWindow.on('close', () => {
+    if (!mpvProcess && !mpvSocket) {
+      return;
     }
+
+    forceKillVLC().catch((err) => {
+      console.error('[Window] Error al detener MPV en cierre:', err);
+    });
   });
 
   mainWindow.on('closed', () => {
@@ -240,15 +325,152 @@ function createMainWindow() {
   });
 }
 
-app.whenReady().then(createMainWindow);
+function buildRequestUrl(url, params = {}) {
+  const finalUrl = new URL(url);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => finalUrl.searchParams.append(key, String(item)));
+      return;
+    }
+
+    finalUrl.searchParams.set(key, String(value));
+  });
+
+  return finalUrl.toString();
+}
+
+function shouldSendRequestBody(method) {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  return normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD';
+}
+
+function normalizeResponseBody(rawText, contentType, responseType) {
+  if (!rawText) {
+    return null;
+  }
+
+  const expectsText = responseType === 'text';
+  const isJsonResponse = String(contentType || '').toLowerCase().includes('application/json');
+
+  if (!expectsText && isJsonResponse) {
+    try {
+      return JSON.parse(rawText);
+    } catch (error) {
+      logMainDebug('Failed to parse JSON response body', error);
+    }
+  }
+
+  return rawText;
+}
+
+ipcMain.handle('teamg-http-request', async (_event, requestConfig = {}) => {
+  const method = String(requestConfig.method || 'GET').toUpperCase();
+  const timeoutMs = Number(requestConfig.timeout || 30000);
+  const url = buildRequestUrl(requestConfig.url, requestConfig.params);
+  const headers = { ...(requestConfig.headers || {}) };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const fetchOptions = {
+      method,
+      headers,
+      signal: controller.signal,
+    };
+
+    if (shouldSendRequestBody(method) && requestConfig.data !== undefined) {
+      const isJsonBody =
+        typeof requestConfig.data === 'object' &&
+        requestConfig.data !== null &&
+        !Buffer.isBuffer(requestConfig.data) &&
+        !(requestConfig.data instanceof ArrayBuffer);
+
+      if (isJsonBody) {
+        if (!fetchOptions.headers['Content-Type'] && !fetchOptions.headers['content-type']) {
+          fetchOptions.headers['Content-Type'] = 'application/json';
+        }
+        fetchOptions.body = JSON.stringify(requestConfig.data);
+      } else {
+        fetchOptions.body = requestConfig.data;
+      }
+    }
+
+    logMainDebug('Electron HTTP request', { method, url });
+    const response = await fetch(url, fetchOptions);
+    const responseText = await response.text();
+    const responseHeaders = Object.fromEntries(response.headers.entries());
+    const responseData = normalizeResponseBody(
+      responseText,
+      response.headers.get('content-type'),
+      requestConfig.responseType,
+    );
+
+    return {
+      status: response.status,
+      data: responseData,
+      headers: responseHeaders,
+    };
+  } catch (error) {
+    const errorCode = error?.name === 'AbortError' ? 'ECONNABORTED' : (error?.code || 'ERR_NETWORK');
+    logMainDebug('Electron HTTP request failed', { method, url, error: error?.message || String(error) });
+    return {
+      __teamgHttpError: true,
+      message: error?.message || 'Electron HTTP request failed',
+      code: errorCode,
+      response: error?.response,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+});
+
+app.on('before-quit', (event) => {
+  if (isAppQuitting) {
+    return;
+  }
+
+  isAppQuitting = true;
+
+  if (!mpvProcess && !mpvSocket && !mpvEndDetectionTimer) {
+    return;
+  }
+
+  event.preventDefault();
+  forceKillVLC()
+    .catch((err) => {
+      console.error('[App] Error cerrando MPV antes de salir:', err);
+    })
+    .finally(() => {
+      app.quit();
+    });
+});
+
+app.on('ready', () => {
+  console.log('[Electron Main] App ready event received.');
+  logMainDebug('App ready event received');
+});
+
+app.whenReady().then(createMainWindow).catch((error) => {
+  console.error('[Electron Main] app.whenReady failed:', error);
+  logMainDebug('app.whenReady failed', error);
+  app.exit(1);
+});
 
 app.on('window-all-closed', () => {
+  console.log('[Electron Main] window-all-closed');
+  logMainDebug('window-all-closed');
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
+  console.log('[Electron Main] activate');
+  logMainDebug('activate');
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow();
   }

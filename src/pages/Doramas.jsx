@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import Toast from '@/components/Toast';
 import { getCollections, addItemsToCollection } from '../utils/api.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 
 export function Doramas() {
@@ -19,12 +22,27 @@ export function Doramas() {
   const gridOptions = [5, 4, 3, 1];
   const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
 
-  const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
-
   const [collections, setCollections] = useState([]);
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    getNavigationState: () => ({
+      fromSection: 'doramas',
+    }),
+  });
 
   useEffect(() => {
     const fetchDoramas = async () => {
@@ -97,6 +115,8 @@ export function Doramas() {
   };
 
   const handleDoramaClick = (dorama) => {
+    openVodDetail(dorama, 'dorama');
+    return;
     navigate(`/watch/serie/${dorama._id}`);
   };
 
@@ -125,10 +145,8 @@ export function Doramas() {
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
-    if (trailerUrl) {
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-    }
+    openTrailer(trailerUrl);
+    return;
   };
 
   const toggleGridView = () => {
@@ -279,10 +297,21 @@ export function Doramas() {
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal
           trailerUrl={currentTrailerUrl}
-          onClose={() => {
-            setShowTrailerModal(false);
-            setCurrentTrailerUrl('');
-          }}
+          onClose={closeTrailer}
+        />
+      )}
+      {vodDetail?.item && (
+        <MobileVodDetailModal
+          isOpen={Boolean(vodDetail?.item)}
+          item={vodDetail.item}
+          itemType={vodDetail.itemType}
+          canContinue={detailCanContinue}
+          progressPercent={detailProgressPercent}
+          onClose={closeVodDetail}
+          onContinue={handleContinueFromDetail}
+          onPlay={handlePlayFromDetail}
+          onAddToMyList={addItemToMyList}
+          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
         />
       )}
       <CollectionsModal

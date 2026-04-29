@@ -4,6 +4,11 @@ module.exports = {
   appId: "com.teamg.play.desktop",
   productName: "TeamG Play Desktop",
   asar: true,
+  npmRebuild: false,
+  extraMetadata: {
+    main: "electron.cjs",
+    dependencies: {}
+  },
   asarUnpack: [
     "mpv/**"
   ],
@@ -16,7 +21,11 @@ module.exports = {
     "assets/**/*",
     "electron.cjs",
     "preload.cjs",
-    "package.json"
+    "package.json",
+    "!node_modules{,/**/*}",
+    "!android{,/**/*}",
+    "!android-tv{,/**/*}",
+    "!ios{,/**/*}"
   ],
   extraResources: [
     {
@@ -51,6 +60,7 @@ module.exports = {
     allowElevation: true,
     allowToChangeInstallationDirectory: true,
     installerIcon: "assets/icon.ico",
-    uninstallerIcon: "assets/icon.ico"
+    uninstallerIcon: "assets/icon.ico",
+    include: "build/installer.nsh"
   }
 };

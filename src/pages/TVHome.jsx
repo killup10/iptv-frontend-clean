@@ -78,7 +78,7 @@ export default function TVHome() {
     return (
       <>
         <TVNavigation />
-        <div 
+        <div
           className="min-h-screen flex items-center justify-center"
           style={{
             background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
@@ -103,13 +103,13 @@ export default function TVHome() {
           min-height: 100vh;
           padding-top: 120px;
         }
-        
+
         .tv-hero-section {
           background: linear-gradient(135deg, rgba(0,255,255,0.1) 0%, rgba(255,0,255,0.1) 100%);
           border: 1px solid rgba(0,255,255,0.2);
           backdrop-filter: blur(10px);
         }
-        
+
         .tv-welcome-text {
           background: linear-gradient(135deg, #00ffff, #ff00ff);
           -webkit-background-clip: text;
@@ -120,14 +120,14 @@ export default function TVHome() {
       `}</style>
 
       <TVNavigation />
-      
+
       <div className="tv-home-container">
         {/* Hero Section */}
         <div className="px-8 mb-12">
           <div className="tv-hero-section rounded-2xl p-12 text-center">
-            <img 
-              src="./logo-teamg.png" 
-              alt="TeamG Play Logo" 
+            <img
+              src="/logo-teamg.png"
+              alt="TeamG Play Logo"
               className="h-32 mx-auto mb-8"
               style={{
                 filter: 'drop-shadow(0 0 30px rgba(0,255,255,0.6)) drop-shadow(0 0 15px rgba(255,0,255,0.4))',
@@ -138,7 +138,7 @@ export default function TVHome() {
               Bienvenido a TeamG Play TV
             </h1>
             <p className="text-white text-2xl mb-8 max-w-4xl mx-auto">
-              Disfruta de la mejor experiencia de entretenimiento en tu Smart TV. 
+              Disfruta de la mejor experiencia de entretenimiento en tu Smart TV.
               Miles de películas, series, animes y canales en vivo.
             </p>
             <div className="flex justify-center space-x-8 text-lg text-gray-300">
@@ -164,28 +164,28 @@ export default function TVHome() {
 
         {/* Content Sections */}
         <div className="space-y-8">
-          <TVCard 
+          <TVCard
             items={featuredContent}
             title="🌟 Contenido Destacado"
             startFocused={true}
           />
-          
-          <TVCard 
+
+          <TVCard
             items={liveChannels}
             title="📺 Canales en Vivo"
           />
-          
-          <TVCard 
+
+          <TVCard
             items={moviesContent}
             title="🎬 Películas Populares"
           />
-          
-          <TVCard 
+
+          <TVCard
             items={seriesContent}
             title="📽️ Series Trending"
           />
 
-          <TVCard 
+          <TVCard
             items={cine2026Content}
             title="🍿 Cine 2026"
           />

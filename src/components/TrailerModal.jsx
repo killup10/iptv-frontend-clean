@@ -1,98 +1,147 @@
 // src/components/TrailerModal.jsx
-import React, { useEffect } from 'react';
-import VideoPlayer from './VideoPlayer.jsx'; // Ajusta la ruta si es diferente
+import React, { useEffect, useMemo, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 
-// Helper para extraer el ID de YouTube de varias URL de video (no playlists)
 const getYouTubeId = (url) => {
-    if (!url) return null;
-    // Expresión regular para varios formatos de URL de video de YouTube
-    // Coincide con: youtu.be/, /watch?v=, /embed/, /v/, /u/N/
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    const videoId = (match && match[2] && match[2].length === 11) ? match[2] : null;
-    // console.log(`TrailerModal: getYouTubeId para '${url}' -> ID: '${videoId}'`);
-    return videoId;
+  if (!url) return null;
+
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = String(url).match(regExp);
+  return (match && match[2] && match[2].length === 11) ? match[2] : null;
+};
+
+const shouldCloseTrailer = (event) => {
+  if (!event) {
+    return false;
+  }
+
+  if (['Escape', 'Backspace', 'BrowserBack', 'GoBack'].includes(event.key)) {
+    return true;
+  }
+
+  return [4, 8, 27, 111, 461, 10009].includes(event.keyCode || event.which || 0);
 };
 
 const TrailerModal = ({ trailerUrl, onClose }) => {
+  const closeButtonRef = useRef(null);
+
+  const youtubeEmbedUrl = useMemo(() => {
+    const youtubeId = getYouTubeId(trailerUrl);
+    return youtubeId
+      ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&fs=1`
+      : null;
+  }, [trailerUrl]);
+
   useEffect(() => {
-    // Cierra el modal si se presiona la tecla Escape
-    const handleEsc = (event) => {
-      if (event.key === 'Escape') {
-        onClose();
+    const closeCurrentOverlay = () => onClose();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.__trailerModalOpen = true;
+    window.__trailerModalClose = closeCurrentOverlay;
+
+    const handleCloseIntent = (event) => {
+      if (!shouldCloseTrailer(event)) {
+        return;
       }
+
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      closeCurrentOverlay();
     };
-    window.addEventListener('keydown', handleEsc);
-    // Limpieza del event listener al desmontar
+
+    const handleBackButton = (event) => {
+      event?.preventDefault?.();
+      closeCurrentOverlay();
+    };
+
+    const focusTimer = window.setTimeout(() => {
+      if (!closeButtonRef.current) {
+        return;
+      }
+
+      try {
+        closeButtonRef.current.focus({ preventScroll: true });
+      } catch {
+        closeButtonRef.current.focus();
+      }
+    }, 40);
+
+    window.addEventListener('keydown', handleCloseIntent, true);
+    document.addEventListener('keydown', handleCloseIntent, true);
+    window.addEventListener('backbutton', handleBackButton);
+
     return () => {
-      window.removeEventListener('keydown', handleEsc);
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleCloseIntent, true);
+      document.removeEventListener('keydown', handleCloseIntent, true);
+      window.removeEventListener('backbutton', handleBackButton);
+      if (window.__trailerModalClose === closeCurrentOverlay) {
+        window.__trailerModalClose = null;
+        window.__trailerModalOpen = false;
+      }
     };
   }, [onClose]);
 
-  // Evita que el clic dentro del contenido del modal cierre el modal
-  const handleContentClick = (e) => {
-    e.stopPropagation();
+  const handleContentClick = (event) => {
+    event.stopPropagation();
   };
 
   if (!trailerUrl) {
-    console.warn("TrailerModal: No se proporcionó trailerUrl.");
-    return null; // No renderizar nada si no hay URL
+    console.warn('TrailerModal: No se proporciono trailerUrl.');
+    return null;
   }
 
-  const youtubeId = getYouTubeId(trailerUrl);
-  // Construir URL de embed de YouTube con autoplay, sin videos relacionados y permitiendo fullscreen
-   const youtubeEmbedUrl = youtubeId
-    ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&fs=1`
-    : null;
-
-  // console.log("TrailerModal: trailerUrl original:", trailerUrl);
-  // console.log("TrailerModal: youtubeId extraído:", youtubeId);
-  // console.log("TrailerModal: youtubeEmbedUrl generado:", youtubeEmbedUrl);
-
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-85 flex items-center justify-center z-[100] p-4"
-      onClick={onClose} // Cierra el modal al hacer clic en el fondo
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
-      <div 
-        className="bg-black p-3 sm:p-4 rounded-xl shadow-2xl w-full max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl relative border border-gray-700"
-        onClick={handleContentClick} // Evita que el clic aquí cierre el modal
+      <div
+        className="relative w-full max-w-xl rounded-xl border border-gray-700 bg-black p-3 shadow-2xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl sm:p-4"
+        onClick={handleContentClick}
       >
-        <button 
+        <button
+          ref={closeButtonRef}
+          type="button"
           onClick={onClose}
-          className="absolute -top-3 -right-3 sm:top-2 sm:right-2 text-gray-300 bg-gray-800 hover:bg-red-600 hover:text-white transition-colors z-20 rounded-full p-1.5 shadow-lg"
-          aria-label="Cerrar tráiler"
+          className="absolute left-3 top-3 z-20 rounded-full bg-gray-800 p-1.5 text-gray-300 shadow-lg transition-colors hover:bg-red-600 hover:text-white"
+          aria-label="Cerrar trailer"
         >
           <XMarkIcon className="h-6 w-6" />
         </button>
-        
-        <div className="aspect-video bg-black rounded-lg overflow-hidden">
+
+        <div className="aspect-video overflow-hidden rounded-lg bg-black">
           {youtubeEmbedUrl ? (
             <iframe
               width="100%"
               height="100%"
               src={youtubeEmbedUrl}
-              title="YouTube video player"
+              title="Trailer"
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen // Habilita el botón de pantalla completa en el reproductor de YouTube
-              className="block" // Asegura que el iframe ocupe el espacio
-            ></iframe>
+              allowFullScreen
+              className="block"
+              tabIndex={-1}
+            />
           ) : (
-            // Si no es una URL de YouTube, usar reproductor HTML5 nativo
-            <video 
-              className="w-full h-full"
+            <video
+              className="h-full w-full"
               controls
               autoPlay
+              playsInline
               src={trailerUrl}
+              tabIndex={-1}
             >
               Tu navegador no soporta el elemento de video.
             </video>
           )}
         </div>
-         <p className="text-xs text-gray-600 mt-3 text-center">
-            Presiona ESC o haz clic fuera para cerrar.
+
+        <p className="mt-3 text-center text-xs text-gray-500">
+          Retroceso, ESC o clic fuera cierran el trailer.
         </p>
       </div>
     </div>

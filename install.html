@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamG Play - Instalador para Smart TV</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 50px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 120px;
+            margin: 0 auto 30px;
+        }
+
+        .logo img {
+            width: 100%;
+            height: auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 8px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .info-box p {
+            color: #444;
+            line-height: 1.6;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            min-width: 200px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:focus {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .btn-secondary {
+            background: #f0f4ff;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-secondary:focus {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
+        }
+
+        .status {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .status.loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .steps {
+            text-align: left;
+            margin: 30px 0;
+        }
+
+        .steps ol {
+            color: #444;
+            line-height: 2;
+        }
+
+        .steps li {
+            margin-bottom: 15px;
+        }
+
+        .controls-info {
+            background: #fffbea;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 8px;
+        }
+
+        .controls-info h3 {
+            color: #ff7f00;
+            margin-bottom: 10px;
+        }
+
+        .controls-info ul {
+            margin-left: 20px;
+            color: #444;
+        }
+
+        .controls-info li {
+            margin-bottom: 8px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #ddd;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                min-width: 100%;
+            }
+        }
+
+        /* Estilos para TV (controles con D-Pad) */
+        @media (dpi: 100) and (orientation: landscape) {
+            .btn {
+                min-width: 300px;
+                padding: 20px 60px;
+                font-size: 1.3em;
+            }
+
+            body {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" fill="#667eea" opacity="0.1"/>
+                <circle cx="50" cy="50" r="40" fill="#667eea" opacity="0.3"/>
+                <polygon points="35,30 35,70 70,50" fill="#667eea"/>
+                <text x="50" y="85" font-size="14" font-weight="bold" text-anchor="middle" fill="#667eea">TEAMG PLAY</text>
+            </svg>
+        </div>
+
+        <h1>TeamG Play para Smart TV</h1>
+        <p class="subtitle">Instalador automático para Downloader</p>
+
+        <div class="info-box">
+            <h3>📱 ¿Qué vas a instalar?</h3>
+            <p>
+                Una aplicación de streaming de IPTV optimizada para tu Smart TV Android.
+                Incluye navegación intuitiva con D-Pad, reproducción de video de alta calidad,
+                y acceso a canales en vivo y on-demand.
+            </p>
+        </div>
+
+        <div class="controls-info">
+            <h3>🎮 Cómo navegar (requiere controles D-Pad)</h3>
+            <ul>
+                <li><strong>Flechas (↑↓←→):</strong> Navegar por opciones y canales</li>
+                <li><strong>OK/ENTER:</strong> Seleccionar elemento</li>
+                <li><strong>BACK/ESC:</strong> Volver atrás</li>
+                <li><strong>HOME:</strong> Ir a pantalla principal</li>
+                <li><strong>VOL +/-:</strong> Control de volumen</li>
+            </ul>
+        </div>
+
+        <div class="steps">
+            <h3>📋 Pasos de instalación:</h3>
+            <ol>
+                <li>Haz clic en <strong>"INSTALAR"</strong> abajo</li>
+                <li>Se descargará la aplicación (~50 MB)</li>
+                <li>Se extraerán los archivos automáticamente</li>
+                <li>Se abrirá la aplicación en tu navegador</li>
+                <li>¡A disfrutar del streaming!</li>
+            </ol>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-primary" onclick="startInstallation()">
+                ✅ INSTALAR AHORA
+            </button>
+            <button class="btn btn-secondary" onclick="showManualGuide()">
+                📖 GUÍA MANUAL
+            </button>
+        </div>
+
+        <div id="progress-container" style="display: none; margin-top: 30px;">
+            <p id="status-text">Preparando instalación...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        function startInstallation() {
+            const button = event.target;
+            button.disabled = true;
+
+            const statusDiv = document.getElementById('status');
+            const progressContainer = document.getElementById('progress-container');
+            const statusText = document.getElementById('status-text');
+            const progressFill = document.getElementById('progress-fill');
+
+            progressContainer.style.display = 'block';
+            statusDiv.className = 'status loading';
+            statusDiv.textContent = '⏳ Iniciando descarga...';
+            statusText.textContent = 'Descargando archivos...';
+            progressFill.style.width = '10%';
+
+            // Simular descarga
+            setTimeout(() => {
+                progresarFill.style.width = '30%';
+                statusText.textContent = 'Extrayendo archivos...';
+            }, 1000);
+
+            // Simular extracción
+            setTimeout(() => {
+                progressFill.style.width = '70%';
+                statusText.textContent = 'Configurando aplicación...';
+            }, 3000);
+
+            // Completar
+            setTimeout(() => {
+                progressFill.style.width = '100%';
+                statusDiv.className = 'status success';
+                statusDiv.innerHTML = `
+                    <strong>✅ ¡Instalación completada!</strong><br>
+                    La aplicación se abrirá en unos segundos...<br>
+                    Si no se abre automáticamente, haz clic en <strong>ABRIR</strong>
+                `;
+                statusText.textContent = '¡Listo para usar!';
+
+                const openBtn = document.createElement('button');
+                openBtn.className = 'btn btn-primary';
+                openBtn.textContent = '▶ ABRIR APLICACIÓN';
+                openBtn.onclick = openApplication;
+                openBtn.style.marginTop = '20px';
+                statusDiv.appendChild(openBtn);
+
+                button.disabled = false;
+
+                // Auto-abrir en 5 segundos
+                setTimeout(() => openApplication(), 5000);
+            }, 5000);
+        }
+
+        function openApplication() {
+            // Intenta abrir la aplicación en diferentes ubicaciones
+            const possiblePaths = [
+                'file:///storage/emulated/0/Download/TeamGPlay/tv-index.html',
+                'file:///storage/emulated/0/Downloads/TeamGPlay/tv-index.html',
+                'file:///data/local/tmp/TeamGPlay/tv-index.html',
+                '../dist-tv/tv-index.html'
+            ];
+
+            // Intenta abrir en la primera ubicación conocida
+            window.location.href = possiblePaths[1];
+        }
+
+        function showManualGuide() {
+            alert(`
+📖 GUÍA DE INSTALACIÓN MANUAL:
+
+1. Descarga: teamg-play-tv.zip
+2. Descomprime en: /storage/emulated/0/Downloads/TeamGPlay/
+3. Abre: tv-index.html en tu navegador
+4. ¡Disfruta!
+
+Para más ayuda, consulta el README incluido.
+            `);
+        }
+
+        // Soporte para navegación con teclado (D-Pad)
+        document.addEventListener('keydown', function(e) {
+            const buttons = document.querySelectorAll('button:not(:disabled)');
+            const activeBtn = document.activeElement;
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const nextBtn = Array.from(buttons).find(btn => btn !== activeBtn);
+                if (nextBtn) nextBtn.focus();
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prevBtn = Array.from(buttons).reverse().find(btn => btn !== activeBtn);
+                if (prevBtn) prevBtn.focus();
+            } else if (e.key === 'Enter' && activeBtn.tagName === 'BUTTON') {
+                e.preventDefault();
+                activeBtn.click();
+            }
+        });
+
+        // Focus en primer botón al cargar
+        window.addEventListener('load', () => {
+            const firstBtn = document.querySelector('button');
+            if (firstBtn) firstBtn.focus();
+        });
+    </script>
+</body>
+</html>

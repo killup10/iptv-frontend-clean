@@ -3,7 +3,121 @@ import ReactDOM from 'react-dom';
 import { Search, X, Mic } from 'lucide-react';
 import { isAndroidTV } from '../utils/platformUtils';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission';
+import { normalizeSearchText } from '../utils/searchUtils.js';
+import { searchGlobal } from '../utils/api.js';
 import { App as CapacitorApp } from '@capacitor/app';
+
+const SEARCH_PORTAL_ROOT_ID = 'teamg-search-portal-root';
+const LOCAL_SEARCH_LIMIT = 48;
+const REMOTE_SEARCH_LIMIT = 80;
+const REMOTE_SEARCH_DEBOUNCE_MS = 320;
+
+const SEARCH_TYPE_MAP = {
+  pelicula: 'movie',
+  movie: 'movie',
+  serie: 'serie',
+  series: 'serie',
+  anime: 'anime',
+  dorama: 'dorama',
+  novela: 'novela',
+  documental: 'documental',
+  channel: 'channel',
+  canal: 'channel',
+  kids: 'zona kids',
+  'zona kids': 'zona kids',
+  continuar: 'continue-watching',
+  'continue-watching': 'continue-watching',
+};
+
+function resolveSearchItemType(item) {
+  const candidates = [item?.itemType, item?.tipo, item?.type, 'movie'];
+  for (const candidate of candidates) {
+    const key = String(candidate || '').toLowerCase();
+    if (SEARCH_TYPE_MAP[key]) {
+      return SEARCH_TYPE_MAP[key];
+    }
+  }
+
+  return 'movie';
+}
+
+function getSearchItemKey(item) {
+  const id = item?._id || item?.id;
+  if (id) {
+    return `id:${id}`;
+  }
+
+  return `${resolveSearchItemType(item)}:${normalizeSearchText(item?.name || item?.title || item?.titulo || '')}`;
+}
+
+function normalizeResultItem(item) {
+  const itemType = resolveSearchItemType(item);
+  return {
+    ...item,
+    itemType,
+    type: item?.type || item?.tipo || itemType,
+  };
+}
+
+function getSearchResultTitle(item) {
+  return normalizeSearchText(item?.name || item?.title || item?.titulo || '');
+}
+
+function scoreSearchResult(item, normalizedQuery) {
+  const title = getSearchResultTitle(item);
+  const index = normalizeSearchText([
+    item?.name,
+    item?.title,
+    item?.titulo,
+    item?.description,
+    item?.descripcion,
+    item?.section,
+    item?.type,
+    item?.tipo,
+  ].filter(Boolean).join(' '));
+  const itemType = resolveSearchItemType(item);
+
+  let score = 0;
+  if (title === normalizedQuery) score += 120;
+  else if (title.startsWith(normalizedQuery)) score += 90;
+  else if (title.includes(normalizedQuery)) score += 65;
+  else if (index.includes(normalizedQuery)) score += 35;
+
+  if (itemType === 'channel') score += 8;
+  return score;
+}
+
+function mergeSearchResults(groups, query = '', limit = LOCAL_SEARCH_LIMIT) {
+  const byId = new Map();
+
+  groups.flat().filter(Boolean).forEach((item) => {
+    const normalizedItem = normalizeResultItem(item);
+    const key = getSearchItemKey(normalizedItem);
+    if (!byId.has(key)) {
+      byId.set(key, normalizedItem);
+    }
+  });
+
+  const normalizedQuery = normalizeSearchText(query);
+  return Array.from(byId.values())
+    .sort((a, b) => scoreSearchResult(b, normalizedQuery) - scoreSearchResult(a, normalizedQuery))
+    .slice(0, limit);
+}
+
+function getSearchPortalRoot() {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  let root = document.getElementById(SEARCH_PORTAL_ROOT_ID);
+  if (!root) {
+    root = document.createElement('div');
+    root.id = SEARCH_PORTAL_ROOT_ID;
+    document.body.appendChild(root);
+  }
+
+  return root;
+}
 
 /**
  * Normaliza texto: elimina tildes y convierte a minúsculas
@@ -42,9 +156,14 @@ export default function SearchBar({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState('');
+  const [portalRoot, setPortalRoot] = useState(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
   const isTV = isAndroidTV();
+
+  useEffect(() => {
+    setPortalRoot(getSearchPortalRoot());
+  }, []);
 
   // Debug: Loguear items disponibles
   useEffect(() => {
@@ -56,11 +175,34 @@ export default function SearchBar({
   const normalizedItems = useMemo(() => {
     return items.map(item => ({
       ...item,
-      normalizedName: normalizeText(item.name || item.title || ''),
-      normalizedDescription: normalizeText(item.description || ''),
-      normalizedGenre: normalizeText(item.genre || '')
+      normalizedSearchIndex: normalizeSearchText([
+        item.name,
+        item.title,
+        item.titulo,
+        item.description,
+        item.descripcion,
+        item.genre,
+        Array.isArray(item.genres) ? item.genres.join(' ') : item.genres,
+        item.section,
+        item.mainSection,
+        item.subcategoria,
+        item.channelName,
+        item.type,
+        item.tipo,
+      ].filter(Boolean).join(' '))
     }));
   }, [items]);
+
+  const filterLocalResults = useCallback((query, limit = LOCAL_SEARCH_LIMIT) => {
+    if (!query.trim()) {
+      return [];
+    }
+
+    const normalizedQuery = normalizeSearchText(query);
+    return normalizedItems
+      .filter(item => item.normalizedSearchIndex.includes(normalizedQuery))
+      .slice(0, limit);
+  }, [normalizedItems]);
 
   // 🚀 Búsqueda INSTANTÁNEA en memoria - SIN debounce, resultados inmediatos
   const performSearch = useCallback((query) => {
@@ -71,22 +213,13 @@ export default function SearchBar({
       return;
     }
 
-    // Normaliza la búsqueda (sin tildes, mayúsculas)
-    const normalizedQuery = normalizeText(query);
-    
-    // Búsqueda en memoria: extremadamente rápida
-    const filtered = normalizedItems.filter(item => {
-      return (
-        item.normalizedName.includes(normalizedQuery) ||
-        item.normalizedDescription.includes(normalizedQuery) ||
-        item.normalizedGenre.includes(normalizedQuery)
-      );
-    }).slice(0, 20); // Máximo 20 resultados
+    // Usa el indice local ya normalizado para respuesta inmediata.
+    const filtered = mergeSearchResults(filterLocalResults(query), query);
 
     setResults(filtered);
     setSelectedIndex(0);
     onSearchChange?.(filtered);
-  }, [normalizedItems, onSearchChange]);
+  }, [filterLocalResults, onSearchChange]);
 
   // Manejo de búsqueda con input - Mostrar resultados instantáneamente
   const handleSearchInput = (e) => {
@@ -103,6 +236,47 @@ export default function SearchBar({
     }
     performSearch(searchQuery);
   }, [normalizedItems, searchQuery, performSearch]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!isOpen || query.length < 2) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const remoteItems = await searchGlobal(query, REMOTE_SEARCH_LIMIT, 1, {
+          signal: controller.signal,
+        });
+        if (cancelled) {
+          return;
+        }
+
+        const mergedResults = mergeSearchResults(
+          [
+            filterLocalResults(query, REMOTE_SEARCH_LIMIT),
+            remoteItems,
+          ],
+          query,
+        );
+        setResults(mergedResults);
+        setSelectedIndex(0);
+        onSearchChange?.(mergedResults);
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[SearchBar] No se pudo completar la busqueda remota:', err?.message || err);
+        }
+      }
+    }, REMOTE_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [filterLocalResults, isOpen, onSearchChange, searchQuery]);
 
   // Teclas en TV
   const handleKeyDown = (e) => {
@@ -601,7 +775,7 @@ export default function SearchBar({
       </button>
 
       {/* Modal de búsqueda - renderizado como portal para estar al frente de todo */}
-      {isOpen && ReactDOM.createPortal(
+      {isOpen && portalRoot && ReactDOM.createPortal(
         <div className="search-overlay" onClick={() => setIsOpen(false)}>
           <div className="search-modal" onClick={e => e.stopPropagation()}>
             {/* Header */}
@@ -711,7 +885,7 @@ export default function SearchBar({
             )}
           </div>
         </div>
-      , document.body)}
+      , portalRoot)}
     </div>
     </>
   );

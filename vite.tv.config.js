@@ -8,10 +8,10 @@ export default defineConfig({
   
   // TV-specific build configuration
   build: {
-    outDir: 'dist-tv-dev',
+    outDir: 'dist-tv',
     assetsDir: 'assets',
     sourcemap: false, // Disable sourcemaps for TV to reduce bundle size
-    minify: 'terser', // Use terser for better compression
+    minify: 'esbuild',
     target: 'es2015', // Target older browsers for TV compatibility
     rollupOptions: {
       input: {

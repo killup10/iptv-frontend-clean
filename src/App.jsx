@@ -1,9 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
-import { fetchUserChannels, fetchVideosByType } from './utils/api.js';
 import SearchBar from "./components/SearchBar.jsx";
+import { getUserSubscriptionSummary } from "./utils/userSubscription.js";
+
+const SEARCH_SELECTION_TYPE_MAP = {
+  pelicula: 'movie',
+  movie: 'movie',
+  serie: 'serie',
+  series: 'serie',
+  anime: 'anime',
+  dorama: 'dorama',
+  novela: 'novela',
+  documental: 'documental',
+  channel: 'channel',
+  canal: 'channel',
+  continuar: 'continue-watching',
+  'continue-watching': 'continue-watching',
+};
+
+function getSearchSelectionType(item) {
+  const candidates = [item?.itemType, item?.tipo, item?.type, 'movie'];
+  for (const candidate of candidates) {
+    const key = String(candidate || '').toLowerCase();
+    if (SEARCH_SELECTION_TYPE_MAP[key]) {
+      return SEARCH_SELECTION_TYPE_MAP[key];
+    }
+  }
+
+  return 'movie';
+}
 
 function App() {
   console.log('[App.jsx] Renderizando App (App.jsx)...'); 
@@ -18,12 +45,30 @@ function App() {
 
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
+  const isLiveTVPage = location.pathname === '/live-tv';
 
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [desktopContenidoOpen, setDesktopContenidoOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
   const [allSearchItems, setAllSearchItems] = useState([]);
+  const userSubscription = useMemo(
+    () => getUserSubscriptionSummary(user),
+    [user?.expiresAt, user?.plan, user?.role],
+  );
+  const userPlanCaption = `Plan ${userSubscription.planLabel}`;
+  const userExpirationCaption = userSubscription.remainingLabel;
+  const userExpirationDateCaption = userSubscription.expiresDate
+    ? `Expira ${userSubscription.expiresDate.toLocaleDateString()}`
+    : "";
+
+  const closeAllMenus = useCallback(() => {
+    setDropdownOpen(false);
+    setDesktopContenidoOpen(false);
+    setMobileMenuOpen(false);
+    setMobileContenidoOpen(false);
+  }, []);
 
   useEffect(() => {
     if (isAuthPage || isWatchPage) {
@@ -47,23 +92,31 @@ function App() {
   }, [scrolled, isAuthPage, isWatchPage]);
 
   useEffect(() => {
+    closeAllMenus();
+  }, [closeAllMenus, location.pathname]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (!event.target.closest("#user-menu")) {
         setDropdownOpen(false);
       }
+      if (!event.target.closest("#desktop-content-menu")) {
+        setDesktopContenidoOpen(false);
+      }
       if (!event.target.closest("#mobile-menu") && !event.target.closest("#mobile-menu-button")) {
         setMobileMenuOpen(false);
+        setMobileContenidoOpen(false);
       }
     };
 
-    if (dropdownOpen || mobileMenuOpen) {
+    if (dropdownOpen || desktopContenidoOpen || mobileMenuOpen) {
       document.addEventListener("click", handleClickOutside);
     } else {
       document.removeEventListener("click", handleClickOutside);
     }
 
     return () => document.removeEventListener("click", handleClickOutside);
-  }, [dropdownOpen, mobileMenuOpen]);
+  }, [desktopContenidoOpen, dropdownOpen, mobileMenuOpen, closeAllMenus]);
 
   useEffect(() => {
     let handleRef = null;
@@ -72,6 +125,18 @@ function App() {
     const init = async () => {
       try {
         const handle = await CapacitorApp.addListener('backButton', () => {
+          if (window.__trailerModalOpen && typeof window.__trailerModalClose === 'function') {
+            console.log('[App.jsx] Trailer modal abierto - cerrando overlay');
+            window.__trailerModalClose();
+            return;
+          }
+
+          if (window.__mobileVodDetailOpen && typeof window.__mobileVodDetailClose === 'function') {
+            console.log('[App.jsx] Detalle VOD movil abierto - cerrando overlay');
+            window.__mobileVodDetailClose();
+            return;
+          }
+
           // 🔥 NUEVO: Chequear si el SearchBar está abierto
           if (window.searchBarOpen) {
             console.log('[App.jsx] 🔥 SearchBar está abierto, ignorando navegación');
@@ -81,6 +146,12 @@ function App() {
           // En HashRouter, usar location.pathname para detectar /watch correctamente.
           if (isWatchPage) {
             console.log('[App.jsx] En /watch - ignorando handler global de backButton');
+            return;
+          }
+
+          if (isLiveTVPage) {
+            console.log('[App.jsx] En /live-tv - navegando a Home');
+            navigate('/', { replace: true });
             return;
           }
 
@@ -118,27 +189,27 @@ function App() {
         console.warn('[App.jsx] Error removing backButton listener:', err);
       }
     };
-  }, [navigate, isWatchPage]);
-
-  useEffect(() => {
-    const globalClickLogger = (e) => {
-      const target = e.target;
-      if (target.closest && (target.closest('.group') || target.closest('[data-card]'))) {
-        console.log('GLOBAL CLICK (card area):', target, 'closest button?', !!target.closest('button'));
-      }
-    };
-    document.addEventListener('click', globalClickLogger, true);
-    return () => document.removeEventListener('click', globalClickLogger, true);
-  }, []);
+  }, [navigate, isWatchPage, isLiveTVPage]);
 
   const handleLogout = () => {
     console.log('[App.jsx] Ejecutando handleLogout...');
+    closeAllMenus();
     logout();
     navigate("/login");
   };
 
   const handleSearchSelectItem = (item) => {
-    const type = item.itemType || item.tipo || item.type || 'movie';
+    const type = getSearchSelectionType(item);
+    closeAllMenus();
+    if (location.pathname === '/' && type !== 'channel') {
+      window.dispatchEvent(new CustomEvent('teamg:open-vod-detail', {
+        detail: {
+          item,
+          itemType: type,
+        },
+      }));
+      return;
+    }
     navigate(`/watch/${type}/${item._id || item.id}`);
   };
   
@@ -176,7 +247,7 @@ function App() {
       <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
       {shouldShowLayout && (
         <header 
-          className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
+          className={`fixed top-0 left-0 right-0 z-[90] transition-colors duration-300 ${
             scrolled ? 'bg-black/95 backdrop-blur-sm' : 'bg-transparent'
           }`}
         >
@@ -184,7 +255,7 @@ function App() {
             <div className="flex items-center justify-between h-20">
               {/* Logo y Navegación Principal */}
               <div className="flex items-center flex-1">
-                <Link to="/" className="flex items-center py-2">
+                <Link to="/" className="flex items-center py-2" onClick={closeAllMenus}>
                   <img 
                     src="./logo-teamg.png" 
                     alt="TeamG Play Logo" 
@@ -195,30 +266,48 @@ function App() {
                 
                 {/* Navegación Desktop */}
                 <nav className="hidden md:flex ml-10 space-x-4 items-center">
-                  <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2">TV en Vivo</Link>
-                  <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2">Películas</Link>
+                  <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>TV en Vivo</Link>
+                  <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Películas</Link>
                   
                   {/* Dropdown Contenido */}
-                  <div className="relative group">
-                    <button className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1">
+                  <div id="desktop-content-menu" className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setMobileMenuOpen(false);
+                        setMobileContenidoOpen(false);
+                        setDesktopContenidoOpen((current) => !current);
+                      }}
+                      className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1"
+                      aria-expanded={desktopContenidoOpen}
+                      aria-haspopup="menu"
+                    >
                       Contenido
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${desktopContenidoOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                       </svg>
                     </button>
-                    
-                    <div className="absolute left-0 mt-0 w-48 bg-gray-900 rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
-                      <Link to="/series" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Series</Link>
-                      <Link to="/animes" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Animes</Link>
-                      <Link to="/doramas" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Doramas</Link>
-                      <Link to="/novelas" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Novelas</Link>
-                      <Link to="/documentales" className="text-gray-300 hover:text-white hover:bg-gray-800 block px-4 py-2 text-sm">Documentales</Link>
-                    </div>
+
+                    {desktopContenidoOpen && (
+                      <div className="absolute left-0 mt-2 w-48 rounded-md bg-gray-900 py-1 shadow-lg ring-1 ring-white/10 z-[95]">
+                        <Link to="/series" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Series</Link>
+                        <Link to="/animes" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Animes</Link>
+                        <Link to="/doramas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Doramas</Link>
+                        <Link to="/novelas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Novelas</Link>
+                        <Link to="/documentales" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Documentales</Link>
+                      </div>
+                    )}
                   </div>
                   
-                  <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2">Zona Kids</Link>
-                  <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2">Colecciones</Link>
-                  <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1">
+                  <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2" onClick={closeAllMenus}>Zona Kids</Link>
+                  <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
+                  <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1" onClick={closeAllMenus}>
                     <span>❤️</span>
                     Mi Lista
                   </Link>
@@ -244,6 +333,7 @@ function App() {
                   <Link
                     to="/admin"
                     className="hidden md:block text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+                    onClick={closeAllMenus}
                   >
                     Admin
                   </Link>
@@ -251,7 +341,12 @@ function App() {
 
                 <div className="hidden md:block relative" id="user-menu">
                   <button
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    onClick={() => {
+                      setDesktopContenidoOpen(false);
+                      setMobileMenuOpen(false);
+                      setMobileContenidoOpen(false);
+                      setDropdownOpen((current) => !current);
+                    }}
                     className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
                   >
                     <span className="sr-only">Abrir menú de usuario</span>
@@ -276,9 +371,14 @@ function App() {
 
                 <button
                   id="mobile-menu-button"
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setDesktopContenidoOpen(false);
+                    setMobileContenidoOpen(false);
+                    setMobileMenuOpen((current) => !current);
+                  }}
                   className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-                  aria-expanded="false"
+                  aria-expanded={mobileMenuOpen}
                 >
                   <span className="sr-only">Abrir menú principal</span>
                   <svg className={`${mobileMenuOpen ? 'hidden' : 'block'} h-6 w-6`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -294,13 +394,14 @@ function App() {
             {mobileMenuOpen && (
               <div id="mobile-menu" className="md:hidden fixed inset-0 top-20 z-50">
                 <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
-                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>TV en Vivo</Link>
-                  <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Películas</Link>
+                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>TV en Vivo</Link>
+                  <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Películas</Link>
                   
                   {/* Contenido Submenu */}
                   <div>
-                    <button 
-                      onClick={() => setMobileContenidoOpen(!mobileContenidoOpen)}
+                    <button
+                      type="button"
+                      onClick={() => setMobileContenidoOpen((current) => !current)}
                       className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left flex items-center justify-between"
                     >
                       Contenido
@@ -310,33 +411,40 @@ function App() {
                     </button>
                     {mobileContenidoOpen && (
                       <div className="pl-4 space-y-1">
-                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Series</Link>
-                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Animes</Link>
-                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Doramas</Link>
-                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Novelas</Link>
-                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={() => { setMobileMenuOpen(false); setMobileContenidoOpen(false); }}>Documentales</Link>
+                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Series</Link>
+                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Animes</Link>
+                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Doramas</Link>
+                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Novelas</Link>
+                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Documentales</Link>
                       </div>
                     )}
                   </div>
                   
-                  <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Zona Kids</Link>
-                  <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Colecciones</Link>
-                  <Link to="/mi-lista" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-1" onClick={() => setMobileMenuOpen(false)}>
+                  <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Zona Kids</Link>
+                  <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Colecciones</Link>
+                  <Link to="/mi-lista" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-1" onClick={closeAllMenus}>
                     <span>❤️</span>
                     Mi Lista
                   </Link>
-                  <Link to="/test-player" className="text-yellow-400 hover:text-yellow-300 block px-3 py-2 rounded-md text-base font-medium border border-yellow-600 mx-2 text-center" onClick={() => setMobileMenuOpen(false)}>🧪 Test ExoPlayer</Link>
+                  <Link to="/test-player" className="text-yellow-400 hover:text-yellow-300 block px-3 py-2 rounded-md text-base font-medium border border-yellow-600 mx-2 text-center" onClick={closeAllMenus}>🧪 Test ExoPlayer</Link>
                   <div className="border-t border-gray-700 pt-4">
                     {user?.role === 'admin' && (
-                      <Link to="/admin" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={() => setMobileMenuOpen(false)}>Admin</Link>
+                      <Link to="/admin" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Admin</Link>
                     )}
-                    <div className="flex items-center px-3 py-2">
+                    <div className="flex items-start px-3 py-2">
                       <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center mr-3">
                         <span className="text-white font-semibold text-sm">{user?.username?.charAt(0).toUpperCase()}</span>
                       </div>
-                      <span className="text-gray-300 text-sm">{user?.username}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-200">{user?.username}</p>
+                        <p className="mt-0.5 text-xs font-medium text-cyan-300">{userPlanCaption}</p>
+                        <p className="mt-0.5 text-xs text-gray-400">{userExpirationCaption}</p>
+                        {userExpirationDateCaption && (
+                          <p className="mt-0.5 text-[11px] text-gray-500">{userExpirationDateCaption}</p>
+                        )}
+                      </div>
                     </div>
-                    <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="text-gray-300 hover:text-white block w-full text-left px-3 py-2 rounded-md text-base font-medium">Cerrar Sesión</button>
+                    <button onClick={handleLogout} className="text-gray-300 hover:text-white block w-full text-left px-3 py-2 rounded-md text-base font-medium">Cerrar Sesión</button>
                   </div>
                 </div>
               </div>

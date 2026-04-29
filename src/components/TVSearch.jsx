@@ -1,40 +1,204 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MagnifyingGlassIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
-import { isAndroidTV } from '../utils/platformUtils';
 import './TVSearch.css';
+import {
+  focusTVContent,
+  getTVFocusZone,
+  setTVFocusZone,
+  TV_FOCUS_ZONE_MODAL,
+} from '../utils/tvFocusZone.js';
+import {
+  getTVItemDescription,
+  getTVItemGenre,
+  getTVItemImage,
+  getTVItemQualityBadges,
+  getTVItemTitle,
+  getTVItemYear,
+  resolveTVItemType,
+} from '../utils/tvContentUtils.js';
+import {
+  checkAndRequestMicrophonePermission,
+  supportsSpeechRecognition,
+} from '../utils/microphonePermission.js';
+import { normalizeSearchText } from '../utils/searchUtils.js';
 
-/**
- * TVSearch - Búsqueda ultra-rápida para Android TV
- * Características:
- * - Filtrado instantáneo digito por digito
- * - Control de voz (speech recognition)
- * - Búsqueda en todos los contenidos (canales, películas, series, etc)
- * - Navegación con D-Pad
- */
-export default function TVSearch({ 
-  allContent = [], // Array con todos los items { name, title, type, id, image, etc }
+function buildSearchIndex(item) {
+  return normalizeSearchText([
+    getTVItemTitle(item),
+    getTVItemDescription(item),
+    getTVItemGenre(item),
+    item?.section,
+    item?.mainSection,
+    item?.subcategoria,
+    item?.channelName,
+    item?.title,
+    item?.titulo,
+    item?.name,
+  ].filter(Boolean).join(' '));
+}
+
+function resolveAction(event) {
+  switch (event.key) {
+    case 'ArrowUp':
+    case 'ArrowDown':
+    case 'ArrowLeft':
+    case 'ArrowRight':
+    case 'Enter':
+      return event.key;
+    case ' ':
+    case 'Spacebar':
+    case 'Select':
+    case 'MediaPlayPause':
+      return 'Enter';
+    case 'Backspace':
+    case 'Delete':
+      return 'delete';
+    case 'Escape':
+    case 'GoBack':
+    case 'BrowserBack':
+      return 'close';
+    default:
+      break;
+  }
+
+  switch (event.keyCode) {
+    case 19:
+      return 'ArrowUp';
+    case 20:
+      return 'ArrowDown';
+    case 21:
+      return 'ArrowLeft';
+    case 22:
+      return 'ArrowRight';
+    case 23:
+    case 66:
+    case 62:
+      return 'Enter';
+    case 8:
+    case 46:
+      return 'delete';
+    case 4:
+    case 27:
+    case 111:
+      return 'close';
+    default:
+      return null;
+  }
+}
+
+function getResultColumns(width) {
+  if (width >= 1600) return 4;
+  if (width >= 1180) return 3;
+  if (width >= 860) return 2;
+  return 1;
+}
+
+export default function TVSearch({
+  allContent = [],
   onSelectItem,
-  onClose 
+  onClose,
+  title = 'Buscar en TeamG Play',
+  placeholder = 'Escribe para buscar (EX, GOT, Netflix...)',
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredResults, setFilteredResults] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [focusArea, setFocusArea] = useState('input');
+  const [resultColumns, setResultColumns] = useState(() => getResultColumns(window.innerWidth || 1280));
   const [isListening, setIsListening] = useState(false);
+  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState('');
   const searchInputRef = useRef(null);
-  const resultsContainerRef = useRef(null);
+  const voiceButtonRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Inicializar Speech Recognition
-  useEffect(() => {
-    if (!isAndroidTV()) return;
+  const handleClose = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn('Speech Recognition no disponible');
+  const focusInput = useCallback((shouldFocusDom = false) => {
+    setFocusArea('input');
+
+    if (!shouldFocusDom) {
       return;
     }
 
+    window.requestAnimationFrame(() => {
+      const input = searchInputRef.current;
+      if (!input) return;
+
+      try {
+        input.focus({ preventScroll: true });
+      } catch {
+        input.focus();
+      }
+
+      try {
+        const valueLength = input.value?.length || 0;
+        input.setSelectionRange(valueLength, valueLength);
+      } catch {
+      }
+    });
+  }, []);
+
+  const openKeyboardInput = useCallback(() => {
+    focusInput(true);
+
+    window.requestAnimationFrame(() => {
+      try {
+        searchInputRef.current?.click();
+      } catch {
+      }
+    });
+  }, [focusInput]);
+
+  const focusVoiceButton = useCallback(() => {
+    if (!isVoiceSupported) {
+      return;
+    }
+
+    setFocusArea('voice');
+
+    window.requestAnimationFrame(() => {
+      try {
+        voiceButtonRef.current?.focus({ preventScroll: true });
+      } catch {
+        voiceButtonRef.current?.focus();
+      }
+    });
+  }, [isVoiceSupported]);
+
+  useEffect(() => {
+    setTVFocusZone(TV_FOCUS_ZONE_MODAL);
+    const timer = window.setTimeout(() => {
+      focusInput();
+    }, 60);
+
+    return () => {
+      window.clearTimeout(timer);
+      focusTVContent();
+    };
+  }, [focusInput]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setResultColumns(getResultColumns(window.innerWidth || 1280));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const supported = supportsSpeechRecognition();
+    setIsVoiceSupported(supported);
+
+    if (!supported) {
+      recognitionRef.current = null;
+      return undefined;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognitionRef.current = new SpeechRecognition();
     recognitionRef.current.continuous = false;
     recognitionRef.current.interimResults = true;
@@ -46,34 +210,49 @@ export default function TVSearch({
     };
 
     recognitionRef.current.onresult = (event) => {
-      let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          setSearchQuery(prev => prev + transcript);
-        } else {
-          interimTranscript += transcript;
+      let finalTranscript = '';
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index]?.[0]?.transcript || '';
+        if (event.results[index].isFinal) {
+          finalTranscript += transcript;
         }
+      }
+
+      if (finalTranscript) {
+        setSearchQuery(finalTranscript.trim());
       }
     };
 
     recognitionRef.current.onerror = (event) => {
-      setVoiceError(`Error: ${event.error}`);
+      let message = 'Ocurrio un error con la busqueda por voz.';
+
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        message = 'Permiso de microfono denegado. Activalo en Ajustes > Aplicaciones > TeamG Play > Permisos.';
+      } else if (event.error === 'no-speech') {
+        message = 'No se detecto audio. Intenta hablar mas cerca del microfono.';
+      } else if (event.error === 'network') {
+        message = 'Error de conexion al servicio de voz. Revisa internet e intenta otra vez.';
+      } else if (event.error === 'aborted') {
+        message = '';
+      } else if (event.error) {
+        message = `Error de voz: ${event.error}`;
+      }
+
+      setVoiceError(message);
       setIsListening(false);
     };
 
     recognitionRef.current.onend = () => {
       setIsListening(false);
+      focusInput();
     };
 
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
     };
-  }, []);
+  }, [focusInput]);
 
-  // Filtrar resultados instantáneamente
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredResults([]);
@@ -81,224 +260,477 @@ export default function TVSearch({
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const results = allContent
-      .filter(item => {
-        const name = (item.name || item.title || '').toLowerCase();
-        return name.includes(query);
-      })
-      .slice(0, 50); // Limitar a 50 resultados para rendimiento
+    const normalizedQuery = normalizeSearchText(searchQuery.trim());
+    const nextResults = allContent
+      .filter((item) => buildSearchIndex(item).includes(normalizedQuery))
+      .slice(0, 60);
 
-    setFilteredResults(results);
+    setFilteredResults(nextResults);
     setSelectedIndex(0);
-  }, [searchQuery, allContent]);
+  }, [allContent, searchQuery]);
 
-  // Auto-scroll al item seleccionado
   useEffect(() => {
+    if (focusArea !== 'results') {
+      return;
+    }
+
     const selectedElement = document.querySelector(`[data-result-index="${selectedIndex}"]`);
-    if (selectedElement && resultsContainerRef.current) {
-      selectedElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+    selectedElement?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'nearest',
+    });
+
+    if (selectedElement && typeof selectedElement.focus === 'function') {
+      window.requestAnimationFrame(() => {
+        try {
+          selectedElement.focus({ preventScroll: true });
+        } catch {
+          selectedElement.focus();
+        }
       });
     }
-  }, [selectedIndex]);
+  }, [focusArea, selectedIndex]);
 
-  // Manejo de navegación D-Pad
-  const handleKeyDown = useCallback((e) => {
-    const key = e.key;
+  const handleSelectResult = useCallback((item) => {
+    console.log('[TVSearch] Selecting item:', {
+      title: getTVItemTitle(item),
+      id: item.id || item._id,
+      focusArea: focusArea,
+      focusZone: getTVFocusZone(),
+    });
+    onSelectItem?.(item);
+  }, [onSelectItem, focusArea]);
 
-    // Arrow Down: siguiente resultado
-    if (key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, filteredResults.length - 1));
+  const toggleVoiceSearch = useCallback(async () => {
+    if (!isVoiceSupported || !recognitionRef.current) {
+      setVoiceError('Busqueda por voz no disponible en este dispositivo.');
+      return;
     }
-    // Arrow Up: resultado anterior
-    else if (key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
-    }
-    // Enter: seleccionar item
-    else if (key === 'Enter') {
-      e.preventDefault();
-      if (filteredResults[selectedIndex]) {
-        handleSelectResult(filteredResults[selectedIndex]);
-      }
-    }
-    // Backspace: borrar último carácter
-    else if (key === 'Backspace') {
-      e.preventDefault();
-      setSearchQuery(prev => prev.slice(0, -1));
-    }
-    // Escape: cerrar búsqueda
-    else if (key === 'Escape') {
-      e.preventDefault();
-      onClose?.();
-    }
-    // Caracteres normales
-    else if (key.length === 1 && /[a-zA-Z0-9\s]/.test(key)) {
-      e.preventDefault();
-      setSearchQuery(prev => prev + key);
-    }
-  }, [filteredResults, selectedIndex, onClose]);
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
-  // Focus en input al montar
-  useEffect(() => {
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, []);
-
-  const handleSelectResult = (item) => {
-    if (onSelectItem) {
-      onSelectItem(item);
-    }
-  };
-
-  const toggleVoiceSearch = () => {
     if (isListening) {
-      recognitionRef.current?.abort();
+      recognitionRef.current.abort();
       setIsListening(false);
-    } else {
-      setSearchQuery(''); // Limpiar búsqueda anterior
-      recognitionRef.current?.start();
+      return;
     }
-  };
+
+    setVoiceError('');
+    focusVoiceButton();
+
+    try {
+      const hasPermission = await checkAndRequestMicrophonePermission();
+      if (!hasPermission) {
+        setVoiceError('Permiso de microfono denegado. Activalo en los ajustes del dispositivo.');
+        return;
+      }
+
+      recognitionRef.current.start();
+    } catch (error) {
+      setIsListening(false);
+      setVoiceError(error?.message || 'No se pudo iniciar la busqueda por voz.');
+    }
+  }, [focusVoiceButton, isListening, isVoiceSupported]);
+
+  const handleWindowKeyDown = useCallback((event) => {
+    const currentZone = getTVFocusZone();
+
+    if (currentZone !== TV_FOCUS_ZONE_MODAL) {
+      console.log('[TVSearch] Ignoring key - wrong focus zone:', {
+        currentZone,
+        expected: TV_FOCUS_ZONE_MODAL,
+        key: event.key
+      });
+      return;
+    }
+
+    const action = resolveAction(event);
+    const inputIsActive = document.activeElement === searchInputRef.current || focusArea === 'input';
+    const voiceIsActive = focusArea === 'voice';
+
+    if (action === 'close') {
+      event.preventDefault();
+      handleClose();
+      return;
+    }
+
+    if (action === 'delete' && !inputIsActive) {
+      event.preventDefault();
+      setSearchQuery((prev) => prev.slice(0, -1));
+      focusInput();
+      return;
+    }
+
+    if (voiceIsActive) {
+      switch (action) {
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          event.preventDefault();
+          focusInput();
+          break;
+        case 'ArrowDown':
+          if (!filteredResults.length) {
+            return;
+          }
+          event.preventDefault();
+          setFocusArea('results');
+          setSelectedIndex(0);
+          console.log('[TVSearch] Focus moved to results, index 0');
+          break;
+        case 'Enter':
+        case ' ':
+          event.preventDefault();
+          toggleVoiceSearch();
+          break;
+        default:
+          if (
+            event.key?.length === 1 &&
+            !event.ctrlKey &&
+            !event.altKey &&
+            !event.metaKey
+          ) {
+            event.preventDefault();
+            setSearchQuery((prev) => `${prev}${event.key}`);
+            focusInput();
+          }
+          break;
+      }
+      return;
+    }
+
+    if (inputIsActive) {
+      if (action === 'Enter') {
+        if (filteredResults.length > 0) {
+          event.preventDefault();
+          handleSelectResult(filteredResults[0]);
+          return;
+        }
+
+        event.preventDefault();
+        openKeyboardInput();
+      }
+
+      if (action === 'ArrowRight' && isVoiceSupported) {
+        event.preventDefault();
+        focusVoiceButton();
+        return;
+      }
+
+      if (action === 'ArrowDown' && filteredResults.length > 0) {
+        event.preventDefault();
+        searchInputRef.current?.blur();
+        setFocusArea('results');
+        setSelectedIndex(0);
+        console.log('[TVSearch] Focus moved from input to results');
+      }
+      return;
+    }
+
+    // Handle results navigation and selection
+    const currentFocusArea = focusArea;
+    console.log('[TVSearch] Processing key in results area:', {
+      action,
+      selectedIndex,
+      focusArea: currentFocusArea,
+      resultsCount: filteredResults.length,
+      selectedItemTitle: filteredResults[selectedIndex] ? getTVItemTitle(filteredResults[selectedIndex]) : 'N/A'
+    });
+
+    switch (action) {
+      case 'ArrowLeft':
+        event.preventDefault();
+        setSelectedIndex((prev) => Math.max(0, prev - 1));
+        break;
+      case 'ArrowRight':
+        event.preventDefault();
+        setSelectedIndex((prev) => Math.min(filteredResults.length - 1, prev + 1));
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (selectedIndex - resultColumns < 0) {
+          focusInput();
+          return;
+        }
+        setSelectedIndex((prev) => Math.max(0, prev - resultColumns));
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        setSelectedIndex((prev) => Math.min(filteredResults.length - 1, prev + resultColumns));
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        console.log('[TVSearch] SELECT pressed at index:', selectedIndex, 'item:', filteredResults[selectedIndex] ? getTVItemTitle(filteredResults[selectedIndex]) : 'NONE');
+        if (filteredResults[selectedIndex]) {
+          handleSelectResult(filteredResults[selectedIndex]);
+        } else {
+          console.warn('[TVSearch] No item at selected index:', selectedIndex);
+        }
+        break;
+      default:
+        if (
+          event.key?.length === 1 &&
+          !event.ctrlKey &&
+          !event.altKey &&
+          !event.metaKey
+        ) {
+          event.preventDefault();
+          setSearchQuery((prev) => `${prev}${event.key}`);
+          focusInput();
+        }
+        break;
+    }
+  }, [
+    filteredResults,
+    focusArea,
+    focusInput,
+    focusVoiceButton,
+    handleClose,
+    handleSelectResult,
+    isVoiceSupported,
+    openKeyboardInput,
+    resultColumns,
+    selectedIndex,
+    toggleVoiceSearch,
+  ]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleWindowKeyDown);
+    return () => window.removeEventListener('keydown', handleWindowKeyDown);
+  }, [handleWindowKeyDown]);
+
+  useEffect(() => {
+    const handleSystemBack = (event) => {
+      event.preventDefault?.();
+      handleClose();
+    };
+
+    document.addEventListener('backbutton', handleSystemBack);
+    return () => document.removeEventListener('backbutton', handleSystemBack);
+  }, [handleClose]);
 
   const getItemTypeColor = (type) => {
     const colors = {
-      'channel': '#FF6B6B',
-      'movie': '#4ECDC4',
-      'serie': '#45B7D1',
-      'series': '#45B7D1',
-      'anime': '#F7DC6F',
-      'dorama': '#BB8FCE',
-      'novela': '#F8B88B',
-      'documental': '#85C1E2'
+      channel: '#FF6B6B',
+      movie: '#4ECDC4',
+      serie: '#45B7D1',
+      series: '#45B7D1',
+      anime: '#F7DC6F',
+      dorama: '#BB8FCE',
+      novela: '#F8B88B',
+      documental: '#85C1E2',
+      'zona kids': '#F59E0B',
     };
     return colors[type?.toLowerCase()] || '#999';
+  };
+
+  const handleInputKeyDownCapture = (event) => {
+    const action = resolveAction(event);
+
+    if (action === 'ArrowDown' && filteredResults.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      searchInputRef.current?.blur();
+      setFocusArea('results');
+      setSelectedIndex(0);
+      return;
+    }
+
+    if (action === 'Enter' && filteredResults.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      handleSelectResult(filteredResults[0]);
+    }
   };
 
   return (
     <div className="tv-search-overlay">
       <div className="tv-search-container">
-        {/* Header */}
         <div className="tv-search-header">
-          <h1 className="tv-search-title">Buscar en TeamG Play</h1>
+          <h1 className="tv-search-title">{title}</h1>
           <p className="tv-search-subtitle">
-            {isListening ? '🎤 Escuchando...' : 'Escribe o usa voz para buscar'}
+            {isListening
+              ? 'Escuchando...'
+              : isVoiceSupported
+                ? 'Usa el teclado del TV o mueve RIGHT al microfono para buscar por voz.'
+                : 'Usa el teclado del TV o escribe con teclado fisico.'}
           </p>
         </div>
 
-        {/* Input y Voz */}
         <div className="tv-search-input-wrapper">
-          <div className="tv-search-input-box">
+          <div className={`tv-search-input-box ${focusArea === 'input' ? 'focused' : ''}`}>
             <MagnifyingGlassIcon className="search-icon" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Escribe para buscar (EX, GOT, Netflix...)"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => setFocusArea('input')}
+              onClick={() => {
+                setFocusArea('input');
+              }}
+              onKeyDownCapture={handleInputKeyDownCapture}
+              placeholder={placeholder}
               className="tv-search-input"
               autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="search"
+              enterKeyHint="search"
             />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  focusInput();
+                }}
                 className="search-clear-btn"
-                aria-label="Limpiar búsqueda"
+                aria-label="Limpiar busqueda"
               >
-                ✕
+                x
               </button>
-            )}
+            ) : null}
           </div>
 
           <button
+            ref={voiceButtonRef}
+            type="button"
             onClick={toggleVoiceSearch}
-            className={`tv-search-voice-btn ${isListening ? 'listening' : ''}`}
-            aria-label="Búsqueda por voz"
+            className={`tv-search-voice-btn ${isListening ? 'listening' : ''} ${focusArea === 'voice' ? 'focused' : ''}`}
+            aria-label="Busqueda por voz"
+            disabled={!isVoiceSupported && !isListening}
           >
             <MicrophoneIcon className="voice-icon" />
           </button>
         </div>
 
-        {voiceError && (
-          <div className="tv-search-error">
-            {voiceError}
-          </div>
-        )}
+        {voiceError ? (
+          <div className="tv-search-error">{voiceError}</div>
+        ) : null}
 
-        {/* Resultados */}
         <div className="tv-search-results-wrapper">
           {filteredResults.length > 0 ? (
-            <div ref={resultsContainerRef} className="tv-search-results">
-              {filteredResults.map((item, index) => (
-                <div
-                  key={`${item.id || item._id}-${index}`}
-                  data-result-index={index}
-                  className={`tv-search-result-item ${index === selectedIndex ? 'focused' : ''}`}
-                  onClick={() => handleSelectResult(item)}
-                >
-                  <div className="result-image">
-                    <img
-                      src={item.image || item.logo || item.poster || '/placeholder.png'}
-                      alt={item.name || item.title}
-                      className="result-poster"
-                    />
-                    <div 
-                      className="result-type-badge"
-                      style={{ backgroundColor: getItemTypeColor(item.type || item.itemType) }}
-                    >
-                      {(item.type || item.itemType || 'Contenido').toUpperCase()}
-                    </div>
-                  </div>
+            <div
+              className="tv-search-results"
+              style={{ gridTemplateColumns: `repeat(${resultColumns}, minmax(0, 1fr))` }}
+            >
+              {filteredResults.map((item, index) => {
+                const isFocused = focusArea === 'results' && index === selectedIndex;
+                const itemType = resolveTVItemType(item);
+                const qualityBadges = getTVItemQualityBadges(item);
 
-                  <div className="result-info">
-                    <h3 className="result-name">{item.name || item.title}</h3>
-                    {item.description && (
-                      <p className="result-description">{item.description.substring(0, 80)}...</p>
-                    )}
-                    {item.year && (
-                      <span className="result-year">{item.year}</span>
-                    )}
-                  </div>
+                const handleResultKeyDown = (e) => {
+                  console.log('[TVSearch] Result button keydown:', {
+                    key: e.key,
+                    code: e.code,
+                    index,
+                    title: getTVItemTitle(item)
+                  });
 
-                  {index === selectedIndex && (
-                    <div className="result-focus-indicator">
-                      <div className="focus-glow"></div>
+                  if (
+                    e.key === 'Enter' ||
+                    e.key === ' ' ||
+                    e.key === 'Spacebar' ||
+                    e.code === 'Select' ||
+                    e.code === 'MediaPlayPause' ||
+                    e.keyCode === 23 ||
+                    e.keyCode === 66 ||
+                    e.keyCode === 62
+                  ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[TVSearch] Result SELECTED via keyboard');
+                    handleSelectResult(item);
+                  }
+                };
+
+                const handleResultClick = (e) => {
+                  console.log('[TVSearch] Result clicked:', {
+                    index,
+                    title: getTVItemTitle(item),
+                    button: e.button
+                  });
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSelectResult(item);
+                };
+
+                return (
+                  <button
+                    key={`${item.id || item._id || getTVItemTitle(item)}-${index}`}
+                    type="button"
+                    data-result-index={index}
+                    className={`tv-search-result-item ${isFocused ? 'focused' : ''}`}
+                    onClick={handleResultClick}
+                    onKeyDown={handleResultKeyDown}
+                    onFocus={() => {
+                      setFocusArea('results');
+                      setSelectedIndex(index);
+                    }}
+                    onMouseDown={handleResultClick}
+                    tabIndex={0}
+                    aria-label={`Select ${getTVItemTitle(item)}`}
+                  >
+                    <div className="result-image">
+                      <img
+                        src={getTVItemImage(item)}
+                        alt={getTVItemTitle(item)}
+                        className="result-poster"
+                      />
+                      <div
+                        className="result-type-badge"
+                        style={{ backgroundColor: getItemTypeColor(itemType) }}
+                      >
+                        {itemType.toUpperCase()}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    <div className="result-info">
+                      <h3 className="result-name">{getTVItemTitle(item)}</h3>
+                      {getTVItemDescription(item) ? (
+                        <p className="result-description">{getTVItemDescription(item)}</p>
+                      ) : null}
+                      <p className="result-meta">
+                        {[getTVItemYear(item), getTVItemGenre(item)].filter(Boolean).join(' | ') || itemType}
+                      </p>
+                      {qualityBadges.length ? (
+                        <div className="result-badge-list">
+                          {qualityBadges.map((badge) => (
+                            <span
+                              key={`${getTVItemTitle(item)}-${badge}`}
+                              className={`result-quality-badge ${badge.includes('4K') ? 'is-4k' : 'is-60fps'}`}
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ) : searchQuery ? (
             <div className="tv-search-no-results">
               <p>No se encontraron resultados para "{searchQuery}"</p>
-              <p className="subtitle">Intenta con otra búsqueda</p>
+              <p className="subtitle">Prueba con otro titulo, canal o genero.</p>
             </div>
           ) : (
             <div className="tv-search-empty">
-              <p>🔍 Comienza a escribir para buscar</p>
-              <p className="subtitle">o usa el botón 🎤 para búsqueda por voz</p>
+              <p>Comienza a escribir para buscar</p>
+              <p className="subtitle">OK sobre el campo abre el teclado del Smart TV si tu dispositivo lo soporta.</p>
             </div>
           )}
         </div>
 
-        {/* Instrucciones */}
         <div className="tv-search-instructions">
-          <span>↑↓ Navegar</span>
-          <span>•</span>
-          <span>OK Seleccionar</span>
-          <span>•</span>
-          <span>⌫ Borrar</span>
-          <span>•</span>
-          <span>ESC Cerrar</span>
+          <span>Abajo entra a resultados</span>
+          {isVoiceSupported ? <span>RIGHT va al microfono</span> : null}
+          <span>OK selecciona</span>
+          {isVoiceSupported ? <span>OK en micro inicia voz</span> : null}
+          <span>Back cierra</span>
+          <span>Borrar usa el teclado del TV o la tecla borrar</span>
         </div>
       </div>
     </div>

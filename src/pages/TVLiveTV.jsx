@@ -1,51 +1,62 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { isAndroidTV } from '../utils/platformUtils.js';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { fetchUserChannels, fetchChannelFilterSections } from '../utils/api.js';
-import { normalizeSearchText } from '../utils/searchUtils.js';
 import TVChannelGrid from '../components/TVChannelGrid.jsx';
+import TVSearch from '../components/TVSearch.jsx';
+import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
+import { focusTVContent } from '../utils/tvFocusZone.js';
 
-/**
- * TVLiveTV - Versión optimizada de LiveTV para Android TV
- * - Carga categorías y canales en paralelo
- * - Navegación 2D optimizada
- * - Renderizado eficiente
- */
+let liveTvCache = null;
+
 export default function TVLiveTV() {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [categoryChannels, setCategoryChannels] = useState({}); // { 'category': [channels] }
+  const location = useLocation();
+  const [categories, setCategories] = useState(() => liveTvCache?.categories || []);
+  const [categoryChannels, setCategoryChannels] = useState(() => liveTvCache?.categoryChannels || {});
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [selectedChannelIndex, setSelectedChannelIndex] = useState(0);
+  const [loading, setLoading] = useState(() => !liveTvCache);
   const [error, setError] = useState(null);
+  const [showSearch, setShowSearch] = useState(false);
 
-  // Cargar categorías y canales en paralelo
   useEffect(() => {
+    if (liveTvCache?.categories?.length) {
+      setCategories(liveTvCache.categories);
+      setCategoryChannels(liveTvCache.categoryChannels);
+      setError(null);
+      setLoading(false);
+      focusTVContent();
+      return undefined;
+    }
+
     const loadData = async () => {
       try {
         setLoading(true);
-        
-        // Cargar categorías
+
         const cats = await fetchChannelFilterSections();
-        const filteredCats = cats || ['Todos'];
+        const filteredCats = Array.isArray(cats) && cats.length ? cats : ['Todos'];
         setCategories(filteredCats);
 
-        // Cargar canales para TODAS las categorías en paralelo
-        const channelPromises = filteredCats.map(cat => 
+        const channelPromises = filteredCats.map((cat) => (
           fetchUserChannels(cat)
-            .then(channels => ({ category: cat, channels: channels || [] }))
-            .catch(err => ({ category: cat, channels: [] }))
-        );
+            .then((channels) => ({ category: cat, channels: channels || [] }))
+            .catch(() => ({ category: cat, channels: [] }))
+        ));
 
         const results = await Promise.all(channelPromises);
         const channelsMap = {};
-        
+
         results.forEach(({ category, channels }) => {
           channelsMap[category] = channels;
         });
 
+        liveTvCache = {
+          categories: filteredCats,
+          categoryChannels: channelsMap,
+        };
         setCategoryChannels(channelsMap);
         setError(null);
+        focusTVContent();
       } catch (err) {
         console.error('TVLiveTV: Error loading data:', err);
         setError(err.message || 'Error cargando canales');
@@ -57,26 +68,70 @@ export default function TVLiveTV() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const restoredCategory = location.state?.selectedCategory;
+    if (!restoredCategory || !categories.length) {
+      return;
+    }
+
+    const restoredIndex = categories.findIndex((category) => category === restoredCategory);
+    if (restoredIndex >= 0) {
+      setSelectedCategoryIndex(restoredIndex);
+    }
+  }, [categories, location.state?.selectedCategory]);
+
+  useEffect(() => {
+    const nextIndex = Number.isInteger(location.state?.selectedChannelIndex)
+      ? Math.max(0, location.state.selectedChannelIndex)
+      : 0;
+    setSelectedChannelIndex(nextIndex);
+  }, [location.state?.selectedChannelIndex]);
+
+  useEffect(() => {
+    if (!loading && !showSearch) {
+      focusTVContent();
+    }
+  }, [loading, showSearch, selectedCategoryIndex]);
+
   const currentCategory = categories[selectedCategoryIndex];
   const currentChannels = categoryChannels[currentCategory] || [];
-
   const handleChannelSelect = useCallback((channel) => {
     const channelId = channel.id || channel._id;
-    navigate(`/watch/${channelId}`, { 
-      state: { 
+    navigate(`/watch/channel/${channelId}`, {
+      replace: true,
+      state: {
+        from: '/live-tv',
+        returnState: {
+          selectedCategory: currentCategory,
+          selectedChannelIndex,
+        },
         isChannel: true,
-        channelName: channel.name 
-      } 
+        channelName: channel.name,
+        fromSection: 'tv',
+        selectedCategory: currentCategory,
+      },
     });
-  }, [navigate]);
+  }, [currentCategory, navigate, selectedChannelIndex]);
 
   const handleCategoryChange = useCallback((direction) => {
     if (direction === 'prev') {
-      setSelectedCategoryIndex(prev => Math.max(0, prev - 1));
+      setSelectedCategoryIndex((prev) => Math.max(0, prev - 1));
     } else {
-      setSelectedCategoryIndex(prev => Math.min(categories.length - 1, prev + 1));
+      setSelectedCategoryIndex((prev) => Math.min(categories.length - 1, prev + 1));
     }
   }, [categories.length]);
+
+  useEffect(() => {
+    const handleOpenSearch = (event) => {
+      if (event.detail?.scope === 'global') {
+        return;
+      }
+      setShowSearch(true);
+    };
+
+    window.addEventListener(TV_OPEN_SEARCH_EVENT, handleOpenSearch);
+    return () => window.removeEventListener(TV_OPEN_SEARCH_EVENT, handleOpenSearch);
+  }, []);
 
   if (loading) {
     return (
@@ -88,8 +143,9 @@ export default function TVLiveTV() {
         justifyContent: 'center',
         backgroundColor: '#1a1a2e',
         color: '#fff',
-        fontSize: '32px'
-      }}>
+        fontSize: '32px',
+      }}
+      >
         Cargando TV en Vivo...
       </div>
     );
@@ -107,8 +163,9 @@ export default function TVLiveTV() {
         backgroundColor: '#1a1a2e',
         color: '#fff',
         padding: '20px',
-        textAlign: 'center'
-      }}>
+        textAlign: 'center',
+      }}
+      >
         <h1 style={{ fontSize: '36px', marginBottom: '20px' }}>Error</h1>
         <p style={{ fontSize: '20px', color: '#ff8e72' }}>{error}</p>
       </div>
@@ -116,12 +173,36 @@ export default function TVLiveTV() {
   }
 
   return (
-    <TVChannelGrid 
-      categories={categories}
-      currentCategoryIndex={selectedCategoryIndex}
-      onCategoryChange={handleCategoryChange}
-      channels={currentChannels}
-      onChannelSelect={handleChannelSelect}
-    />
+    <>
+      {showSearch ? (
+        <TVSearch
+          allContent={currentChannels.map((channel) => ({
+            ...channel,
+            type: 'channel',
+          }))}
+          title={`Buscar canales en ${currentCategory || 'TV en Vivo'}`}
+          placeholder="Buscar dentro de esta categoria..."
+          onSelectItem={(channel) => {
+            setShowSearch(false);
+            handleChannelSelect(channel);
+          }}
+          onClose={() => {
+            setShowSearch(false);
+            focusTVContent();
+          }}
+        />
+      ) : null}
+
+      <TVChannelGrid
+        categories={categories}
+        currentCategoryIndex={selectedCategoryIndex}
+        onCategoryChange={handleCategoryChange}
+        channels={currentChannels}
+        onChannelSelect={handleChannelSelect}
+        onSearch={() => setShowSearch(true)}
+        initialChannelIndex={selectedChannelIndex}
+        onActiveChannelIndexChange={setSelectedChannelIndex}
+      />
+    </>
   );
 }

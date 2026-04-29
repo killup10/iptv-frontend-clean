@@ -1,27 +1,43 @@
 import { Capacitor } from '@capacitor/core';
 
+const isForcedTVMode = () => {
+  if (typeof window === 'undefined') return false;
+
+  return window.__TEAMG_TV_BUILD__ === true ||
+    localStorage.getItem('FORCED_TV_MODE') === 'true' ||
+    localStorage.getItem('FORCE_TV_MODE') === 'true' ||
+    new URLSearchParams(window.location.search).get('tv') === 'true';
+};
+
 /**
  * Detecta si estamos en Android TV (función interna)
  */
 const detectAndroidTV = () => {
   if (typeof window === 'undefined') return false;
-  
+
+  // Debug: permitir forzar Android TV vía localStorage/URL
+  const forceTV = isForcedTVMode();
+
   // Android TV suele tener estas características
-  const hasAndroidTV = 
+  const hasAndroidTV =
     navigator.userAgent.includes('Android') &&
     (navigator.userAgent.includes('AFT') || // Amazon FireStick
      navigator.userAgent.includes('ARRIS') || // Arris TV
      navigator.userAgent.includes('BRAVIA') || // Sony TV
      navigator.userAgent.includes('Nexus Player') ||
-     navigator.userAgent.includes('HbbTV'));
-  
+     navigator.userAgent.includes('HbbTV') ||
+     navigator.userAgent.includes('Android TV'));
+
   // También detectar por pantalla (TV suele ser muy grande)
-  const isLargeScreen = window.innerWidth > 1920 || window.innerHeight > 1080;
-  
+  const isLargeScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
+
   // Si tiene touchscreen:false en los atributos
   const noTouchscreen = !navigator.maxTouchPoints || navigator.maxTouchPoints === 0;
-  
-  return hasAndroidTV || (isLargeScreen && noTouchscreen);
+
+  // Si estamos en Android sin touchscreen, asumir que es TV
+  const isAndroidNoTouch = navigator.userAgent.includes('Android') && noTouchscreen;
+
+  return forceTV || hasAndroidTV || (isLargeScreen && noTouchscreen) || isAndroidNoTouch;
 };
 
 /**
@@ -29,16 +45,37 @@ const detectAndroidTV = () => {
  * Devuelve: 'electron', 'android', 'android-tv', 'ios', o 'web'.
  */
 const getPlatform = () => {
+  const forceTVMode = isForcedTVMode();
+
   if (typeof window !== 'undefined' && window.electronAPI) {
     return 'electron';
   }
-  if (Capacitor.isNativePlatform()) {
-    const platform = Capacitor.getPlatform(); // 'android' o 'ios'
-    if (platform === 'android' && detectAndroidTV()) {
-      return 'android-tv';
+
+  // Intentar usar Capacitor solo si está listo
+  try {
+    if (Capacitor.isNativePlatform && typeof Capacitor.isNativePlatform === 'function') {
+      const platform = Capacitor.getPlatform(); // 'android' o 'ios'
+      if (forceTVMode) {
+        return 'android-tv';
+      }
+      if (platform === 'android' && detectAndroidTV()) {
+        return 'android-tv';
+      }
+      return platform;
     }
-    return platform;
+  } catch (e) {
+    console.warn('Capacitor no disponible, usando detección alternativa', e);
   }
+
+  if (forceTVMode) {
+    return 'android-tv';
+  }
+
+  // Fallback: detectar Android TV por navegador
+  if (navigator.userAgent.includes('Android') && detectAndroidTV()) {
+    return 'android-tv';
+  }
+
   return 'web';
 };
 
@@ -54,7 +91,7 @@ export const isWeb = () => platform === 'web';
 
 /**
  * Obtiene el tipo de reproductor que debe usarse basado en la plataforma.
- * Devuelve: 'electron', 'android-vlc', 'android-tv-native', o 'web'.
+ * Devuelve: 'electron', 'android-vlc', 'android-exoplayer' o 'web'.
  */
 export const getPlayerType = () => {
   switch (platform) {
@@ -63,7 +100,7 @@ export const getPlayerType = () => {
     case 'android':
       return 'android-vlc';
     case 'android-tv':
-      return 'android-tv-native'; // Reproductor nativo para TV
+      return 'android-vlc';
     default:
       return 'web';
   }

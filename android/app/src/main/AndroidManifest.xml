@@ -33,6 +33,7 @@
 
         <activity
             android:name=".ExoPlayerActivity"
+            android:launchMode="singleTop"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:screenOrientation="landscape"
@@ -42,6 +43,7 @@
 
         <activity
             android:name=".VLCPlayerActivity"
+            android:launchMode="singleTop"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:screenOrientation="landscape"

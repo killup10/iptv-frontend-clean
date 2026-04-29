@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TeamG Play - Debug TV Mode</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #16213e;
+            padding: 30px;
+            border-radius: 10px;
+        }
+        h1 {
+            color: #00ffff;
+            text-align: center;
+        }
+        .info-box {
+            background: #0f0f23;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border-left: 4px solid #00ffff;
+        }
+        .button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: bold;
+        }
+        .button:hover {
+            background: #ff00ff;
+        }
+        .info-text {
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status.enabled {
+            background: #00aa00;
+        }
+        .status.disabled {
+            background: #aa0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 TeamG Play - TV Mode Debug</h1>
+
+        <div class="info-box">
+            <h2>System Information</h2>
+            <div class="info-text" id="sysinfo"></div>
+        </div>
+
+        <div class="info-box">
+            <h2>Platform Detection</h2>
+            <div id="platform"></div>
+        </div>
+
+        <div class="info-box">
+            <h2>TV Mode Status</h2>
+            <div id="tvstatus"></div>
+        </div>
+
+        <div class="info-box">
+            <h2>Actions</h2>
+            <button class="button" onclick="enableTVMode()">✓ Enable TV Mode</button>
+            <button class="button" onclick="disableTVMode()">✗ Disable TV Mode</button>
+            <button class="button" onclick="goToApp()">→ Go to App</button>
+            <button class="button" onclick="location.reload()">⟳ Reload</button>
+        </div>
+    </div>
+
+    <script>
+        function updateInfo() {
+            // Sistema
+            const ua = navigator.userAgent;
+            const screen = `${window.innerWidth}x${window.innerHeight}`;
+            const touch = navigator.maxTouchPoints || 0;
+
+            document.getElementById('sysinfo').innerHTML = `
+                <p><strong>User Agent:</strong><br>${ua}</p>
+                <p><strong>Screen:</strong> ${screen}</p>
+                <p><strong>Touch Points:</strong> ${touch}</p>
+                <p><strong>Platform:</strong> ${navigator.platform}</p>
+            `;
+
+            // TV Mode
+            const tvMode = localStorage.getItem('FORCE_TV_MODE') === 'true';
+            document.getElementById('tvstatus').innerHTML = `
+                <p><strong>Forced TV Mode:</strong></p>
+                <div class="status ${tvMode ? 'enabled' : 'disabled'}">
+                    ${tvMode ? '✓ ENABLED' : '✗ DISABLED'}
+                </div>
+                <p><small>If disabled, the app will try to auto-detect.</small></p>
+            `;
+
+            // Platform
+            const hasAndroid = ua.includes('Android');
+            const hasAndroidTV = ua.includes('Android TV');
+            const hasAFT = ua.includes('AFT');
+            const noTouch = touch === 0;
+            const largeScreen = window.innerWidth >= 1280 && window.innerHeight >= 720;
+
+            document.getElementById('platform').innerHTML = `
+                <p><strong>Detection Criteria:</strong></p>
+                <p>Has Android: ${hasAndroid ? '✓' : '✗'}</p>
+                <p>Has "Android TV" string: ${hasAndroidTV ? '✓' : '✗'}</p>
+                <p>Has AFT (FireStick): ${hasAFT ? '✓' : '✗'}</p>
+                <p>No Touchscreen: ${noTouch ? '✓' : '✗'}</p>
+                <p>Large Screen (≥1280x720): ${largeScreen ? '✓' : '✗'}</p>
+                <hr>
+                <p><strong>Would auto-detect as TV:</strong> ${(hasAndroidTV || (largeScreen && noTouch)) ? '✓ YES' : '✗ NO'}</p>
+            `;
+        }
+
+        function enableTVMode() {
+            localStorage.setItem('FORCE_TV_MODE', 'true');
+            console.log('✓ TV Mode ENABLED');
+            updateInfo();
+        }
+
+        function disableTVMode() {
+            localStorage.removeItem('FORCE_TV_MODE');
+            console.log('✗ TV Mode DISABLED');
+            updateInfo();
+        }
+
+        function goToApp() {
+            window.location.href = '/';
+        }
+
+        // Initial update
+        updateInfo();
+
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') goToApp();
+            if (e.key === 'Escape') location.reload();
+        });
+    </script>
+</body>
+</html>

@@ -32,11 +32,13 @@ export const videoProgressService = {
         console.log(`[VideoProgress] Enviando PUT progreso → videoId=${videoId}, lastTime=${lastTime}, lastChapter=${lastChapter ?? 'n/a'}, lastSeason=${lastSeason ?? 'n/a'}, progress=${progress ?? 'n/a'}`);
       }
 
-      const payload = { lastTime };
+      const payload = {
+        lastTime,
+        progress: typeof progress === 'number' ? progress : lastTime,
+      };
       if (lastChapter !== undefined) payload.lastChapter = lastChapter;
       if (lastSeason !== undefined) payload.lastSeason = lastSeason;
       if (completed !== undefined) payload.completed = completed;
-      if (progress !== undefined) payload.progress = progress;
 
       const response = await axiosInstance.put(`/api/videos/${videoId}/progress`, payload);
 

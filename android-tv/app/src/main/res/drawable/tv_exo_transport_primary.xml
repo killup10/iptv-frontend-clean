@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <gradient
+                android:angle="0"
+                android:endColor="@color/tv_exo_neon_cyan"
+                android:startColor="@color/tv_exo_neon_purple" />
+            <stroke android:width="3dp" android:color="#FFFFFFFF" />
+            <padding
+                android:left="12dp"
+                android:top="12dp"
+                android:right="12dp"
+                android:bottom="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#C1131E34" />
+            <stroke android:width="3dp" android:color="@color/tv_exo_neon_purple" />
+            <padding
+                android:left="12dp"
+                android:top="12dp"
+                android:right="12dp"
+                android:bottom="12dp" />
+        </shape>
+    </item>
+</selector>

@@ -7,8 +7,11 @@ import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import Card from '../components/Card.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 export default function Colecciones() {
   const { user } = useAuth();
@@ -23,14 +26,31 @@ export default function Colecciones() {
   const [gridCols, setGridCols] = useState(gridOptions[0]);
 
   // Trailer functionality
-  const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
-
   // Collections modal functionality
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
   const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    checkContentAccess,
+    getNavigationState: () => ({
+      fromSection: 'collections',
+      selectedCollection: selectedColeccion,
+    }),
+  });
 
   useEffect(() => {
     const loadCollections = async () => {
@@ -83,6 +103,8 @@ export default function Colecciones() {
   }, [collections.length, setAllSearchItems]); // Solo cuando collections cambia
 
   const handleContentClick = (item) => {
+    openVodDetail(item, item?.tipo || item?.itemType || 'movie');
+    return;
     const itemId = item.id || item._id;
     if (!itemId) {
       console.error("Colecciones: Clic en contenido sin ID válido.", item);
@@ -120,10 +142,8 @@ export default function Colecciones() {
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
-    if (trailerUrl) {
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-    }
+    openTrailer(trailerUrl);
+    return;
   };
 
   const handleOpenCollectionsModal = (item) => {
@@ -412,10 +432,22 @@ export default function Colecciones() {
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal
           trailerUrl={currentTrailerUrl}
-          onClose={() => {
-            setShowTrailerModal(false);
-            setCurrentTrailerUrl('');
-          }}
+          onClose={closeTrailer}
+        />
+      )}
+
+      {vodDetail?.item && (
+        <MobileVodDetailModal
+          isOpen={Boolean(vodDetail?.item)}
+          item={vodDetail.item}
+          itemType={vodDetail.itemType}
+          canContinue={detailCanContinue}
+          progressPercent={detailProgressPercent}
+          onClose={closeVodDetail}
+          onContinue={handleContinueFromDetail}
+          onPlay={handlePlayFromDetail}
+          onAddToMyList={addItemToMyList}
+          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
         />
       )}
 

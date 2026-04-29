@@ -34,7 +34,7 @@ export default function Toast({
   }[type];
 
   return (
-    <div className={`fixed top-20 right-4 z-50 animate-slide-in`}>
+    <div className={`fixed top-20 right-4 z-[160] animate-slide-in`}>
       <div className={`${bgColor} text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-max`}>
         <Icon size={24} />
         <span className="font-medium">{message}</span>

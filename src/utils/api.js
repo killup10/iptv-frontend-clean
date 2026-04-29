@@ -1,5 +1,36 @@
 // src/utils/api.js
 import axiosInstance from './axiosInstance.js'; // O usa el alias: import axiosInstance from '@/utils/axiosInstance.js';
+import { normalizeSearchText } from './searchUtils.js';
+
+const GLOBAL_SEARCH_CACHE_TTL_MS = 2 * 60 * 1000;
+const GLOBAL_SEARCH_CACHE_MAX_ENTRIES = 80;
+const globalSearchCache = new Map();
+
+function readGlobalSearchCache(cacheKey) {
+  const cached = globalSearchCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (Date.now() - cached.timestamp > GLOBAL_SEARCH_CACHE_TTL_MS) {
+    globalSearchCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.results;
+}
+
+function writeGlobalSearchCache(cacheKey, results) {
+  globalSearchCache.set(cacheKey, {
+    timestamp: Date.now(),
+    results,
+  });
+
+  if (globalSearchCache.size > GLOBAL_SEARCH_CACHE_MAX_ENTRIES) {
+    const oldestKey = globalSearchCache.keys().next().value;
+    if (oldestKey) {
+      globalSearchCache.delete(oldestKey);
+    }
+  }
+}
 
 /* =================== TV EN VIVO - USUARIO =================== */
 export async function fetchUserChannels(sectionName = "Todos") {
@@ -713,14 +744,16 @@ export async function fetchVideosByGenre(genre, tipo = null, limit = 20, page = 
  * @param {number} page - Número de página (default: 1)
  * @returns {Promise<Array>} Array de videos que coinciden con la búsqueda
  */
-export async function searchGlobal(searchQuery, limit = 20, page = 1) {
+async function searchGlobalLegacy(searchQuery, limit = 20, page = 1) {
   if (!searchQuery || !searchQuery.trim()) {
     return [];
   }
 
+  const normalizedSearch = normalizeSearchText(searchQuery);
   const relativePath = "/api/videos";
   const params = { 
-    search: searchQuery,
+    search: normalizedSearch,
+    globalSearch: "true",
     limit, 
     page
   };
@@ -741,4 +774,66 @@ export async function searchGlobal(searchQuery, limit = 20, page = 1) {
     console.error(`❌ [SearchGlobal] Error:`, errorMsg);
     throw new Error(errorMsg);
   }
+}
+
+export async function searchGlobal(searchQuery, limit = 20, page = 1, options = {}) {
+  if (!searchQuery || !searchQuery.trim()) {
+    return [];
+  }
+
+  const normalizedSearch = normalizeSearchText(searchQuery);
+  const cacheKey = `${normalizedSearch}:${limit}:${page}`;
+  const cachedResults = readGlobalSearchCache(cacheKey);
+  if (cachedResults) {
+    return cachedResults;
+  }
+
+  const requestConfig = options.signal ? { signal: options.signal } : {};
+  const videoParams = {
+    search: normalizedSearch,
+    globalSearch: "true",
+    limit,
+    page,
+  };
+  const channelParams = {
+    search: normalizedSearch,
+    limit: Math.min(Math.max(limit, 1), 80),
+    page,
+  };
+
+  const [videosResult, channelsResult] = await Promise.allSettled([
+    axiosInstance.get("/api/videos", { ...requestConfig, params: videoParams }),
+    axiosInstance.get("/api/channels/list", { ...requestConfig, params: channelParams }),
+  ]);
+
+  if (videosResult.status === 'rejected' && channelsResult.status === 'rejected') {
+    const error = videosResult.reason || channelsResult.reason;
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || `Error al buscar "${searchQuery}".`;
+    console.error('[SearchGlobal] Error:', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  const videosData = videosResult.status === 'fulfilled' ? videosResult.value.data : null;
+  const channelsData = channelsResult.status === 'fulfilled' ? channelsResult.value.data : null;
+  const videos = Array.isArray(videosData) ? videosData : (videosData?.videos || []);
+  const channels = (Array.isArray(channelsData) ? channelsData : [])
+    .filter((channel) => normalizeSearchText([
+      channel?.name,
+      channel?.title,
+      channel?.section,
+      channel?.description,
+    ].filter(Boolean).join(' ')).includes(normalizedSearch))
+    .slice(0, channelParams.limit)
+    .map((channel) => ({
+      ...channel,
+      itemType: 'channel',
+      type: 'canal',
+      tipo: 'channel',
+      thumbnail: channel.thumbnail || channel.logo || '/img/placeholder-thumbnail.png',
+    }));
+  const results = [...videos, ...channels];
+
+  writeGlobalSearchCache(cacheKey, results);
+  console.log(`[SearchGlobal] ${results.length} resultados para "${searchQuery}" (${videos.length} VOD, ${channels.length} canales)`);
+  return results;
 }

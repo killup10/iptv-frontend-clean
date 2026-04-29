@@ -4,20 +4,29 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.os.Looper;
 import android.media.AudioManager;
 import android.app.PictureInPictureParams;
 import android.content.res.Configuration;
 import android.util.Rational;
+import android.text.Editable;
+import android.text.TextWatcher;
 
 import android.util.Log;
 import android.view.GestureDetector;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -39,6 +48,7 @@ import java.util.ArrayList;
 public class VLCPlayerActivity extends AppCompatActivity implements GestureDetector.OnGestureListener {
 
     private static final String TAG = "VLCPlayerActivity";
+    private static final long SESSION_VALIDATE_INTERVAL_MS = 20000L;
 
     // Player components
     private LibVLC libVlc;
@@ -66,6 +76,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private boolean isScreenLocked = false;
     private boolean isSeekPending = false;
 
+    // Episode switching (avoid UI stalls/ANR when moving between episodes)
+    private boolean isEpisodeSwitchInProgress = false;
+    private String pendingEpisodeUrl = null;
+    private String pendingEpisodeToastTitle = null;
+
     // Gesture control
     private GestureDetector gestureDetector;
     private AudioManager audioManager;
@@ -89,6 +104,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ArrayList<Integer> chapterSeasonIndices;
     private ArrayList<Integer> chapterIndices;
 
+    // ← NUEVO: Variables para canales en vivo (TV en Vivo)
+    private ArrayList<String> channelNames;
+    private ArrayList<String> channelLogos;
+    private ArrayList<String> channelUrls;
+    private boolean isLiveTV = false;
+
     private static final int MAX_AUTO_RECOVERY_ATTEMPTS = 6;
     private static final long RECOVERY_BASE_DELAY_MS = 2500L;
     private static final long STALL_TIMEOUT_MS = 20000L;
@@ -98,11 +119,17 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private boolean isRecoveringPlayback = false;
     private boolean forceAudioRecoveryPending = false;
     private boolean hasSentPlayerClosedEvent = false;
+    private boolean sessionValidationInFlight = false;
     private String closeReason = "unknown";
+    private String playbackSessionId = "";
+    private String sessionToken = "";
+    private String deviceId = "";
+    private String apiBaseUrl = "";
     private int recoveryAttempts = 0;
     private long lastTimeChangedSystemMs = 0L;
     private long lastPlaybackPositionMs = 0L;
     private final Handler recoveryHandler = new Handler(Looper.getMainLooper());
+    private final Handler sessionValidationHandler = new Handler(Looper.getMainLooper());
     private final Runnable stallWatchdogRunnable = new Runnable() {
         @Override
         public void run() {
@@ -124,14 +151,21 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             }
         }
     };
+    private final Runnable sessionValidationRunnable = new Runnable() {
+        @Override
+        public void run() {
+            queueSessionValidation();
+        }
+    };
 
     private BroadcastReceiver controlReceiver;
     private BroadcastReceiver finishReceiver;
+    private BroadcastReceiver liveChannelsReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
+
         // Verificar si se debe cerrar inmediatamente
         if (getIntent().getBooleanExtra("FORCE_CLOSE", false)) {
             Log.d(TAG, "FORCE_CLOSE flag detected - finishing immediately");
@@ -139,7 +173,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             finish();
             return;
         }
-        
+
         setContentView(R.layout.activity_vlc_player);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -166,7 +200,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
         String videoTitleText = getIntent().getStringExtra("video_title");
+        playbackSessionId = getIntent().getStringExtra("playback_session_id");
+        if (playbackSessionId == null) playbackSessionId = "";
         lastPosition = getIntent().getLongExtra("start_time", 0L);
+        sessionToken = getIntent().getStringExtra("session_token");
+        deviceId = getIntent().getStringExtra("device_id");
+        apiBaseUrl = getIntent().getStringExtra("api_base_url");
         if (lastPosition > 0) {
             isSeekPending = true;
         }
@@ -197,11 +236,23 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         chapterNumbers = getIntent().getIntegerArrayListExtra("chapter_numbers");
         chapterSeasonIndices = getIntent().getIntegerArrayListExtra("chapter_season_indices");
         chapterIndices = getIntent().getIntegerArrayListExtra("chapter_indices");
+
+        // ← NUEVO: Leer datos de canales en vivo
+        channelNames = getIntent().getStringArrayListExtra("channel_names");
+        channelLogos = getIntent().getStringArrayListExtra("channel_logos");
+        channelUrls = getIntent().getStringArrayListExtra("channel_urls");
+        isLiveTV = getIntent().getBooleanExtra("is_live_tv", false);
+
+        if (isLiveTV) {
+            Log.d(TAG, "=== TV EN VIVO INICIALIZADO ===");
+            Log.d(TAG, "Canales: " + (channelNames != null ? channelNames.size() : 0));
+        }
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         // Verificar si se debe cerrar
         if (intent.getBooleanExtra("FORCE_CLOSE", false)) {
             Log.d(TAG, "FORCE_CLOSE flag in onNewIntent - finishing activity");
@@ -217,6 +268,30 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         chapterNumbers = intent.getIntegerArrayListExtra("chapter_numbers");
         chapterSeasonIndices = intent.getIntegerArrayListExtra("chapter_season_indices");
         chapterIndices = intent.getIntegerArrayListExtra("chapter_indices");
+        channelNames = intent.getStringArrayListExtra("channel_names");
+        channelLogos = intent.getStringArrayListExtra("channel_logos");
+        channelUrls = intent.getStringArrayListExtra("channel_urls");
+        isLiveTV = intent.getBooleanExtra("is_live_tv", false);
+        playbackSessionId = intent.getStringExtra("playback_session_id");
+        if (playbackSessionId == null) playbackSessionId = "";
+        sessionToken = intent.getStringExtra("session_token");
+        deviceId = intent.getStringExtra("device_id");
+        apiBaseUrl = intent.getStringExtra("api_base_url");
+
+        String nextVideoUrl = intent.getStringExtra("video_url");
+        String nextVideoTitle = intent.getStringExtra("video_title");
+        if (nextVideoTitle != null && !nextVideoTitle.isEmpty()) {
+            videoTitle.setText(nextVideoTitle);
+        }
+        if (nextVideoUrl != null && !nextVideoUrl.equals(currentVideoUrl)) {
+            currentVideoUrl = nextVideoUrl;
+            lastPosition = intent.getLongExtra("start_time", 0L);
+            isSeekPending = lastPosition > 0;
+            releasePlayer();
+            initializePlayer();
+        } else {
+            setupControls();
+        }
     }
 
     @Override
@@ -225,9 +300,15 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         isActivityClosing = false;
         hasSentPlayerClosedEvent = false;
         closeReason = "active";
-        initializePlayer();
+        if (mediaPlayer == null) {
+            initializePlayer();
+        } else {
+            setupControls();
+        }
         registerControlReceiver();
         registerFinishReceiver();
+        registerLiveChannelsReceiver();
+        queueSessionValidation();
     }
 
     @Override
@@ -248,6 +329,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         super.onPictureInPictureModeChanged(inPip, newConfig);
         if (inPip) {
             controlsContainer.setVisibility(View.GONE);
+            queueSessionValidation();
         } else {
             controlsContainer.setVisibility(View.VISIBLE);
         }
@@ -258,6 +340,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         super.onStop();
         unregisterControlReceiver();
         unregisterFinishReceiver();
+        unregisterLiveChannelsReceiver();
         // Limpiar long press handler
         if (longPressRunnable != null) {
             longPressHandler.removeCallbacks(longPressRunnable);
@@ -266,6 +349,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (!isInPictureInPictureMode()) {
             isActivityClosing = true;
             releasePlayer();
+        } else {
+            queueSessionValidation();
         }
     }
 
@@ -274,6 +359,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         super.onDestroy();
         isActivityClosing = true;
         recoveryHandler.removeCallbacksAndMessages(null);
+        stopSessionValidation();
         // Limpiar long press handler
         if (longPressRunnable != null) {
             longPressHandler.removeCallbacks(longPressRunnable);
@@ -309,20 +395,64 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         setupControls();
         updateVideoTitleWithChapterInfo();
 
+        Media media = buildMediaForCurrentUrl();
+        mediaPlayer.setMedia(media);
+        media.release();
+
+        mediaPlayer.play();
+        recoveryHandler.postDelayed(stallWatchdogRunnable, STALL_CHECK_INTERVAL_MS);
+    }
+
+    private Media buildMediaForCurrentUrl() {
         Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
         media.setHWDecoderEnabled(true, false);
         media.addOption(":network-caching=1500");
         media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+        return media;
+    }
 
+    private void reconnectCurrentPlayback(boolean preservePosition) {
+        if (currentVideoUrl == null) {
+            Log.e(TAG, "Cannot reconnect playback without currentVideoUrl");
+            return;
+        }
+
+        if (libVlc == null) {
+            libVlc = VLCInstance.getInstance(getApplicationContext());
+        }
+
+        if (mediaPlayer == null) {
+            initializePlayer();
+            return;
+        }
+
+        recoveryHandler.removeCallbacks(stallWatchdogRunnable);
+        lastTimeChangedSystemMs = System.currentTimeMillis();
+
+        if (!preservePosition || isLiveTV) {
+            lastPosition = 0L;
+            lastPlaybackPositionMs = 0L;
+            isSeekPending = false;
+        }
+
+        try {
+            mediaPlayer.stop();
+        } catch (Exception stopError) {
+            Log.w(TAG, "Failed to stop current media before reconnect", stopError);
+        }
+
+        Media media = buildMediaForCurrentUrl();
         mediaPlayer.setMedia(media);
         media.release();
-        
+
+        updateVideoTitleWithChapterInfo();
         mediaPlayer.play();
         recoveryHandler.postDelayed(stallWatchdogRunnable, STALL_CHECK_INTERVAL_MS);
     }
 
     private void releasePlayer() {
         recoveryHandler.removeCallbacks(stallWatchdogRunnable);
+        stopSessionValidation();
         if (mediaPlayer != null) {
             long currentPositionMs = Math.max(0L, mediaPlayer.getTime());
             lastPlaybackPositionMs = currentPositionMs;
@@ -338,6 +468,69 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             mediaPlayer = null;
         }
         controlsHandler.removeCallbacksAndMessages(null);
+    }
+
+    private void scheduleSessionValidation() {
+        if (!SessionValidationHelper.hasSessionContext(apiBaseUrl, sessionToken, deviceId)) {
+            return;
+        }
+
+        sessionValidationHandler.removeCallbacks(sessionValidationRunnable);
+        sessionValidationHandler.postDelayed(sessionValidationRunnable, SESSION_VALIDATE_INTERVAL_MS);
+    }
+
+    private void stopSessionValidation() {
+        sessionValidationHandler.removeCallbacks(sessionValidationRunnable);
+    }
+
+    private void queueSessionValidation() {
+        if (isActivityClosing || isFinishing() || sessionValidationInFlight) {
+            return;
+        }
+
+        if (!SessionValidationHelper.hasSessionContext(apiBaseUrl, sessionToken, deviceId)) {
+            return;
+        }
+
+        sessionValidationInFlight = true;
+        new Thread(() -> {
+            SessionValidationHelper.ValidationResult result =
+                SessionValidationHelper.validate(apiBaseUrl, sessionToken, deviceId);
+
+            runOnUiThread(() -> {
+                sessionValidationInFlight = false;
+                if (isActivityClosing || isFinishing()) {
+                    return;
+                }
+
+                if (result == SessionValidationHelper.ValidationResult.INVALID) {
+                    handleSessionRevoked();
+                    return;
+                }
+
+                scheduleSessionValidation();
+            });
+        }).start();
+    }
+
+    private void handleSessionRevoked() {
+        Log.w(TAG, "Sesion revocada. Cerrando VLC nativo.");
+        isActivityClosing = true;
+        closeReason = "session_revoked";
+        recoveryHandler.removeCallbacksAndMessages(null);
+        stopSessionValidation();
+
+        try {
+            if (mediaPlayer != null) {
+                notifyProgressUpdate(mediaPlayer.getTime(), false, true);
+                mediaPlayer.stop();
+            }
+        } catch (Exception error) {
+            Log.w(TAG, "No se pudo detener VLC al revocar la sesion", error);
+        }
+
+        Toast.makeText(this, "Tu sesion fue revocada en este dispositivo.", Toast.LENGTH_LONG).show();
+        finish();
     }
 
     // Variables para throttling de progreso
@@ -362,9 +555,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     recoveryAttempts = 0;
                     isRecoveringPlayback = false;
                     lastTimeChangedSystemMs = System.currentTimeMillis();
-                    if (isSeekPending) {
+                    if (isSeekPending && !isLiveTV) {
                         mediaPlayer.setTime(lastPosition * 1000);
                         isSeekPending = false;
+                    } else if (isLiveTV) {
+                        isSeekPending = false;
+                        lastPosition = 0L;
                     }
                     if (forceAudioRecoveryPending) {
                         recoveryHandler.postDelayed(() -> restoreAudioOutputAfterRecovery(), 350L);
@@ -430,10 +626,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (currentPositionMs <= 0 && lastPlaybackPositionMs > 0) {
             currentPositionMs = lastPlaybackPositionMs;
         }
-        if (currentPositionMs > 0) {
+        if (!isLiveTV && currentPositionMs > 0) {
             lastPosition = currentPositionMs / 1000L;
             isSeekPending = true;
             notifyProgressUpdate(currentPositionMs);
+        } else if (isLiveTV) {
+            lastPosition = 0L;
+            lastPlaybackPositionMs = 0L;
+            isSeekPending = false;
         }
 
         final long delayMs = RECOVERY_BASE_DELAY_MS * Math.min(recoveryAttempts, 3);
@@ -451,8 +651,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 return;
             }
             try {
-                releasePlayer();
-                initializePlayer();
+                reconnectCurrentPlayback(!isLiveTV);
             } catch (Exception recoveryError) {
                 Log.e(TAG, "Error during playback recovery", recoveryError);
             } finally {
@@ -576,7 +775,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         try {
             // Convertir de milisegundos a segundos para consistencia con el frontend
             long currentTimeSec = currentTimeMs / 1000;
-            
+
             // Crear intent para enviar progreso al plugin
             Intent progressIntent = new Intent("VIDEO_PROGRESS_UPDATE");
             progressIntent.putExtra("currentTime", currentTimeSec);
@@ -585,7 +784,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             appendCurrentChapterProgress(progressIntent);
             progressIntent.setPackage(getPackageName());
             sendBroadcast(progressIntent);
-            
+
             Log.d(TAG, "Progress update sent: " + currentTimeSec + "s, completed: " + completed + ", forceSync=" + forceSync + ", chapterGlobalIndex=" + getCurrentChapterGlobalIndex());
         } catch (Exception e) {
             Log.e(TAG, "Error sending progress update", e);
@@ -597,37 +796,158 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             Log.d(TAG, "No chapters available for auto-play");
             return;
         }
-        
+
         // Encontrar el índice del capítulo actual
-        int currentIndex = -1;
-        for (int i = 0; i < chapterUrls.size(); i++) {
-            if (chapterUrls.get(i).equals(currentVideoUrl)) {
-                currentIndex = i;
-                break;
-            }
-        }
-        
+        int currentIndex = getCurrentChapterGlobalIndex();
+
         // Si encontramos el capítulo actual y hay un siguiente
         if (currentIndex >= 0 && currentIndex < chapterUrls.size() - 1) {
             int nextIndex = currentIndex + 1;
             String nextEpisodeUrl = chapterUrls.get(nextIndex);
-            String nextEpisodeTitle = chapterTitles != null && nextIndex < chapterTitles.size() 
-                ? chapterTitles.get(nextIndex) 
+            String nextEpisodeTitle = chapterTitles != null && nextIndex < chapterTitles.size()
+                ? chapterTitles.get(nextIndex)
                 : "Episodio " + (nextIndex + 1);
-            
+
             Log.d(TAG, "Auto-playing next episode: " + nextEpisodeTitle);
-            
+
             // Mostrar toast informativo
             Toast.makeText(this, "Reproduciendo: " + nextEpisodeTitle, Toast.LENGTH_LONG).show();
-            
-            // Cambiar al siguiente episodio
-            releasePlayer();
-            currentVideoUrl = nextEpisodeUrl;
-            lastPosition = 0;
-            initializePlayer();
+
+            requestEpisodeSwitch(nextEpisodeUrl, null);
         } else {
             Log.d(TAG, "No next episode available or current episode not found");
             Toast.makeText(this, "Serie completada", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void setEpisodeSwitchControlsEnabled(boolean enabled) {
+        try {
+            if (prevEpisodeButton != null) prevEpisodeButton.setEnabled(enabled);
+            if (nextEpisodeButton != null) nextEpisodeButton.setEnabled(enabled);
+            if (channelsButton != null) channelsButton.setEnabled(enabled);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void requestEpisodeSwitch(String targetUrl, String toastTitle) {
+        if (isActivityClosing) {
+            return;
+        }
+        if (targetUrl == null || targetUrl.isEmpty()) {
+            return;
+        }
+        if (targetUrl.equals(currentVideoUrl)) {
+            return;
+        }
+
+        pendingEpisodeUrl = targetUrl;
+        pendingEpisodeToastTitle = toastTitle;
+
+        if (isEpisodeSwitchInProgress) {
+            Log.d(TAG, "Episode switch already in progress, queued: " + targetUrl);
+            return;
+        }
+
+        isEpisodeSwitchInProgress = true;
+        setEpisodeSwitchControlsEnabled(false);
+
+        // Defer the heavy work to the message queue so the click handler returns fast (helps avoid ANR).
+        controlsHandler.post(this::performPendingEpisodeSwitch);
+    }
+
+    private void performPendingEpisodeSwitch() {
+        if (isActivityClosing) {
+            pendingEpisodeUrl = null;
+            pendingEpisodeToastTitle = null;
+            isEpisodeSwitchInProgress = false;
+            setEpisodeSwitchControlsEnabled(true);
+            return;
+        }
+
+        final String targetUrl = pendingEpisodeUrl;
+        final String toastTitle = pendingEpisodeToastTitle;
+        pendingEpisodeUrl = null;
+        pendingEpisodeToastTitle = null;
+
+        if (targetUrl == null || targetUrl.isEmpty()) {
+            isEpisodeSwitchInProgress = false;
+            setEpisodeSwitchControlsEnabled(true);
+            return;
+        }
+
+        try {
+            // Persist current position (best-effort) before switching.
+            if (mediaPlayer != null) {
+                try {
+                    long currentPositionMs = Math.max(0L, mediaPlayer.getTime());
+                    if (currentPositionMs > 0) {
+                        notifyProgressUpdate(currentPositionMs, false, true);
+                    }
+                } catch (Exception progressErr) {
+                    Log.w(TAG, "Failed to send progress before episode switch", progressErr);
+                }
+
+                try {
+                    mediaPlayer.stop();
+                } catch (Exception stopErr) {
+                    Log.w(TAG, "Failed to stop current media before episode switch", stopErr);
+                }
+            }
+
+            currentVideoUrl = targetUrl;
+            lastPosition = 0L;
+            isSeekPending = false;
+            lastPlaybackPositionMs = 0L;
+
+            if (libVlc == null) {
+                libVlc = VLCInstance.getInstance(getApplicationContext());
+            }
+
+            // Reuse the existing MediaPlayer to avoid heavy release/recreate cycles (reduces UI stalls/ANR).
+            if (mediaPlayer == null) {
+                initializePlayer();
+            } else {
+                recoveryHandler.removeCallbacks(stallWatchdogRunnable);
+                lastTimeChangedSystemMs = System.currentTimeMillis();
+                isRecoveringPlayback = false;
+                forceAudioRecoveryPending = false;
+
+                Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
+                media.setHWDecoderEnabled(true, false);
+                media.addOption(":network-caching=1500");
+                media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+
+                mediaPlayer.setMedia(media);
+                media.release();
+
+                updateVideoTitleWithChapterInfo();
+                mediaPlayer.play();
+                recoveryHandler.postDelayed(stallWatchdogRunnable, STALL_CHECK_INTERVAL_MS);
+            }
+
+            if (toastTitle != null && !toastTitle.isEmpty()) {
+                Toast.makeText(this, "Reproduciendo: " + toastTitle, Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error switching episode, falling back to re-initialization", e);
+            try {
+                releasePlayer();
+            } catch (Exception releaseErr) {
+                Log.w(TAG, "Failed to release player during fallback", releaseErr);
+            }
+            try {
+                initializePlayer();
+            } catch (Exception initErr) {
+                Log.e(TAG, "Failed to initialize player during fallback", initErr);
+            }
+        } finally {
+            if (pendingEpisodeUrl != null && !pendingEpisodeUrl.equals(currentVideoUrl)) {
+                // Another request arrived while we were switching (rare but safe).
+                controlsHandler.post(this::performPendingEpisodeSwitch);
+            } else {
+                isEpisodeSwitchInProgress = false;
+                setEpisodeSwitchControlsEnabled(true);
+            }
         }
     }
 
@@ -652,11 +972,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (chapterUrls != null && !chapterUrls.isEmpty() && chapterUrls.size() > 1) {
             prevEpisodeButton.setVisibility(View.VISIBLE);
             nextEpisodeButton.setVisibility(View.VISIBLE);
-            
+
             prevEpisodeButton.setOnClickListener(v -> {
                 goToPreviousEpisode();
             });
-            
+
             nextEpisodeButton.setOnClickListener(v -> {
                 goToNextEpisode();
             });
@@ -681,16 +1001,30 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             cyclePlaybackSpeed();
             hideControls();
         });
-        
-        if (chapterTitles == null || chapterTitles.isEmpty()) {
-            channelsButton.setVisibility(View.GONE);
-        } else {
+
+        // ← MODIFICADO: Diferenciar entre TV en vivo y Series/VODs
+        if (isLiveTV && channelNames != null && !channelNames.isEmpty()) {
+            // TV EN VIVO: Mostrar botón de canales en vivo
+            Log.d(TAG, "Configurando botón para TV EN VIVO (" + channelNames.size() + " canales)");
             channelsButton.setVisibility(View.VISIBLE);
-            
+
+            channelsButton.setOnClickListener(v -> {
+                showLiveChannelsDialog();
+                hideControls();
+            });
+        } else if (chapterTitles != null && !chapterTitles.isEmpty()) {
+            // SERIES/VODs: Mostrar botón de capítulos
+            Log.d(TAG, "Configurando botón para SERIES/VODs (" + chapterTitles.size() + " capítulos)");
+            channelsButton.setVisibility(View.VISIBLE);
+
             channelsButton.setOnClickListener(v -> {
                 showChaptersDialog();
                 hideControls();
             });
+        } else {
+            // SIN CONTENIDO: Ocultar botón
+            Log.d(TAG, "No hay capítulos ni canales - ocultando botón");
+            channelsButton.setVisibility(View.GONE);
         }
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -713,18 +1047,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
             return;
         }
-        
+
         // Encontrar el índice del capítulo actual
         int currentIndex = chapterUrls.indexOf(currentVideoUrl);
         if (currentIndex >= 0 && chapterSeasonNumbers != null && chapterNumbers != null &&
             currentIndex < chapterSeasonNumbers.size() && currentIndex < chapterNumbers.size()) {
-            
+
             int seasonNum = chapterSeasonNumbers.get(currentIndex);
             int chapterNum = chapterNumbers.get(currentIndex);
-            String title = (chapterTitles != null && currentIndex < chapterTitles.size()) 
-                ? chapterTitles.get(currentIndex) 
+            String title = (chapterTitles != null && currentIndex < chapterTitles.size())
+                ? chapterTitles.get(currentIndex)
                 : "";
-            
+
             String fullTitle = String.format("S%dE%d - %s", seasonNum, chapterNum, title);
             videoTitle.setText(fullTitle);
             Log.d(TAG, "Updated title to: " + fullTitle);
@@ -736,18 +1070,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             Toast.makeText(this, "No hay episodios anteriores", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         int currentIndex = chapterUrls.indexOf(currentVideoUrl);
         if (currentIndex > 0) {
-            String prevTitle = (chapterTitles != null && currentIndex - 1 < chapterTitles.size()) 
-                ? chapterTitles.get(currentIndex - 1) 
+            String prevTitle = (chapterTitles != null && currentIndex - 1 < chapterTitles.size())
+                ? chapterTitles.get(currentIndex - 1)
                 : "Episodio " + currentIndex;
-            
-            releasePlayer();
-            currentVideoUrl = chapterUrls.get(currentIndex - 1);
-            lastPosition = 0;
-            initializePlayer();
-            Toast.makeText(this, "Reproduciendo: " + prevTitle, Toast.LENGTH_SHORT).show();
+
+            requestEpisodeSwitch(chapterUrls.get(currentIndex - 1), prevTitle);
         } else {
             Toast.makeText(this, "Primer episodio", Toast.LENGTH_SHORT).show();
         }
@@ -758,18 +1088,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             Toast.makeText(this, "No hay episodios siguientes", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         int currentIndex = chapterUrls.indexOf(currentVideoUrl);
         if (currentIndex >= 0 && currentIndex < chapterUrls.size() - 1) {
-            String nextTitle = (chapterTitles != null && currentIndex + 1 < chapterTitles.size()) 
-                ? chapterTitles.get(currentIndex + 1) 
+            String nextTitle = (chapterTitles != null && currentIndex + 1 < chapterTitles.size())
+                ? chapterTitles.get(currentIndex + 1)
                 : "Episodio " + (currentIndex + 2);
-            
-            releasePlayer();
-            currentVideoUrl = chapterUrls.get(currentIndex + 1);
-            lastPosition = 0;
-            initializePlayer();
-            Toast.makeText(this, "Reproduciendo: " + nextTitle, Toast.LENGTH_SHORT).show();
+
+            requestEpisodeSwitch(chapterUrls.get(currentIndex + 1), nextTitle);
         } else {
             Toast.makeText(this, "Último episodio", Toast.LENGTH_SHORT).show();
         }
@@ -777,7 +1103,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     private void toggleScreenLock() {
         isScreenLocked = !isScreenLocked;
-        
+
         if (isScreenLocked) {
             lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_lock));
             controlsContainer.setAlpha(0.3f);
@@ -893,11 +1219,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             currentSpeedIndex = which;
             float speed = playbackSpeeds[which];
             mediaPlayer.setRate(speed);
-            
+
             String speedText = speedLabels[which];
             Toast.makeText(VLCPlayerActivity.this, "Velocidad: " + speedText, Toast.LENGTH_SHORT).show();
             Log.d(TAG, "Playback speed changed to: " + speedText);
-            
+
             dialog.dismiss();
             hideControls();
         });
@@ -929,15 +1255,246 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         builder.setTitle("Seleccionar Capítulo");
         builder.setItems(formattedTitles.toArray(new String[0]), (dialog, which) -> {
             if (which >= 0 && which < chapterUrls.size()) {
-                releasePlayer();
-                currentVideoUrl = chapterUrls.get(which);
-                lastPosition = 0;
-                initializePlayer();
+                String selectedTitle = (chapterTitles != null && which < chapterTitles.size())
+                        ? chapterTitles.get(which)
+                        : null;
+                requestEpisodeSwitch(chapterUrls.get(which), selectedTitle);
             }
         });
         builder.show();
     }
-    
+
+    // ← NUEVO: Diálogo para seleccionar canales en vivo con soporte TV
+    private int currentChannelSelection = 0;
+    private AlertDialog currentChannelDialog = null;
+
+    private void showLiveChannelsDialog() {
+        if (channelNames == null || channelUrls == null || channelNames.isEmpty() || channelUrls.isEmpty()) {
+            Toast.makeText(this, "No hay canales disponibles", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Log.d(TAG, "showLiveChannelsDialog: Mostrando " + channelNames.size() + " canales");
+        int channelCount = Math.min(channelNames.size(), channelUrls.size());
+        int currentIndex = channelUrls.indexOf(currentVideoUrl);
+        currentChannelSelection = currentIndex >= 0 ? currentIndex : Math.min(currentChannelSelection, channelCount - 1);
+
+        LinearLayout contentLayout = new LinearLayout(this);
+        contentLayout.setOrientation(LinearLayout.VERTICAL);
+        int paddingPx = (int) (20 * getResources().getDisplayMetrics().density);
+        contentLayout.setPadding(paddingPx, paddingPx / 2, paddingPx, 0);
+
+        EditText searchInput = new EditText(this);
+        searchInput.setSingleLine(true);
+        searchInput.setHint("Buscar canal...");
+        searchInput.setTextColor(getColor(android.R.color.white));
+        searchInput.setHintTextColor(0xFFB0B0B0);
+        contentLayout.addView(searchInput, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        ListView listView = new ListView(this);
+        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        int listHeightPx = (int) (360 * getResources().getDisplayMetrics().density);
+        contentLayout.addView(listView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                listHeightPx
+        ));
+
+        ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
+        ArrayAdapter<String> channelAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_single_choice,
+                new ArrayList<>()
+        );
+        listView.setAdapter(channelAdapter);
+        applyChannelFilter("", visibleChannelIndices, channelAdapter, channelCount);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Selecciona un Canal");
+        builder.setView(contentLayout);
+
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            updateCurrentChannelSelectionFromVisibleList(visibleChannelIndices, listView);
+            confirmChannelSelection(dialog);
+        });
+
+        builder.setNegativeButton("Cancelar", (dialog, which) -> {
+            dialog.dismiss();
+            currentChannelDialog = null;
+        });
+
+        AlertDialog dialogInstance = builder.create();
+        dialogInstance.setOnKeyListener((dialog, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_DPAD_CENTER:
+                    case KeyEvent.KEYCODE_ENTER:
+                    case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                        updateCurrentChannelSelectionFromVisibleList(visibleChannelIndices, listView);
+                        confirmChannelSelection(dialog);
+                        return true;
+                    case KeyEvent.KEYCODE_BACK:
+                        dialog.dismiss();
+                        currentChannelDialog = null;
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+            return false;
+        });
+
+        dialogInstance.setOnShowListener(dialog -> {
+            currentChannelDialog = dialogInstance;
+            int visibleSelection = Math.max(0, visibleChannelIndices.indexOf(currentChannelSelection));
+            listView.setItemChecked(visibleSelection, true);
+            listView.setSelection(visibleSelection);
+            listView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (position >= 0 && position < visibleChannelIndices.size()) {
+                        currentChannelSelection = visibleChannelIndices.get(position);
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                }
+            });
+            listView.setOnItemClickListener((parent, view, position, id) -> {
+                if (position >= 0 && position < visibleChannelIndices.size()) {
+                    currentChannelSelection = visibleChannelIndices.get(position);
+                    confirmChannelSelection(dialogInstance);
+                }
+            });
+            searchInput.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    applyChannelFilter(s != null ? s.toString() : "", visibleChannelIndices, channelAdapter, channelCount);
+                    int nextSelection = visibleChannelIndices.indexOf(currentChannelSelection);
+                    if (nextSelection < 0) {
+                        nextSelection = visibleChannelIndices.isEmpty() ? -1 : 0;
+                        if (nextSelection >= 0) {
+                            currentChannelSelection = visibleChannelIndices.get(nextSelection);
+                        }
+                    }
+                    if (nextSelection >= 0) {
+                        listView.setItemChecked(nextSelection, true);
+                        listView.setSelection(nextSelection);
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                }
+            });
+            listView.requestFocus();
+        });
+        dialogInstance.setOnDismissListener(dialog -> currentChannelDialog = null);
+
+        currentChannelDialog = dialogInstance;
+        dialogInstance.show();
+    }
+
+    private void applyChannelFilter(String query, ArrayList<Integer> visibleChannelIndices, ArrayAdapter<String> adapter, int channelCount) {
+        visibleChannelIndices.clear();
+        adapter.clear();
+
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
+        for (int i = 0; i < channelCount; i++) {
+            String channelName = channelNames.get(i);
+            if (!normalizedQuery.isEmpty() && !channelName.toLowerCase().contains(normalizedQuery)) {
+                continue;
+            }
+            visibleChannelIndices.add(i);
+            adapter.add(i == currentChannelSelection ? channelName + "  - Actual" : channelName);
+        }
+        adapter.notifyDataSetChanged();
+    }
+
+    private void updateCurrentChannelSelectionFromVisibleList(ArrayList<Integer> visibleChannelIndices, ListView listView) {
+        if (visibleChannelIndices == null || listView == null || visibleChannelIndices.isEmpty()) {
+            return;
+        }
+
+        int selectedPosition = listView.getSelectedItemPosition();
+        int checkedPosition = listView.getCheckedItemPosition();
+        int visiblePosition = selectedPosition >= 0 ? selectedPosition : checkedPosition;
+        if (visiblePosition >= 0 && visiblePosition < visibleChannelIndices.size()) {
+            currentChannelSelection = visibleChannelIndices.get(visiblePosition);
+            listView.setItemChecked(visiblePosition, true);
+        }
+    }
+
+    private void confirmChannelSelection(DialogInterface dialog) {
+        int channelCount = Math.min(channelNames.size(), channelUrls.size());
+        if (currentChannelSelection >= 0 && currentChannelSelection < channelCount) {
+            String selectedChannel = channelNames.get(currentChannelSelection);
+            String selectedUrl = channelUrls.get(currentChannelSelection);
+            Log.d(TAG, "Canal confirmado: " + selectedChannel + " - URL: " + selectedUrl);
+            switchChannel(selectedUrl, selectedChannel);
+        }
+
+        dialog.dismiss();
+        currentChannelDialog = null;
+    }
+
+    // ← NUEVO: Cambiar de canal en vivo
+    private void switchChannel(String newChannelUrl, String newChannelName) {
+        Log.d(TAG, "switchChannel: Cambiando a canal: " + newChannelName + " - URL: " + newChannelUrl);
+
+        try {
+            // Actualizar título del video
+            videoTitle.setText(newChannelName);
+            currentVideoUrl = newChannelUrl;
+
+            // Detener reproducción actual
+            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                mediaPlayer.stop();
+                Log.d(TAG, "switchChannel: Reproducción anterior detenida");
+            }
+
+            // Esperar un poco para asegurar que se detuvo
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    if (libVlc == null) {
+                        libVlc = VLCInstance.getInstance(getApplicationContext());
+                    }
+
+                    // Crear nueva media
+                    Media media = new Media(libVlc, android.net.Uri.parse(newChannelUrl));
+                    media.setHWDecoderEnabled(true, false);
+                    media.addOption(":network-caching=1500");
+                    media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+
+                    mediaPlayer.setMedia(media);
+                    media.release();
+
+                    // Reproducir nuevo canal
+                    mediaPlayer.play();
+                    Log.d(TAG, "switchChannel: Nuevo canal iniciado");
+
+                    // Mostrar toast con el canal seleccionado
+                    Toast.makeText(VLCPlayerActivity.this, "Sintonizando: " + newChannelName, Toast.LENGTH_SHORT).show();
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error al cambiar el canal: " + e.getMessage(), e);
+                    Toast.makeText(VLCPlayerActivity.this, "Error al cambiar de canal", Toast.LENGTH_SHORT).show();
+                }
+            }, 300);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error en switchChannel: " + e.getMessage(), e);
+            Toast.makeText(this, "Error al cambiar de canal", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void showTracksDialog() {
         if (mediaPlayer == null) return;
 
@@ -957,7 +1514,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         if (audioTracks != null && audioTracks.length > 1) {
             trackNames.add("--- Pistas de Audio ---");
-            trackActions.add(null); 
+            trackActions.add(null);
 
             for (MediaPlayer.TrackDescription track : audioTracks) {
                 if (track.id == -1) continue;
@@ -973,7 +1530,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         if (spuTracks != null && spuTracks.length > 0) {
             if (!trackNames.isEmpty()) {
-                trackNames.add(""); 
+                trackNames.add("");
                 trackActions.add(null);
             }
             trackNames.add("--- Subtítulos ---");
@@ -1034,19 +1591,19 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     pressStartTime = System.currentTimeMillis();
                     pressStartX = event.getX();
                     pressStartY = event.getY();
-                    
+
                     // Mostrar barra de progreso
                     unlockProgressBar.setVisibility(View.VISIBLE);
                     unlockProgressBar.setProgress(0);
-                    
+
                     // Cancelar cualquier long press anterior
                     if (longPressRunnable != null) {
                         longPressHandler.removeCallbacks(longPressRunnable);
                     }
-                    
+
                     // Actualizar progreso cada 50ms
                     updateUnlockProgress();
-                    
+
                     // Configurar el callback para long press (3 segundos)
                     longPressRunnable = () -> {
                         toggleScreenLock();
@@ -1056,7 +1613,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     };
                     longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_DURATION);
                     return true;
-                    
+
                 case MotionEvent.ACTION_MOVE:
                     // Si se mueve demasiado, cancelar el long press
                     if (Math.abs(event.getX() - pressStartX) > LONG_PRESS_SLOP ||
@@ -1071,7 +1628,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                         updateUnlockProgress();
                     }
                     return true;
-                    
+
                 case MotionEvent.ACTION_UP:
                     // Cancelar el long press si se suelta antes de 3 segundos
                     if (longPressRunnable != null) {
@@ -1084,19 +1641,19 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             }
             return true; // Consumir evento cuando está bloqueado
         }
-        
+
         // Manejo de doble tap para +15/-15 segundos (cuando NO está bloqueado)
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             long currentTime = System.currentTimeMillis();
             float currentX = event.getX();
             float currentY = event.getY();
-            
+
             // Verificar si es doble tap
             if (currentTime - lastDoubleTapTime < DOUBLE_TAP_TIMEOUT &&
                 Math.abs(currentX - lastTapX) < DOUBLE_TAP_SLOP &&
                 Math.abs(currentY - lastTapY) < DOUBLE_TAP_SLOP &&
                 mediaPlayer != null && mediaPlayer.isPlaying()) {
-                
+
                 // Es doble tap - avanzar/retroceder
                 if (currentX < getWindow().getDecorView().getWidth() / 2) {
                     // Lado izquierdo: retroceder 15 segundos
@@ -1114,13 +1671,13 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 lastDoubleTapTime = 0;
                 return true;
             }
-            
+
             // Actualizar último tap
             lastDoubleTapTime = currentTime;
             lastTapX = currentX;
             lastTapY = currentY;
         }
-        
+
         if (gestureDetector.onTouchEvent(event)) {
             return true;
         }
@@ -1153,7 +1710,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
         if (Math.abs(distanceY) > Math.abs(distanceX)) {
             float deltaY = e1.getY() - e2.getY();
-            
+
             if (e1.getX() < getWindow().getDecorView().getWidth() / 2) {
                 // Control de brillo en el lado izquierdo
                 WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
@@ -1171,7 +1728,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 int volumeChange = Math.round(volumeDelta * maxVolume);
                 int newVolume = gestureInitialVolume + volumeChange;
                 newVolume = Math.max(0, Math.min(maxVolume, newVolume));
-                
+
                 // Forzar el cambio de volumen
                 audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, AudioManager.FLAG_SHOW_UI);
                 showVolumeBar(newVolume, maxVolume);
@@ -1211,11 +1768,22 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         indicatorHandler.postDelayed(hideVolumeBarRunnable, 1500);
     }
 
+    private boolean matchesTargetSession(Intent intent) {
+        String targetSessionId = intent.getStringExtra("target_session_id");
+        return targetSessionId == null
+            || targetSessionId.isEmpty()
+            || targetSessionId.equals(playbackSessionId);
+    }
+
     private void registerControlReceiver() {
         controlReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if ("VIDEO_PLAYER_CONTROL".equals(intent.getAction())) {
+                    if (!matchesTargetSession(intent)) {
+                        Log.d(TAG, "Ignoring control for a stale playback session");
+                        return;
+                    }
                     String action = intent.getStringExtra("action");
                     Log.d(TAG, "Received control action: " + action);
                     if (mediaPlayer != null) {
@@ -1259,6 +1827,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
                 if ("FINISH_VLC_ACTIVITY".equals(action) || "FORCE_FINISH_VLC_ACTIVITY".equals(action)) {
+                    if (!matchesTargetSession(intent)) {
+                        Log.d(TAG, "Ignoring finish broadcast for a stale playback session");
+                        return;
+                    }
                     Log.d(TAG, "Received finish broadcast: " + action + " - closing activity");
                     isActivityClosing = true;
                     recoveryHandler.removeCallbacksAndMessages(null);
@@ -1283,6 +1855,42 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         Log.d(TAG, "Finish receiver registered");
     }
 
+    private void registerLiveChannelsReceiver() {
+        if (liveChannelsReceiver != null) return;
+
+        liveChannelsReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (!"UPDATE_LIVE_CHANNELS".equals(intent.getAction())) return;
+
+                ArrayList<String> nextNames = intent.getStringArrayListExtra("channel_names");
+                ArrayList<String> nextLogos = intent.getStringArrayListExtra("channel_logos");
+                ArrayList<String> nextUrls = intent.getStringArrayListExtra("channel_urls");
+
+                if (nextNames == null || nextUrls == null || nextNames.isEmpty() || nextUrls.isEmpty()) {
+                    Log.w(TAG, "Ignoring live channel update without valid channels");
+                    return;
+                }
+
+                channelNames = nextNames;
+                channelLogos = nextLogos != null ? nextLogos : new ArrayList<>();
+                channelUrls = nextUrls;
+                isLiveTV = true;
+                currentChannelSelection = channelUrls.indexOf(currentVideoUrl);
+                if (currentChannelSelection < 0) currentChannelSelection = 0;
+                setupControls();
+                Log.d(TAG, "Live channels updated: " + channelNames.size());
+            }
+        };
+
+        IntentFilter filter = new IntentFilter("UPDATE_LIVE_CHANNELS");
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(liveChannelsReceiver, filter, RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(liveChannelsReceiver, filter);
+        }
+    }
+
     private void unregisterControlReceiver() {
         if (controlReceiver != null) {
             unregisterReceiver(controlReceiver);
@@ -1302,14 +1910,26 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
     }
 
+    private void unregisterLiveChannelsReceiver() {
+        if (liveChannelsReceiver != null) {
+            try {
+                unregisterReceiver(liveChannelsReceiver);
+                liveChannelsReceiver = null;
+                Log.d(TAG, "Live channels receiver unregistered");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering live channels receiver", e);
+            }
+        }
+    }
+
     // Actualizar barra de progreso de desbloqueo
     private void updateUnlockProgress() {
         if (pressStartTime == 0) return;
-        
+
         long elapsedTime = System.currentTimeMillis() - pressStartTime;
         int progress = (int) ((elapsedTime * 100) / LONG_PRESS_DURATION);
         progress = Math.min(progress, 100); // Máximo 100%
-        
+
         unlockProgressBar.setProgress(progress);
     }
 

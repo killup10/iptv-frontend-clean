@@ -1,29 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { fetchUserSeries, getCollections, addItemsToCollection } from '../utils/api.js';
+import { fetchUserSeries, fetchVideosByType, getCollections, addItemsToCollection } from '../utils/api.js';
 import { normalizeSearchText } from '../utils/searchUtils.js'; // Para búsqueda sin tildes
 import useDataCache from '../hooks/useDataCache.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import Card from '../components/Card.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import Toast from '../components/Toast.jsx';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import { SERIES_SUBCATEGORIES, buildSeriesSubcategoryCounts } from '../utils/seriesSubcategoryUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
-const SUBCATEGORIAS = [
-  "TODOS",
-  "Netflix",
-  "Prime Video",
-  "Disney",
-  "Apple TV",
-  "HBO Max",
-  "Hulu y Otros",
-  "Retro",
-  "Animadas",
-];
+const SUBCATEGORIAS = SERIES_SUBCATEGORIES;
 
 export default function SeriesPage() {
   const { user } = useAuth();
@@ -44,17 +38,37 @@ export default function SeriesPage() {
   const gridOptions = [5, 4, 3, 1];
   const [gridCols, setGridCols] = useState(gridOptions[0]);
 
-  const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
-
   const [collections, setCollections] = useState([]);
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
   const [selectedItemForCollection, setSelectedItemForCollection] = useState(null);
 
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [subcategoryCounts, setSubcategoryCounts] = useState(() => (
+    dataCache.get('seriesSubcategoryCounts') || buildSeriesSubcategoryCounts([])
+  ));
 
   const { checkContentAccess, showAccessModal, accessModalData, closeAccessModal, proceedWithTrial } = useContentAccess();
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    checkContentAccess,
+    getNavigationState: () => ({
+      fromSection: 'series',
+      selectedSubcategoria,
+    }),
+  });
 
   useEffect(() => {
     const loadCollections = async () => {
@@ -67,6 +81,40 @@ export default function SeriesPage() {
     };
     loadCollections();
 }, []);
+
+  useEffect(() => {
+    if (!user?.token) {
+      return undefined;
+    }
+
+    const cachedCounts = dataCache.get('seriesSubcategoryCounts');
+    if (cachedCounts) {
+      setSubcategoryCounts(cachedCounts);
+    }
+
+    let cancelled = false;
+
+    const loadSeriesCounts = async () => {
+      try {
+        const data = await fetchVideosByType('serie', 1, 1000);
+        const items = Array.isArray(data?.videos) ? data.videos : Array.isArray(data) ? data : [];
+        const counts = buildSeriesSubcategoryCounts(items);
+
+        if (!cancelled) {
+          setSubcategoryCounts(counts);
+          dataCache.set('seriesSubcategoryCounts', counts);
+        }
+      } catch (error) {
+        console.error('SeriesPage: Error cargando contadores de subcategorias:', error);
+      }
+    };
+
+    loadSeriesCounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dataCache, user?.token]);
 
   const observer = useRef();
   const lastSerieElementRef = useCallback(node => {
@@ -153,6 +201,8 @@ export default function SeriesPage() {
   }, [selectedSubcategoria, user?.token]);
 
   const handleSerieClick = (serie) => {
+    openVodDetail(serie, 'serie');
+    return;
     const serieId = serie.id || serie._id;
     if (!serieId) {
       console.error("SeriesPage: Clic en serie sin ID válido.", serie);
@@ -177,10 +227,8 @@ export default function SeriesPage() {
   };
 
   const handlePlayTrailerClick = (trailerUrl) => {
-    if (trailerUrl) {
-      setCurrentTrailerUrl(trailerUrl);
-      setShowTrailerModal(true);
-    }
+    openTrailer(trailerUrl);
+    return;
   };
 
   const handleOpenCollectionsModal = (item) => {
@@ -247,6 +295,22 @@ const handleAddToMyList = async (item) => {
         setToastMessage('❌ Error al agregar a Mi Lista');
         setToastType('error');
       }
+    }
+  };
+
+  const handleAddToMyListSafe = async (item) => {
+    try {
+      const result = await addItemToMyList(item);
+      setToastMessage(
+        result.status === 'duplicate'
+          ? `"${item.name || item.title}" ya estaba en Mi Lista`
+          : `"${item.name || item.title}" agregado a Mi Lista`,
+      );
+      setToastType(result.status === 'duplicate' ? 'info' : 'success');
+    } catch (error) {
+      console.error('[SeriesPage.jsx] Error al agregar a Mi Lista:', error);
+      setToastMessage('Error al agregar a Mi Lista');
+      setToastType('error');
     }
   };
 
@@ -320,13 +384,20 @@ const handleAddToMyList = async (item) => {
                   <button
                     key={subcategoria}
                     onClick={() => setSelectedSubcategoria(subcategoria)}
-                    className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
+                    className={`flex w-full items-center justify-between gap-3 rounded-md px-4 py-2 text-left transition-colors ${
                       selectedSubcategoria === subcategoria
                         ? 'bg-red-600 text-white'
                         : 'text-gray-300 hover:bg-zinc-700'
                     } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text font-bold' : ''}`}
                   >
-                    {subcategoria}
+                    <span>{subcategoria}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      selectedSubcategoria === subcategoria
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white/10 text-slate-300'
+                    }`}>
+                      {subcategoryCounts[subcategoria] ?? 0}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -368,7 +439,7 @@ const handleAddToMyList = async (item) => {
                                   itemType="serie"
                                   onPlayTrailer={handlePlayTrailerClick}
                                   onAddToCollectionClick={handleOpenCollectionsModal}
-                                  onAddToMyList={handleAddToMyList}
+                                  onAddToMyList={handleAddToMyListSafe}
                               />
                           </div>
                       );
@@ -381,7 +452,7 @@ const handleAddToMyList = async (item) => {
                               itemType="serie"
                               onPlayTrailer={handlePlayTrailerClick}
                               onAddToCollectionClick={handleOpenCollectionsModal}
-                              onAddToMyList={handleAddToMyList}
+                              onAddToMyList={handleAddToMyListSafe}
                           />
                       );
                   }
@@ -412,10 +483,22 @@ const handleAddToMyList = async (item) => {
         {showTrailerModal && currentTrailerUrl && (
           <TrailerModal
             trailerUrl={currentTrailerUrl}
-            onClose={() => {
-              setShowTrailerModal(false);
-              setCurrentTrailerUrl('');
-            }}
+            onClose={closeTrailer}
+          />
+        )}
+
+        {vodDetail?.item && (
+          <MobileVodDetailModal
+            isOpen={Boolean(vodDetail?.item)}
+            item={vodDetail.item}
+            itemType={vodDetail.itemType}
+            canContinue={detailCanContinue}
+            progressPercent={detailProgressPercent}
+            onClose={closeVodDetail}
+            onContinue={handleContinueFromDetail}
+            onPlay={handlePlayFromDetail}
+            onAddToMyList={handleAddToMyListSafe}
+            onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
           />
         )}
 

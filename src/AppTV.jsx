@@ -1,70 +1,254 @@
-// Smart TV version of App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext.jsx";
-import PlatformDetector from "./utils/platformDetector.js";
 import TVNavigation from "./components/TVNavigation.jsx";
+import TVSearch from "./components/TVSearch.jsx";
+import { fetchUserChannels, fetchUserMovies, fetchVideosByType } from "./utils/api.js";
+import { TV_OPEN_SEARCH_EVENT } from "./utils/tvSearchEvents.js";
+import { getTVItemId, resolveTVItemType, unwrapTVItems } from "./utils/tvContentUtils.js";
+import { focusTVContent, getTVFocusZone, TV_FOCUS_ZONE_MODAL } from "./utils/tvFocusZone.js";
+import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowseCache.js";
+
+const HOME_BACK_ROUTES = new Set([
+  '/live-tv',
+  '/peliculas',
+  '/series',
+  '/animes',
+  '/doramas',
+  '/novelas',
+  '/documentales',
+  '/kids',
+  '/colecciones',
+  '/mi-lista',
+]);
+
+function normalizeGlobalSearchItems(items, fallbackType) {
+  return unwrapTVItems(items)
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      type: item?.type || item?.itemType || item?.tipo || fallbackType,
+      itemType: item?.itemType || item?.tipo || item?.type || fallbackType,
+    }));
+}
 
 function AppTV() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [platform, setPlatform] = useState('smarttv');
+  const isWatchPage = location.pathname.startsWith('/watch');
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [globalSearchItems, setGlobalSearchItems] = useState([]);
+  const globalSearchLoadedRef = useRef(false);
+  const globalSearchLoadingRef = useRef(false);
+  const seriesPrefetchLoadingRef = useRef(false);
 
-  // Initialize platform detection
-  useEffect(() => {
-    const detectedPlatform = PlatformDetector.initializePlatform();
-    setPlatform(detectedPlatform);
-    console.log('[AppTV] Platform detected:', detectedPlatform);
-  }, []);
-
-  // Verificar si estamos en una página de autenticación
-  const isAuthPage = !user && (location.pathname === "/login" || location.pathname.startsWith("/register"));
-
-  // Handle remote control back button for Smart TVs
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Handle platform-specific back button
-      if (e.keyCode === 8 || e.keyCode === 27) { // Back or Escape
-        e.preventDefault();
-        if (window.history.length > 1) {
-          navigate(-1);
-        }
-      }
-    };
-
-    // Register key events for different platforms
-    if (PlatformDetector.isWebOS()) {
-      // WebOS specific key handling
-      document.addEventListener('keydown', handleKeyDown);
-    } else if (PlatformDetector.isTizen()) {
-      // Tizen specific key handling
-      document.addEventListener('keydown', handleKeyDown);
-      
-      // Register Tizen TV keys
-      if (window.tizen && window.tizen.tvinputdevice) {
-        try {
-          window.tizen.tvinputdevice.registerKey('Back');
-          window.tizen.tvinputdevice.registerKey('Exit');
-        } catch (error) {
-          console.warn('Tizen key registration failed:', error);
-        }
-      }
-    } else {
-      // Generic Smart TV key handling
-      document.addEventListener('keydown', handleKeyDown);
+  const warmSeriesBrowseCache = useCallback(async () => {
+    if (seriesPrefetchLoadingRef.current || getCachedTVSeriesItems()?.length) {
+      return;
     }
 
+    seriesPrefetchLoadingRef.current = true;
+    try {
+      const response = await fetchVideosByType('serie', 1, 500);
+      setCachedTVSeriesItems(normalizeGlobalSearchItems(response, 'serie'));
+    } catch (error) {
+      console.warn('[AppTV] No se pudo precargar cache de series TV:', error?.message || error);
+    } finally {
+      seriesPrefetchLoadingRef.current = false;
+    }
+  }, []);
+
+  const loadGlobalSearchIndex = useCallback(async () => {
+    if (globalSearchLoadedRef.current || globalSearchLoadingRef.current) {
+      return;
+    }
+
+    globalSearchLoadingRef.current = true;
+    try {
+      const results = await Promise.allSettled([
+        fetchUserChannels('Todos'),
+        fetchVideosByType('pelicula', 1, 500),
+        fetchVideosByType('serie', 1, 500),
+        fetchVideosByType('anime', 1, 500),
+        fetchVideosByType('dorama', 1, 500),
+        fetchVideosByType('novela', 1, 500),
+        fetchVideosByType('documental', 1, 500),
+        fetchUserMovies(1, 500, 'CINE_2025'),
+        fetchUserMovies(1, 500, 'CINE_2026'),
+      ]);
+
+      const [
+        channelsResult,
+        moviesResult,
+        seriesResult,
+        animesResult,
+        doramasResult,
+        novelasResult,
+        documentalesResult,
+        cine2025Result,
+        cine2026Result,
+      ] = results;
+
+      const nextItems = [
+        ...(channelsResult.status === 'fulfilled' ? normalizeGlobalSearchItems(channelsResult.value, 'channel') : []),
+        ...(moviesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(moviesResult.value, 'movie') : []),
+        ...(seriesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(seriesResult.value, 'serie') : []),
+        ...(animesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(animesResult.value, 'anime') : []),
+        ...(doramasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(doramasResult.value, 'dorama') : []),
+        ...(novelasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(novelasResult.value, 'novela') : []),
+        ...(documentalesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(documentalesResult.value, 'documental') : []),
+        ...(cine2025Result.status === 'fulfilled' ? normalizeGlobalSearchItems(cine2025Result.value, 'movie') : []),
+        ...(cine2026Result.status === 'fulfilled' ? normalizeGlobalSearchItems(cine2026Result.value, 'movie') : []),
+      ];
+
+      const uniqueItems = Array.from(new Map(
+        nextItems.map((item) => [getTVItemId(item) || `${item.itemType}-${item.name || item.title}`, item])
+      ).values());
+
+      setGlobalSearchItems(uniqueItems);
+      if (seriesResult.status === 'fulfilled') {
+        setCachedTVSeriesItems(normalizeGlobalSearchItems(seriesResult.value, 'serie'));
+      }
+      globalSearchLoadedRef.current = true;
+    } catch (error) {
+      console.warn('[AppTV] No se pudo cargar el indice global de busqueda:', error?.message || error);
+    } finally {
+      globalSearchLoadingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user?.token || isWatchPage) {
+      return;
+    }
+
+    warmSeriesBrowseCache();
+    loadGlobalSearchIndex();
+  }, [isWatchPage, loadGlobalSearchIndex, user?.token, warmSeriesBrowseCache]);
+
+  useEffect(() => {
+    const handleOpenGlobalSearch = (event) => {
+      if (event.detail?.scope !== 'global') {
+        return;
+      }
+
+      setShowGlobalSearch(true);
+      loadGlobalSearchIndex();
+    };
+
+    window.addEventListener(TV_OPEN_SEARCH_EVENT, handleOpenGlobalSearch);
+    return () => window.removeEventListener(TV_OPEN_SEARCH_EVENT, handleOpenGlobalSearch);
+  }, [loadGlobalSearchIndex]);
+
+  const handleGlobalSearchSelect = useCallback((item) => {
+    const itemId = getTVItemId(item);
+    if (!itemId) {
+      return;
+    }
+
+    const itemType = resolveTVItemType(item, item?.itemType || item?.tipo || 'movie');
+    const returnPath = location.pathname && location.pathname !== '/login'
+      ? location.pathname
+      : '/';
+    const returnState = location.state ? { ...location.state } : undefined;
+    setShowGlobalSearch(false);
+
+    if (itemType === 'channel') {
+      navigate(`/watch/channel/${itemId}`, {
+        state: {
+          from: returnPath,
+          returnState,
+          fromSection: 'tv',
+          selectedCategory: item?.section || 'Todos',
+          channelName: item?.name || item?.title || 'Canal',
+        },
+      });
+      return;
+    }
+
+    navigate(`/watch/${itemType}/${itemId}`, {
+      state: {
+        from: returnPath,
+        returnState,
+      },
+    });
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.defaultPrevented || getTVFocusZone() === TV_FOCUS_ZONE_MODAL) {
+        return;
+      }
+
+      if (isWatchPage) {
+        return;
+      }
+
+      const activeElement = document.activeElement;
+      const isEditable =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable;
+
+      const isBackNavigationKey =
+        e.key === 'Escape' ||
+        e.key === 'GoBack' ||
+        e.key === 'BrowserBack' ||
+        e.keyCode === 4 ||
+        e.keyCode === 27 ||
+        (!isEditable && e.keyCode === 8);
+
+      if (!isBackNavigationKey) {
+        return;
+      }
+
+      e.preventDefault();
+
+      if (showGlobalSearch) {
+        setShowGlobalSearch(false);
+        focusTVContent();
+        return;
+      }
+
+      if (location.pathname === '/') {
+        focusTVContent();
+        return;
+      }
+
+      if (HOME_BACK_ROUTES.has(location.pathname)) {
+        navigate('/');
+        return;
+      }
+
+      if (location.pathname.startsWith('/peliculas/')) {
+        navigate('/peliculas');
+        return;
+      }
+
+      if (window.history.length > 1 && location.pathname !== '/login') {
+        navigate(-1);
+        return;
+      }
+
+      navigate('/');
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [navigate]);
+  }, [isWatchPage, location.pathname, navigate, showGlobalSearch]);
 
-  const handleLogout = () => {
-    console.log('[AppTV] Executing logout...');
-    logout();
-    navigate("/login");
-  };
+  useEffect(() => {
+    if (isWatchPage) return undefined;
+
+    const timer = window.setTimeout(() => {
+      focusTVContent();
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [isWatchPage, location.pathname]);
 
   return (
     <>
@@ -75,156 +259,54 @@ function AppTV() {
         }
         
         .tv-app-container {
-          background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+          background:
+            radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 28%),
+            radial-gradient(circle at top right, rgba(244, 63, 94, 0.08), transparent 24%),
+            linear-gradient(180deg, #050816 0%, #0a1023 45%, #03060f 100%);
           min-height: 100vh;
+          color: #fff;
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
         
         .tv-main-content {
-          padding-top: 120px;
-        }
-        
-        .tv-auth-container {
-          display: flex;
-          align-items: center;
-          justify-content: center;
           min-height: 100vh;
-          background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+          padding-top: ${isWatchPage ? '0' : '84px'};
         }
         
-        .tv-auth-card {
-          background: rgba(0, 0, 0, 0.8);
-          border: 2px solid hsl(var(--primary) / 0.3);
-          border-radius: 20px;
-          padding: 60px;
-          text-align: center;
-          backdrop-filter: blur(10px);
-          box-shadow: 0 0 50px hsl(var(--primary) / 0.2);
-        }
-        
-        .tv-logo-auth {
-          filter: drop-shadow(0 0 30px hsl(var(--secondary) / 0.6)) drop-shadow(0 0 15px hsl(var(--primary) / 0.4));
-          margin-bottom: 40px;
-        }
-        
-        .tv-welcome-text {
-          background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          font-size: 3rem;
-          font-weight: bold;
-          margin-bottom: 20px;
-        }
-        
-        .tv-instruction-text {
-          color: white;
-          font-size: 1.5rem;
-          margin-bottom: 30px;
-        }
-        
-        .tv-remote-hint {
-          color: #888;
-          font-size: 1.2rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-        }
-        
-        /* Platform-specific optimizations */
-        .platform-webos {
-          --tv-scale: 1.0;
-        }
-        
-        .platform-tizen {
-          --tv-scale: 1.0;
-        }
-        
-        .platform-smarttv {
-          --tv-scale: 1.1;
-        }
-        
-        .tv-interface * {
-          transform: scale(var(--tv-scale, 1.0));
-        }
-        
-        /* Disable text selection and context menus for TV */
         .tv-interface {
           user-select: none;
           -webkit-user-select: none;
           -moz-user-select: none;
           -ms-user-select: none;
         }
-        
-        .tv-interface * {
-          -webkit-touch-callout: none;
-          -webkit-user-select: none;
-          -khtml-user-select: none;
-          -moz-user-select: none;
-          -ms-user-select: none;
-          user-select: none;
-        }
       `}</style>
 
       <div className="tv-app-container">
-        {isAuthPage ? (
-          // Authentication page for TV
-          <div className="tv-auth-container">
-            <div className="tv-auth-card">
-              <img 
-                src="/TeamG Play.png" 
-                alt="TeamG Play Logo" 
-                className="tv-logo-auth h-32 mx-auto"
-              />
-              <h1 className="tv-welcome-text">
-                TeamG Play TV
-              </h1>
-              <p className="tv-instruction-text">
-                Inicia sesión desde tu dispositivo móvil o computadora
-              </p>
-              <p className="tv-instruction-text">
-                Visita: <strong style={{color: 'hsl(var(--primary))'}}>teamgplay.com/tv</strong>
-              </p>
-              <div className="tv-remote-hint">
-                <span>🎮</span>
-                <span>Usa el control remoto para navegar</span>
-              </div>
+        {!isWatchPage && <TVNavigation />}
+        <main className="tv-main-content">
+          <Outlet />
+        </main>
+
+        {showGlobalSearch && (
+          <TVSearch
+            allContent={globalSearchItems}
+            title="Buscar en todo TeamG Play"
+            placeholder="Busca canales, peliculas, series..."
+            onSelectItem={handleGlobalSearchSelect}
+            onClose={() => {
+              setShowGlobalSearch(false);
+              focusTVContent();
+            }}
+          />
+        )}
+
+        {!isWatchPage && (
+          <footer className="border-t border-cyan-500/10 px-10 py-5 text-sm text-slate-400">
+            <div className="mx-auto flex max-w-[1800px] items-center justify-between">
+              <p>TeamG Play TV</p>
+              <p>{user?.username ? `Perfil: ${user.username}` : 'Control remoto listo'}</p>
             </div>
-          </div>
-        ) : (
-          // Main app interface for TV
-          <>
-            <TVNavigation />
-            <main className="tv-main-content">
-              <Outlet />
-            </main>
-            
-            {/* TV Footer */}
-            <footer className="text-center py-8 text-gray-400 border-t border-gray-800">
-              <div className="container mx-auto px-8">
-                <div className="flex justify-center items-center space-x-8 mb-4">
-                  <img 
-                    src="/TeamG Play.png" 
-                    alt="TeamG Play Logo" 
-                    className="h-12"
-                    style={{
-                      filter: 'drop-shadow(0 0 15px hsl(var(--secondary) / 0.4)) drop-shadow(0 0 8px hsl(var(--primary) / 0.3))'
-                    }}
-                  />
-                </div>
-                <p className="text-xl mb-2">
-                  La mejor experiencia de streaming para Smart TV
-                </p>
-                <p className="text-lg">
-                  🎮 Control Remoto • 📺 {platform.toUpperCase()} • 🌟 HD/4K
-                </p>
-                <p className="text-sm mt-4">
-                  © 2024 TeamG Play. Todos los derechos reservados.
-                </p>
-              </div>
-            </footer>
-          </>
+          </footer>
         )}
       </div>
     </>

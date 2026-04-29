@@ -94,8 +94,18 @@ export const useTVNavigation = (options = {}) => {
 /**
  * Hook para manejar grillas de elementos en TV (2D navigation)
  */
-export const useTVGrid = (items = [], columns = 4) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export const useTVGrid = (items = [], columns = 4, initialIndex = 0) => {
+  const clampIndex = (index) => {
+    if (!Array.isArray(items) || items.length === 0) return 0;
+    const normalizedIndex = Number.isInteger(index) ? index : 0;
+    return Math.max(0, Math.min(normalizedIndex, items.length - 1));
+  };
+
+  const [currentIndex, setCurrentIndex] = useState(() => clampIndex(initialIndex));
+
+  useEffect(() => {
+    setCurrentIndex(clampIndex(initialIndex));
+  }, [initialIndex, items.length]);
 
   const navigate = (direction) => {
     const rows = Math.ceil(items.length / columns);
@@ -127,7 +137,7 @@ export const useTVGrid = (items = [], columns = 4) => {
         break;
     }
 
-    setCurrentIndex(Math.min(newIndex, items.length - 1));
+    setCurrentIndex(clampIndex(newIndex));
   };
 
   return {

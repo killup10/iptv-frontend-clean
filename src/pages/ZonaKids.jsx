@@ -6,6 +6,10 @@ import { normalizeSearchText } from '../utils/searchUtils.js';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import CollectionsModal from '../components/CollectionsModal.jsx';
+import TrailerModal from '../components/TrailerModal.jsx';
+import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
+import { addItemToMyList } from '../utils/myListUtils.js';
+import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 
 export default function ZonaKids() {
   const { user } = useAuth();
@@ -27,6 +31,25 @@ export default function ZonaKids() {
     closeAccessModal,
     proceedWithTrial
   } = useContentAccess();
+  const {
+    vodDetail,
+    openVodDetail,
+    closeVodDetail,
+    showTrailerModal,
+    currentTrailerUrl,
+    openTrailer,
+    closeTrailer,
+    detailProgressPercent,
+    detailCanContinue,
+    detailTrailerUrl,
+    handleContinueFromDetail,
+    handlePlayFromDetail,
+  } = useVodDetailOverlay({
+    checkContentAccess,
+    getNavigationState: () => ({
+      fromSection: 'kids',
+    }),
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -112,6 +135,8 @@ export default function ZonaKids() {
   };
 
   const handleContentClick = (item) => {
+    openVodDetail(item, item?.tipo || 'zona kids');
+    return;
     const itemId = item.id || item._id;
     if (!itemId) {
       console.error("ZonaKids: Clic en contenido sin ID válido.", item);
@@ -230,6 +255,26 @@ export default function ZonaKids() {
         onProceedWithTrial={handleProceedWithTrial}
         onGoBack={handleGoBack}
       />
+      {showTrailerModal && currentTrailerUrl && (
+        <TrailerModal
+          trailerUrl={currentTrailerUrl}
+          onClose={closeTrailer}
+        />
+      )}
+      {vodDetail?.item && (
+        <MobileVodDetailModal
+          isOpen={Boolean(vodDetail?.item)}
+          item={vodDetail.item}
+          itemType={vodDetail.itemType}
+          canContinue={detailCanContinue}
+          progressPercent={detailProgressPercent}
+          onClose={closeVodDetail}
+          onContinue={handleContinueFromDetail}
+          onPlay={handlePlayFromDetail}
+          onAddToMyList={addItemToMyList}
+          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+        />
+      )}
       <CollectionsModal
           isOpen={isCollectionsModalOpen}
           onClose={handleCloseCollectionsModal}

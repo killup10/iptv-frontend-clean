@@ -1,158 +1,141 @@
-  // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { storage } from '../utils/storage.js';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { storage } from "../utils/storage.js";
+import { stopActivePlayback } from "../utils/playbackControl.js";
 
 const AuthContext = createContext(null);
+
+function buildStoredUserPayload(rawUser) {
+  if (!rawUser) {
+    return null;
+  }
+
+  return {
+    username: rawUser.username,
+    role: rawUser.role,
+    plan: rawUser.plan,
+    expiresAt: rawUser.expiresAt || null,
+  };
+}
+
+function buildUserState(rawUser, token) {
+  const storedUser = buildStoredUserPayload(rawUser);
+  if (!storedUser || !token) {
+    return null;
+  }
+
+  return {
+    ...storedUser,
+    token,
+  };
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
-    const checkStoredSession = async () => {
-      console.log("AuthContext: Verificando sesión almacenada...");
+    const syncUserFromStorage = async () => {
       try {
-        const storedUserString = await storage.getItem('user');
-        const token = await storage.getItem('token');
+        const storedUserString = await storage.getItem("user");
+        const token = await storage.getItem("token");
 
-        if (storedUserString && token) {
-          const storedUser = JSON.parse(storedUserString);
-          setUser({
-            username: storedUser.username,
-            role: storedUser.role,
-            plan: storedUser.plan,
-            token: token
-          });
-          console.log("AuthContext: Sesión restaurada desde storage.", { user: storedUser, tokenLoaded: !!token });
-        } else {
-          console.log("AuthContext: No se encontró sesión almacenada.");
+        if (!storedUserString || !token) {
           setUser(null);
+          return;
         }
+
+        const storedUser = JSON.parse(storedUserString);
+        setUser(buildUserState(storedUser, token));
       } catch (error) {
-        console.error("AuthContext: Error al parsear datos de storage o token inválido", error);
-        await storage.removeItem('user');
-        await storage.removeItem('token');
+        console.error("AuthContext: Error sincronizando sesion desde storage:", error);
+        await storage.removeItem("user");
+        await storage.removeItem("token");
         setUser(null);
-      } finally {
-        setIsLoadingAuth(false);
-        console.log("AuthContext: Verificación inicial de auth completada.");
       }
     };
 
-    const handleStorageChange = async (e) => {
-      // Detectar cambios en el storage desde otras pestañas o desde axiosInstance
-      if (e.key === 'user' || e.key === 'token' || e.key === null) {
-        console.log("AuthContext: Cambio detectado en storage. Verificando sesión...");
-        const token = await storage.getItem('token');
-        const storedUserString = await storage.getItem('user');
-        
-        if (!token || !storedUserString) {
-          console.log("AuthContext: Token o usuario no encontrado - deslogueando usuario.");
-          setUser(null);
-        } else {
-          try {
-            const storedUser = JSON.parse(storedUserString);
-            setUser({
-              username: storedUser.username,
-              role: storedUser.role,
-              plan: storedUser.plan,
-              token: token
-            });
-            console.log("AuthContext: Sesión actualizada desde storage.");
-          } catch (error) {
-            console.error("AuthContext: Error al parsear usuario del storage", error);
-            setUser(null);
-          }
-        }
+    const checkStoredSession = async () => {
+      await syncUserFromStorage();
+      setIsLoadingAuth(false);
+    };
+
+    const handleStorageChange = async (event) => {
+      if (event.key === "user" || event.key === "token" || event.key === null) {
+        await syncUserFromStorage();
       }
     };
 
-    const handleAuthLogout = (event) => {
-      // Escuchar evento personalizado de logout desde axiosInstance (401)
-      console.log("AuthContext: Evento auth-logout recibido. Deslogueando usuario inmediatamente.");
+    const handleAuthLogout = async (event) => {
+      const reason = event?.detail?.reason || "401";
+      await storage.removeItem("user");
+      await storage.removeItem("token");
+      await stopActivePlayback(reason);
       setUser(null);
     };
 
     checkStoredSession();
-
-    // Escuchar cambios de storage (desde otras pestañas o desde axiosInstance)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Escuchar evento personalizado de logout
-    window.addEventListener('auth-logout', handleAuthLogout);
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("auth-logout", handleAuthLogout);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('auth-logout', handleAuthLogout);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("auth-logout", handleAuthLogout);
     };
   }, []);
 
   const login = async (credentials) => {
     try {
-      const { login: loginService } = await import('../utils/AuthService.js');
+      const { login: loginService } = await import("../utils/AuthService.js");
       const userDataFromBackend = await loginService(credentials.username, credentials.password);
 
       if (!userDataFromBackend?.token || !userDataFromBackend?.user?.username) {
-        console.error("AuthContext: Datos de login incompletos desde el backend.", userDataFromBackend);
-        throw new Error("Error de autenticación: datos de respuesta inválidos");
+        throw new Error("Error de autenticacion: datos de respuesta invalidos");
       }
 
-      const userToStore = {
-        username: userDataFromBackend.user.username,
-        role: userDataFromBackend.user.role,
-        plan: userDataFromBackend.user.plan,
-      };
+      const userToStore = buildStoredUserPayload(userDataFromBackend.user);
 
-      await storage.setItem('token', userDataFromBackend.token);
-      await storage.setItem('user', JSON.stringify(userToStore));
+      await storage.setItem("token", userDataFromBackend.token);
+      await storage.setItem("user", JSON.stringify(userToStore));
 
-      const userForState = { ...userToStore, token: userDataFromBackend.token };
+      const userForState = buildUserState(userDataFromBackend.user, userDataFromBackend.token);
       setUser(userForState);
-      console.log("AuthContext: Usuario logueado y estado establecido:", userForState);
       return userForState;
     } catch (error) {
-      console.error("AuthContext: Error en el proceso de login:", error);
+      console.error("AuthContext: Error en login:", error);
       throw error;
     }
   };
 
   const logout = async (allDevices = false) => {
     try {
-      const { logout: logoutService } = await import('../utils/AuthService.js');
+      const { logout: logoutService } = await import("../utils/AuthService.js");
       await logoutService(allDevices);
     } catch (error) {
       console.error("AuthContext: Error al llamar al servicio de logout:", error);
     } finally {
-      // Limpiar siempre el estado local independientemente del resultado del backend
-      await storage.removeItem('user');
-      await storage.removeItem('token');
-      await storage.removeItem('deviceId');
+      await stopActivePlayback(allDevices ? "manual_all_devices" : "manual_logout");
+      await storage.removeItem("user");
+      await storage.removeItem("token");
+      await storage.removeItem("deviceId");
       setUser(null);
-      console.log("AuthContext: Usuario deslogueado y datos locales limpiados" + (allDevices ? " de todos los dispositivos." : "."));
     }
   };
 
   const registerUser = async (credentials) => {
     try {
-      const { register: registerService } = await import('../utils/AuthService.js');
+      const { register: registerService } = await import("../utils/AuthService.js");
       const userDataFromBackend = await registerService(credentials.username, credentials.password);
 
       if (userDataFromBackend?.token && userDataFromBackend?.user?.username) {
-        const userToStore = {
-          username: userDataFromBackend.user.username,
-          role: userDataFromBackend.user.role,
-          plan: userDataFromBackend.user.plan,
-        };
-        await storage.setItem('token', userDataFromBackend.token);
-        await storage.setItem('user', JSON.stringify(userToStore));
-        setUser({ ...userToStore, token: userDataFromBackend.token });
-        console.log("AuthContext: Usuario registrado y logueado automáticamente.", userDataFromBackend);
-      } else {
-        console.log("AuthContext: Usuario registrado, pero no se logueó automáticamente (no se recibió token).");
+        const userToStore = buildStoredUserPayload(userDataFromBackend.user);
+        await storage.setItem("token", userDataFromBackend.token);
+        await storage.setItem("user", JSON.stringify(userToStore));
+        setUser(buildUserState(userDataFromBackend.user, userDataFromBackend.token));
       }
+
       return userDataFromBackend;
     } catch (error) {
-      console.error("AuthContext: Error en el proceso de registro:", error);
+      console.error("AuthContext: Error en registro:", error);
       throw error;
     }
   };
@@ -164,7 +147,7 @@ export function AuthProvider({ children }) {
     register: registerUser,
     isLoadingAuth,
     isAuthenticated: !!user && !!user.token,
-    token: user?.token
+    token: user?.token,
   };
 
   return (

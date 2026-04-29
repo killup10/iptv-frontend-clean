@@ -1,180 +1,341 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext.jsx';
 import './TVChannelGrid.css';
+import {
+  focusTVNav,
+  getTVFocusZone,
+  TV_FOCUS_ZONE_CONTENT,
+} from '../utils/tvFocusZone.js';
+import { useTVGrid } from '../hooks/useTVNavigation.js';
+import { getAccessLockState } from '../utils/planAccess.js';
 
-/**
- * TVChannelGrid - Componente de grilla de canales optimizado para TV
- * Soporta:
- * - Navegación 2D (arriba/abajo entre categorías, izq/der entre canales)
- * - Precarga de imágenes
- * - Scroll suave
- */
+function getChannelColumns(width) {
+  if (width <= 1280) return 4;
+  if (width <= 1920) return 5;
+  return 6;
+}
+
+function resolveGridAction(event) {
+  switch (event.key) {
+    case 'ArrowUp':
+    case 'ArrowDown':
+    case 'ArrowLeft':
+    case 'ArrowRight':
+    case 'Enter':
+      return event.key;
+    case ' ':
+    case 'Spacebar':
+    case 'Select':
+    case 'MediaPlayPause':
+      return 'Enter';
+    default:
+      break;
+  }
+
+  switch (event.keyCode) {
+    case 19:
+      return 'ArrowUp';
+    case 20:
+      return 'ArrowDown';
+    case 21:
+      return 'ArrowLeft';
+    case 22:
+      return 'ArrowRight';
+    case 23:
+    case 62:
+    case 66:
+      return 'Enter';
+    default:
+      return null;
+  }
+}
+
 export default function TVChannelGrid({
   categories = [],
   currentCategoryIndex = 0,
   onCategoryChange,
   channels = [],
-  onChannelSelect
+  onChannelSelect,
+  onSearch,
+  initialChannelIndex = 0,
+  onActiveChannelIndexChange,
 }) {
-  const [selectedChannelIndex, setSelectedChannelIndex] = useState(0);
-  const [focusMode, setFocusMode] = useState('channel'); // 'category' o 'channel'
+  const { user } = useAuth();
+  const [focusMode, setFocusMode] = useState('channel');
+  const [columnCount, setColumnCount] = useState(() => getChannelColumns(window.innerWidth || 1920));
+  const {
+    currentIndex: selectedChannelIndex,
+    setCurrentIndex: setSelectedChannelIndex,
+    navigate,
+  } = useTVGrid(channels, columnCount, initialChannelIndex);
 
   const currentCategory = categories[currentCategoryIndex];
+  const selectedChannel = channels[selectedChannelIndex];
+  const currentRow = useMemo(
+    () => Math.floor(selectedChannelIndex / columnCount),
+    [columnCount, selectedChannelIndex],
+  );
 
-  // Manejo de navegación
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      const key = e.key;
+    const handleResize = () => {
+      setColumnCount(getChannelColumns(window.innerWidth || 1920));
+    };
 
-      // Cambiar entre categorías (ARRIBA/ABAJO cuando estamos en categorías)
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    onActiveChannelIndexChange?.(selectedChannelIndex);
+  }, [onActiveChannelIndexChange, selectedChannelIndex]);
+
+  useEffect(() => {
+    setFocusMode('channel');
+  }, [currentCategoryIndex]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
+        return;
+      }
+
+      const action = resolveGridAction(event);
+      if (!action) {
+        return;
+      }
+
+      if (focusMode === 'search') {
+        if (action === 'ArrowUp') {
+          event.preventDefault();
+          focusTVNav();
+        } else if (action === 'ArrowDown') {
+          event.preventDefault();
+          setFocusMode('category');
+        } else if (action === 'Enter') {
+          event.preventDefault();
+          onSearch?.();
+        }
+
+        return;
+      }
+
       if (focusMode === 'category') {
-        if (key === 'ArrowUp') {
-          e.preventDefault();
-          if (currentCategoryIndex > 0) {
-            onCategoryChange?.('prev');
-            setSelectedChannelIndex(0);
+        if (action === 'ArrowUp') {
+          event.preventDefault();
+          if (onSearch) {
+            setFocusMode('search');
+            return;
           }
-        } else if (key === 'ArrowDown') {
-          e.preventDefault();
-          if (currentCategoryIndex < categories.length - 1) {
-            onCategoryChange?.('next');
-            setSelectedChannelIndex(0);
-          }
-        } else if (key === 'ArrowLeft' || key === 'ArrowRight') {
-          e.preventDefault();
+          focusTVNav();
+          return;
+        }
+
+        if (action === 'ArrowDown') {
+          event.preventDefault();
           setFocusMode('channel');
           setSelectedChannelIndex(0);
-        } else if (key === 'Enter') {
-          e.preventDefault();
+          return;
+        }
+
+        if (action === 'ArrowLeft') {
+          event.preventDefault();
+          onCategoryChange?.('prev');
+          return;
+        }
+
+        if (action === 'ArrowRight') {
+          event.preventDefault();
+          onCategoryChange?.('next');
+          return;
+        }
+
+        if (action === 'Enter') {
+          event.preventDefault();
           setFocusMode('channel');
           setSelectedChannelIndex(0);
         }
+
+        return;
       }
-      // Navegar canales (IZQUIERDA/DERECHA)
-      else if (focusMode === 'channel') {
-        if (key === 'ArrowUp') {
-          e.preventDefault();
-          setFocusMode('category');
-        } else if (key === 'ArrowLeft') {
-          e.preventDefault();
-          setSelectedChannelIndex(prev => Math.max(0, prev - 1));
-        } else if (key === 'ArrowRight') {
-          e.preventDefault();
-          setSelectedChannelIndex(prev => Math.min(channels.length - 1, prev + 1));
-        } else if (key === 'ArrowDown') {
-          e.preventDefault();
-          // Scroll down al final de la grilla
-        } else if (key === 'Enter') {
-          e.preventDefault();
+
+      switch (action) {
+        case 'ArrowUp':
+          event.preventDefault();
+          if (currentRow === 0) {
+            setFocusMode('category');
+            return;
+          }
+          navigate('up');
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          navigate('down');
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          navigate('left');
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          navigate('right');
+          break;
+        case 'Enter':
+          event.preventDefault();
           if (channels[selectedChannelIndex]) {
             onChannelSelect?.(channels[selectedChannelIndex]);
           }
-        }
+          break;
+        default:
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusMode, selectedChannelIndex, currentCategoryIndex, categories.length, channels.length, onCategoryChange, onChannelSelect]);
+  }, [
+    categories.length,
+    channels,
+    currentCategoryIndex,
+    currentRow,
+    focusMode,
+    navigate,
+    onCategoryChange,
+    onChannelSelect,
+    onSearch,
+    selectedChannelIndex,
+    setSelectedChannelIndex,
+  ]);
 
-  // Auto-scroll al canal seleccionado
   useEffect(() => {
-    if (focusMode === 'channel') {
-      const elem = document.querySelector(`[data-channel-index="${selectedChannelIndex}"]`);
-      if (elem) {
-        elem.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-      }
+    if (focusMode !== 'channel') {
+      return;
     }
-  }, [selectedChannelIndex, focusMode, channels.length]);
 
-  const selectedChannel = channels[selectedChannelIndex];
+    const selectedElement = document.querySelector(`[data-channel-index="${selectedChannelIndex}"]`);
+      selectedElement?.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+  }, [focusMode, selectedChannelIndex]);
 
   return (
     <div className="tv-channel-grid-container">
-      {/* Header */}
       <div className="tv-channel-header">
-        <h1>TV en Vivo</h1>
-        <p className="breadcrumb">
-          <span className="category-name">{currentCategory}</span>
-          {selectedChannel && (
-            <>
-              <span> / </span>
-              <span className="channel-name">{selectedChannel.name}</span>
-            </>
-          )}
-        </p>
+        <div className="tv-channel-title-row">
+          <div>
+            <h1>TV en Vivo</h1>
+            <p className="breadcrumb">
+              <span className="category-name">{currentCategory}</span>
+              {selectedChannel ? (
+                <>
+                  <span> / </span>
+                  <span className="channel-name">{selectedChannel.name}</span>
+                </>
+              ) : null}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={`tv-channel-search-btn ${focusMode === 'search' ? 'focused' : ''}`}
+            onClick={() => onSearch?.()}
+            onFocus={() => setFocusMode('search')}
+            tabIndex={0}
+            aria-label="Buscar canales en TV en Vivo"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </svg>
+            <span>Buscar canal</span>
+          </button>
+        </div>
       </div>
 
-      {/* Categorías */}
       <div className="tv-categories-bar">
-        {categories.map((cat, idx) => (
+        {categories.map((category, index) => (
           <button
-            key={idx}
-            className={`category-btn ${
-              idx === currentCategoryIndex ? 'active' : ''
-            } ${focusMode === 'category' && idx === currentCategoryIndex ? 'focused' : ''}`}
+            key={category || index}
+            type="button"
+            className={`category-btn ${index === currentCategoryIndex ? 'active' : ''} ${focusMode === 'category' && index === currentCategoryIndex ? 'focused' : ''}`}
             onClick={() => {
-              onCategoryChange?.(idx > currentCategoryIndex ? 'next' : 'prev');
-              setSelectedChannelIndex(0);
+              if (index === currentCategoryIndex) {
+                setFocusMode('channel');
+                setSelectedChannelIndex(0);
+                return;
+              }
+
+              onCategoryChange?.(index > currentCategoryIndex ? 'next' : 'prev');
             }}
+            tabIndex={-1}
           >
-            {cat}
+            {category}
           </button>
         ))}
       </div>
 
-      {/* Grilla de canales */}
       <div className="tv-channels-grid-wrapper">
-        <div className="tv-channels-grid">
+        <div
+          className="tv-channels-grid"
+          style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
+        >
           {channels.length > 0 ? (
-            channels.map((channel, idx) => {
-              const isSelected = idx === selectedChannelIndex && focusMode === 'channel';
+            channels.map((channel, index) => {
+              const isSelected = focusMode === 'channel' && index === selectedChannelIndex;
+              const lockState = getAccessLockState(channel, user?.plan);
+
               return (
-                <div
-                  key={idx}
-                  data-channel-index={idx}
+                <button
+                  key={channel._id || channel.id || `${channel.name}-${index}`}
+                  type="button"
+                  data-channel-index={index}
                   className={`channel-card ${isSelected ? 'focused' : ''}`}
                   onClick={() => {
-                    setSelectedChannelIndex(idx);
+                    setSelectedChannelIndex(index);
                     setFocusMode('channel');
+                    onChannelSelect?.(channel);
                   }}
+                  tabIndex={-1}
                 >
-                  <div className="channel-thumbnail">
+                  <div className={`channel-thumbnail ${lockState.locked ? 'locked' : ''}`}>
                     <img
                       src={channel.customThumbnail || channel.thumbnail || channel.logo || '/placeholder.png'}
                       alt={channel.name}
                       loading="lazy"
                     />
-                    {isSelected && (
+                    {lockState.locked ? (
+                      <>
+                        <div className="channel-lock-badge">Bloqueado</div>
+                        <div className="channel-lock-footer">
+                          <p>{lockState.lockMessage}</p>
+                        </div>
+                      </>
+                    ) : null}
+                    {isSelected ? (
                       <div className="focus-indicator">
-                        <div className="glow"></div>
+                        <div className="glow" />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                   <p className="channel-title">{channel.name}</p>
-                </div>
+                </button>
               );
             })
           ) : (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#999', padding: '40px' }}>
-              No hay canales disponibles en esta categoría
-            </div>
+            <div className="tv-channel-empty">No hay canales disponibles en esta categoria.</div>
           )}
         </div>
       </div>
 
-      {/* Información */}
-      {selectedChannel && (
+      {selectedChannel ? (
         <div className="tv-channel-info">
           <h3>{selectedChannel.name}</h3>
-          <p>Presiona OK para ver</p>
+          <p>Presiona OK para ver o sigue navegando para cambiar de canal.</p>
         </div>
-      )}
+      ) : null}
 
-      {/* Instrucciones */}
       <div className="tv-instructions-bar">
-        <span>↑↓ Categorías</span>
-        <span>←→ Canales</span>
-        <span>OK Reproducir</span>
+        <span>Arriba en categorias va a lupa local</span>
+        <span>Arriba en la primera fila vuelve a categorias</span>
+        <span>Flechas mueven entre canales</span>
+        <span>OK reproduce</span>
       </div>
     </div>
   );
