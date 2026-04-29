@@ -1054,7 +1054,7 @@ export default function AdminPanel() {
               <Checkbox label="Mostrar en Banner" name="showInBanner" checked={vodForm.showInBanner} onChange={handleVodFormChange} />
               {vodForm.tipo !== 'pelicula' && (
                 <Checkbox 
-                  label="Nuevos Episodios" 
+                  label="Nuevos Episodios (48h)" 
                   name="hasNewEpisodes" 
                   checked={!!vodForm.hasNewEpisodes} 
                   onChange={handleVodFormChange} 
