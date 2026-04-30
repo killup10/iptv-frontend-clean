@@ -11,7 +11,7 @@ export function Catalogo({ type }) {
     const fetchContenido = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("https://iptv-backend-qhbr.onrender.com/api/videos", {
+        const res = await axios.get("https://api.teamg.store/api/videos", {
           headers: {
             Authorization: `Bearer ${token}`,
           },

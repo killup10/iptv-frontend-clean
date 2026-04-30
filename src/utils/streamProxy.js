@@ -10,7 +10,7 @@
 
 // 🔧 Usar la misma URL base que axiosInstance para producción
 const isElectron = typeof window !== 'undefined' && window.process && window.process.type === 'renderer';
-const BACKEND_URL = isElectron ? 'http://localhost:3000' : 'https://iptv-backend-qhbr.onrender.com';
+const BACKEND_URL = isElectron ? 'http://localhost:3000' : 'https://api.teamg.store';
 
 /**
  * Obtiene URL proxificada para un stream

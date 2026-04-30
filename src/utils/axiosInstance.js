@@ -211,7 +211,7 @@ const shouldLogError = (signature) => {
 // This avoids desktop app pointing to localhost when no local backend is running.
 export const apiBaseURL =
   (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL)) ||
-  'https://iptv-backend-qhbr.onrender.com';
+  'https://api.teamg.store';
 
 const axiosInstance = axios.create({
   baseURL: apiBaseURL,

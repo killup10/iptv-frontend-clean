@@ -8,8 +8,7 @@
   </base-config>
 
   <domain-config cleartextTrafficPermitted="true">
-    <domain includeSubdomains="true">iptv-backend-qhbr.onrender.com</domain>
-    <domain includeSubdomains="true">iptv-backend-w6hf.onrender.com</domain>
+    <domain includeSubdomains="true">api.teamg.store</domain>
   </domain-config>
 
   <debug-overrides>

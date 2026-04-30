@@ -1,12 +1,17 @@
 export const rewriteImageUrl = (url) => {
   if (!url || typeof url !== 'string') return url;
   
-  // Replace HTTP backend URL with HTTPS to avoid mixed content warnings
-  const backendHttp = 'http://iptv-backend-qhbr.onrender.com';
-  const backendHttps = 'https://iptv-backend-qhbr.onrender.com';
+  const apiBaseUrl = 'https://api.teamg.store';
+  const legacyBackendUrls = [
+    'http://iptv-backend-qhbr.onrender.com',
+    'https://iptv-backend-qhbr.onrender.com',
+    'http://iptv-backend-w6hf.onrender.com',
+    'https://iptv-backend-w6hf.onrender.com',
+  ];
   
-  if (url.startsWith(backendHttp)) {
-    return url.replace(backendHttp, backendHttps);
+  const legacyBackendUrl = legacyBackendUrls.find((baseUrl) => url.startsWith(baseUrl));
+  if (legacyBackendUrl) {
+    return url.replace(legacyBackendUrl, apiBaseUrl);
   }
   
   // If it's a local fallback, leave as is

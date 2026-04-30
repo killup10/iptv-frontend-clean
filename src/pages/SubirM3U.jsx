@@ -15,7 +15,7 @@ function SubirM3U() {
 
   const { user } = useAuth() || {};
   const token = user?.token || localStorage.getItem("token");
-  const API_URL = import.meta.env.VITE_API_URL || "https://iptv-backend-qhbr.onrender.com";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.teamg.store";
 
   const fetchM3UFiles = async () => {
     if (!token) return;

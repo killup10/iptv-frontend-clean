@@ -20,7 +20,7 @@ export default function UploadManual() {
 
     try {
       // NOTE: This component should be refactored to use the global axiosInstance instead of a hardcoded URL.
-      const res = await axios.post("https://iptv-backend-qhbr.onrender.com/api/videos/upload-link", form, {
+      const res = await axios.post("https://api.teamg.store/api/videos/upload-link", form, {
         headers: { Authorization: `Bearer ${token}` }
       });
       alert("✅ Video subido");
