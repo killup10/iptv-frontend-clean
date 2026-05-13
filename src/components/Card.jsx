@@ -176,8 +176,8 @@ function Card({
     ? 'group/card relative w-full'
     : 'group/card relative w-full transition-transform duration-300 hover:-translate-y-1.5';
   const hoverTitleClasses = isClassicVariant
-    ? 'mb-2 line-clamp-2 text-base font-extrabold text-white drop-shadow-lg'
-    : 'relative z-10 mb-2 line-clamp-2 text-base font-black text-white drop-shadow-[0_0_18px_rgba(217,70,239,0.2)]';
+    ? 'mb-2 line-clamp-2 text-sm sm:text-base font-extrabold text-white drop-shadow-lg leading-tight'
+    : 'relative z-10 mb-2 line-clamp-2 text-sm sm:text-base font-black text-white drop-shadow-[0_0_18px_rgba(217,70,239,0.2)] leading-tight';
   const hoverDescriptionClasses = isClassicVariant
     ? 'mb-3 line-clamp-3 text-xs leading-5 text-slate-300/90'
     : 'relative z-10 mb-3 line-clamp-3 text-xs leading-5 text-slate-200/90';
@@ -442,7 +442,7 @@ function Card({
               </div>
             )}
 
-            <p className="pointer-events-none line-clamp-2 text-base font-semibold text-white">
+            <p className="pointer-events-none line-clamp-2 text-[13px] sm:text-sm md:text-base font-semibold text-white leading-tight">
               {item.name || item.title || 'Titulo no disponible'}
             </p>
             {item.releaseYear && (
