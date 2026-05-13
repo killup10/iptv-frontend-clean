@@ -167,8 +167,8 @@ function Card({
     ? 'p-3'
     : 'relative overflow-hidden rounded-[24px] border border-fuchsia-300/26 bg-[linear-gradient(135deg,rgba(94,24,129,0.58),rgba(41,10,78,0.84)_38%,rgba(12,18,48,0.92)_100%)] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.18),0_18px_36px_rgba(88,28,135,0.34),0_0_28px_rgba(34,211,238,0.12)] backdrop-blur-xl';
   const baseOverlayClasses = isClassicVariant
-    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
-    : 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-[#090214]/96 via-[#1a0938]/76 to-transparent p-3 transition-all duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0';
+    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/85 to-transparent px-3 py-4 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
+    : 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-[#090214]/96 via-[#1a0938]/76 to-transparent px-3 py-4 transition-all duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0';
   const basePanelClasses = isClassicVariant
     ? ''
     : 'rounded-2xl border border-fuchsia-300/16 bg-[linear-gradient(135deg,rgba(33,8,62,0.8),rgba(15,6,33,0.76)_60%,rgba(10,14,34,0.78))] p-3 shadow-[0_16px_32px_rgba(88,28,135,0.24)] backdrop-blur-md';
@@ -442,7 +442,7 @@ function Card({
               </div>
             )}
 
-            <p className="pointer-events-none truncate text-sm font-semibold text-white">
+            <p className="pointer-events-none line-clamp-2 text-base font-semibold text-white">
               {item.name || item.title || 'Titulo no disponible'}
             </p>
             {item.releaseYear && (

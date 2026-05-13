@@ -128,6 +128,7 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<String> channelNames = new ArrayList<>();
                 ArrayList<String> channelLogos = new ArrayList<>();
                 ArrayList<String> channelUrls = new ArrayList<>();
+                ArrayList<String> channelIds = new ArrayList<>();
 
                 try {
                     for (int i = 0; i < channelsArray.length(); i++) {
@@ -137,19 +138,18 @@ public class VideoPlayerPlugin extends Plugin {
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("stream_url", "");
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("playbackUrl", "");
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("videoUrl", "");
-                        if (channelUrl.isEmpty()) {
-                            Log.w(TAG, "Skipping live channel without URL at index " + i);
-                            continue;
-                        }
 
                         String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                        String channelId = channel.optString("id", channel.optString("_id", ""));
                         channelNames.add(channelName);
                         channelLogos.add(channel.optString("logo", ""));  // Logo puede estar vacío
                         channelUrls.add(channelUrl);
+                        channelIds.add(channelId);
                     }
                     intent.putStringArrayListExtra("channel_names", channelNames);
                     intent.putStringArrayListExtra("channel_logos", channelLogos);
                     intent.putStringArrayListExtra("channel_urls", channelUrls);
+                    intent.putStringArrayListExtra("channel_ids", channelIds);
 
                     Log.d(TAG, "Canales procesados - Total: " + channelNames.size() + " canales");
                     Log.d(TAG, "Canales: " + channelNames.toString());
@@ -203,6 +203,7 @@ public class VideoPlayerPlugin extends Plugin {
         ArrayList<String> channelNames = new ArrayList<>();
         ArrayList<String> channelLogos = new ArrayList<>();
         ArrayList<String> channelUrls = new ArrayList<>();
+        ArrayList<String> channelIds = new ArrayList<>();
 
         try {
             if (channelsArray != null) {
@@ -213,14 +214,12 @@ public class VideoPlayerPlugin extends Plugin {
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("stream_url", "");
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("playbackUrl", "");
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("videoUrl", "");
-                    if (channelUrl.isEmpty()) {
-                        continue;
-                    }
-
                     String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                    String channelId = channel.optString("id", channel.optString("_id", ""));
                     channelNames.add(channelName);
                     channelLogos.add(channel.optString("logo", ""));
                     channelUrls.add(channelUrl);
+                    channelIds.add(channelId);
                 }
             }
 
@@ -229,6 +228,7 @@ public class VideoPlayerPlugin extends Plugin {
             intent.putStringArrayListExtra("channel_names", channelNames);
             intent.putStringArrayListExtra("channel_logos", channelLogos);
             intent.putStringArrayListExtra("channel_urls", channelUrls);
+            intent.putStringArrayListExtra("channel_ids", channelIds);
             getContext().sendBroadcast(intent);
 
             JSObject result = new JSObject();

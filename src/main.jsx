@@ -25,6 +25,7 @@ const Doramas = React.lazy(() => import('./pages/Doramas.jsx'));
 const Novelas = React.lazy(() => import('./pages/Novelas.jsx'));
 const Colecciones = React.lazy(() => import('./pages/Colecciones.jsx'));
 const ZonaKids = React.lazy(() => import('./pages/ZonaKids.jsx'));
+const WorldCupPage = React.lazy(() => import('./pages/WorldCupPage.jsx'));
 const BulkUploadPage = React.lazy(() => import('./pages/BulkUploadPage.jsx'));
 const MyList = React.lazy(() => import('./pages/MyList.jsx'));
 const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
@@ -145,6 +146,16 @@ const router = createHashRouter([
           <ProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <ZonaKids />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "worldcup",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <WorldCupPage />
             </Suspense>
           </ProtectedRoute>
         ),

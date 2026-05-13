@@ -125,6 +125,9 @@ export default function TVGrid({
         return;
       }
 
+      const currentRow = Math.floor(currentIndex / columns);
+      const currentColumn = currentIndex % columns;
+
       switch (action) {
         case 'ArrowUp':
           event.preventDefault();
@@ -145,6 +148,10 @@ export default function TVGrid({
           break;
         case 'ArrowLeft':
           event.preventDefault();
+          if (currentColumn === 0) {
+            focusTVNav();
+            return;
+          }
           setFocusMode('grid');
           navigate('left');
           break;

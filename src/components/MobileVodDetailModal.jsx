@@ -555,7 +555,7 @@ export default function MobileVodDetailModal({
                     <button
                       type="button"
                       onClick={() => onContinue?.(modalItem)}
-                      className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-amber-200/28 bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 px-5 py-4 text-base font-black text-slate-950 shadow-[0_16px_34px_rgba(250,204,21,0.22)]"
+                      className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-amber-200/28 bg-gradient-to-r from-amber-300 via-yellow-300 to-orange-300 px-5 py-4 text-base font-black text-slate-950 shadow-[0_16px_34px_rgba(250,204,21,0.22)] focus:outline-none focus:ring-4 focus:ring-yellow-400 focus:scale-105 transition-all duration-200"
                     >
                       <Clock3 className="h-5 w-5" />
                       Continuar viendo
@@ -566,7 +566,7 @@ export default function MobileVodDetailModal({
                     type="button"
                     onClick={handlePlaySelection}
                     disabled={hasEpisodesContent && !selectedEpisode}
-                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-black shadow-[0_16px_34px_rgba(34,211,238,0.22)] ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-black shadow-[0_16px_34px_rgba(34,211,238,0.22)] focus:outline-none focus:ring-4 focus:ring-cyan-300 focus:scale-105 transition-all duration-200 ${
                       hasEpisodesContent && !selectedEpisode
                         ? 'cursor-not-allowed border-white/10 bg-slate-800/70 text-slate-400 shadow-none'
                         : 'border-cyan-300/30 bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 text-slate-950'
@@ -580,7 +580,7 @@ export default function MobileVodDetailModal({
                     type="button"
                     onClick={() => hasTrailer && onTrailer?.()}
                     disabled={!hasTrailer}
-                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-bold backdrop-blur-sm ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-bold backdrop-blur-sm focus:outline-none focus:ring-4 focus:ring-white focus:scale-105 transition-all duration-200 ${
                       hasTrailer
                         ? 'border-white/12 bg-slate-900/56 text-white'
                         : 'cursor-not-allowed border-white/10 bg-slate-900/36 text-slate-400'
@@ -594,7 +594,7 @@ export default function MobileVodDetailModal({
                     type="button"
                     onClick={handleAddToMyListClick}
                     disabled={isSavingToMyList}
-                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-bold backdrop-blur-sm ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-bold backdrop-blur-sm focus:outline-none focus:ring-4 focus:ring-fuchsia-400 focus:scale-105 transition-all duration-200 ${
                       isSavingToMyList
                         ? 'cursor-wait border-fuchsia-300/12 bg-fuchsia-950/24 text-slate-300'
                         : 'border-fuchsia-300/18 bg-fuchsia-950/42 text-white'
@@ -637,7 +637,7 @@ export default function MobileVodDetailModal({
                               setSelectedSeasonIndex(index);
                               setSelectedEpisodeIndex(getSafeSelectedEpisodeIndex(season?.chapters, 0));
                             }}
-                            className={`min-w-[128px] rounded-[18px] border px-4 py-3 text-left transition-all duration-200 ${
+                            className={`min-w-[128px] rounded-[18px] border px-4 py-3 text-left transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-400 focus:scale-105 ${
                               isSelected
                                 ? 'border-cyan-300 bg-cyan-400/12 text-white shadow-[0_0_0_1px_rgba(103,232,249,0.32)]'
                                 : 'border-white/10 bg-white/[0.04] text-slate-200'
@@ -680,7 +680,7 @@ export default function MobileVodDetailModal({
                             key={`${selectedSeasonNumber}-${episodeNumber}-${index}`}
                             type="button"
                             onClick={() => setSelectedEpisodeIndex(index)}
-                            className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all duration-200 ${
+                            className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-cyan-400 focus:scale-[1.02] ${
                               isSelected
                                 ? 'border-cyan-300 bg-cyan-400/12 shadow-[0_0_0_1px_rgba(103,232,249,0.32)]'
                                 : 'border-white/10 bg-white/[0.04]'

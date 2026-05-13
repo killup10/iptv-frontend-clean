@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import VideoPlayer from '../components/VideoPlayer.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { normalizeSearchText } from '../utils/searchUtils.js';
+import { apiBaseURL } from '../utils/axiosInstance.js';
 
 export default function IPTVApp({ defaultTab = 'live' }) {
   // ... (otros estados y hooks como estaban: user, channels, videoFiles, etc.)
@@ -15,7 +16,7 @@ export default function IPTVApp({ defaultTab = 'live' }) {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = apiBaseURL;
   const { token } = user || {};
   const authHeader = { Authorization: `Bearer ${token}` };
 

@@ -172,6 +172,8 @@ export default function TVFilteredGridPage({
         return;
       }
 
+      const currentColumn = currentIndex % columns;
+
       switch (action) {
         case 'ArrowUp':
           event.preventDefault();
@@ -187,6 +189,10 @@ export default function TVFilteredGridPage({
           break;
         case 'ArrowLeft':
           event.preventDefault();
+          if (currentColumn === 0) {
+            focusTVNav();
+            return;
+          }
           navigate('left');
           break;
         case 'ArrowRight':

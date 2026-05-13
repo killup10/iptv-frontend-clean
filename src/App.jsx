@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
@@ -46,6 +46,7 @@ function App() {
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
   const isLiveTVPage = location.pathname === '/live-tv';
+  const isHomePage = location.pathname === '/';
 
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -53,6 +54,8 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
   const [allSearchItems, setAllSearchItems] = useState([]);
+  const [exitToastMessage, setExitToastMessage] = useState('');
+  const lastHomeBackPressRef = useRef(0);
   const userSubscription = useMemo(
     () => getUserSubscriptionSummary(user),
     [user?.expiresAt, user?.plan, user?.role],
@@ -155,6 +158,21 @@ function App() {
             return;
           }
 
+          if (isHomePage) {
+            const now = Date.now();
+            if (now - lastHomeBackPressRef.current < 2000) {
+              CapacitorApp.exitApp();
+              return;
+            }
+
+            lastHomeBackPressRef.current = now;
+            setExitToastMessage('Presiona volver otra vez para salir');
+            window.setTimeout(() => {
+              setExitToastMessage('');
+            }, 1800);
+            return;
+          }
+
           if (window.history.length > 1) {
             navigate(-1);
           } else {
@@ -189,7 +207,7 @@ function App() {
         console.warn('[App.jsx] Error removing backButton listener:', err);
       }
     };
-  }, [navigate, isWatchPage, isLiveTVPage]);
+  }, [navigate, isWatchPage, isLiveTVPage, isHomePage]);
 
   const handleLogout = () => {
     console.log('[App.jsx] Ejecutando handleLogout...');
@@ -305,6 +323,7 @@ function App() {
                     )}
                   </div>
                   
+                  <Link to="/worldcup" className="text-emerald-200 hover:text-white px-3 py-2 font-semibold" onClick={closeAllMenus}>Zona Mundial</Link>
                   <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2" onClick={closeAllMenus}>Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
                   <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1" onClick={closeAllMenus}>
@@ -420,6 +439,7 @@ function App() {
                     )}
                   </div>
                   
+                  <Link to="/worldcup" className="text-emerald-200 hover:text-white block px-3 py-2 rounded-md text-base font-semibold" onClick={closeAllMenus}>Zona Mundial</Link>
                   <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Zona Kids</Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Colecciones</Link>
                   <Link to="/mi-lista" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-1" onClick={closeAllMenus}>
@@ -494,6 +514,11 @@ function App() {
             </div>
           </div>
         </footer>
+      )}
+      {exitToastMessage && (
+        <div className="fixed bottom-8 left-1/2 z-[9999] -translate-x-1/2 rounded-full bg-black/90 px-5 py-3 text-sm font-semibold text-white shadow-2xl ring-1 ring-white/15">
+          {exitToastMessage}
+        </div>
       )}
       </div>
     </>
