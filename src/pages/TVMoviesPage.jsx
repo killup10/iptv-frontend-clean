@@ -16,7 +16,6 @@ import { getTVItemId, getTVItemImage, getTVItemTitle } from '../utils/tvContentU
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
-import { useTVEmptyStateEscaper } from '../hooks/useTVEmptyStateEscaper.js';
 import './TVMoviesPage.css';
 
 const HIDDEN_SECTION_KEYS = new Set(['CINE_2025']);
@@ -311,22 +310,9 @@ function TVMovieSectionsOverview({
                     alt={getTVItemTitle(currentPreview)}
                     className={`tv-movie-section-image ${lockState.locked ? 'is-locked' : ''}`}
                   />
-                ) : section.thumbnailSample ? (
-                  <img
-                    src={section.thumbnailSample}
-                    alt={section.displayName || section.name || section.key}
-                    className={`tv-movie-section-image ${lockState.locked ? 'is-locked' : ''}`}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'block';
-                    }}
-                  />
                 ) : (
                   <div className="tv-movie-section-image placeholder" />
                 )}
-                {section.thumbnailSample && !currentPreview ? (
-                   <div className="tv-movie-section-image placeholder" style={{ display: 'none' }} />
-                ) : null}
                 <div className="tv-movie-section-overlay" />
                 {lockState.locked ? (
                   <>
@@ -372,8 +358,6 @@ export default function TVMoviesPage() {
   const [statusMessage, setStatusMessage] = useState('');
   const [overviewSearchItems, setOverviewSearchItems] = useState(() => movieGenreSourceCache || []);
   const [overviewSearchLoaded, setOverviewSearchLoaded] = useState(() => Boolean(movieGenreSourceCache?.length));
-
-  useTVEmptyStateEscaper(sectionsLoading || loadingItems || items.length === 0);
 
   const detailSectionKey = sectionKeyParam || location.state?.selectedMainSectionKey || null;
   const overviewInitialIndex = Number.isInteger(location.state?.selectedSectionIndex)

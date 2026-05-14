@@ -10,9 +10,9 @@ import { useTVGrid } from '../hooks/useTVNavigation.js';
 import { getAccessLockState } from '../utils/planAccess.js';
 
 function getChannelColumns(width) {
-  if (width <= 1280) return 5;
-  if (width <= 1920) return 7;
-  return 8;
+  if (width <= 1280) return 4;
+  if (width <= 1920) return 5;
+  return 6;
 }
 
 function resolveGridAction(event) {
@@ -69,12 +69,6 @@ export default function TVChannelGrid({
     navigate,
   } = useTVGrid(channels, columnCount, initialChannelIndex);
 
-  const [focusedCategoryIndex, setFocusedCategoryIndex] = useState(currentCategoryIndex);
-
-  useEffect(() => {
-    setFocusedCategoryIndex(currentCategoryIndex);
-  }, [currentCategoryIndex]);
-
   const currentCategory = categories[currentCategoryIndex];
   const selectedChannel = channels[selectedChannelIndex];
   const currentRow = useMemo(
@@ -94,6 +88,10 @@ export default function TVChannelGrid({
   useEffect(() => {
     onActiveChannelIndexChange?.(selectedChannelIndex);
   }, [onActiveChannelIndexChange, selectedChannelIndex]);
+
+  useEffect(() => {
+    setFocusMode('channel');
+  }, [currentCategoryIndex]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -134,9 +132,6 @@ export default function TVChannelGrid({
 
         if (action === 'ArrowDown') {
           event.preventDefault();
-          if (focusedCategoryIndex !== currentCategoryIndex) {
-            setFocusedCategoryIndex(currentCategoryIndex);
-          }
           setFocusMode('channel');
           setSelectedChannelIndex(0);
           return;
@@ -144,29 +139,24 @@ export default function TVChannelGrid({
 
         if (action === 'ArrowLeft') {
           event.preventDefault();
-          setFocusedCategoryIndex((prev) => Math.max(0, prev - 1));
+          onCategoryChange?.('prev');
           return;
         }
 
         if (action === 'ArrowRight') {
           event.preventDefault();
-          setFocusedCategoryIndex((prev) => Math.min(categories.length - 1, prev + 1));
+          onCategoryChange?.('next');
           return;
         }
 
         if (action === 'Enter') {
           event.preventDefault();
-          if (focusedCategoryIndex !== currentCategoryIndex) {
-            onCategoryChange?.(focusedCategoryIndex);
-          }
           setFocusMode('channel');
           setSelectedChannelIndex(0);
         }
 
         return;
       }
-
-      const currentColumn = currentIndex % columnCount;
 
       switch (action) {
         case 'ArrowUp':
@@ -183,10 +173,6 @@ export default function TVChannelGrid({
           break;
         case 'ArrowLeft':
           event.preventDefault();
-          if (currentColumn === 0) {
-            focusTVNav();
-            return;
-          }
           navigate('left');
           break;
         case 'ArrowRight':
@@ -219,18 +205,6 @@ export default function TVChannelGrid({
     selectedChannelIndex,
     setSelectedChannelIndex,
   ]);
-
-  useEffect(() => {
-    if (focusMode !== 'category') {
-      return;
-    }
-
-    const categoryBtns = document.querySelectorAll('.category-btn');
-    const selectedElement = categoryBtns[focusedCategoryIndex];
-    if (selectedElement) {
-      selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  }, [focusMode, focusedCategoryIndex]);
 
   useEffect(() => {
     if (focusMode !== 'channel') {
@@ -280,7 +254,7 @@ export default function TVChannelGrid({
           <button
             key={category || index}
             type="button"
-            className={`category-btn ${index === currentCategoryIndex ? 'active' : ''} ${focusMode === 'category' && index === focusedCategoryIndex ? 'focused' : ''}`}
+            className={`category-btn ${index === currentCategoryIndex ? 'active' : ''} ${focusMode === 'category' && index === currentCategoryIndex ? 'focused' : ''}`}
             onClick={() => {
               if (index === currentCategoryIndex) {
                 setFocusMode('channel');
@@ -288,7 +262,7 @@ export default function TVChannelGrid({
                 return;
               }
 
-              onCategoryChange?.(index);
+              onCategoryChange?.(index > currentCategoryIndex ? 'next' : 'prev');
             }}
             tabIndex={-1}
           >
@@ -356,6 +330,13 @@ export default function TVChannelGrid({
           <p>Presiona OK para ver o sigue navegando para cambiar de canal.</p>
         </div>
       ) : null}
+
+      <div className="tv-instructions-bar">
+        <span>Arriba en categorias va a lupa local</span>
+        <span>Arriba en la primera fila vuelve a categorias</span>
+        <span>Flechas mueven entre canales</span>
+        <span>OK reproduce</span>
+      </div>
     </div>
   );
 }

@@ -18,6 +18,11 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     captureInput: true,
     webContentsDebuggingEnabled: true,
+    server: {
+      url: 'http://localhost',
+      cleartext: true,
+      hostname: 'localhost'
+    },
     // Permitir que el WebView acceda al micrófono y cámara
     permissions: ['RECORD_AUDIO', 'CAMERA'],
     // Permitir que getUserMedia funcione sin restricciones

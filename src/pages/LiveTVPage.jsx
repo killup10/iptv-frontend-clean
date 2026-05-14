@@ -9,7 +9,6 @@ import {
 import { normalizeSearchText } from '../utils/searchUtils.js';
 import Card from '../components/Card.jsx';
 import Toast from '../components/Toast.jsx';
-import ParentalPinModal from '../components/ParentalPinModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 
 export default function LiveTVPage() {
@@ -26,9 +25,6 @@ export default function LiveTVPage() {
   const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
-  const [showParentalPin, setShowParentalPin] = useState(false);
-  const [selectedChannelForPin, setSelectedChannelForPin] = useState(null);
-  const [isPinVerifying, setIsPinVerifying] = useState(false);
 
   useEffect(() => {
     const loadFilterCategories = async () => {
@@ -109,14 +105,6 @@ export default function LiveTVPage() {
       return;
     }
 
-    // Si el canal es adulto, pedir PIN
-    if (channel.isAdult) {
-      setSelectedChannelForPin(channel);
-      setShowParentalPin(true);
-      return;
-    }
-
-    // Si no es adulto, navegar directamente
     navigate(`/watch/channel/${channelId}`, {
       replace: true,
       state: {
@@ -125,43 +113,6 @@ export default function LiveTVPage() {
         searchTerm,
       },
     });
-  };
-
-  const handlePinSubmit = async (pin, action) => {
-    setIsPinVerifying(true);
-    try {
-      const response = await fetch('/api/parental-pin/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ pin, action })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // PIN correcto o creado - permitir acceso
-        setShowParentalPin(false);
-        const channelId = selectedChannelForPin.id || selectedChannelForPin._id;
-        navigate(`/watch/channel/${channelId}`, {
-          replace: true,
-          state: {
-            fromSection: 'tv',
-            selectedCategory,
-            searchTerm,
-          },
-        });
-      } else {
-        // Error - mostrar en modal
-        console.error('PIN verification failed:', data.message);
-      }
-    } catch (err) {
-      console.error('Error verifying PIN:', err);
-    } finally {
-      setIsPinVerifying(false);
-    }
   };
 
   const handleAddToMyList = async (channel) => {
@@ -291,14 +242,6 @@ export default function LiveTVPage() {
       {!isLoadingCategories && filterCategories.length <= 1 && !error && displayedChannels.length === 0 && (
         <p className="mt-10 text-center text-lg text-gray-500">No hay categorias de TV en vivo para mostrar.</p>
       )}
-
-      <ParentalPinModal
-        isOpen={showParentalPin}
-        channelName={selectedChannelForPin?.name || 'Contenido Adulto'}
-        onPinSubmit={handlePinSubmit}
-        onClose={() => setShowParentalPin(false)}
-        isVerifying={isPinVerifying}
-      />
 
       {toastMessage && (
         <Toast

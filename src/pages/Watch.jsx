@@ -199,7 +199,7 @@ export function Watch() {
   const isTVMode = isAndroidTV();
   const playerType = getPlayerType();
   const activeNativePlayerType = isTVMode
-    ? 'android-vlc'
+    ? (itemType === 'channel' ? 'android-exoplayer' : 'android-vlc')
     : playerType;
   const isTvNativePlayerAvailable = false;
   const isBrowserPlaybackBlocked = playerType === 'web';
@@ -708,7 +708,7 @@ export function Watch() {
 
     const appendChannel = (channel, fallback = {}) => {
       const normalizedChannel = normalizeWatchChannel(channel, fallback);
-      if (!normalizedChannel.id || !normalizedChannel.name) {
+      if (!normalizedChannel.id || !normalizedChannel.name || !normalizedChannel.url) {
         return;
       }
 
@@ -3046,11 +3046,7 @@ export function Watch() {
       </div>
     );
 
-  const hasValidContent = 
-    Boolean(itemData.url) || 
-    (itemData.chapters && itemData.chapters.length > 0) || 
-    (itemData.seasons && itemData.seasons.length > 0) || 
-    itemData.webPlaybackBlocked === true;
+  const hasValidContent = itemData.url || (itemData.chapters && itemData.chapters.length > 0);
   
   if (!hasValidContent)
     return (

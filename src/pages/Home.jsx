@@ -1537,7 +1537,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
 
         <div className="relative mx-auto w-full max-w-[calc(100vw-1.5rem)] px-3 pb-10 pt-4 sm:max-w-[calc(100vw-2rem)] sm:px-4 sm:pt-6 lg:max-w-[calc(100vw-3rem)] lg:px-6 2xl:max-w-[1840px]">
-          <div className="space-y-6 rounded-[36px] border border-fuchsia-300/10 bg-[linear-gradient(180deg,rgba(8,4,22,0.82),rgba(7,8,27,0.92)_42%,rgba(4,8,20,0.96))] p-4 shadow-[0_28px_70px_rgba(17,24,39,0.35)] backdrop-blur-sm transform-gpu sm:p-5 md:space-y-8 md:p-6 lg:p-7">
+          <div className="space-y-6 rounded-[36px] border border-fuchsia-300/10 bg-[linear-gradient(180deg,rgba(8,4,22,0.82),rgba(7,8,27,0.92)_42%,rgba(4,8,20,0.96))] p-4 shadow-[0_28px_70px_rgba(17,24,39,0.35)] backdrop-blur-sm sm:p-5 md:space-y-8 md:p-6 lg:p-7">
             {recentlyAdded.length > 0 && (
               <Carousel
                 title="Recien Agregados"

@@ -7,7 +7,6 @@ import { focusTVContent } from '../utils/tvFocusZone.js';
 import { getTVItemId, resolveTVItemType } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
 import { MY_LIST_UPDATED_EVENT } from '../utils/myListUtils.js';
-import { useTVEmptyStateEscaper } from '../hooks/useTVEmptyStateEscaper.js';
 
 export default function TVMyListPage() {
   const navigate = useNavigate();
@@ -17,8 +16,6 @@ export default function TVMyListPage() {
   const [error, setError] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
-
-  useTVEmptyStateEscaper(loading || items.length === 0);
 
   const loadMyList = useCallback(async (showLoader = true) => {
     if (showLoader) {
@@ -122,21 +119,12 @@ export default function TVMyListPage() {
 
   if (!loading && !error && items.length === 0) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center bg-[#050816] px-8 text-center text-white outline-none"
-        tabIndex={0}
-        ref={(el) => {
-          if (el && document.activeElement !== el) {
-            el.focus({ preventScroll: true });
-          }
-        }}
-      >
+      <div className="flex min-h-screen items-center justify-center bg-[#050816] px-8 text-center text-white">
         <div className="max-w-3xl rounded-3xl border border-cyan-500/20 bg-slate-900/70 px-10 py-12 shadow-[0_0_50px_rgba(34,211,238,0.12)]">
           <h1 className="text-4xl font-black">Mi Lista</h1>
           <p className="mt-5 text-xl text-slate-300">
             Todavia no tienes elementos guardados.
           </p>
-          <p className="mt-4 text-sm text-cyan-400 opacity-80">Presiona ARRIBA o IZQUIERDA para volver al menú</p>
         </div>
       </div>
     );

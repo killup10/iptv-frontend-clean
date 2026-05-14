@@ -88,8 +88,9 @@ function resolveAction(event) {
 
 function getResultColumns(width) {
   if (width >= 1600) return 4;
-  if (width >= 960) return 3;
-  return 2; // Always keep at least 2 columns in TV landscape view
+  if (width >= 1180) return 3;
+  if (width >= 860) return 2;
+  return 1;
 }
 
 export default function TVSearch({
@@ -119,11 +120,6 @@ export default function TVSearch({
     setFocusArea('input');
 
     if (!shouldFocusDom) {
-      if (document.activeElement && document.activeElement !== document.body && document.activeElement !== searchInputRef.current) {
-        try {
-          document.activeElement.blur();
-        } catch (err) {}
-      }
       return;
     }
 
@@ -403,10 +399,14 @@ export default function TVSearch({
 
     if (inputIsActive) {
       if (action === 'Enter') {
-        // Permitir que el usuario abra el teclado o use "Enter" sin forzar el primer resultado
+        if (filteredResults.length > 0) {
+          event.preventDefault();
+          handleSelectResult(filteredResults[0]);
+          return;
+        }
+
         event.preventDefault();
         openKeyboardInput();
-        return;
       }
 
       if (action === 'ArrowRight' && isVoiceSupported) {
@@ -535,8 +535,10 @@ export default function TVSearch({
       return;
     }
 
-    if (action === 'Enter') {
-      // Dejamos que propague para abrir teclado nativo, o lo capturamos en window handler
+    if (action === 'Enter' && filteredResults.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      handleSelectResult(filteredResults[0]);
     }
   };
 
@@ -619,34 +621,27 @@ export default function TVSearch({
                 const qualityBadges = getTVItemQualityBadges(item);
 
                 const handleResultKeyDown = (e) => {
-                  const action = resolveAction(e);
+                  console.log('[TVSearch] Result button keydown:', {
+                    key: e.key,
+                    code: e.code,
+                    index,
+                    title: getTVItemTitle(item)
+                  });
 
                   if (
-                    action === 'Enter'
+                    e.key === 'Enter' ||
+                    e.key === ' ' ||
+                    e.key === 'Spacebar' ||
+                    e.code === 'Select' ||
+                    e.code === 'MediaPlayPause' ||
+                    e.keyCode === 23 ||
+                    e.keyCode === 66 ||
+                    e.keyCode === 62
                   ) {
                     e.preventDefault();
                     e.stopPropagation();
+                    console.log('[TVSearch] Result SELECTED via keyboard');
                     handleSelectResult(item);
-                  } else if (action === 'ArrowLeft') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedIndex((prev) => Math.max(0, prev - 1));
-                  } else if (action === 'ArrowRight') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedIndex((prev) => Math.min(filteredResults.length - 1, prev + 1));
-                  } else if (action === 'ArrowUp') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (index - resultColumns < 0) {
-                      focusInput();
-                    } else {
-                      setSelectedIndex((prev) => Math.max(0, prev - resultColumns));
-                    }
-                  } else if (action === 'ArrowDown') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedIndex((prev) => Math.min(filteredResults.length - 1, prev + resultColumns));
                   }
                 };
 
@@ -670,13 +665,11 @@ export default function TVSearch({
                     onClick={handleResultClick}
                     onKeyDown={handleResultKeyDown}
                     onFocus={() => {
-                      if (focusArea !== 'results' || selectedIndex !== index) {
-                        setFocusArea('results');
-                        setSelectedIndex(index);
-                      }
+                      setFocusArea('results');
+                      setSelectedIndex(index);
                     }}
                     onMouseDown={handleResultClick}
-                    tabIndex={-1}
+                    tabIndex={0}
                     aria-label={`Select ${getTVItemTitle(item)}`}
                   >
                     <div className="result-image">
@@ -729,6 +722,15 @@ export default function TVSearch({
               <p className="subtitle">OK sobre el campo abre el teclado del Smart TV si tu dispositivo lo soporta.</p>
             </div>
           )}
+        </div>
+
+        <div className="tv-search-instructions">
+          <span>Abajo entra a resultados</span>
+          {isVoiceSupported ? <span>RIGHT va al microfono</span> : null}
+          <span>OK selecciona</span>
+          {isVoiceSupported ? <span>OK en micro inicia voz</span> : null}
+          <span>Back cierra</span>
+          <span>Borrar usa el teclado del TV o la tecla borrar</span>
         </div>
       </div>
     </div>

@@ -47,22 +47,7 @@ export default function TVLiveTV() {
         const channelsMap = {};
 
         results.forEach(({ category, channels }) => {
-          if (category.toLowerCase() === 'todos') {
-            // Priorizar canales nacionales al inicio de la lista de Todos
-            const nacionales = channels.filter(c => 
-              c.section?.toLowerCase().includes('nacionale') || 
-              c.category?.toLowerCase().includes('nacionale') ||
-              c.name?.toLowerCase().includes('nacional')
-            );
-            const otros = channels.filter(c => 
-              !(c.section?.toLowerCase().includes('nacionale') || 
-                c.category?.toLowerCase().includes('nacionale') ||
-                c.name?.toLowerCase().includes('nacional'))
-            );
-            channelsMap[category] = [...nacionales, ...otros];
-          } else {
-            channelsMap[category] = channels;
-          }
+          channelsMap[category] = channels;
         });
 
         liveTvCache = {
@@ -128,10 +113,8 @@ export default function TVLiveTV() {
     });
   }, [currentCategory, navigate, selectedChannelIndex]);
 
-  const handleCategoryChange = useCallback((directionOrIndex) => {
-    if (typeof directionOrIndex === 'number') {
-      setSelectedCategoryIndex(directionOrIndex);
-    } else if (directionOrIndex === 'prev') {
+  const handleCategoryChange = useCallback((direction) => {
+    if (direction === 'prev') {
       setSelectedCategoryIndex((prev) => Math.max(0, prev - 1));
     } else {
       setSelectedCategoryIndex((prev) => Math.min(categories.length - 1, prev + 1));
@@ -193,16 +176,12 @@ export default function TVLiveTV() {
     <>
       {showSearch ? (
         <TVSearch
-          allContent={Array.from(
-            new Map(
-              Object.values(categoryChannels).flat().map((channel) => [
-                channel.id || channel._id,
-                { ...channel, type: 'channel' }
-              ])
-            ).values()
-          )}
-          title={`Buscar canales de TV en Vivo`}
-          placeholder="Buscar en todos los canales..."
+          allContent={currentChannels.map((channel) => ({
+            ...channel,
+            type: 'channel',
+          }))}
+          title={`Buscar canales en ${currentCategory || 'TV en Vivo'}`}
+          placeholder="Buscar dentro de esta categoria..."
           onSelectItem={(channel) => {
             setShowSearch(false);
             handleChannelSelect(channel);

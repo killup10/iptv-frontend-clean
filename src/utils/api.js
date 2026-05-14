@@ -76,20 +76,6 @@ export async function fetchChannelForPlayback(channelId) {
   }
 }
 
-export async function fetchWorldCupFixtures(date) {
-  const relativePath = "/api/worldcup/fixtures";
-  try {
-    const response = await axiosInstance.get(relativePath, {
-      params: date ? { date } : {},
-    });
-    return response.data || { matches: [] };
-  } catch (error) {
-    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al cargar fixture del Mundial.";
-    console.error(`API Error (fetchWorldCupFixtures - axios): ${errorMsg}`, error.response?.data);
-    throw new Error(errorMsg);
-  }
-}
-
 /* =================== VOD - USUARIO =================== */
 export async function fetchUserMovies(page = 1, limit = 20, mainSection = null, genre = null, searchTerm = null) {
   const relativePath = "/api/videos";
