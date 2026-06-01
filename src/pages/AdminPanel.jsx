@@ -109,12 +109,122 @@ const MAIN_SECTION_VOD_OPTIONS = [
 const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO Max", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS" ];
 
 const ALL_AVAILABLE_PLANS = [
-
   { key: "gplay", displayName: "GPlay" },
   { key: "estandar", displayName: "Estándar" },
   { key: "cinefilo", displayName: "Cinéfilo" },
   { key: "sports", displayName: "Sports" },
   { key: "premium", displayName: "Premium" },
+];
+
+const WORLD_CUP_TEAMS = [
+  "Alemania", "Angola", "Arabia Saudita", "Argelia", "Argentina", "Australia", "Austria",
+  "Bélgica", "Bolivia", "Bosnia y Herzegovina", "Brasil", "Cabo Verde", "Camerún", "Canadá", "Catar", "Chile", "China", "Colombia",
+  "Corea del Sur", "Costa de Marfil", "Costa Rica", "Croacia", "Curazao", "Dinamarca", "Ecuador", "EE. UU.",
+  "Egipto", "El Salvador", "Escocia", "España", "Francia", "Gales", "Ghana", "Grecia", "Haití", "Honduras",
+  "Hungría", "Inglaterra", "Irak", "Irán", "Irlanda", "Islandia", "Italia", "Jamaica", "Japón", "Jordania",
+  "Marruecos", "México", "Nigeria", "Noruega", "Nueva Zelanda", "Países Bajos", "Panamá", "Paraguay",
+  "Perú", "Polonia", "Portugal", "R. D. del Congo", "República Checa", "Rumania", "Senegal", "Serbia", "Sudáfrica",
+  "Suecia", "Suiza", "Túnez", "Turquía", "Ucrania", "Uruguay", "Uzbekistán", "Venezuela"
+].sort();
+
+const countryToCode = {
+  "Alemania": "de",
+  "Angola": "ao",
+  "Arabia Saudita": "sa",
+  "Argelia": "dz",
+  "Argentina": "ar",
+  "Australia": "au",
+  "Austria": "at",
+  "Bélgica": "be",
+  "Bolivia": "bo",
+  "Bosnia y Herzegovina": "ba",
+  "Brasil": "br",
+  "Cabo Verde": "cv",
+  "Camerún": "cm",
+  "Canadá": "ca",
+  "Catar": "qa",
+  "Chile": "cl",
+  "China": "cn",
+  "Colombia": "co",
+  "Corea del Sur": "kr",
+  "Costa de Marfil": "ci",
+  "Costa Rica": "cr",
+  "Croacia": "hr",
+  "Curazao": "cw",
+  "Dinamarca": "dk",
+  "Ecuador": "ec",
+  "EE. UU.": "us",
+  "Egipto": "eg",
+  "El Salvador": "sv",
+  "Escocia": "gb-sct",
+  "España": "es",
+  "Francia": "fr",
+  "Gales": "gb-wls",
+  "Ghana": "gh",
+  "Grecia": "gr",
+  "Haití": "ht",
+  "Honduras": "hn",
+  "Hungría": "hu",
+  "Inglaterra": "gb-eng",
+  "Irak": "iq",
+  "Irán": "ir",
+  "Irlanda": "ie",
+  "Islandia": "is",
+  "Italia": "it",
+  "Jamaica": "jm",
+  "Japón": "jp",
+  "Jordania": "jo",
+  "Marruecos": "ma",
+  "México": "mx",
+  "Nigeria": "ng",
+  "Noruega": "no",
+  "Nueva Zelanda": "nz",
+  "Países Bajos": "nl",
+  "Panamá": "pa",
+  "Paraguay": "py",
+  "Perú": "pe",
+  "Polonia": "pl",
+  "Portugal": "pt",
+  "R. D. del Congo": "cd",
+  "República Checa": "cz",
+  "Rumania": "ro",
+  "Senegal": "sn",
+  "Serbia": "rs",
+  "Sudáfrica": "za",
+  "Suecia": "se",
+  "Suiza": "ch",
+  "Túnez": "tn",
+  "Turquía": "tr",
+  "Ucrania": "ua",
+  "Uruguay": "uy",
+  "Uzbekistán": "uz",
+  "Venezuela": "ve"
+};
+
+const WORLD_CUP_STADIUMS = [
+  "Estadio Azteca, CDMX, México",
+  "MetLife Stadium, NY/NJ, EE. UU.",
+  "BC Place, Vancouver, Canadá",
+  "SoFi Stadium, Los Ángeles, EE. UU.",
+  "Mercedes-Benz Stadium, Atlanta, EE. UU.",
+  "Gillette Stadium, Boston, EE. UU.",
+  "AT&T Stadium, Dallas, EE. UU.",
+  "NRG Stadium, Houston, EE. UU.",
+  "Arrowhead Stadium, Kansas City, EE. UU.",
+  "Hard Rock Stadium, Miami, EE. UU.",
+  "Lincoln Financial Field, Filadelfia, EE. UU.",
+  "Lumen Field, Seattle, EE. UU.",
+  "Estadio BBVA, Monterrey, México",
+  "Estadio Akron, Guadalajara, México",
+  "BMO Field, Toronto, Canadá"
+];
+
+const WORLD_CUP_PHASES = [
+  "Fase de Grupos - Grupo A (Inaugural)", "Fase de Grupos - Grupo A", "Fase de Grupos - Grupo B", "Fase de Grupos - Grupo C",
+  "Fase de Grupos - Grupo D", "Fase de Grupos - Grupo E", "Fase de Grupos - Grupo F",
+  "Fase de Grupos - Grupo G", "Fase de Grupos - Grupo H", "Fase de Grupos - Grupo I",
+  "Fase de Grupos - Grupo J", "Fase de Grupos - Grupo K", "Fase de Grupos - Grupo L",
+  "Dieciseisavos de Final", "Octavos de Final", "Cuartos de Final", "Semifinal", "Tercer Puesto", "Gran Final"
 ];
 
 const VOD_MANAGEMENT_TABS = [
@@ -174,6 +284,134 @@ export default function AdminPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState({ channels: false, vod: false, m3u: false, users: false });
   const [activeTab, setActiveTab] = useState("manage_users");
+
+  // --- Estados para el Mundial 2026 Admin ---
+  const [mundialMatches, setMundialMatches] = useState([]);
+  const [editingMatchId, setEditingMatchId] = useState(null);
+  const [matchForm, setMatchForm] = useState({
+    equipo1: "México",
+    equipo2: "Sudáfrica",
+    fecha: "11 de Junio, 2026",
+    hora: "14:00",
+    estadio: "Estadio Azteca, CDMX, México",
+    fase: "Fase de Grupos - Grupo A (Inaugural)",
+    canales: []
+  });
+
+  // Mapa de búsqueda rápida O(1) de canales para optimizar el panel de administración
+  const channelsMap = React.useMemo(() => {
+    const map = new Map();
+    channels.forEach(ch => {
+      const id = ch.id || ch._id;
+      if (id) {
+        map.set(String(id), ch);
+      }
+    });
+    return map;
+  }, [channels]);
+
+  // Memoizar los partidos cargados con sus canales resueltos
+  const resolvedMundialMatches = React.useMemo(() => {
+    return mundialMatches.map(match => {
+      const associated = (match.canales || [])
+        .map(chId => channelsMap.get(String(chId)))
+        .filter(Boolean);
+      return {
+        ...match,
+        associatedChannels: associated
+      };
+    });
+  }, [mundialMatches, channelsMap]);
+
+  const loadMundialMatches = useCallback(async () => {
+    try {
+      const response = await axiosInstance.get("/worldcup/matches");
+      if (Array.isArray(response.data)) {
+        setMundialMatches(response.data);
+      }
+    } catch (error) {
+      console.error("Error al cargar partidos del Mundial desde base de datos:", error);
+      setErrorMsg("No se pudieron cargar los partidos del Mundial desde la base de datos.");
+    }
+  }, []);
+
+  const handleEditMatch = (match) => {
+    setEditingMatchId(match.id);
+    setMatchForm({
+      equipo1: match.equipo1,
+      equipo2: match.equipo2,
+      fecha: match.fecha,
+      hora: match.hora,
+      estadio: match.estadio,
+      fase: match.fase,
+      canales: match.canales || []
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteMatch = async (matchId) => {
+    if (!window.confirm("¿Seguro que deseas eliminar este partido del fixture?")) return;
+    try {
+      await axiosInstance.delete(`/worldcup/matches/${matchId}`);
+      setMundialMatches(prev => prev.filter(m => String(m.id) !== String(matchId)));
+      setSuccessMsg("Partido eliminado con éxito de la base de datos.");
+    } catch (error) {
+      console.error("Error al eliminar partido:", error);
+      setErrorMsg("No se pudo eliminar el partido de la base de datos.");
+    }
+  };
+
+  const handleClearMatchForm = () => {
+    setEditingMatchId(null);
+    setMatchForm({
+      equipo1: "México",
+      equipo2: "Sudáfrica",
+      fecha: "11 de Junio, 2026",
+      hora: "14:00",
+      estadio: "Estadio Azteca, CDMX, México",
+      fase: "Fase de Grupos - Grupo A (Inaugural)",
+      canales: []
+    });
+  };
+
+  const handleMatchFormChange = (e) => {
+    const { name, value } = e.target;
+    setMatchForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleMatchChannelSelect = (channelId) => {
+    setMatchForm(prev => {
+      const current = prev.canales || [];
+      const updated = current.includes(channelId)
+        ? current.filter(id => id !== channelId)
+        : [...current, channelId].slice(0, 3);
+      return { ...prev, canales: updated };
+    });
+  };
+
+  const handleSaveMatch = async (e) => {
+    e.preventDefault();
+    if (matchForm.equipo1 === matchForm.equipo2) {
+      setErrorMsg("Un equipo no puede jugar contra sí mismo.");
+      return;
+    }
+    
+    try {
+      if (editingMatchId) {
+        const response = await axiosInstance.put(`/worldcup/matches/${editingMatchId}`, matchForm);
+        setMundialMatches(prev => prev.map(m => String(m.id) === String(editingMatchId) ? response.data : m));
+        setSuccessMsg("Partido actualizado con éxito en la base de datos.");
+      } else {
+        const response = await axiosInstance.post("/worldcup/matches", matchForm);
+        setMundialMatches(prev => [...prev, response.data]);
+        setSuccessMsg("Partido agregado al fixture en la base de datos.");
+      }
+      handleClearMatchForm();
+    } catch (error) {
+      console.error("Error al guardar el partido del Mundial:", error);
+      setErrorMsg("No se pudo guardar el partido en la base de datos.");
+    }
+  };
   const [bulkVodFile, setBulkVodFile] = useState(null);
   const [bulkVodFileNameDisplay, setBulkVodFileNameDisplay] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -794,8 +1032,11 @@ export default function AdminPanel() {
             const tipoParaFiltrar = vodTabInfo.tipo;
             setVodFilterTipo(tipoParaFiltrar); 
             fetchVideosList(1, vodSearchTerm, tipoParaFiltrar);
-        } else if (activeTab === "manage_channels" || activeTab === "m3u_to_channels") {
+        } else if (activeTab === "manage_channels" || activeTab === "m3u_to_channels" || activeTab === "manage_mundial") {
             fetchChannelsList();
+            if (activeTab === "manage_mundial") {
+                loadMundialMatches();
+            }
         } else if (activeTab === "manage_users") {
             fetchAdminUsersList();
         }
@@ -803,7 +1044,7 @@ export default function AdminPanel() {
         if (activeTab === "add_channel" && !channelId) clearChannelForm();
         if (activeTab === "add_vod" && !vodId) clearVodForm();
     }
-}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, clearChannelForm, clearVodForm, vodSearchTerm]);
+}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, loadMundialMatches, clearChannelForm, clearVodForm, vodSearchTerm]);
 
 
 
@@ -830,6 +1071,7 @@ export default function AdminPanel() {
         <Tab label="Documentales" value="manage_documentales" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Carga Masiva VOD" value="bulk_vod_upload" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="🔄 Migración" value="migration_panel" activeTab={activeTab} onTabChange={setActiveTab} />
+        <Tab label="🏆 Mundial 2026" value="manage_mundial" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Gestionar Canales" value="manage_channels" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Subir M3U Canales" value="m3u_to_channels" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label={channelId ? "Editar Canal" : "Agregar Canal"} value="add_channel" activeTab={activeTab} onTabChange={setActiveTab} />
@@ -1584,6 +1826,295 @@ export default function AdminPanel() {
               {isLoading.bulkVod ? "Procesando..." : "Procesar Archivo"}
             </Button>
           </form>
+        </section>
+      )}
+
+      {activeTab === "migration_panel" && <MigrationPanel />}
+
+      {activeTab === "manage_mundial" && (
+        <section className="space-y-8">
+          <div className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto border border-red-500/20">
+            <h2 className="text-2xl font-bold mb-6 text-center text-red-500">
+              {editingMatchId ? "Editar Partido de Fixture" : "Agregar Nuevo Partido al Fixture"}
+            </h2>
+            
+            <form onSubmit={handleSaveMatch} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Selección 1</label>
+                  <Select
+                    name="equipo1"
+                    value={matchForm.equipo1}
+                    onChange={handleMatchFormChange}
+                    required
+                  >
+                    {WORLD_CUP_TEAMS.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Selección 2</label>
+                  <Select
+                    name="equipo2"
+                    value={matchForm.equipo2}
+                    onChange={handleMatchFormChange}
+                    required
+                  >
+                    {WORLD_CUP_TEAMS.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Fecha</label>
+                  <Input
+                    name="fecha"
+                    type="text"
+                    placeholder="Ej: 11 de Junio, 2026"
+                    value={matchForm.fecha}
+                    onChange={handleMatchFormChange}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Hora (Huso Horario Local/Sede)</label>
+                  <Input
+                    name="hora"
+                    type="text"
+                    placeholder="Ej: 14:00"
+                    value={matchForm.hora}
+                    onChange={handleMatchFormChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Estadio y Sede</label>
+                <Select
+                  name="estadio"
+                  value={matchForm.estadio}
+                  onChange={handleMatchFormChange}
+                  required
+                >
+                  {WORLD_CUP_STADIUMS.map(stadium => (
+                    <option key={stadium} value={stadium}>{stadium}</option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-300 mb-1">Fase del Torneo</label>
+                <Select
+                  name="fase"
+                  value={matchForm.fase}
+                  onChange={handleMatchFormChange}
+                  required
+                >
+                  {WORLD_CUP_PHASES.map(phase => (
+                    <option key={phase} value={phase}>{phase}</option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="border-t border-gray-700 pt-4 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <h3 className="text-md font-bold text-lime-400">
+                    Asociar Canales de TV (Máx 3)
+                  </h3>
+                  <span className="text-xs text-gray-400 font-medium">
+                    Seleccionados: {(matchForm.canales || []).length} / 3
+                  </span>
+                </div>
+                
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar canal por nombre..."
+                    id="match-channel-search"
+                    className="w-full p-2 bg-gray-700 rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 text-sm text-white"
+                    onChange={(e) => {
+                      const value = e.target.value.toLowerCase();
+                      const items = document.querySelectorAll(".channel-item-select");
+                      items.forEach(item => {
+                        const name = item.getAttribute("data-name").toLowerCase();
+                        if (name.includes(value)) {
+                          item.classList.remove("hidden");
+                        } else {
+                          item.classList.add("hidden");
+                        }
+                      });
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1 border border-gray-700/60 p-2 rounded bg-gray-900/40 custom-scrollbar">
+                  {channels.map((ch) => {
+                    const isSelected = (matchForm.canales || []).includes(ch.id || ch._id);
+                    return (
+                      <div
+                        key={ch.id || ch._id}
+                        data-name={ch.name || ""}
+                        onClick={() => handleMatchChannelSelect(ch.id || ch._id)}
+                        className={`channel-item-select p-2 rounded cursor-pointer border flex items-center space-x-2 transition-all select-none ${
+                          isSelected
+                            ? "bg-red-950/40 border-red-500 text-white"
+                            : "bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-700/60 hover:text-white"
+                        }`}
+                      >
+                        <div className="w-5 h-5 rounded-full bg-black/40 flex items-center justify-center overflow-hidden flex-shrink-0 border border-white/5">
+                          <img
+                            src={ch.logo || '/img/placeholder-thumbnail.png'}
+                            alt={ch.name}
+                            className="w-full h-full object-contain p-0.5"
+                            onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                          />
+                        </div>
+                        <span className="text-xs truncate flex-1 font-semibold">{ch.name}</span>
+                        <div className={`w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                          isSelected ? "bg-red-500 border-red-500" : "border-gray-500"
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {channels.length === 0 && (
+                    <p className="text-xs text-gray-500 text-center col-span-full py-4">No se cargaron canales disponibles.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button type="submit" className="flex-1">
+                  {editingMatchId ? "Guardar Cambios" : "Crear Partido"}
+                </Button>
+                {editingMatchId && (
+                  <button
+                    type="button"
+                    onClick={handleClearMatchForm}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded font-semibold transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          <div className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl">
+            <h2 className="text-2xl font-semibold mb-6">Fixture Programado del Mundial</h2>
+            
+            {resolvedMundialMatches.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {resolvedMundialMatches.map((match) => {
+                  const associatedChannels = match.associatedChannels || [];
+
+                  return (
+                    <div
+                      key={match.id}
+                      className="bg-gray-700/80 hover:bg-gray-700 transition-colors border border-gray-600/50 p-4 rounded-xl flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-xs text-gray-400 font-bold border-b border-gray-600 pb-2">
+                          <span>{match.fase}</span>
+                          <span className="text-red-400 font-mono">{match.hora}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between py-2">
+                          <div className="flex items-center space-x-2">
+                            <img
+                              src={`https://flagcdn.com/w40/${countryToCode[match.equipo1] || 'un'}.png`}
+                              alt={match.equipo1}
+                              className="w-6 h-4 object-cover rounded shadow-sm border border-white/10"
+                              onError={(e) => { e.currentTarget.src = 'https://flagcdn.com/w40/un.png'; }}
+                            />
+                            <span className="font-bold text-sm text-slate-200">{match.equipo1}</span>
+                          </div>
+                          
+                          <span className="text-xs font-black text-slate-500 px-2 select-none">VS</span>
+                          
+                          <div className="flex items-center space-x-2 flex-row-reverse">
+                            <img
+                              src={`https://flagcdn.com/w40/${countryToCode[match.equipo2] || 'un'}.png`}
+                              alt={match.equipo2}
+                              className="w-6 h-4 object-cover rounded shadow-sm border border-white/10 ml-2"
+                              onError={(e) => { e.currentTarget.src = 'https://flagcdn.com/w40/un.png'; }}
+                            />
+                            <span className="font-bold text-sm text-slate-200">{match.equipo2}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-400 space-y-1">
+                          <p>📅 {match.fecha}</p>
+                          <p>📍 {match.estadio}</p>
+                        </div>
+
+                        {associatedChannels.length > 0 ? (
+                          <div className="pt-2 border-t border-gray-600/40">
+                            <p className="text-[10px] uppercase tracking-widest text-lime-400 font-bold mb-1.5">
+                              Canales Vinculados:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {associatedChannels.map(ch => (
+                                <span
+                                  key={ch.id || ch._id}
+                                  className="inline-flex items-center bg-gray-900/60 border border-gray-600 px-2 py-0.5 rounded text-[10px] text-gray-300 font-semibold"
+                                >
+                                  <img
+                                    src={ch.logo || '/img/placeholder-thumbnail.png'}
+                                    alt=""
+                                    className="w-3.5 h-3.5 object-contain mr-1 bg-black/20 rounded-full"
+                                    onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                                  />
+                                  {ch.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-2 border-t border-gray-600/40">
+                            <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+                              Sin canales vinculados
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-600/30">
+                        <Button
+                          onClick={() => handleEditMatch(match)}
+                          className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black text-xs py-1.5 rounded-lg"
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteMatch(match.id)}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-xs py-1.5 rounded-lg text-white"
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-center py-8 bg-gray-900/20 border border-dashed border-gray-700 rounded-xl">
+                No hay partidos registrados en el fixture. Utiliza el formulario superior para agregar uno.
+              </p>
+            )}
+          </div>
         </section>
       )}
 
