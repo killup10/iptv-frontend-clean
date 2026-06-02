@@ -545,6 +545,36 @@ export function Watch() {
     }
   }, [itemId, location.state]);
 
+  // Guardar el origen de la navegación en localStorage como fallback (útil para Electron/HashRouter)
+  useEffect(() => {
+    if (location.state?.from || location.state?.fromSection) {
+      try {
+        localStorage.setItem('watch_from_timestamp', String(Date.now()));
+        if (location.state.from) {
+          localStorage.setItem('watch_from_location', location.state.from);
+        } else {
+          localStorage.removeItem('watch_from_location');
+        }
+        if (location.state.fromSection) {
+          localStorage.setItem('watch_from_section', location.state.fromSection);
+        } else {
+          localStorage.removeItem('watch_from_section');
+        }
+        if (location.state.returnState) {
+          localStorage.setItem('watch_return_state', JSON.stringify(location.state.returnState));
+        } else {
+          localStorage.removeItem('watch_return_state');
+        }
+        console.log('[Watch] ✅ Estado de navegación respaldado en cache local:', {
+          from: location.state.from,
+          fromSection: location.state.fromSection
+        });
+      } catch (e) {
+        console.error('[Watch] Error al respaldar navegación en localStorage:', e);
+      }
+    }
+  }, [location.state]);
+
   const [startTime, setStartTime] = useState(startTimeFromState);
   const [reloadKey, setReloadKey] = useState(0);
   
@@ -2385,18 +2415,33 @@ export function Watch() {
       console.warn('[Watch.jsx] handleBackNavigation: Error en VideoPlayerPlugin:', err);
     }
 
-    const fromLocation = location.state?.from;
-    const fromSection = location.state?.fromSection;
-    const returnState = location.state?.returnState;
+    // Intentar recuperar el origen de la navegación desde el state o desde localStorage (fallback para Electron/HashRouter)
+    const cachedTimestamp = localStorage.getItem('watch_from_timestamp');
+    const isNavigationCacheValid = cachedTimestamp && (Date.now() - Number(cachedTimestamp) < 60 * 60 * 1000); // Válido por 1 hora
+
+    const fromLocation = location.state?.from || (isNavigationCacheValid ? localStorage.getItem('watch_from_location') : null);
+    const fromSection = location.state?.fromSection || (isNavigationCacheValid ? localStorage.getItem('watch_from_section') : null);
     
-    console.log('[Watch.jsx] fromSection:', fromSection, 'fromLocation:', fromLocation, 'returnState:', returnState);
+    let returnState = location.state?.returnState;
+    if (!returnState && isNavigationCacheValid) {
+      try {
+        const cachedReturnState = localStorage.getItem('watch_return_state');
+        if (cachedReturnState) {
+          returnState = JSON.parse(cachedReturnState);
+        }
+      } catch (e) {
+        console.error('[Watch.jsx] Error al parsear watch_return_state desde cache:', e);
+      }
+    }
+    
+    console.log('[Watch.jsx] fromSection:', fromSection, 'fromLocation:', fromLocation, 'returnState:', returnState, 'isNavigationCacheValid:', isNavigationCacheValid);
     
     if (fromLocation) {
       navigate(fromLocation, returnState ? { state: returnState } : undefined);
     } else if (fromSection === 'tv') {
       // Regresar a TV en vivo con categoría restaurada
-      const selectedCategory = location.state?.selectedCategory || 'Todos';
-      const searchTerm = location.state?.searchTerm || '';
+      const selectedCategory = location.state?.selectedCategory || returnState?.selectedCategory || 'Todos';
+      const searchTerm = location.state?.searchTerm || returnState?.searchTerm || '';
       
       console.log('[Watch.jsx] Navegando a /live-tv con estado:', { selectedCategory, searchTerm });
       navigate('/live-tv', { 
@@ -2408,9 +2453,9 @@ export function Watch() {
       });
     } else if (fromSection === 'movies' || fromSection === 'peliculas') {
       // Regresar a películas con filtros restaurados
-      const sectionKey = location.state?.sectionKey;
-      const genre = location.state?.genre || 'Todas';
-      const searchTerm = location.state?.searchTerm || '';
+      const sectionKey = location.state?.sectionKey || returnState?.selectedMainSectionKey;
+      const genre = location.state?.genre || returnState?.selectedGenre || 'Todas';
+      const searchTerm = location.state?.searchTerm || returnState?.searchTerm || '';
       
       if (sectionKey) {
         navigate('/peliculas', { 

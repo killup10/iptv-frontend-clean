@@ -362,7 +362,9 @@ function Mundial2026() {
   ];
 
   const handleChannelClick = (channel) => {
-    navigate(`/watch/channel/${channel._id || channel.id}`);
+    navigate(`/watch/channel/${channel._id || channel.id}`, {
+      state: { from: "/mundial-2026" }
+    });
   };
 
   return (
@@ -600,40 +602,40 @@ function Mundial2026() {
 
             {/* CARD 2: DATO RÁPIDO Y DETALLES DEL MUNDIAL (col-span-4) */}
             <div className="lg:col-span-4 border-double-bezel rounded-[2rem] p-1.5">
-              <div className="inner-bezel rounded-[calc(2rem-0.375rem)] p-4 sm:p-5 h-full flex flex-col justify-between">
+              <div className="inner-bezel rounded-[calc(2rem-0.375rem)] p-5 sm:p-6 h-full flex flex-col justify-between">
                 <div>
-                  <h2 className="text-lg md:text-xl font-black uppercase tracking-wider text-white mb-2.5 flex items-center gap-2">
-                    <Info className="w-5 h-5 text-fuchsia-400" /> Ficha Técnica FIFA
+                  <h2 className="text-lg md:text-2xl font-black uppercase tracking-wider text-white mb-4 flex items-center gap-2">
+                    <Info className="w-5 h-5 text-fuchsia-400 animate-pulse" /> Ficha Técnica FIFA
                   </h2>
-                  <div className="space-y-2.5">
-                    <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                      <span className="text-xs font-semibold text-slate-400">Edición</span>
-                      <span className="text-xs font-bold text-white">23ª Copa del Mundo</span>
+                  <div className="space-y-6 md:space-y-8 my-4">
+                    <div className="flex justify-between items-center border-b border-white/5 pb-3.5">
+                      <span className="text-sm sm:text-base font-semibold text-slate-400">Edición</span>
+                      <span className="text-sm sm:text-base font-bold text-white">23ª Copa del Mundo</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                      <span className="text-xs font-semibold text-slate-400">Países Anfitriones</span>
-                      <span className="text-xs font-bold text-white">Canadá, México, EE. UU.</span>
+                    <div className="flex justify-between items-center border-b border-white/5 pb-3.5">
+                      <span className="text-sm sm:text-base font-semibold text-slate-400">Países Anfitriones</span>
+                      <span className="text-sm sm:text-base font-bold text-white">Canadá, México, EE. UU.</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                      <span className="text-xs font-semibold text-slate-400">Equipos Totales</span>
-                      <span className="text-xs font-bold text-lime-300">48 Países (Récord)</span>
+                    <div className="flex justify-between items-center border-b border-white/5 pb-3.5">
+                      <span className="text-sm sm:text-base font-semibold text-slate-400">Equipos Totales</span>
+                      <span className="text-sm sm:text-base font-bold text-lime-300">48 Países (Récord)</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
-                      <span className="text-xs font-semibold text-slate-400">Partidos Totales</span>
-                      <span className="text-xs font-bold text-white">104 Encuentros</span>
+                    <div className="flex justify-between items-center border-b border-white/5 pb-3.5">
+                      <span className="text-sm sm:text-base font-semibold text-slate-400">Partidos Totales</span>
+                      <span className="text-sm sm:text-base font-bold text-white">104 Encuentros</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-semibold text-slate-400">Fórmula de Grupos</span>
-                      <span className="text-xs font-bold text-white">12 Grupos de 4 Equipos</span>
+                    <div className="flex justify-between items-center pb-2">
+                      <span className="text-sm sm:text-base font-semibold text-slate-400">Fórmula de Grupos</span>
+                      <span className="text-sm sm:text-base font-bold text-white">12 Grupos de 4 Equipos</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 bg-gradient-to-br from-fuchsia-900/20 to-purple-900/10 border border-fuchsia-500/20 rounded-2xl p-3">
-                  <h3 className="text-xs font-black uppercase tracking-widest text-fuchsia-300 mb-1 flex items-center gap-1.5">
+                <div className="mt-8 md:mt-16 bg-gradient-to-br from-fuchsia-900/20 to-purple-900/10 border border-fuchsia-500/20 rounded-2xl p-5 sm:p-6">
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-fuchsia-300 mb-2 flex items-center gap-1.5">
                     ⚽ Formato Expandido 2026
                   </h3>
-                  <p className="text-[11px] text-slate-400 leading-normal">
+                  <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
                     Clasificarán los dos primeros equipos de cada uno de los 12 grupos junto con los ocho mejores terceros para conformar la nueva fase eliminatoria de dieciseisavos de final.
                   </p>
                 </div>
@@ -670,15 +672,15 @@ function Mundial2026() {
                 <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/25">
                   <table className="min-w-full text-left border-collapse">
                     <thead>
-                      <tr className="border-b border-white/5 text-slate-500 text-[10px] font-black uppercase tracking-wider bg-white/[0.02]">
-                        <th className="py-2 px-3 w-12 text-center">Pos</th>
-                        <th className="py-2 px-3">País</th>
-                        <th className="py-2 px-3 text-center">PJ</th>
-                        <th className="py-2 px-3 text-center">G</th>
-                        <th className="py-2 px-3 text-center">E</th>
-                        <th className="py-2 px-3 text-center">P</th>
-                        <th className="py-2 px-3 text-center">GF:GC</th>
-                        <th className="py-2 px-3 text-center font-bold text-lime-400">Pts</th>
+                      <tr className="border-b border-white/5 text-slate-500 text-xs sm:text-sm font-black uppercase tracking-wider bg-white/[0.02]">
+                        <th className="py-4 sm:py-5 px-4 w-12 text-center">Pos</th>
+                        <th className="py-4 sm:py-5 px-4">País</th>
+                        <th className="py-4 sm:py-5 px-4 text-center">PJ</th>
+                        <th className="py-4 sm:py-5 px-4 text-center">G</th>
+                        <th className="py-4 sm:py-5 px-4 text-center">E</th>
+                        <th className="py-4 sm:py-5 px-4 text-center">P</th>
+                        <th className="py-5 sm:py-6 px-4 text-center">GF:GC</th>
+                        <th className="py-4 sm:py-5 px-4 text-center font-bold text-lime-400">Pts</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -687,19 +689,19 @@ function Mundial2026() {
                           key={team.pais}
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
                         >
-                          <td className="py-2 px-3 text-center font-bold text-xs text-slate-400">{idx + 1}</td>
-                          <td className="py-2 px-3 flex items-center gap-3">
-                            <img src={getFlagUrl(team.pais)} alt={team.pais} className="w-5 h-3.5 object-cover rounded-sm shadow-sm" />
-                            <span className="font-bold text-sm text-slate-200">{team.pais}</span>
+                          <td className="py-5 sm:py-7 px-4 text-center font-bold text-sm sm:text-base text-slate-400">{idx + 1}</td>
+                          <td className="py-5 sm:py-7 px-4 flex items-center gap-4">
+                            <img src={getFlagUrl(team.pais)} alt={team.pais} className="w-8 h-5.5 object-cover rounded shadow-md" />
+                            <span className="font-bold text-base sm:text-lg text-slate-200">{team.pais}</span>
                           </td>
-                          <td className="py-2 px-3 text-center text-xs text-slate-300">{team.pj}</td>
-                          <td className="py-2 px-3 text-center text-xs text-slate-300">{team.g}</td>
-                          <td className="py-2 px-3 text-center text-xs text-slate-300">{team.e}</td>
-                          <td className="py-2 px-3 text-center text-xs text-slate-300">{team.p}</td>
-                          <td className="py-2 px-3 text-center text-xs text-slate-400">
+                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.pj}</td>
+                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.g}</td>
+                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.e}</td>
+                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.p}</td>
+                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-400">
                             {team.gf}:{team.gc}
                           </td>
-                          <td className="py-2 px-3 text-center font-black text-sm text-lime-300">{team.pts}</td>
+                          <td className="py-5 sm:py-7 px-4 text-center font-black text-base sm:text-lg text-lime-300">{team.pts}</td>
                         </tr>
                       ))}
                     </tbody>
