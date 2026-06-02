@@ -195,7 +195,7 @@ function Mundial2026() {
         }
 
         // 2. Cargar partidos de la base de datos (MongoDB)
-        const response = await axiosInstance.get("/worldcup/matches");
+        const response = await axiosInstance.get("/api/worldcup/matches");
         if (Array.isArray(response.data)) {
           setMundialMatches(response.data);
         }
@@ -336,28 +336,28 @@ function Mundial2026() {
       ciudad: "Ciudad de México, México",
       capacidad: "87,523",
       descripcion: "El legendario estadio que albergará su tercer partido inaugural de la Copa del Mundo.",
-      imagen: "https://images.unsplash.com/photo-1518063319789-7217e6706b04?q=80&w=600&auto=format&fit=crop",
+      imagen: "https://revistamercado.do/wp-content/uploads/2026/06/Estadio-Azteca-60-an%CC%83os-tres-mundiales-y-los-momentos-que-cambiaron-el-fu%CC%81tbol.jpg",
     },
     {
       nombre: "MetLife Stadium",
       ciudad: "East Rutherford, Nueva Jersey, EE. UU.",
       capacidad: "82,500",
       descripcion: "El gigante de Nueva York seleccionado para albergar la Gran Final del Mundial 2026.",
-      imagen: "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?q=80&w=600&auto=format&fit=crop",
+      imagen: "https://copaamerica-imagens-prod.s3.sa-east-1.amazonaws.com/Metlife_Stadium_2_8333461e8b.jpeg",
     },
     {
       nombre: "BC Place",
       ciudad: "Vancouver, Canadá",
       capacidad: "54,500",
       descripcion: "Espectacular estadio con techo retráctil situado a orillas de la bahía de Vancouver.",
-      imagen: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=600&auto=format&fit=crop",
+      imagen: "https://wwf.ca/wp-content/uploads/2024/01/BCP5-scaled.jpg",
     },
     {
       nombre: "SoFi Stadium",
       ciudad: "Los Ángeles, California, EE. UU.",
       capacidad: "70,240",
       descripcion: "Una maravilla arquitectónica de alta tecnología, la más costosa y moderna del planeta.",
-      imagen: "https://images.unsplash.com/photo-1540747737956-37872f747ee7?q=80&w=600&auto=format&fit=crop",
+      imagen: "https://st1.uvnimg.com/57/06/1ea828bd4fd2a0bbd5583b39f240/002-sofi-stadium-donde-queda-y-que-partidos-de-copa-america-se-jugaran-ahi.jpg",
     },
   ];
 

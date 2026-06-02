@@ -325,7 +325,7 @@ export default function AdminPanel() {
 
   const loadMundialMatches = useCallback(async () => {
     try {
-      const response = await axiosInstance.get("/worldcup/matches");
+      const response = await axiosInstance.get("/api/worldcup/matches");
       if (Array.isArray(response.data)) {
         setMundialMatches(response.data);
       }
@@ -352,7 +352,7 @@ export default function AdminPanel() {
   const handleDeleteMatch = async (matchId) => {
     if (!window.confirm("¿Seguro que deseas eliminar este partido del fixture?")) return;
     try {
-      await axiosInstance.delete(`/worldcup/matches/${matchId}`);
+      await axiosInstance.delete(`/api/worldcup/matches/${matchId}`);
       setMundialMatches(prev => prev.filter(m => String(m.id) !== String(matchId)));
       setSuccessMsg("Partido eliminado con éxito de la base de datos.");
     } catch (error) {
@@ -398,11 +398,11 @@ export default function AdminPanel() {
     
     try {
       if (editingMatchId) {
-        const response = await axiosInstance.put(`/worldcup/matches/${editingMatchId}`, matchForm);
+        const response = await axiosInstance.put(`/api/worldcup/matches/${editingMatchId}`, matchForm);
         setMundialMatches(prev => prev.map(m => String(m.id) === String(editingMatchId) ? response.data : m));
         setSuccessMsg("Partido actualizado con éxito en la base de datos.");
       } else {
-        const response = await axiosInstance.post("/worldcup/matches", matchForm);
+        const response = await axiosInstance.post("/api/worldcup/matches", matchForm);
         setMundialMatches(prev => [...prev, response.data]);
         setSuccessMsg("Partido agregado al fixture en la base de datos.");
       }
