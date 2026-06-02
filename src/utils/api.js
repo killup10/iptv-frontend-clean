@@ -50,17 +50,88 @@ export async function fetchUserChannels(sectionName = "Todos") {
   }
 }
 
+const CATEGORY_ORDER = [
+  'nacionales',
+  'nacional',
+  'deportivos',
+  'deportes',
+  'deportivo',
+  'pelis',
+  'peliculas',
+  'cine',
+  'kids',
+  'infantiles',
+  'infantil',
+  'ninos',
+  'variado',
+  'variados',
+  'variedades',
+  'novelas',
+  'telenovelas',
+  'culturales',
+  'cultural',
+  'informativos',
+  'noticias',
+  'noticiarios',
+  'informativo',
+  'todos'
+];
+
+export function sortLiveTVCategories(cats) {
+  if (!Array.isArray(cats)) return [];
+
+  const normalized = cats.map((c) => {
+    const name = String(c || '');
+    const lower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return { original: name, lower };
+  });
+
+  return normalized.sort((a, b) => {
+    // 1. Detectar si es categoría de adultos y mandarla al final absoluto
+    const isAdultA = a.lower.includes('adult') || a.lower.includes('xxx') || a.lower.includes('hot') || a.lower.includes('erotic') || a.lower.includes('sensual');
+    const isAdultB = b.lower.includes('adult') || b.lower.includes('xxx') || b.lower.includes('hot') || b.lower.includes('erotic') || b.lower.includes('sensual');
+
+    if (isAdultA && !isAdultB) return 1;
+    if (!isAdultA && isAdultB) return -1;
+    if (isAdultA && isAdultB) return a.original.localeCompare(b.original);
+
+    // 2. Obtener los índices de orden específico
+    let indexA = -1;
+    let indexB = -1;
+
+    for (let i = 0; i < CATEGORY_ORDER.length; i++) {
+      const key = CATEGORY_ORDER[i];
+      if (indexA === -1 && (a.lower === key || a.lower.includes(key))) {
+        indexA = i;
+      }
+      if (indexB === -1 && (b.lower === key || b.lower.includes(key))) {
+        indexB = i;
+      }
+    }
+
+    if (indexA === -1) indexA = 999;
+    if (indexB === -1) indexB = 999;
+
+    if (indexA !== indexB) {
+      return indexA - indexB;
+    }
+
+    return a.original.localeCompare(b.original);
+  }).map((c) => c.original);
+}
+
 export async function fetchChannelFilterSections() {
-  const relativePath = "/api/channels/sections";
-  console.log(`API (fetchChannelFilterSections - axios): GET ${relativePath}`);
-  try {
-    const response = await axiosInstance.get(relativePath);
-    return response.data || [];
-  } catch (error) {
-    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al cargar categorías de filtro.";
-    console.error(`API Error (fetchChannelFilterSections - axios): ${errorMsg}`, error.response?.data);
-    throw new Error(errorMsg);
-  }
+  const relativePath = "/api/channels/sections";
+  console.log(`API (fetchChannelFilterSections - axios): GET ${relativePath}`);
+  try {
+    const response = await axiosInstance.get(relativePath);
+    const data = response.data || [];
+    return sortLiveTVCategories(data);
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al cargar categorías de filtro.";
+    console.error(`API Error (fetchChannelFilterSections - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
 }
 
 export async function fetchChannelForPlayback(channelId) {

@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Lazy load de todas las páginas para mejorar performance
 const Home = React.lazy(() => import('./pages/Home.jsx'));
+const Login = React.lazy(() => import('./pages/Login.jsx'));
 const Register = React.lazy(() => import('./pages/Register.jsx'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword.jsx'));
 const AdminPanel = React.lazy(() => import('./pages/AdminPanel.jsx'));
@@ -28,6 +29,7 @@ const ZonaKids = React.lazy(() => import('./pages/ZonaKids.jsx'));
 const BulkUploadPage = React.lazy(() => import('./pages/BulkUploadPage.jsx'));
 const MyList = React.lazy(() => import('./pages/MyList.jsx'));
 const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
+const Mundial2026 = React.lazy(() => import('./pages/Mundial2026.jsx'));
 
 import { isAndroidTV } from './utils/platformUtils.js';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -47,7 +49,7 @@ const router = createHashRouter([
     path: "/", // En HashRouter, esto se traduce a la ruta base (ej. index.html#/)
     element: <AppLayout />,
     children: [
-      { path: "login", element: <Suspense fallback={<PageLoader />}><Home /></Suspense> },
+      { path: "login", element: <Suspense fallback={<PageLoader />}><Login /></Suspense> },
       { path: "register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense> },
       { path: "forgot-password", element: <Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense> },
       { index: true, element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Home /></Suspense></ProtectedRoute> },
@@ -185,6 +187,16 @@ const router = createHashRouter([
           <ProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <TestPlayer />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "mundial-2026",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Mundial2026 />
             </Suspense>
           </ProtectedRoute>
         ),

@@ -247,8 +247,10 @@ function App() {
       <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
       {shouldShowLayout && (
         <header 
-          className={`fixed top-0 left-0 right-0 z-[90] transition-colors duration-300 ${
-            scrolled ? 'bg-black/95 backdrop-blur-sm' : 'bg-transparent'
+          className={`fixed top-0 left-0 right-0 z-[90] transition-all duration-300 ${
+            scrolled 
+              ? 'bg-[#090514]/85 border-b border-fuchsia-300/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)] backdrop-blur-md' 
+              : 'bg-transparent'
           }`}
         >
           <div className="container mx-auto px-4">
@@ -268,6 +270,13 @@ function App() {
                 <nav className="hidden md:flex ml-10 space-x-4 items-center">
                   <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>TV en Vivo</Link>
                   <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Películas</Link>
+                  <Link to="/mundial-2026" className="relative text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1 font-bold text-lime-400 mr-2" onClick={closeAllMenus}>
+                    🏆 Mundial 2026
+                    <span className="absolute -top-0.5 right-0 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
+                    </span>
+                  </Link>
                   
                   {/* Dropdown Contenido */}
                   <div id="desktop-content-menu" className="relative">
@@ -391,64 +400,127 @@ function App() {
               </div>
             </div>
 
-            {mobileMenuOpen && (
-              <div id="mobile-menu" className="md:hidden fixed inset-0 top-20 z-50">
-                <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
-                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>TV en Vivo</Link>
-                  <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Películas</Link>
-                  
-                  {/* Contenido Submenu */}
-                  <div>
+            {/* Mobile Navigation Drawer Panel */}
+            <div 
+              className={`md:hidden fixed inset-0 z-[100] transition-all duration-300 ${
+                mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              {/* Backdrop */}
+              <div 
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                onClick={closeAllMenus}
+              />
+              {/* Drawer Container */}
+              <div 
+                id="mobile-menu"
+                className={`absolute top-0 right-0 h-full w-[290px] bg-gradient-to-b from-[#140b2a] to-[#07040e] border-l border-fuchsia-400/10 shadow-[-12px_0_40px_rgba(0,0,0,0.85)] flex flex-col p-6 overflow-y-auto transition-transform duration-300 ${
+                  mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+                }`}
+              >
+                {/* User Profile Info */}
+                <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-red-500 via-pink-600 to-fuchsia-600 flex items-center justify-center shadow-[0_0_12px_rgba(239,68,68,0.45)]">
+                      <span className="text-white font-bold text-base">
+                        {user?.username?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{user?.username}</p>
+                      <span className="inline-block mt-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
+                        {userPlanCaption}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={closeAllMenus}
+                    className="text-gray-400 hover:text-white p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Navigation Links */}
+                <div className="flex-1 space-y-2">
+                  <Link to="/live-tv" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">📺</span> TV en Vivo
+                  </Link>
+                  <Link to="/peliculas" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">🎬</span> Películas
+                  </Link>
+                  <Link to="/mundial-2026" className="flex items-center gap-3 text-lime-400 hover:text-lime-300 px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-bold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">🏆</span> Mundial 2026
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
+                    </span>
+                  </Link>
+
+                  {/* Submenu for Content */}
+                  <div className="space-y-1">
                     <button
                       type="button"
                       onClick={() => setMobileContenidoOpen((current) => !current)}
-                      className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left flex items-center justify-between"
+                      className="flex items-center justify-between text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full transition"
                     >
-                      Contenido
-                      <svg className={`w-4 h-4 transition-transform ${mobileContenidoOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      <span className="flex items-center gap-3">
+                        <span className="text-lg">📂</span> Contenido
+                      </span>
+                      <svg className={`w-4 h-4 transition-transform duration-200 ${mobileContenidoOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
+                    
                     {mobileContenidoOpen && (
-                      <div className="pl-4 space-y-1">
-                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Series</Link>
-                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Animes</Link>
-                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Doramas</Link>
-                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Novelas</Link>
-                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Documentales</Link>
+                      <div className="pl-8 space-y-1 border-l border-white/5 ml-5 mt-1">
+                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Series</Link>
+                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Animes</Link>
+                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Doramas</Link>
+                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Novelas</Link>
+                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Documentales</Link>
                       </div>
                     )}
                   </div>
-                  
-                  <Link to="/kids" className="rainbow-text hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Zona Kids</Link>
-                  <Link to="/colecciones" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Colecciones</Link>
-                  <Link to="/mi-lista" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium flex items-center gap-1" onClick={closeAllMenus}>
-                    <span>❤️</span>
-                    Mi Lista
+
+                  <Link to="/kids" className="flex items-center gap-3 rainbow-text hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">🧸</span> Zona Kids
                   </Link>
-                  <Link to="/test-player" className="text-yellow-400 hover:text-yellow-300 block px-3 py-2 rounded-md text-base font-medium border border-yellow-600 mx-2 text-center" onClick={closeAllMenus}>🧪 Test ExoPlayer</Link>
-                  <div className="border-t border-gray-700 pt-4">
-                    {user?.role === 'admin' && (
-                      <Link to="/admin" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Admin</Link>
+                  <Link to="/colecciones" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">💎</span> Colecciones
+                  </Link>
+                  <Link to="/mi-lista" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span>❤️</span> Mi Lista
+                  </Link>
+                  <Link to="/test-player" className="flex items-center gap-3 text-yellow-400 hover:text-yellow-300 px-3 py-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span>🧪</span> Test ExoPlayer
+                  </Link>
+                </div>
+
+                {/* Bottom Panel */}
+                <div className="border-t border-white/5 pt-6 mt-6 space-y-4">
+                  {user?.role === 'admin' && (
+                    <Link to="/admin" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-2 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                      🛡️ Panel Admin
+                    </Link>
+                  )}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                    <p className="text-xs text-gray-400 font-semibold">{userExpirationCaption}</p>
+                    {userExpirationDateCaption && (
+                      <p className="text-[10px] text-gray-500 mt-1">{userExpirationDateCaption}</p>
                     )}
-                    <div className="flex items-start px-3 py-2">
-                      <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center mr-3">
-                        <span className="text-white font-semibold text-sm">{user?.username?.charAt(0).toUpperCase()}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-200">{user?.username}</p>
-                        <p className="mt-0.5 text-xs font-medium text-cyan-300">{userPlanCaption}</p>
-                        <p className="mt-0.5 text-xs text-gray-400">{userExpirationCaption}</p>
-                        {userExpirationDateCaption && (
-                          <p className="mt-0.5 text-[11px] text-gray-500">{userExpirationDateCaption}</p>
-                        )}
-                      </div>
-                    </div>
-                    <button onClick={handleLogout} className="text-gray-300 hover:text-white block w-full text-left px-3 py-2 rounded-md text-base font-medium">Cerrar Sesión</button>
                   </div>
+                  <button 
+                    onClick={handleLogout} 
+                    className="flex items-center gap-3 text-red-400 hover:text-red-300 px-3 py-3 rounded-xl hover:bg-red-500/5 text-base font-semibold w-full text-left transition"
+                  >
+                    🚪 Cerrar Sesión
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </header>
       )}
