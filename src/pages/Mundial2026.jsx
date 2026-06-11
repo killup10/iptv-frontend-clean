@@ -299,7 +299,7 @@ function Mundial2026() {
 
     // Computar estadísticas en base a los partidos cargados desde base de datos
     resolvedMundialMatches.forEach((match) => {
-      if (match.grupo && match.estado === "FINALIZADO") {
+      if (match.grupo && (match.estado === "FINALIZADO" || match.estado === "EN VIVO")) {
         const groupKey = String(match.grupo).toUpperCase();
         const groupTeams = groups[groupKey];
         if (groupTeams) {
