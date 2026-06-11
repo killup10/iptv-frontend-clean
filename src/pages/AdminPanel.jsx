@@ -392,7 +392,16 @@ export default function AdminPanel() {
   const handleMatchFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     const val = type === 'checkbox' ? checked : value;
-    setMatchForm(prev => ({ ...prev, [name]: val }));
+    setMatchForm(prev => {
+      const updated = { ...prev, [name]: val };
+      if (name === "fase" && val && val.includes("Grupo ")) {
+        const matchGroup = val.match(/Grupo\s+([A-L])/i);
+        if (matchGroup) {
+          updated.grupo = matchGroup[1].toUpperCase();
+        }
+      }
+      return updated;
+    });
   };
 
   const handleMatchChannelSelect = (channelId) => {

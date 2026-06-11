@@ -147,8 +147,19 @@ function Mundial2026() {
       const associated = (match.canales || [])
         .map(chId => channelsMap.get(String(chId)))
         .filter(Boolean);
+      
+      // Fallback para extraer el grupo de la fase si el campo 'grupo' está vacío
+      let grupoVal = match.grupo;
+      if (!grupoVal && match.fase && match.fase.includes("Grupo ")) {
+        const matchGroup = match.fase.match(/Grupo\s+([A-L])/i);
+        if (matchGroup) {
+          grupoVal = matchGroup[1].toUpperCase();
+        }
+      }
+
       return {
         ...match,
+        grupo: grupoVal || "",
         associatedChannels: associated
       };
     });
@@ -287,7 +298,7 @@ function Mundial2026() {
     };
 
     // Computar estadísticas en base a los partidos cargados desde base de datos
-    mundialMatches.forEach((match) => {
+    resolvedMundialMatches.forEach((match) => {
       if (match.grupo && match.estado === "FINALIZADO") {
         const groupKey = String(match.grupo).toUpperCase();
         const groupTeams = groups[groupKey];
@@ -337,7 +348,7 @@ function Mundial2026() {
     });
 
     return groups;
-  }, [mundialMatches]);
+  }, [resolvedMundialMatches]);
 
   // Calendario de partidos destacados reales - Filtrados por "clave" desde base de datos
   const MATCHES = React.useMemo(() => {
