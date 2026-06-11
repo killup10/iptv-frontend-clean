@@ -19,7 +19,7 @@ const TYPE_LABELS = {
   movie: 'Pelicula',
   serie: 'Serie',
   anime: 'Anime',
-  dorama: 'Dorama',
+  dorama: 'K-Drama',
   novela: 'Novela',
   documental: 'Documental',
   'zona kids': 'Zona Kids',

@@ -302,6 +302,29 @@ function App() {
           color: transparent;
           font-weight: bold;
         }
+
+        .kids-animated-text {
+          background-image: linear-gradient(to right, #ff007f, #ffaa00, #00d4ff, #00ff66, #ff007f);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          font-weight: 900;
+          text-shadow: 0 0 8px rgba(255, 0, 127, 0.15);
+          animation: kidsTextHue 4s linear infinite;
+        }
+        @keyframes kidsTextHue {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        @keyframes kidBounce {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-4px) scale(1.2); }
+        }
+        .animate-kid-bounce {
+          display: inline-block;
+          animation: kidBounce 1.8s ease-in-out infinite;
+        }
       `}</style>
       <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
       {shouldShowLayout && (
@@ -375,7 +398,7 @@ function App() {
                           Animes
                         </Link>
                         <Link to="/doramas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
-                          Doramas
+                          K-Dramas
                         </Link>
                         <Link to="/novelas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
                           Novelas
@@ -387,8 +410,9 @@ function App() {
                     )}
                   </div>
                   
-                  <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2" onClick={closeAllMenus}>
-                    Zona Kids
+                  <Link to="/kids" className="kids-animated-text hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
+                    <span className="animate-kid-bounce">🧸</span>
+                    <span>Zona Kids</span>
                   </Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
                   <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
@@ -558,7 +582,7 @@ function App() {
                           Animes
                         </Link>
                         <Link to="/doramas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
-                          Doramas
+                          K-Dramas
                         </Link>
                         <Link to="/novelas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
                           Novelas
@@ -570,8 +594,8 @@ function App() {
                     )}
                   </div>
  
-                  <Link to="/kids" className="flex items-center gap-3 rainbow-text hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
-                    <span className="text-lg">🧸</span> Zona Kids
+                  <Link to="/kids" className="flex items-center gap-3 kids-animated-text hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg animate-kid-bounce">🧸</span> Zona Kids
                   </Link>
                   <Link to="/colecciones" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">💎</span> Colecciones

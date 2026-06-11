@@ -52,25 +52,48 @@ export function getTVItemYear(item) {
 }
 
 export function getTVItemGenre(item) {
+  let rawGenres = [];
   if (Array.isArray(item?.genres)) {
-    return item.genres.join(', ');
+    rawGenres = item.genres;
+  } else if (Array.isArray(item?.generos)) {
+    rawGenres = item.generos;
+  } else {
+    const val = (
+      item?.genre ||
+      item?.genres ||
+      item?.genero ||
+      item?.categoria ||
+      item?.categoryName ||
+      item?.subcategoria ||
+      item?.section ||
+      item?.mainSection ||
+      ''
+    );
+    if (typeof val === 'string' && val.trim()) {
+      rawGenres = val.split(/[,\/;]+/).map(g => g.trim());
+    }
   }
 
-  if (Array.isArray(item?.generos)) {
-    return item.generos.join(', ');
-  }
+  const cleanGenres = rawGenres
+    .map(g => String(g || '').trim())
+    .filter(g => {
+      if (!g) return false;
+      const gl = g.toLowerCase();
+      return (
+        !gl.includes('4k') &&
+        !gl.includes('60fps') &&
+        !gl.includes('2160p') &&
+        !gl.includes('60 fps') &&
+        !gl.includes('1080p') &&
+        !gl.includes('720p') &&
+        !gl.includes('hd')
+      );
+    });
 
-  return (
-    item?.genre ||
-    item?.genres ||
-    item?.genero ||
-    item?.categoria ||
-    item?.categoryName ||
-    item?.subcategoria ||
-    item?.section ||
-    item?.mainSection ||
-    ''
-  );
+  if (cleanGenres.length > 0) {
+    return cleanGenres.slice(0, 2).join(', ');
+  }
+  return '';
 }
 
 export function getTVItemRating(item) {

@@ -260,7 +260,7 @@ const TVGrid = ({
                              if (t === 'movie' || t === 'movies' || t === 'pelicula' || t === 'peliculas' || t === 'video' || t === 'videos') return 'película';
                              if (t === 'serie' || t === 'series') return 'serie';
                              if (t === 'anime' || t === 'animes') return 'anime';
-                             if (t === 'dorama' || t === 'doramas') return 'dorama';
+                             if (t === 'dorama' || t === 'doramas' || t === 'k-dramas' || t === 'k-drama') return 'K-Drama';
                              if (t === 'novela' || t === 'novelas') return 'novela';
                              if (t === 'documental' || t === 'documentales') return 'documental';
                              if (t === 'zona kids' || t === 'kids') return 'kids';

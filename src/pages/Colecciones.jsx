@@ -399,7 +399,7 @@ export default function Colecciones() {
                               if (t === 'pelicula' || t === 'peliculas' || t === 'movie' || t === 'movies' || t === 'video' || t === 'videos') return 'película';
                               if (t === 'serie' || t === 'series') return 'serie';
                               if (t === 'anime' || t === 'animes') return 'anime';
-                              if (t === 'dorama' || t === 'doramas') return 'dorama';
+                              if (t === 'dorama' || t === 'doramas' || t === 'k-dramas' || t === 'k-drama') return 'K-Drama';
                               if (t === 'novela' || t === 'novelas') return 'novela';
                               if (t === 'documental' || t === 'documentales') return 'documental';
                               return item.seasons || item.episodes ? 'serie' : 'película';
