@@ -110,26 +110,32 @@ function Carousel({
       onMouseLeave={() => setIsHovering(false)}
     >
       {isClassicVariant ? (
-        <h2 className="mb-3 px-2 text-lg font-semibold text-white sm:px-4 sm:text-xl md:mb-4 md:px-1 md:text-2xl">
-          {title}
-        </h2>
+        <div className="mb-3 flex items-center px-2 sm:px-4 md:px-1">
+          <div className="w-1 h-5 rounded-full bg-gradient-to-b from-cyan-400 to-fuchsia-500 mr-2.5 shadow-[0_0_8px_rgba(34,211,238,0.6)] flex-shrink-0" />
+          <h2 className="text-base font-bold text-white sm:text-lg tracking-wide uppercase">
+            {title}
+          </h2>
+        </div>
       ) : (
         <div className="mb-4 flex flex-col gap-3 px-2 sm:px-4 md:px-1 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            {eyebrow ? (
-              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-200/88 sm:text-xs">
-                {eyebrow}
-              </p>
-            ) : null}
-            <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:gap-4">
-              <h2 className="truncate text-lg font-black text-white drop-shadow-[0_0_16px_rgba(217,70,239,0.18)] sm:text-xl md:text-2xl">
-                {title}
-              </h2>
-              {subtitle ? (
-                <p className="max-w-2xl text-sm text-slate-300/74">
-                  {subtitle}
+          <div className="min-w-0 flex items-start">
+            <div className="w-1 h-8 rounded-full bg-gradient-to-b from-cyan-400 to-fuchsia-500 mr-3 mt-1 shadow-[0_0_10px_rgba(34,211,238,0.7)] flex-shrink-0" />
+            <div className="min-w-0">
+              {eyebrow ? (
+                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-200/88 sm:text-xs">
+                  {eyebrow}
                 </p>
               ) : null}
+              <div className="flex flex-col gap-1 lg:flex-row lg:items-end lg:gap-4">
+                <h2 className="truncate text-lg font-black text-white drop-shadow-[0_0_16px_rgba(217,70,239,0.18)] sm:text-xl md:text-2xl">
+                  {title}
+                </h2>
+                {subtitle ? (
+                  <p className="max-w-2xl text-xs text-slate-300/74 lg:mb-0.5">
+                    {subtitle}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -176,6 +182,7 @@ function Carousel({
           style={{
             scrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x proximity',
             gap: '0.75rem',
           }}
           aria-label={`Carrusel de ${title}`}
@@ -205,6 +212,7 @@ function Carousel({
                 tabIndex={dpadEnabled ? 0 : undefined}
                 data-carousel-item
                 data-carousel-index={index}
+                style={{ scrollSnapAlign: 'start' }}
                 onFocusCapture={(e) => {
                   if (!dpadEnabled) return;
 

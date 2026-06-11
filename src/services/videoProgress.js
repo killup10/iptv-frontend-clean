@@ -34,8 +34,10 @@ export const videoProgressService = {
 
       const payload = {
         lastTime,
-        progress: typeof progress === 'number' ? progress : lastTime,
       };
+      if (typeof progress === 'number' && progress >= 0 && progress <= 1) {
+        payload.progress = progress;
+      }
       if (lastChapter !== undefined) payload.lastChapter = lastChapter;
       if (lastSeason !== undefined) payload.lastSeason = lastSeason;
       if (completed !== undefined) payload.completed = completed;

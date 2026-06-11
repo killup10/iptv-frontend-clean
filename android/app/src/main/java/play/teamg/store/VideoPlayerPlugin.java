@@ -53,7 +53,8 @@ public class VideoPlayerPlugin extends Plugin {
         }
 
         boolean shouldUseExoplayer =
-            "android-exoplayer".equalsIgnoreCase(requestedPlayerType) || isAndroidTvDevice();
+            "android-exoplayer".equalsIgnoreCase(requestedPlayerType) ||
+            (requestedPlayerType.isEmpty() && isAndroidTvDevice());
         Class<?> targetActivity = shouldUseExoplayer ? ExoPlayerActivity.class : VLCPlayerActivity.class;
         String resolvedPlayerName = shouldUseExoplayer ? "ExoPlayer" : "VLC";
 
@@ -352,22 +353,18 @@ public class VideoPlayerPlugin extends Plugin {
     }
 
     @Override
-    protected void handleOnStart() {
-        super.handleOnStart();
+    public void load() {
+        super.load();
         registerProgressReceiver();
         registerPlayerClosedReceiver();
     }
 
     @Override
-    protected void handleOnStop() {
-        super.handleOnStop();
-        unregisterProgressReceiver();
-        unregisterPlayerClosedReceiver();
-    }
-
-    @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
+        unregisterProgressReceiver();
+        unregisterPlayerClosedReceiver();
+        
         // Asegurar que VLC se detenga cuando el plugin se destruye
         Log.d(TAG, "Plugin being destroyed - stopping VLC");
         sendPlayerControl("stop", 0);
@@ -417,10 +414,11 @@ public class VideoPlayerPlugin extends Plugin {
             };
 
             IntentFilter filter = new IntentFilter("VIDEO_PROGRESS_UPDATE");
+            Context appContext = getContext().getApplicationContext();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getContext().registerReceiver(progressReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                appContext.registerReceiver(progressReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
-                getContext().registerReceiver(progressReceiver, filter);
+                appContext.registerReceiver(progressReceiver, filter);
             }
             Log.d(TAG, "Progress receiver registered");
         }
@@ -429,7 +427,7 @@ public class VideoPlayerPlugin extends Plugin {
     private void unregisterProgressReceiver() {
         if (progressReceiver != null) {
             try {
-                getContext().unregisterReceiver(progressReceiver);
+                getContext().getApplicationContext().unregisterReceiver(progressReceiver);
                 progressReceiver = null;
                 Log.d(TAG, "Progress receiver unregistered");
             } catch (Exception e) {
@@ -456,10 +454,11 @@ public class VideoPlayerPlugin extends Plugin {
             };
 
             IntentFilter filter = new IntentFilter("VIDEO_PLAYER_CLOSED");
+            Context appContext = getContext().getApplicationContext();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getContext().registerReceiver(playerClosedReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                appContext.registerReceiver(playerClosedReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
-                getContext().registerReceiver(playerClosedReceiver, filter);
+                appContext.registerReceiver(playerClosedReceiver, filter);
             }
             Log.d(TAG, "Player closed receiver registered");
         }
@@ -468,7 +467,7 @@ public class VideoPlayerPlugin extends Plugin {
     private void unregisterPlayerClosedReceiver() {
         if (playerClosedReceiver != null) {
             try {
-                getContext().unregisterReceiver(playerClosedReceiver);
+                getContext().getApplicationContext().unregisterReceiver(playerClosedReceiver);
                 playerClosedReceiver = null;
                 Log.d(TAG, "Player closed receiver unregistered");
             } catch (Exception e) {

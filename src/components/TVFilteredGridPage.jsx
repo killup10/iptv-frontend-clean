@@ -72,18 +72,21 @@ export default function TVFilteredGridPage({
   onFilterIndexChange,
   items = [],
   onSelectItem,
-  columns = 5,
+  columns = 4,
   initialIndex = 0,
   onActiveIndexChange,
   onSearch,
   emptyMessage = 'No hay elementos disponibles en esta seccion.',
   statusMessage = '',
   showPlanLock = true,
+  loading = false,
+  showItemTypeBadge = false,
 }) {
   const { user } = useAuth();
   const [focusMode, setFocusMode] = useState('filters');
-  const { currentIndex, currentItem, navigate } = useTVGrid(items, columns, initialIndex);
+  const { currentIndex, currentItem, navigate, setCurrentIndex } = useTVGrid(items, columns, initialIndex);
   const currentRow = Math.floor(currentIndex / columns);
+  const totalRows = Math.ceil(items.length / columns);
 
   const runItemAction = useCallback((item = currentItem, index = currentIndex) => {
     if (!item) return;
@@ -95,11 +98,12 @@ export default function TVFilteredGridPage({
     onActiveIndexChange?.(currentIndex);
   }, [currentIndex, onActiveIndexChange]);
 
+  // Si los items cambian (carga nueva), resetear foco si es necesario
   useEffect(() => {
-    if (focusMode !== 'filters' && focusMode !== 'search') {
-      setFocusMode('grid');
+    if (items.length > 0 && currentIndex === -1) {
+       setCurrentIndex(0);
     }
-  }, [currentIndex, focusMode]);
+  }, [items.length, currentIndex, setCurrentIndex]);
 
   useEffect(() => {
     if (focusMode !== 'grid') {
@@ -107,7 +111,9 @@ export default function TVFilteredGridPage({
     }
 
     const selectedElement = document.querySelector(`[data-filtered-grid-index="${currentIndex}"]`);
-      selectedElement?.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+    if (selectedElement) {
+       selectedElement.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+    }
   }, [currentIndex, focusMode]);
 
   useEffect(() => {
@@ -117,21 +123,26 @@ export default function TVFilteredGridPage({
       }
 
       const action = resolveGridAction(event);
+      if (!action) return;
+
+      // Bloquear scroll nativo
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault();
+      }
 
       if (focusMode === 'search') {
         switch (action) {
           case 'ArrowUp':
-            event.preventDefault();
             focusTVNav();
             break;
           case 'ArrowDown':
-            event.preventDefault();
             setFocusMode('filters');
             break;
           case 'Enter':
-          case ' ':
-            event.preventDefault();
             onSearch?.();
+            break;
+          case 'ArrowLeft':
+            focusTVNav();
             break;
           default:
             break;
@@ -142,7 +153,6 @@ export default function TVFilteredGridPage({
       if (focusMode === 'filters') {
         switch (action) {
           case 'ArrowUp':
-            event.preventDefault();
             if (onSearch) {
               setFocusMode('search');
               return;
@@ -150,20 +160,21 @@ export default function TVFilteredGridPage({
             focusTVNav();
             break;
           case 'ArrowLeft':
-            event.preventDefault();
-            onFilterIndexChange?.(Math.max(0, selectedFilterIndex - 1));
+            if (selectedFilterIndex === 0) {
+              focusTVNav();
+            } else {
+              onFilterIndexChange?.(selectedFilterIndex - 1);
+            }
             break;
           case 'ArrowRight':
-            event.preventDefault();
             onFilterIndexChange?.(Math.min(filters.length - 1, selectedFilterIndex + 1));
             break;
           case 'ArrowDown':
           case 'Enter':
-            if (!items.length) {
-              return;
+            if (items.length > 0) {
+              setFocusMode('grid');
+              if (currentIndex === -1) setCurrentIndex(0);
             }
-            event.preventDefault();
-            setFocusMode('grid');
             break;
           default:
             break;
@@ -172,9 +183,9 @@ export default function TVFilteredGridPage({
         return;
       }
 
+      // Grid mode
       switch (action) {
         case 'ArrowUp':
-          event.preventDefault();
           if (currentRow === 0) {
             setFocusMode('filters');
             return;
@@ -182,19 +193,23 @@ export default function TVFilteredGridPage({
           navigate('up');
           break;
         case 'ArrowDown':
-          event.preventDefault();
-          navigate('down');
+          if (currentRow < totalRows - 1) {
+            navigate('down');
+          }
           break;
         case 'ArrowLeft':
-          event.preventDefault();
+          if (currentIndex % columns === 0) {
+            focusTVNav();
+            return;
+          }
           navigate('left');
           break;
         case 'ArrowRight':
-          event.preventDefault();
-          navigate('right');
+          if (currentIndex % columns < columns - 1 && currentIndex < items.length - 1) {
+            navigate('right');
+          }
           break;
         case 'Enter':
-          event.preventDefault();
           if (currentItem && onSelectItem) {
             runItemAction();
           }
@@ -220,6 +235,8 @@ export default function TVFilteredGridPage({
     onSelectItem,
     runItemAction,
     selectedFilterIndex,
+    totalRows,
+    setCurrentIndex
   ]);
 
   const filterLabel = useMemo(() => filters[selectedFilterIndex] || '', [filters, selectedFilterIndex]);
@@ -313,14 +330,21 @@ export default function TVFilteredGridPage({
                       className={`item-image ${lockState.locked ? 'is-locked' : ''}`}
                     />
 
-                    {lockState.locked ? (
-                      <>
-                        <div className="item-lock-badge">Bloqueado</div>
-                        <div className="item-lock-footer">
-                          <p>{lockState.lockMessage}</p>
-                        </div>
-                      </>
-                    ) : null}
+                    {lockState.locked && (
+                      <div className="item-lock-badge">
+                        <svg className="w-3.5 h-3.5 mr-1 inline-block align-middle" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
+                        <span>CERRADO</span>
+                      </div>
+                    )}
+
+                    {lockState.locked && (
+                      <div className="item-lock-footer">
+                        <p className="font-extrabold uppercase text-[10px] tracking-wider text-amber-200">Upgrade requerido</p>
+                        <p className="text-[11px] text-white/90 font-semibold mt-0.5">{lockState.minimumPlanLabel || 'Plan Superior'}</p>
+                      </div>
+                    )}
 
                     {(itemRating || itemQualityBadges.length > 0 || (itemType && itemType !== 'movie')) ? (
                       <div className="item-corner-badges">
@@ -340,26 +364,44 @@ export default function TVFilteredGridPage({
                           </span>
                         ))}
 
-                        {null}
+                        {showItemTypeBadge && resolvedItemType && (
+                          <span className="item-type-badge">
+                            {(() => {
+                             const t = resolvedItemType.toLowerCase();
+                             if (t === 'movie' || t === 'movies' || t === 'pelicula' || t === 'peliculas' || t === 'video' || t === 'videos') return 'película';
+                             if (t === 'serie' || t === 'series') return 'serie';
+                             if (t === 'anime' || t === 'animes') return 'anime';
+                             if (t === 'dorama' || t === 'doramas') return 'dorama';
+                             if (t === 'novela' || t === 'novelas') return 'novela';
+                             if (t === 'documental' || t === 'documentales') return 'documental';
+                             if (t === 'zona kids' || t === 'kids') return 'kids';
+                              return t;
+                            })()}
+                          </span>
+                        )}
                       </div>
                     ) : null}
 
-                    <div className="item-base-copy">
-                      <p className="item-base-title">{itemTitle}</p>
-                      {itemYear ? <p className="item-base-meta">{itemYear}</p> : null}
-                    </div>
+                    {!lockState.locked && (
+                      <div className="item-base-copy">
+                        <p className="item-base-title">{itemTitle}</p>
+                        {itemYear ? <p className="item-base-meta">{itemYear}</p> : null}
+                      </div>
+                    )}
 
                     {isSelected ? (
                       <div className="item-overlay">
                         <div className="item-overlay-copy">
                           <h2>{itemTitle}</h2>
                           {itemYear ? <p className="item-overlay-meta">{itemYear}</p> : null}
-                          {itemDescription ? (
+                          {lockState.locked ? (
+                            <p className="item-overlay-description text-amber-400 font-bold uppercase tracking-wider mt-1 text-xs">
+                              {lockState.lockMessage}
+                            </p>
+                          ) : itemDescription ? (
                             <p className="item-overlay-description">{itemDescription}</p>
                           ) : null}
-                          {lockState.locked ? (
-                            <p className="item-overlay-status">{lockState.lockMessage}</p>
-                          ) : statusMessage ? (
+                          {statusMessage ? (
                             <p className="item-overlay-status">{statusMessage}</p>
                           ) : null}
                         </div>

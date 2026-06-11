@@ -365,7 +365,7 @@ export default function TVHome({
     const resolvedItemIndex = itemIndex ?? currentItemIndex;
 
     onSelectItem?.(item, sectionIndex, resolvedItemIndex);
-  }, [currentItem, currentItemIndex, currentSectionIndex, onSelectItem, sections]);
+  }, [currentItem, currentItemIndex, currentSectionIndex, onSelectItem]);
 
   const resolveAction = (event) => {
     switch (event.key) {
@@ -442,10 +442,13 @@ export default function TVHome({
           focusCurrentContent();
           break;
         case 'ArrowLeft':
-          if (heroItems.length > 1) {
+          if (heroIndex === 0) {
+            event.preventDefault();
+            focusTVNav();
+          } else if (heroItems.length > 1) {
             event.preventDefault();
             hasUserNavigatedRef.current = true;
-            setHeroIndex((prev) => (prev > 0 ? prev - 1 : heroItems.length - 1));
+            setHeroIndex((prev) => prev - 1);
           }
           break;
         case 'ArrowRight':
@@ -502,8 +505,12 @@ export default function TVHome({
       case 'ArrowLeft':
         event.preventDefault();
         hasUserNavigatedRef.current = true;
-        setFocusMode('content');
-        setCurrentItemIndex((prev) => Math.max(0, prev - 1));
+        if (currentItemIndex === 0) {
+          focusTVNav();
+        } else {
+          setFocusMode('content');
+          setCurrentItemIndex((prev) => Math.max(0, prev - 1));
+        }
         break;
       case 'ArrowRight':
         event.preventDefault();
@@ -523,11 +530,13 @@ export default function TVHome({
     }
   }, [
     currentItem,
+    currentItemIndex,
     currentSection,
     currentSectionIndex,
     focusCurrentContent,
     focusHero,
     focusMode,
+    heroIndex,
     heroItems.length,
     onSelectItem,
     runItemAction,
@@ -625,14 +634,16 @@ export default function TVHome({
           >
             <div className="tv-home-spotlight-media" aria-hidden="true">
               <img
+                key={`backdrop-fill-${spotlightItem?.id || spotlightItem?._id || heroIndex}`}
                 src={spotlightBackdrop}
                 alt=""
-                className="tv-home-spotlight-backdrop-fill"
+                className="tv-home-spotlight-backdrop-fill animate-fadeIn"
               />
               <img
+                key={`backdrop-fit-${spotlightItem?.id || spotlightItem?._id || heroIndex}`}
                 src={spotlightBackdrop}
                 alt=""
-                className="tv-home-spotlight-backdrop-fit"
+                className="tv-home-spotlight-backdrop-fit animate-fadeIn"
               />
             </div>
 
@@ -715,7 +726,7 @@ export default function TVHome({
 
                     return (
                       <div
-                        key={key}
+                        key={item?._id || item?.id || key}
                         data-item-key={key}
                         ref={(element) => {
                           itemRefs.current[key] = element;

@@ -276,7 +276,7 @@ export default function TVSearch({
 
     const selectedElement = document.querySelector(`[data-result-index="${selectedIndex}"]`);
     selectedElement?.scrollIntoView({
-      behavior: 'smooth',
+      behavior: 'auto',
       block: 'nearest',
       inline: 'nearest',
     });

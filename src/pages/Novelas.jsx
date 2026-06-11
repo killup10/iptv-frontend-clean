@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { normalizeSearchText } from '../utils/searchUtils.js';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '@/components/Card';
@@ -14,7 +15,24 @@ import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 export function Novelas() {
   const navigate = useNavigate();
   const [novelas, setNovelas] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const filteredNovelas = useMemo(() => {
+    let filtered = [...novelas];
+    if (searchTerm) {
+      const normalizedTerm = normalizeSearchText(searchTerm);
+      filtered = filtered.filter(novela => {
+        const inName = novela.name && normalizeSearchText(novela.name).includes(normalizedTerm);
+        const inDesc = novela.description && normalizeSearchText(novela.description).includes(normalizedTerm);
+        const inGenres = Array.isArray(novela.genres)
+          ? novela.genres.some(g => g && normalizeSearchText(g).includes(normalizedTerm))
+          : (typeof novela.genres === 'string' && normalizeSearchText(novela.genres).includes(normalizedTerm));
+        return inName || inDesc || inGenres;
+      });
+    }
+    return filtered;
+  }, [novelas, searchTerm]);
   const [error, setError] = useState(null);
   const gridOptions = [5, 4, 3, 1];
   const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
@@ -136,6 +154,7 @@ export function Novelas() {
       });
       setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
       setToastType('success');
+      window.dispatchEvent(new CustomEvent('teamg:refresh-counts'));
     } catch (error) {
       if (error.response?.status === 409) {
         setToastMessage(`ℹ️ "${item.name || item.title}" ya estaba en Mi Lista`);
@@ -159,9 +178,9 @@ export function Novelas() {
     switch (gridCols) {
       case 1: return 'grid-cols-1';
       case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
-      case 4: return 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
-      case 5: return 'grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-6';
-      default: return 'grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
+      case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+      case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-6';
+      default: return 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
     }
   };
 
@@ -258,9 +277,14 @@ export function Novelas() {
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-glow-primary">Novelas</h1>
-            <div className="flex items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+            <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
+              <span>Novelas</span>
+              <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
+                {filteredNovelas.length}
+              </span>
+            </h1>
+            <div className="flex items-center gap-4 w-full sm:w-auto">
               <button
                 onClick={toggleGridView}
                 className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
@@ -268,15 +292,22 @@ export function Novelas() {
               >
                 <Squares2X2Icon className="w-5 h-5" />
               </button>
+              <input
+                type="text"
+                placeholder="Buscar novelas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
+              />
             </div>
           </div>
 
           
-          {novelas.length > 0 ? (
+          {filteredNovelas.length > 0 ? (
           <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
-            {novelas.map((novela) => (
+            {filteredNovelas.map((novela) => (
               <Card
-                key={novela._id}
+                key={novela._id || novela.id}
                 item={novela}
                 onClick={() => handleNovelaClick(novela)}
                 itemType="novela"
@@ -288,7 +319,7 @@ export function Novelas() {
           </div>
           ) : (
             <p className="text-gray-400 text-center mt-8 py-10 text-lg">
-              No hay novelas disponibles en este momento.
+              {searchTerm ? "No se encontraron novelas que coincidan con la búsqueda." : "No hay novelas disponibles en este momento."}
             </p>
           )}
         </div>

@@ -8,6 +8,7 @@ import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import Card from '../components/Card.jsx';
 
 export function MyList() {
   const { user } = useAuth();
@@ -98,6 +99,7 @@ export function MyList() {
       setMyListItems(prevItems => prevItems.filter(item => item._id !== itemId && item.id !== itemId));
       
       console.log('[MyList.jsx] Item removido de Mi Lista');
+      window.dispatchEvent(new CustomEvent('teamg:refresh-counts'));
     } catch (err) {
       console.error('[MyList.jsx] Error al remover item:', err);
       setError('Error al remover de la lista');
@@ -124,8 +126,11 @@ export function MyList() {
         }}
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white">
-            Mi Lista
+          <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white flex items-center gap-2">
+            <span>Mi Lista</span>
+            <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
+              {myListItems.length}
+            </span>
           </h1>
 
           {error && (
@@ -153,67 +158,25 @@ export function MyList() {
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {myListItems.map((item) => (
-                  <div
+                  <Card
                     key={item._id || item.id}
-                    className="group/card relative"
-                  >
-                    <div
-                      className="aspect-[2/3] bg-zinc-800 rounded-lg overflow-hidden transition-transform duration-300 group-hover/card:scale-105 relative shadow-lg"
-                      onClick={() => handleItemClick(item, item.tipo || item.itemType || 'movie')}
-                    >
-                      <img
-                        src={item.thumbnail || '/img/placeholder-thumbnail.png'}
-                        alt={item.name || item.title || 'Póster'}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.src = '/img/placeholder-thumbnail.png';
-                        }}
-                        loading="lazy"
-                      />
-
-                      <div 
-                        className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <h3 className="text-white text-sm font-bold line-clamp-2 mb-2 drop-shadow-lg">
-                          {item.name || item.title}
-                        </h3>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              handleItemClick(item, item.tipo || item.itemType || 'movie');
-                            }}
-                            className="flex-1 bg-[#00e5ff] hover:bg-[#00c4d9] text-black text-xs font-semibold py-1 px-2 rounded-md transition-all duration-200 flex items-center justify-center gap-1 pointer-events-auto hover:scale-110 hover:shadow-[0_0_20px_rgba(0,229,255,0.8)] relative z-50 active:scale-95"
-                          >
-                            Ver
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              handleRemoveFromList(item._id || item.id);
-                            }}
-                            className="w-10 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold py-1 rounded-md transition-all duration-200 flex items-center justify-center pointer-events-auto hover:scale-110 relative z-50"
-                            title="Remover de Mi Lista"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-
-                      <div 
-                        className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent group-hover/card:opacity-0 transition-opacity duration-300"
-                      >
-                        <p className="text-white text-xs font-semibold truncate pointer-events-none">
-                          {item.name || item.title || 'Título no disponible'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                    item={item}
+                    onClick={() => handleItemClick(item, item.tipo || item.itemType || 'movie')}
+                    itemType={(() => {
+                      const t = (item.tipo || item.itemType || '').toLowerCase();
+                      if (t === 'pelicula' || t === 'peliculas' || t === 'movie' || t === 'movies' || t === 'video' || t === 'videos') return 'película';
+                      if (t === 'serie' || t === 'series') return 'serie';
+                      if (t === 'anime' || t === 'animes') return 'anime';
+                      if (t === 'dorama' || t === 'doramas') return 'dorama';
+                      if (t === 'novela' || t === 'novelas') return 'novela';
+                      if (t === 'documental' || t === 'documentales') return 'documental';
+                      return item.seasons || item.episodes ? 'serie' : 'película';
+                    })()}
+                    showItemTypeBadge={true}
+                    showRemoveButton={true}
+                    onRemoveFromCollection={() => handleRemoveFromList(item._id || item.id)}
+                    onPlayTrailer={handlePlayTrailerClick}
+                  />
                 ))}
               </div>
             </>

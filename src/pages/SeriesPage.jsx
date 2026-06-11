@@ -285,6 +285,7 @@ const handleAddToMyList = async (item) => {
       // Mostrar notificación de éxito
       setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
       setToastType('success');
+      window.dispatchEvent(new CustomEvent('teamg:refresh-counts'));
     } catch (error) {
       if (error.response?.status === 409) {
         console.log('[SeriesPage.jsx] Item ya está en Mi Lista');
@@ -376,25 +377,26 @@ const handleAddToMyList = async (item) => {
       `}</style>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row gap-8">
-          <div className="md:w-64 flex-shrink-0">
-            <div className="bg-zinc-800 rounded-lg p-4 sticky top-24">
+          {/* Categorías: Desktop Sidebar (hidden on mobile) */}
+          <div className="hidden md:block md:w-64 flex-shrink-0">
+            <div className="bg-zinc-900/80 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-4 sticky top-24 shadow-xl">
               <h2 className="text-xl font-bold mb-4 text-white">Categorías</h2>
               <div className="space-y-2">
                 {SUBCATEGORIAS.map(subcategoria => (
                   <button
                     key={subcategoria}
                     onClick={() => setSelectedSubcategoria(subcategoria)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-md px-4 py-2 text-left transition-colors ${
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left transition-all duration-200 ${
                       selectedSubcategoria === subcategoria
-                        ? 'bg-red-600 text-white'
-                        : 'text-gray-300 hover:bg-zinc-700'
+                        ? 'bg-[#00e5ff] text-black font-bold shadow-[0_0_15px_rgba(0,229,255,0.35)] scale-[1.02]'
+                        : 'text-gray-300 hover:bg-zinc-800 hover:text-white'
                     } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text font-bold' : ''}`}
                   >
                     <span>{subcategoria}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-colors ${
                       selectedSubcategoria === subcategoria
-                        ? 'bg-white/20 text-white'
-                        : 'bg-white/10 text-slate-300'
+                        ? 'bg-black/15 text-black'
+                        : 'bg-zinc-800 text-slate-400'
                     }`}>
                       {subcategoryCounts[subcategoria] ?? 0}
                     </span>
@@ -404,10 +406,39 @@ const handleAddToMyList = async (item) => {
             </div>
           </div>
 
+          {/* Categorías: Mobile Horizontal Row (visible on mobile, hidden on desktop) */}
+          <div className="block md:hidden -mx-4 px-4 overflow-x-auto whitespace-nowrap mb-6 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="flex gap-2 pb-2">
+              {SUBCATEGORIAS.map(subcategoria => (
+                <button
+                  key={subcategoria}
+                  onClick={() => setSelectedSubcategoria(subcategoria)}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
+                    selectedSubcategoria === subcategoria
+                      ? 'bg-[#00e5ff] text-black shadow-[0_0_10px_rgba(0,229,255,0.3)] scale-[1.02]'
+                      : 'bg-zinc-900/90 border border-zinc-800 text-gray-300 hover:bg-zinc-800'
+                  } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text' : ''}`}
+                >
+                  <span>{subcategoria}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                    selectedSubcategoria === subcategoria
+                      ? 'bg-black/15 text-black'
+                      : 'bg-zinc-800 text-slate-400'
+                  }`}>
+                    {subcategoryCounts[subcategoria] ?? 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex-1">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-              <h1 className={`text-3xl font-bold text-white ${selectedSubcategoria === 'ZONA KIDS' ? 'rainbow-text' : ''}`}>
-                Series: {selectedSubcategoria}
+              <h1 className={`text-3xl font-bold text-white flex items-center gap-2 ${selectedSubcategoria === 'ZONA KIDS' ? 'rainbow-text' : ''}`}>
+                <span>Series: {selectedSubcategoria}</span>
+                <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
+                  {filteredSeries.length}
+                </span>
               </h1>
               <div className="flex items-center gap-4">
                   <button

@@ -270,7 +270,18 @@ function AppTV() {
         
         .tv-main-content {
           min-height: 100vh;
-          padding-top: ${isWatchPage ? '0' : '84px'};
+          padding-left: ${isWatchPage ? '0' : '80px'};
+          padding-top: 0;
+          transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .tv-footer {
+          border-top: 1px solid rgba(34, 211, 238, 0.1);
+          padding: 20px 40px;
+          font-size: 14px;
+          color: #94a3b8;
+          margin-left: ${isWatchPage ? '0' : '80px'};
+          transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .tv-interface {
@@ -301,7 +312,7 @@ function AppTV() {
         )}
 
         {!isWatchPage && (
-          <footer className="border-t border-cyan-500/10 px-10 py-5 text-sm text-slate-400">
+          <footer className="tv-footer">
             <div className="mx-auto flex max-w-[1800px] items-center justify-between">
               <p>TeamG Play TV</p>
               <p>{user?.username ? `Perfil: ${user.username}` : 'Control remoto listo'}</p>

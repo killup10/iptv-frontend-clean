@@ -13,7 +13,7 @@ public class VLCInstance {
             ArrayList<String> options = new ArrayList<>();
             options.add("--no-sub-autodetect-file");
             options.add("--swscale-mode=0");
-            options.add("--network-caching=1500");
+            options.add("--network-caching=1000");
             options.add("--avcodec-threads=0");
             libVLC = new LibVLC(context, options);
         }

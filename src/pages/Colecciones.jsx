@@ -394,7 +394,17 @@ export default function Colecciones() {
                             key={item.id || item._id}
                             item={item}
                             onClick={() => handleContentClick(item)}
-                            itemType={item.tipo === 'serie' ? 'serie' : 'movie'}
+                            itemType={(() => {
+                              const t = (item.tipo || item.itemType || '').toLowerCase();
+                              if (t === 'pelicula' || t === 'peliculas' || t === 'movie' || t === 'movies' || t === 'video' || t === 'videos') return 'película';
+                              if (t === 'serie' || t === 'series') return 'serie';
+                              if (t === 'anime' || t === 'animes') return 'anime';
+                              if (t === 'dorama' || t === 'doramas') return 'dorama';
+                              if (t === 'novela' || t === 'novelas') return 'novela';
+                              if (t === 'documental' || t === 'documentales') return 'documental';
+                              return item.seasons || item.episodes ? 'serie' : 'película';
+                            })()}
+                            showItemTypeBadge={true}
                             onPlayTrailer={handlePlayTrailerClick}
                             onAddToCollectionClick={handleOpenCollectionsModal}
                             onRemoveFromCollection={() => handleRemoveFromCollection(item, collectionName)}

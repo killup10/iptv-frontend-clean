@@ -15,10 +15,28 @@ const isForcedTVMode = () => {
 const detectAndroidTV = () => {
   if (typeof window === 'undefined') return false;
 
-  // Debug: permitir forzar Android TV vía localStorage/URL
-  const forceTV = isForcedTVMode();
+  // 1. Debug / Forzar: Si se forzó el modo TV, es TV.
+  if (isForcedTVMode()) return true;
 
-  // Android TV suele tener estas características
+  // 2. Si el User Agent indica explícitamente que es un dispositivo móvil, NO es una TV.
+  const ua = navigator.userAgent.toLowerCase();
+  const isMobileUA = ua.includes('mobile') || ua.includes('mobi') || ua.includes('phone') || ua.includes('ipod');
+  if (isMobileUA) {
+    return false;
+  }
+
+  // 3. Si estamos en una plataforma nativa de Capacitor y no es la build de TV, entonces es la app móvil.
+  try {
+    if (Capacitor.isNativePlatform && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+      if (window.__TEAMG_TV_BUILD__ !== true) {
+        return false;
+      }
+    }
+  } catch (e) {
+    console.warn('[platformUtils] Error comprobando Capacitor en detectAndroidTV:', e);
+  }
+
+  // 4. Detección heurística para Smart TV reales
   const hasAndroidTV =
     navigator.userAgent.includes('Android') &&
     (navigator.userAgent.includes('AFT') || // Amazon FireStick
@@ -37,7 +55,7 @@ const detectAndroidTV = () => {
   // Si estamos en Android sin touchscreen, asumir que es TV
   const isAndroidNoTouch = navigator.userAgent.includes('Android') && noTouchscreen;
 
-  return forceTV || hasAndroidTV || (isLargeScreen && noTouchscreen) || isAndroidNoTouch;
+  return hasAndroidTV || (isLargeScreen && noTouchscreen) || isAndroidNoTouch;
 };
 
 /**

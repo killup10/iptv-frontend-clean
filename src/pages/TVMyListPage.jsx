@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../utils/axiosInstance.js';
 import TVGrid from '../components/TVGrid.jsx';
 import TVSearch from '../components/TVSearch.jsx';
-import { focusTVContent } from '../utils/tvFocusZone.js';
+import { focusTVContent, focusTVNav } from '../utils/tvFocusZone.js';
 import { getTVItemId, resolveTVItemType } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
 import { MY_LIST_UPDATED_EVENT } from '../utils/myListUtils.js';
@@ -16,6 +16,7 @@ export default function TVMyListPage() {
   const [error, setError] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
+  const emptyButtonRef = useRef(null);
 
   const loadMyList = useCallback(async (showLoader = true) => {
     if (showLoader) {
@@ -84,6 +85,12 @@ export default function TVMyListPage() {
     return () => window.removeEventListener(TV_OPEN_SEARCH_EVENT, handleOpenSearch);
   }, []);
 
+  useEffect(() => {
+    if (!loading && !error && items.length === 0 && emptyButtonRef.current) {
+      emptyButtonRef.current.focus();
+    }
+  }, [loading, error, items.length]);
+
   const subtitle = useMemo(() => {
     if (loading) return 'Cargando Mi Lista...';
     if (error) return error;
@@ -120,11 +127,25 @@ export default function TVMyListPage() {
   if (!loading && !error && items.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050816] px-8 text-center text-white">
-        <div className="max-w-3xl rounded-3xl border border-cyan-500/20 bg-slate-900/70 px-10 py-12 shadow-[0_0_50px_rgba(34,211,238,0.12)]">
+        <div className="flex flex-col items-center max-w-3xl rounded-3xl border border-cyan-500/20 bg-slate-900/70 px-10 py-12 shadow-[0_0_50px_rgba(34,211,238,0.12)]">
           <h1 className="text-4xl font-black">Mi Lista</h1>
-          <p className="mt-5 text-xl text-slate-300">
+          <p className="mt-5 mb-8 text-xl text-slate-300">
             Todavia no tienes elementos guardados.
           </p>
+          <button
+            ref={emptyButtonRef}
+            tabIndex={0}
+            onClick={() => navigate('/')}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusTVNav();
+              }
+            }}
+            className="rounded-full bg-cyan-500 px-8 py-3 text-lg font-bold text-white transition-all hover:scale-105 hover:bg-cyan-400 focus:scale-105 focus:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-500/50"
+          >
+            Volver al Inicio
+          </button>
         </div>
       </div>
     );
@@ -154,6 +175,7 @@ export default function TVMyListPage() {
         initialIndex={selectedIndex}
         onActiveIndexChange={setSelectedIndex}
         onSearch={() => setShowSearch(true)}
+        showItemTypeBadge={true}
       />
     </>
   );

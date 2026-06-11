@@ -3,7 +3,7 @@ import { FilmIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import { LockClosedIcon, PlayIcon as PlaySolidIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '../context/AuthContext.jsx';
 import { rewriteImageUrl } from '../utils/imageUrl.js';
-import { isAndroidTV } from '../utils/platformUtils.js';
+import { isAndroidTV, isAndroidMobile, getUIType } from '../utils/platformUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
 import { getTVItemTrailerUrl } from '../utils/tvContentUtils.js';
 
@@ -27,7 +27,7 @@ function Card({
   isSelected = false,
 }) {
   const { user } = useAuth();
-  const isClassicVariant = variant === 'classic';
+  const isClassicVariant = variant === 'classic' || isAndroidMobile() || getUIType() === 'mobile' || window.innerWidth < 640;
   const autoLockState = showPlanLock
     ? getAccessLockState(item, user?.plan, { fallbackPlans: fallbackRequiredPlans })
     : { locked: false, lockMessage: '' };
@@ -150,7 +150,7 @@ function Card({
     ? 'absolute right-1.5 top-1.5 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-red-500 bg-black/30 text-red-500 backdrop-blur-sm transition-all duration-150 hover:bg-red-500 hover:text-white hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] sm:h-7 sm:w-7'
     : 'absolute right-2 top-2 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-fuchsia-300/35 bg-gradient-to-br from-violet-950/92 via-fuchsia-900/72 to-slate-950/88 text-pink-200 shadow-[0_12px_24px_rgba(88,28,135,0.34)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200/55 hover:text-white hover:shadow-[0_16px_30px_rgba(217,70,239,0.35)] sm:h-8 sm:w-8';
   const posterShellClasses = isClassicVariant
-    ? 'relative aspect-[2/3] overflow-hidden rounded-lg bg-zinc-800 shadow-lg transition-transform duration-300 group-hover/card:scale-105'
+    ? 'relative aspect-[2/3] overflow-hidden rounded-[16px] border border-white/10 bg-zinc-900 shadow-[0_8px_20px_rgba(0,0,0,0.45)] transition-all duration-300 active:scale-95 group-hover/card:scale-[1.03] group-hover/card:border-fuchsia-400/30'
     : 'relative aspect-[2/3] overflow-hidden rounded-[22px] border border-fuchsia-300/12 bg-[#090214] shadow-[0_18px_44px_rgba(46,16,101,0.38)] transition-all duration-300 group-hover/card:scale-[1.025] group-hover/card:border-cyan-300/40 group-hover/card:shadow-[0_0_0_1px_rgba(217,70,239,0.3),0_0_22px_rgba(217,70,239,0.36),0_0_46px_rgba(34,211,238,0.18),0_28px_60px_rgba(15,23,42,0.42)]';
   const selectedCardClasses = isSelected
     ? (isClassicVariant
@@ -167,7 +167,7 @@ function Card({
     ? 'p-3'
     : 'relative overflow-hidden rounded-[24px] border border-fuchsia-300/26 bg-[linear-gradient(135deg,rgba(94,24,129,0.58),rgba(41,10,78,0.84)_38%,rgba(12,18,48,0.92)_100%)] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.18),0_18px_36px_rgba(88,28,135,0.34),0_0_28px_rgba(34,211,238,0.12)] backdrop-blur-xl';
   const baseOverlayClasses = isClassicVariant
-    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
+    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-3 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
     : 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-[#090214]/96 via-[#1a0938]/76 to-transparent p-3 transition-all duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0';
   const basePanelClasses = isClassicVariant
     ? ''
@@ -412,47 +412,77 @@ function Card({
           </div>
         </div>
 
-        <div
-          className={baseOverlayClasses}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleCardClick(e);
-          }}
-        >
-          <div className={basePanelClasses}>
-            {is4K() && (
-              <div className="mb-1 pointer-events-none">
-                <div className="relative inline-block">
-                  <div className="absolute inset-0 rounded-md bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 blur-sm opacity-75"></div>
-                  <div className="relative rounded-md border border-amber-400 bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 px-1.5 py-0.5 text-[9px] font-black text-black shadow-lg">
-                    <span className="drop-shadow-sm">4K ULTRAHD</span>
+        {!isClassicVariant && (
+          <div
+            className={baseOverlayClasses}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCardClick(e);
+            }}
+          >
+            <div className={basePanelClasses}>
+              {is4K() && (
+                <div className="mb-1 pointer-events-none">
+                  <div className="relative inline-block">
+                    <div className="absolute inset-0 rounded-md bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 blur-sm opacity-75"></div>
+                    <div className="relative rounded-md border border-amber-400 bg-gradient-to-r from-amber-500 via-yellow-600 to-amber-700 px-1.5 py-0.5 text-[9px] font-black text-black shadow-lg">
+                      <span className="drop-shadow-sm">4K ULTRAHD</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {is60FPS() && (
-              <div className="mb-1 pointer-events-none">
-                <div className="relative inline-block">
-                  <div className="absolute inset-0 rounded-md bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 blur-sm opacity-75"></div>
-                  <div className="relative rounded-md border border-cyan-400 bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 px-1.5 py-0.5 text-[9px] font-black text-white shadow-lg">
-                    <span className="drop-shadow-sm">60 FPS</span>
+              {is60FPS() && (
+                <div className="mb-1 pointer-events-none">
+                  <div className="relative inline-block">
+                    <div className="absolute inset-0 rounded-md bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 blur-sm opacity-75"></div>
+                    <div className="relative rounded-md border border-cyan-400 bg-gradient-to-r from-blue-500 via-cyan-600 to-blue-700 px-1.5 py-0.5 text-[9px] font-black text-white shadow-lg">
+                      <span className="drop-shadow-sm">60 FPS</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <p className="pointer-events-none truncate text-sm font-semibold text-white">
-              {item.name || item.title || 'Titulo no disponible'}
-            </p>
-            {item.releaseYear && (
-              <p className={`pointer-events-none mt-0.5 text-[11px] ${isClassicVariant ? 'text-gray-300' : 'text-fuchsia-100/72'}`}>
-                {item.releaseYear}
+              <p className="pointer-events-none truncate text-sm font-semibold text-white">
+                {item.name || item.title || 'Titulo no disponible'}
               </p>
+              {item.releaseYear && (
+                <p className="pointer-events-none mt-0.5 text-[11px] text-fuchsia-100/72">
+                  {item.releaseYear}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {isClassicVariant && (
+        <div
+          className="mt-2 px-1 cursor-pointer text-left"
+          onClick={handleCardClick}
+        >
+          <div className="flex flex-wrap items-center gap-1 mb-1">
+            {is4K() && (
+              <span className="inline-block rounded bg-gradient-to-r from-amber-500 to-yellow-600 px-1 py-0.5 text-[8px] font-extrabold text-black uppercase tracking-wider leading-none">
+                4K
+              </span>
+            )}
+            {is60FPS() && (
+              <span className="inline-block rounded bg-gradient-to-r from-blue-500 to-cyan-600 px-1 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider leading-none">
+                60FPS
+              </span>
             )}
           </div>
+          <p className="line-clamp-2 text-[11px] sm:text-xs font-bold text-slate-100 leading-snug tracking-wide group-hover/card:text-[#00e5ff] transition-colors duration-200">
+            {item.name || item.title || 'Título no disponible'}
+          </p>
+          {item.releaseYear && (
+            <p className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-slate-400">
+              {item.releaseYear}
+            </p>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

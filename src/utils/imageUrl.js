@@ -9,15 +9,22 @@ export const rewriteImageUrl = (url) => {
     'https://iptv-backend-w6hf.onrender.com',
   ];
   
+  let rewrittenUrl = url;
+
   const legacyBackendUrl = legacyBackendUrls.find((baseUrl) => url.startsWith(baseUrl));
   if (legacyBackendUrl) {
-    return url.replace(legacyBackendUrl, apiBaseUrl);
+    rewrittenUrl = url.replace(legacyBackendUrl, apiBaseUrl);
   }
   
-  // If it's a local fallback, leave as is
-  if (url.startsWith('/img/') || url.startsWith('http')) {
-    return url;
+  // Force HTTPS to avoid mixed content errors on Android TV/Capacitor
+  if (rewrittenUrl.startsWith('http://')) {
+    rewrittenUrl = rewrittenUrl.replace('http://', 'https://');
+  }
+
+  // Ensure absolute URLs for images that don't start with /img/ or protocol
+  if (!rewrittenUrl.startsWith('http') && !rewrittenUrl.startsWith('/') && !rewrittenUrl.startsWith('data:')) {
+    rewrittenUrl = `${apiBaseUrl}/${rewrittenUrl}`;
   }
   
-  return url;
+  return rewrittenUrl;
 };

@@ -207,6 +207,19 @@ export async function fetchVideosByType(tipo, page = 1, limit = 100) {
   }
 }
 
+export async function fetchVideoCounts() {
+  const relativePath = "/api/videos/counts";
+  console.log(`API (fetchVideoCounts - axios): GET ${relativePath}`);
+  try {
+    const response = await axiosInstance.get(relativePath);
+    return response.data || {};
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener conteos de videos.";
+    console.error(`API Error (fetchVideoCounts - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 export async function fetchVideoById(id) {
   if (!id) {
     console.error('fetchVideoById: ID no proporcionado');

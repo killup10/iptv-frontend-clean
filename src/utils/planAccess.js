@@ -83,6 +83,11 @@ export function getItemRequiredPlans(item, fallbackPlans = []) {
     return explicitPlans;
   }
 
+  const name = String(item?.name || item?.title || item?.titulo || '').toLowerCase();
+  if (name.includes('l1 max') || name.includes('l1max') || name.includes('liga 1 max')) {
+    return ['sports', 'premium'];
+  }
+
   const contextualPlans = getSectionRequiredPlans(
     item?.mainSection || item?.section || item?.categoryKey,
   );

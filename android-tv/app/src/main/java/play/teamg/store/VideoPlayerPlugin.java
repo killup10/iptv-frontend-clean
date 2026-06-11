@@ -46,6 +46,9 @@ public class VideoPlayerPlugin extends Plugin {
         JSArray channelsArray = call.getArray("channels");
         Boolean isLiveTV = call.getBoolean("isLiveTV", false);
         String contentType = call.getString("contentType", "series");
+        String sessionToken = call.getString("sessionToken", "");
+        String deviceId = call.getString("deviceId", "");
+        String apiBaseUrl = call.getString("apiBaseUrl", "");
 
         if (url == null) {
             call.reject("URL is required");
@@ -79,6 +82,9 @@ public class VideoPlayerPlugin extends Plugin {
             intent.putExtra("chapter_index", chapterIndex);
             intent.putExtra("is_live_tv", isLiveTV);
             intent.putExtra("content_type", contentType);
+            intent.putExtra("session_token", sessionToken);
+            intent.putExtra("device_id", deviceId);
+            intent.putExtra("api_base_url", apiBaseUrl);
 
             if (chaptersArray != null) {
                 ArrayList<String> chapterTitles = new ArrayList<>();
@@ -127,6 +133,8 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<String> channelNames = new ArrayList<>();
                 ArrayList<String> channelLogos = new ArrayList<>();
                 ArrayList<String> channelUrls = new ArrayList<>();
+                ArrayList<String> channelIds = new ArrayList<>();
+                ArrayList<String> channelSections = new ArrayList<>();
 
                 try {
                     for (int i = 0; i < channelsArray.length(); i++) {
@@ -136,19 +144,28 @@ public class VideoPlayerPlugin extends Plugin {
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("stream_url", "");
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("playbackUrl", "");
                         if (channelUrl.isEmpty()) channelUrl = channel.optString("videoUrl", "");
-                        if (channelUrl.isEmpty()) {
-                            Log.w(TAG, "Skipping live channel without URL at index " + i);
-                            continue;
-                        }
 
                         String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                        String channelId = channel.optString("id", channel.optString("_id", ""));
+                        String channelSection = channel.optString("section", channel.optString("category", "General"));
+
                         channelNames.add(channelName);
                         channelLogos.add(channel.optString("logo", ""));
                         channelUrls.add(channelUrl);
+                        channelIds.add(channelId);
+                        channelSections.add(channelSection);
                     }
                     intent.putStringArrayListExtra("channel_names", channelNames);
                     intent.putStringArrayListExtra("channel_logos", channelLogos);
                     intent.putStringArrayListExtra("channel_urls", channelUrls);
+                    intent.putStringArrayListExtra("channel_ids", channelIds);
+                    intent.putStringArrayListExtra("channel_sections", channelSections);
+
+                    VLCPlayerActivity.sChannelNames = channelNames;
+                    VLCPlayerActivity.sChannelLogos = channelLogos;
+                    VLCPlayerActivity.sChannelUrls = channelUrls;
+                    VLCPlayerActivity.sChannelIds = channelIds;
+                    VLCPlayerActivity.sChannelSections = channelSections;
 
                     Log.d(TAG, "Canales procesados - Total: " + channelNames.size() + " canales");
                 } catch (JSONException e) {
@@ -216,6 +233,8 @@ public class VideoPlayerPlugin extends Plugin {
         ArrayList<String> channelNames = new ArrayList<>();
         ArrayList<String> channelLogos = new ArrayList<>();
         ArrayList<String> channelUrls = new ArrayList<>();
+        ArrayList<String> channelIds = new ArrayList<>();
+        ArrayList<String> channelSections = new ArrayList<>();
 
         try {
             if (channelsArray != null) {
@@ -226,15 +245,28 @@ public class VideoPlayerPlugin extends Plugin {
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("stream_url", "");
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("playbackUrl", "");
                     if (channelUrl.isEmpty()) channelUrl = channel.optString("videoUrl", "");
-                    if (channelUrl.isEmpty()) {
-                        continue;
-                    }
 
                     String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                    String channelId = channel.optString("id", channel.optString("_id", ""));
+                    String channelSection = channel.optString("section", channel.optString("category", "General"));
+
                     channelNames.add(channelName);
                     channelLogos.add(channel.optString("logo", ""));
                     channelUrls.add(channelUrl);
+                    channelIds.add(channelId);
+                    channelSections.add(channelSection);
                 }
+            }
+
+            VLCPlayerActivity.sChannelNames = channelNames;
+            VLCPlayerActivity.sChannelLogos = channelLogos;
+            VLCPlayerActivity.sChannelUrls = channelUrls;
+            VLCPlayerActivity.sChannelIds = channelIds;
+            VLCPlayerActivity.sChannelSections = channelSections;
+
+            VLCPlayerActivity activeActivity = VLCPlayerActivity.getActiveActivity();
+            if (activeActivity != null) {
+                activeActivity.updateLiveChannelsStatic(channelNames, channelLogos, channelUrls, channelIds, channelSections);
             }
 
             Intent intent = new Intent("UPDATE_LIVE_CHANNELS");
@@ -242,6 +274,8 @@ public class VideoPlayerPlugin extends Plugin {
             intent.putStringArrayListExtra("channel_names", channelNames);
             intent.putStringArrayListExtra("channel_logos", channelLogos);
             intent.putStringArrayListExtra("channel_urls", channelUrls);
+            intent.putStringArrayListExtra("channel_ids", channelIds);
+            intent.putStringArrayListExtra("channel_sections", channelSections);
             getContext().sendBroadcast(intent);
 
             JSObject result = new JSObject();
@@ -349,22 +383,17 @@ public class VideoPlayerPlugin extends Plugin {
     }
 
     @Override
-    protected void handleOnStart() {
-        super.handleOnStart();
+    public void load() {
+        super.load();
         registerProgressReceiver();
         registerPlayerClosedReceiver();
     }
 
     @Override
-    protected void handleOnStop() {
-        super.handleOnStop();
-        unregisterProgressReceiver();
-        unregisterPlayerClosedReceiver();
-    }
-
-    @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
+        unregisterProgressReceiver();
+        unregisterPlayerClosedReceiver();
         Log.d(TAG, "Plugin being destroyed - stopping VLC");
         sendPlayerControl("stop", 0);
 
@@ -412,10 +441,11 @@ public class VideoPlayerPlugin extends Plugin {
             };
 
             IntentFilter filter = new IntentFilter("VIDEO_PROGRESS_UPDATE");
+            Context appContext = getContext().getApplicationContext();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getContext().registerReceiver(progressReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                appContext.registerReceiver(progressReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
-                getContext().registerReceiver(progressReceiver, filter);
+                appContext.registerReceiver(progressReceiver, filter);
             }
             Log.d(TAG, "Progress receiver registered");
         }
@@ -424,7 +454,7 @@ public class VideoPlayerPlugin extends Plugin {
     private void unregisterProgressReceiver() {
         if (progressReceiver != null) {
             try {
-                getContext().unregisterReceiver(progressReceiver);
+                getContext().getApplicationContext().unregisterReceiver(progressReceiver);
                 progressReceiver = null;
                 Log.d(TAG, "Progress receiver unregistered");
             } catch (Exception e) {
@@ -451,10 +481,11 @@ public class VideoPlayerPlugin extends Plugin {
             };
 
             IntentFilter filter = new IntentFilter("VIDEO_PLAYER_CLOSED");
+            Context appContext = getContext().getApplicationContext();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getContext().registerReceiver(playerClosedReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                appContext.registerReceiver(playerClosedReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
-                getContext().registerReceiver(playerClosedReceiver, filter);
+                appContext.registerReceiver(playerClosedReceiver, filter);
             }
             Log.d(TAG, "Player closed receiver registered");
         }
@@ -463,7 +494,7 @@ public class VideoPlayerPlugin extends Plugin {
     private void unregisterPlayerClosedReceiver() {
         if (playerClosedReceiver != null) {
             try {
-                getContext().unregisterReceiver(playerClosedReceiver);
+                getContext().getApplicationContext().unregisterReceiver(playerClosedReceiver);
                 playerClosedReceiver = null;
                 Log.d(TAG, "Player closed receiver unregistered");
             } catch (Exception e) {

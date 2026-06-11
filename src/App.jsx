@@ -4,6 +4,8 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from "./context/AuthContext.jsx";
 import SearchBar from "./components/SearchBar.jsx";
 import { getUserSubscriptionSummary } from "./utils/userSubscription.js";
+import axiosInstance from "./utils/axiosInstance.js";
+import { fetchVideoCounts } from "./utils/api.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -53,6 +55,63 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
   const [allSearchItems, setAllSearchItems] = useState([]);
+  const [counts, setCounts] = useState({
+    animes: 0,
+    doramas: 0,
+    novelas: 0,
+    documentales: 0,
+    series: 0,
+    peliculas: 0,
+    kids: 0,
+    channels: 0,
+    myList: 0
+  });
+
+  const loadCounts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await fetchVideoCounts();
+      
+      // Fetch myList items count
+      let myListCount = 0;
+      try {
+        const myListResponse = await axiosInstance.get('/api/users/my-list');
+        myListCount = myListResponse.data?.items?.length || myListResponse.data?.myList?.length || 0;
+      } catch (err) {
+        console.warn('Error fetching my-list count:', err);
+      }
+
+      setCounts({
+        animes: data.animes || 0,
+        doramas: data.doramas || 0,
+        novelas: data.novelas || 0,
+        documentales: data.documentales || 0,
+        series: data.series || 0,
+        peliculas: data.peliculas || 0,
+        kids: data.kids || 0,
+        channels: data.channels || 0,
+        myList: myListCount
+      });
+    } catch (err) {
+      console.error('Error fetching video counts:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadCounts();
+    }
+  }, [location.pathname, user, loadCounts]);
+
+  useEffect(() => {
+    const handleRefreshCounts = () => {
+      loadCounts();
+    };
+    window.addEventListener('teamg:refresh-counts', handleRefreshCounts);
+    return () => {
+      window.removeEventListener('teamg:refresh-counts', handleRefreshCounts);
+    };
+  }, [loadCounts]);
   const userSubscription = useMemo(
     () => getUserSubscriptionSummary(user),
     [user?.expiresAt, user?.plan, user?.role],
@@ -268,8 +327,12 @@ function App() {
                 
                 {/* Navegación Desktop */}
                 <nav className="hidden md:flex ml-10 space-x-4 items-center">
-                  <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>TV en Vivo</Link>
-                  <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Películas</Link>
+                  <Link to="/live-tv" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>
+                    TV en Vivo
+                  </Link>
+                  <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>
+                    Películas
+                  </Link>
                   <Link to="/mundial-2026" className="relative text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1 font-bold text-lime-400 mr-2" onClick={closeAllMenus}>
                     🏆 Mundial 2026
                     <span className="absolute -top-0.5 right-0 flex h-2 w-2">
@@ -302,23 +365,35 @@ function App() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                       </svg>
                     </button>
-
+ 
                     {desktopContenidoOpen && (
                       <div className="absolute left-0 mt-2 w-48 rounded-md bg-gray-900 py-1 shadow-lg ring-1 ring-white/10 z-[95]">
-                        <Link to="/series" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Series</Link>
-                        <Link to="/animes" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Animes</Link>
-                        <Link to="/doramas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Doramas</Link>
-                        <Link to="/novelas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Novelas</Link>
-                        <Link to="/documentales" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>Documentales</Link>
+                        <Link to="/series" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          Series
+                        </Link>
+                        <Link to="/animes" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          Animes
+                        </Link>
+                        <Link to="/doramas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          Doramas
+                        </Link>
+                        <Link to="/novelas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          Novelas
+                        </Link>
+                        <Link to="/documentales" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          Documentales
+                        </Link>
                       </div>
                     )}
                   </div>
                   
-                  <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2" onClick={closeAllMenus}>Zona Kids</Link>
+                  <Link to="/kids" className="rainbow-text hover:text-white px-3 py-2" onClick={closeAllMenus}>
+                    Zona Kids
+                  </Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
-                  <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1" onClick={closeAllMenus}>
+                  <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
                     <span>❤️</span>
-                    Mi Lista
+                    <span>Mi Lista</span>
                   </Link>
                 </nav>
               </div>
@@ -458,7 +533,7 @@ function App() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
                     </span>
                   </Link>
-
+ 
                   {/* Submenu for Content */}
                   <div className="space-y-1">
                     <button
@@ -476,15 +551,25 @@ function App() {
                     
                     {mobileContenidoOpen && (
                       <div className="pl-8 space-y-1 border-l border-white/5 ml-5 mt-1">
-                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Series</Link>
-                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Animes</Link>
-                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Doramas</Link>
-                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Novelas</Link>
-                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>Documentales</Link>
+                        <Link to="/series" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
+                          Series
+                        </Link>
+                        <Link to="/animes" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
+                          Animes
+                        </Link>
+                        <Link to="/doramas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
+                          Doramas
+                        </Link>
+                        <Link to="/novelas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
+                          Novelas
+                        </Link>
+                        <Link to="/documentales" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
+                          Documentales
+                        </Link>
                       </div>
                     )}
                   </div>
-
+ 
                   <Link to="/kids" className="flex items-center gap-3 rainbow-text hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">🧸</span> Zona Kids
                   </Link>

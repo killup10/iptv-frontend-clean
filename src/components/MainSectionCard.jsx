@@ -1,9 +1,10 @@
 // src/components/MainSectionCard.jsx
 import React, { useState, useEffect } from 'react';
 import { LockClosedIcon, CheckBadgeIcon } from '@heroicons/react/24/solid'; // CheckBadgeIcon es una sugerencia
+import { rewriteImageUrl } from '../utils/imageUrl.js';
 
 const MainSectionCard = ({ section, onClick, userPlan, moviesInSection = [] }) => {
-  const [currentThumbnail, setCurrentThumbnail] = useState(section.thumbnailSample || '/img/placeholder-thumbnail.png');
+  const [currentThumbnail, setCurrentThumbnail] = useState(rewriteImageUrl(section.thumbnailSample) || '/img/placeholder-thumbnail.png');
   
   useEffect(() => {
     let intervalId;
@@ -11,9 +12,9 @@ const MainSectionCard = ({ section, onClick, userPlan, moviesInSection = [] }) =
       // Inicializar con la primera película que tenga thumbnail
       const initialMovieWithThumb = moviesInSection.find(m => m.customThumbnail || m.thumbnail || m.logo);
       if (initialMovieWithThumb) {
-        setCurrentThumbnail(initialMovieWithThumb.customThumbnail || initialMovieWithThumb.thumbnail || initialMovieWithThumb.logo);
+        setCurrentThumbnail(rewriteImageUrl(initialMovieWithThumb.customThumbnail || initialMovieWithThumb.thumbnail || initialMovieWithThumb.logo));
       } else if (section.thumbnailSample) {
-        setCurrentThumbnail(section.thumbnailSample);
+        setCurrentThumbnail(rewriteImageUrl(section.thumbnailSample));
       }
 
       if (moviesInSection.length > 1) { // Solo rotar si hay más de una película con thumbnail
@@ -21,15 +22,15 @@ const MainSectionCard = ({ section, onClick, userPlan, moviesInSection = [] }) =
           const moviesWithThumbnails = moviesInSection.filter(m => m.customThumbnail || m.thumbnail || m.logo);
           if (moviesWithThumbnails.length > 0) {
             const randomIndex = Math.floor(Math.random() * moviesWithThumbnails.length);
-            const newMovieThumbnail = moviesWithThumbnails[randomIndex]?.customThumbnail || moviesWithThumbnails[randomIndex]?.thumbnail || moviesWithThumbnails[randomIndex]?.logo;
-            if (newMovieThumbnail) {
-              setCurrentThumbnail(newMovieThumbnail);
+            const rawThumbnail = moviesWithThumbnails[randomIndex]?.customThumbnail || moviesWithThumbnails[randomIndex]?.thumbnail || moviesWithThumbnails[randomIndex]?.logo;
+            if (rawThumbnail) {
+              setCurrentThumbnail(rewriteImageUrl(rawThumbnail));
             }
           }
         }, 4000); // Cambia cada 4 segundos
       }
     } else if (section.thumbnailSample) {
-        setCurrentThumbnail(section.thumbnailSample);
+        setCurrentThumbnail(rewriteImageUrl(section.thumbnailSample));
     } else {
         setCurrentThumbnail('/img/placeholder-thumbnail.png');
     }

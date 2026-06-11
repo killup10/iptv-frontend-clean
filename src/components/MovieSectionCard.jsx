@@ -3,6 +3,7 @@ import Slider from 'react-slick';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
 import { CheckBadgeIcon, LockClosedIcon } from '@heroicons/react/24/solid';
+import { rewriteImageUrl } from '../utils/imageUrl.js';
 
 const MovieSectionCard = ({
   section,
@@ -55,7 +56,7 @@ const MovieSectionCard = ({
           {moviesWithThumbnails.map((movie) => (
             <div key={movie.id || movie._id} className="relative aspect-[2/3] h-full w-full">
               <img
-                src={movie.customThumbnail || movie.thumbnail || movie.logo}
+                src={rewriteImageUrl(movie.customThumbnail || movie.thumbnail || movie.logo)}
                 alt={`Poster de ${movie.title || movie.name}`}
                 className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] ${isLocked ? 'brightness-[0.66] saturate-[0.72]' : ''}`}
                 onError={(e) => {
@@ -68,7 +69,7 @@ const MovieSectionCard = ({
         </Slider>
       ) : (
         <img
-          src={section.thumbnailSample || '/img/placeholder-thumbnail.png'}
+          src={rewriteImageUrl(section.thumbnailSample) || '/img/placeholder-thumbnail.png'}
           alt={`Contenido de ${section.displayName}`}
           className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] ${isLocked ? 'brightness-[0.66] saturate-[0.72]' : ''}`}
           onError={(e) => {

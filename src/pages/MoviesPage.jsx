@@ -331,6 +331,7 @@ export default function MoviesPage() {
           // Mostrar notificación de éxito
           setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
           setToastType('success');
+          window.dispatchEvent(new CustomEvent('teamg:refresh-counts'));
         } catch (error) {
           if (error.response?.status === 409) {
             console.log('[MoviesPage.jsx] Item ya está en Mi Lista');
@@ -430,8 +431,11 @@ export default function MoviesPage() {
                     >
                         <ChevronLeftIcon className="w-6 h-6 sm:w-7 sm:h-7" />
                     </button>
-                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight">
-                        {currentMainSection?.displayName || "Películas"}
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight flex items-center gap-2">
+                        <span>{currentMainSection?.displayName || "Películas"}</span>
+                        <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
+                            {movies.length}
+                        </span>
                     </h1>
                 </div>
                 <div className="flex items-center gap-4">

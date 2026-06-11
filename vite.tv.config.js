@@ -123,19 +123,5 @@ export default defineConfig({
   // Worker configuration (disable for TV compatibility)
   worker: {
     format: 'es'
-  },
-  
-  // Experimental features
-  experimental: {
-    renderBuiltUrl(filename, { hostType }) {
-      // Ensure proper URL handling for TV platforms
-      if (hostType === 'js') {
-        return { js: `./assets/js/${filename}` }
-      } else if (hostType === 'css') {
-        return { css: `./assets/css/${filename}` }
-      } else {
-        return { relative: true }
-      }
-    }
   }
 })

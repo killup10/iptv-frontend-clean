@@ -119,16 +119,7 @@ export function Home() {
   const isAndroidMobileUI = isAndroidMobile();
   const [loading, setLoading] = useState(() => !initialCachedHomeData);
 
-  // State for login form
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [tvLoginFocusIndex, setTVLoginFocusIndex] = useState(0);
-  const tvLoginRefs = useRef([]);
-  const usernameInputRef = useRef(null);
-  const passwordInputRef = useRef(null);
+
 
   // State for content
   const [featuredChannels, setFeaturedChannels] = useState(() => initialCachedHomeData?.featuredChannels || []);
@@ -251,24 +242,7 @@ export function Home() {
     );
   };
 
-  const performLogin = async () => {
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      await login({ username, password });
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
-    } catch (err) {
-      setLoginError(err.message || 'Error al iniciar sesión');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await performLogin();
-  };
 
   useEffect(() => {
     if (!setAllSearchItems || !initialCachedHomeData?.allSearchItems?.length) {
@@ -320,94 +294,7 @@ export function Home() {
     mobileVodDetail?.itemType,
   ]);
 
-  useEffect(() => {
-    if (!isTVMode || loading || user?.token) {
-      return undefined;
-    }
 
-    window.requestAnimationFrame(() => {
-      focusElementWithoutScroll(tvLoginRefs.current[tvLoginFocusIndex]);
-    });
-
-    const handleTVLoginKeyDown = (event) => {
-      if (event.altKey || event.ctrlKey || event.metaKey) {
-        return;
-      }
-
-      const action = resolveTVLoginAction(event);
-      if (!action) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (action === 'ArrowUp') {
-        setTVLoginFocusIndex((current) => Math.max(0, current - 1));
-        return;
-      }
-
-      if (action === 'ArrowDown') {
-        setTVLoginFocusIndex((current) => Math.min(TV_LOGIN_FOCUSABLE_COUNT - 1, current + 1));
-        return;
-      }
-
-      if (action === 'ArrowLeft') {
-        if (tvLoginFocusIndex === 5) {
-          setTVLoginFocusIndex(4);
-          return;
-        }
-
-        if (tvLoginFocusIndex === 1 && showPassword && !isLoggingIn) {
-          setShowPassword(false);
-        }
-        return;
-      }
-
-      if (action === 'ArrowRight') {
-        if (tvLoginFocusIndex === 4) {
-          setTVLoginFocusIndex(5);
-          return;
-        }
-
-        if (tvLoginFocusIndex === 1 && !showPassword && !isLoggingIn) {
-          setShowPassword(true);
-        }
-        return;
-      }
-
-      if (action !== 'Enter' || isLoggingIn) {
-        return;
-      }
-
-      if (tvLoginFocusIndex === 0) {
-        activateTextInput(usernameInputRef.current);
-        return;
-      }
-
-      if (tvLoginFocusIndex === 1) {
-        activateTextInput(passwordInputRef.current);
-        return;
-      }
-
-      tvLoginRefs.current[tvLoginFocusIndex]?.click?.();
-    };
-
-    window.addEventListener('keydown', handleTVLoginKeyDown, true);
-    return () => window.removeEventListener('keydown', handleTVLoginKeyDown, true);
-  }, [isLoggingIn, isTVMode, loading, showPassword, tvLoginFocusIndex, user?.token]);
-
-  const setTVLoginRef = (index, node) => {
-    tvLoginRefs.current[index] = node;
-  };
-
-  const getTVLoginFocusClasses = (index, baseClasses = '') => {
-    if (!isTVMode || tvLoginFocusIndex !== index) {
-      return baseClasses;
-    }
-
-    return `${baseClasses} ring-2 ring-cyan-400 ring-offset-2 ring-offset-transparent`;
-  };
 
   const isLoadingRef = useRef(false);
   const searchDataLoadedRef = useRef(false); // Evita recargar datos de búsqueda en cada render
@@ -789,6 +676,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
       // Mostrar notificación de éxito
       setToastMessage(`✨ "${item.name || item.title}" agregado a Mi Lista`);
       setToastType('success');
+      window.dispatchEvent(new CustomEvent('teamg:refresh-counts'));
     } catch (error) {
       if (error.response?.status === 409) {
         console.log('[Home.jsx] Item ya está en Mi Lista');
@@ -865,263 +753,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
       return <div className="text-center text-red-400 p-10 pt-24">Error loading content: {contentError}</div>;
   }
 
-  if (!user?.token && !loading) {
-    return (
-      <>
-        <style>{`
-          :root {
-            --background: 254 50% 5%;
-            --foreground: 210 40% 98%;
-            --primary: 190 100% 50%;
-            --primary-foreground: 254 50% 5%;
-            --secondary: 315 100% 60%;
-            --secondary-foreground: 210 40% 98%;
-            --muted-foreground: 190 30% 80%;
-            --card-background: 254 50% 8%;
-            --input-background: 254 50% 12%;
-            --input-border: 315 100% 25%;
-            --footer-text: 210 40% 70%;
-          }
 
-          body {
-            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-          }
-
-          .text-glow-primary {
-            text-shadow: 0 0 5px hsl(var(--primary) / 0.8), 0 0 10px hsl(var(--primary) / 0.6);
-          }
-          .text-glow-secondary {
-            text-shadow: 0 0 5px hsl(var(--secondary) / 0.8), 0 0 10px hsl(var(--secondary) / 0.6);
-          }
-          .shadow-glow-primary {
-            box-shadow: 0 0 25px hsl(var(--primary) / 0.8);
-          }
-          .drop-shadow-glow-logo {
-            filter: drop-shadow(0 0 25px hsl(var(--secondary) / 0.6)) drop-shadow(0 0 15px hsl(var(--primary) / 0.5));
-          }
-          .text-glow-brand {
-            text-shadow: 0 0 12px rgba(236, 72, 153, 0.38), 0 0 20px rgba(34, 211, 238, 0.24);
-          }
-        `}</style>
-        <div
-          className="relative overflow-hidden"
-          style={{
-            backgroundImage: `url(./fondo.png)`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed',
-            backgroundColor: '#020617'
-          }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(217,70,239,0.18),transparent_26%),radial-gradient(circle_at_76%_16%,rgba(34,211,238,0.14),transparent_24%),radial-gradient(circle_at_50%_0%,rgba(250,204,21,0.11),transparent_18%)]" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#12021d]/38 via-[#090214]/60 to-[#070112]/84" />
-          <main className="relative z-10 flex min-h-screen flex-grow flex-col items-center justify-center p-4 md:flex-row">
-            {/* Sección de bienvenida - visible en desktop, compacta en móvil */}
-            <div className="mb-8 flex flex-col items-center justify-center text-center md:hidden">
-              <h1 className="mb-4 text-3xl font-black tracking-tight text-primary text-glow-brand sm:text-4xl">
-                Bienvenido a
-              </h1>
-              <img
-                src="./logo-teamg.png"
-                alt="Logo de TeamG Play"
-                style={{
-                  width: 'min(280px, 50vw)',
-                  height: 'auto',
-                  objectFit: 'contain'
-                }}
-                className="drop-shadow-glow-logo mb-4"
-              />
-            </div>
-
-            <div className="hidden flex-1 flex-col items-center justify-center p-8 text-center md:flex lg:p-16">
-                <h1 className="mb-4 text-5xl font-black tracking-tight text-primary text-glow-brand">
-                    Bienvenido a
-                </h1>
-                <img
-                  src="./logo-teamg.png"
-                  alt="Logo de TeamG Play"
-                  style={{
-                    width: 'min(400px, 70vw)',
-                    height: 'auto',
-                    objectFit: 'contain'
-                  }}
-                  className="drop-shadow-glow-logo"
-                />
-                <p className="mt-5 max-w-md text-lg leading-8 text-slate-200/82 lg:text-xl">
-                  Inicia sesión para descubrir un mundo de entretenimiento.
-                </p>
-            </div>
-
-            <div className="flex-1 w-full max-w-md p-4">
-              <div
-                className="relative w-full overflow-hidden rounded-[28px] border border-fuchsia-300/16 p-6 shadow-[0_0_0_1px_rgba(217,70,239,0.14),0_28px_70px_rgba(46,16,101,0.36)] backdrop-blur-xl sm:p-8"
-                style={{
-                  backgroundColor: 'rgba(17, 5, 31, 0.72)',
-                  boxShadow: '0 32px 80px rgba(46, 16, 101, 0.34)'
-                }}
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_36%),radial-gradient(circle_at_18%_0%,rgba(217,70,239,0.18),transparent_26%),radial-gradient(circle_at_84%_12%,rgba(250,204,21,0.12),transparent_20%),linear-gradient(180deg,rgba(35,8,67,0.2),rgba(15,23,42,0.04))]" />
-                <div className="relative">
-                <h2 className="mb-2 text-center text-2xl font-black tracking-tight text-primary text-glow-brand sm:text-3xl">
-                    Iniciar Sesión
-                </h2>
-                <p className="mb-6 text-center text-sm text-slate-300/75 sm:mb-8">
-                  Accede a tu cuenta para continuar viendo tu contenido.
-                </p>
-                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                  <div
-                    ref={(node) => setTVLoginRef(0, node)}
-                    className={getTVLoginFocusClasses(0, isTVMode ? 'rounded-xl transition-shadow duration-200' : '')}
-                    onFocus={() => isTVMode && setTVLoginFocusIndex(0)}
-                    tabIndex={isTVMode ? (tvLoginFocusIndex === 0 ? 0 : -1) : undefined}
-                  >
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">Usuario</label>
-                    <input
-                      ref={usernameInputRef}
-                      type="text"
-                      placeholder="Tu nombre de usuario"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      onFocus={() => isTVMode && setTVLoginFocusIndex(0)}
-                      className="w-full rounded-xl px-4 py-3 text-base text-foreground transition-all duration-200 placeholder:text-slate-400/70 focus:outline-none focus:ring-2 sm:py-3"
-                      style={{
-                        backgroundColor: 'hsl(var(--input-background) / 0.88)',
-                        border: '1px solid hsl(var(--input-border) / 0.8)',
-                        '--tw-ring-color': 'hsl(var(--primary))'
-                      }}
-                      disabled={isLoggingIn}
-                      autoComplete="username"
-                    />
-                  </div>
-                  <div
-                    ref={(node) => setTVLoginRef(1, node)}
-                    className={getTVLoginFocusClasses(1, isTVMode ? 'rounded-xl transition-shadow duration-200' : '')}
-                    onFocus={() => isTVMode && setTVLoginFocusIndex(1)}
-                    tabIndex={isTVMode ? (tvLoginFocusIndex === 1 ? 0 : -1) : undefined}
-                  >
-                    <label className="block text-sm font-medium text-muted-foreground mb-2">Contraseña</label>
-                    <div className="relative">
-                      <input
-                        ref={passwordInputRef}
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Tu contraseña"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onFocus={() => isTVMode && setTVLoginFocusIndex(1)}
-                        className="w-full rounded-xl px-4 py-3 pr-12 text-base text-foreground transition-all duration-200 placeholder:text-slate-400/70 focus:outline-none focus:ring-2 sm:py-3"
-                        style={{
-                          backgroundColor: 'hsl(var(--input-background) / 0.88)',
-                          border: '1px solid hsl(var(--input-border) / 0.8)',
-                          '--tw-ring-color': 'hsl(var(--primary))'
-                        }}
-                        disabled={isLoggingIn}
-                        autoComplete="current-password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-primary"
-                        disabled={isLoggingIn}
-                        tabIndex="-1"
-                      >
-                        {showPassword ? (
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-14-14zM10 5a3 3 0 00-2.88 4.049l4.929 4.929A3 3 0 1010 5zm7.757 4.171A5.002 5.002 0 0017 10a7 7 0 10-9.757 6.171M10 7a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <Link
-                      to="/forgot-password"
-                      className="mt-2 inline-block text-xs text-secondary transition-colors hover:text-pink-200 hover:underline"
-                      tabIndex={isTVMode ? -1 : undefined}
-                    >
-                      ¿Olvidaste tu contraseña?
-                    </Link>
-                  </div>
-
-                  {loginError && <p className="text-center text-sm text-rose-400">{loginError}</p>}
-
-                  <button
-                    ref={(node) => setTVLoginRef(2, node)}
-                    type="submit"
-                    disabled={isLoggingIn}
-                    onFocus={() => isTVMode && setTVLoginFocusIndex(2)}
-                    tabIndex={isTVMode ? (tvLoginFocusIndex === 2 ? 0 : -1) : undefined}
-                    className={`${getTVLoginFocusClasses(2, '')} flex w-full items-center justify-center rounded-xl border border-amber-200/35 py-3 text-base font-black transition-all duration-300 touch-manipulation sm:py-3 sm:text-lg ${
-                      isLoggingIn
-                        ? 'bg-gray-500 cursor-not-allowed animate-pulse'
-                        : 'hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(250,204,21,0.28)] active:translate-y-0'
-                    }`}
-                    style={{
-                      background: isLoggingIn ? 'hsl(var(--muted-foreground))' : 'linear-gradient(90deg, rgba(250,204,21,0.95), rgba(251,191,36,0.98), rgba(249,115,22,0.94))',
-                      color: 'hsl(var(--primary-foreground))'
-                    }}
-                  >
-                    {isLoggingIn ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mr-3"></div>
-                        Procesando...
-                      </>
-                    ) : (
-                      'Entrar'
-                    )}
-                  </button>
-                </form>
-
-                <p className="mt-4 text-center text-sm text-muted-foreground sm:mt-6">
-                  ¿No tienes cuenta?{' '}
-                  <Link
-                    ref={(node) => setTVLoginRef(3, node)}
-                    to="/register"
-                    className={getTVLoginFocusClasses(3, 'rounded-md font-medium text-secondary touch-manipulation transition-colors duration-200 hover:text-pink-200 hover:underline')}
-                    onFocus={() => isTVMode && setTVLoginFocusIndex(3)}
-                    tabIndex={isTVMode ? (tvLoginFocusIndex === 3 ? 0 : -1) : undefined}
-                  >
-                    Regístrate aquí
-                  </Link>
-                </p>
-
-                <div className="mt-6 border-t border-white/10 pt-6">
-                  <h3 className="mb-3 text-center text-lg font-bold text-primary">Descargar la aplicación</h3>
-                  <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                    <a
-                      ref={(node) => setTVLoginRef(4, node)}
-                      href="https://teamg.store/teamgplay-desktop.exe"
-                      download="teamgplay-desktop.exe"
-                      className={getTVLoginFocusClasses(4, 'group flex items-center justify-center gap-2 rounded-xl border border-fuchsia-300/22 bg-[linear-gradient(135deg,rgba(58,16,95,0.74),rgba(25,8,50,0.72)_58%,rgba(7,10,25,0.8))] px-4 py-2.5 text-secondary-foreground shadow-[0_12px_24px_rgba(88,28,135,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-200/35 hover:shadow-[0_16px_30px_rgba(250,204,21,0.14)]')}
-                      onFocus={() => isTVMode && setTVLoginFocusIndex(4)}
-                      tabIndex={isTVMode ? (tvLoginFocusIndex === 4 ? 0 : -1) : undefined}
-                    >
-                      <Laptop className="h-5 w-5 text-secondary" />
-                      <span className="font-semibold text-sm">Windows</span>
-                    </a>
-                    <a
-                      ref={(node) => setTVLoginRef(5, node)}
-                      href="https://teamg.store/teamgplay.apk"
-                      download="teamgplay.apk"
-                      className={getTVLoginFocusClasses(5, 'group flex items-center justify-center gap-2 rounded-xl border border-fuchsia-300/22 bg-[linear-gradient(135deg,rgba(58,16,95,0.74),rgba(25,8,50,0.72)_58%,rgba(7,10,25,0.8))] px-4 py-2.5 text-secondary-foreground shadow-[0_12px_24px_rgba(88,28,135,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:shadow-[0_16px_30px_rgba(34,211,238,0.14)]')}
-                      onFocus={() => isTVMode && setTVLoginFocusIndex(5)}
-                      tabIndex={isTVMode ? (tvLoginFocusIndex === 5 ? 0 : -1) : undefined}
-                    >
-                      <Smartphone className="h-5 w-5 text-secondary" />
-                      <span className="font-semibold text-sm">Android</span>
-                    </a>
-                  </div>
-                </div>
-                </div>
-              </div>
-            </div>
-          </main>
-        </div>
-      </>
-    );
-  }
 
   // Preparar secciones para TV
   const tvSections = [
@@ -1252,7 +884,7 @@ onProceedWithTrial={proceedWithTrial}
           }
         `}</style>
         <div
-          className="min-h-screen text-white"
+          className="relative min-h-screen text-white overflow-x-hidden"
           style={{
             backgroundImage: "url('./fondo.png')",
             backgroundSize: 'cover',
@@ -1260,8 +892,12 @@ onProceedWithTrial={proceedWithTrial}
             backgroundAttachment: 'fixed',
           }}
         >
+          {/* Radial atmospheric glows */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-[45vh] bg-[radial-gradient(circle_at_18%_10%,rgba(217,70,239,0.12),transparent_35%),radial-gradient(circle_at_82%_20%,rgba(34,211,238,0.1),transparent_30%)]" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[35vh] bg-[radial-gradient(circle_at_50%_100%,rgba(99,102,241,0.12),transparent_40%)]" />
+
           {recentlyAdded.length > 0 && (
-            <div className="px-0 pb-1 pt-2">
+            <div className="relative px-0 pb-1 pt-2 z-10">
               <CoverCarousel
                 items={recentlyAdded}
                 onItemClick={(item, itemType) => navigateToItem(item, itemType)}
@@ -1271,7 +907,7 @@ onProceedWithTrial={proceedWithTrial}
               />
             </div>
           )}
-          <div className="container mx-auto space-y-8 px-4 pb-8 pt-2 sm:px-6 md:space-y-12 lg:px-8">
+          <div className="relative container mx-auto space-y-8 px-4 pb-8 pt-2 sm:px-6 md:space-y-12 lg:px-8 z-10">
             {recentlyAdded.length > 0 && (
               <Carousel
                 title="Recien Agregados"
@@ -1705,13 +1341,13 @@ onProceedWithTrial={proceedWithTrial}
               return (
                 <div
                   key={highlight.title}
-                  className="rounded-[22px] border border-fuchsia-300/10 bg-white/[0.03] px-4 py-4"
+                  className="rounded-[22px] border border-fuchsia-300/10 bg-white/[0.02] hover:bg-white/[0.05] px-4 py-5 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-300/30 hover:shadow-[0_12px_28px_rgba(34,211,238,0.08)] group"
                 >
-                  <HighlightIcon className="h-5 w-5 text-fuchsia-200" />
-                  <p className="mt-3 text-sm font-semibold text-fuchsia-100">
+                  <HighlightIcon className="h-6 w-6 text-fuchsia-300 group-hover:text-cyan-300 transition-colors duration-300" />
+                  <p className="mt-4 text-sm font-bold text-fuchsia-100 group-hover:text-cyan-200 transition-colors duration-300">
                     {highlight.title}
                   </p>
-                  <p className="mt-1 text-sm text-slate-300/72">
+                  <p className="mt-2 text-xs leading-5 text-slate-300/75">
                     {highlight.description}
                   </p>
                 </div>

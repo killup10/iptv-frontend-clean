@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="colorPrimary">#0078FF</color>
+    <color name="colorPrimaryDark">#0056B3</color>
+    <color name="colorAccent">#00E5FF</color>
+
+    <!-- Secondary Colors -->
+    <color name="colorSecondary">#20D7FF</color>
+    <color name="colorSecondaryDark">#121A2C</color>
+
+    <!-- Background Colors -->
+    <color name="colorBackground">#000000</color>
+    <color name="colorSurface">#121A2C</color>
+    <color name="colorSurfaceVariant">#1A243F</color>
+
+    <!-- Text Colors -->
+    <color name="colorTextPrimary">#FFFFFF</color>
+    <color name="colorTextSecondary">#9FB6D4</color>
+    <color name="colorTextTertiary">#6B7A90</color>
+
+    <!-- Functional Colors -->
+    <color name="colorSuccess">#4CAF50</color>
+    <color name="colorError">#E53935</color>
+    <color name="colorWarning">#FFA726</color>
+    <color name="colorInfo">#42A5F5</color>
+
+    <!-- Overlay Colors -->
+    <color name="colorOverlay">#000000</color>
+    <color name="colorOverlayLight">#40000000</color>
+    <color name="colorOverlayMedium">#80000000</color>
+    <color name="colorOverlayDark">#CC000000</color>
+
+    <!-- Divider and Border -->
+    <color name="colorDivider">#1A243F</color>
+    <color name="colorBorder">#2A3A5C</color>
+
+    <!-- Focus States -->
+    <color name="colorFocused">#20D7FF</color>
+    <color name="colorUnfocused">#808080</color>
+
+    <!-- Exo TV Neon Palette -->
+    <color name="tv_exo_neon_cyan">#20D7FF</color>
+    <color name="tv_exo_neon_pink">#FF47D1</color>
+    <color name="tv_exo_neon_purple">#7A3CFF</color>
+    <color name="tv_exo_surface_primary">#0A0F1D</color>
+    <color name="tv_exo_surface_secondary">#121A2C</color>
+    <color name="tv_exo_surface_panel">#0D1322</color>
+    <color name="tv_exo_text_muted">#9FB6D4</color>
+</resources>

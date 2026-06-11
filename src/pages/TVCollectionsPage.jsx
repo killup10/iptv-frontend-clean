@@ -188,6 +188,7 @@ export default function TVCollectionsPage() {
         onSearch={() => setShowSearch(true)}
         emptyMessage={`No hay contenido disponible en ${selectedCollection}.`}
         statusMessage={statusMessage}
+        showItemTypeBadge={true}
       />
     </>
   );

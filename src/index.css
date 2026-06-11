@@ -100,3 +100,46 @@
     cursor: none;
   }
 }
+
+/* 4. Estilos para tarjetas en Android TV / Smart TV */
+.tv-card-item {
+  aspect-ratio: 2/3;
+  border: 4px solid transparent;
+  background: rgba(0, 0, 0, 0.7);
+  position: relative;
+  border-radius: 0.75rem; /* rounded-xl */
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1);
+  will-change: transform, border-color, box-shadow;
+}
+
+.tv-card-item.focused {
+  border-color: hsl(190, 100%, 50%) !important;
+  transform: scale(1.05);
+  z-index: 10;
+  box-shadow: 
+    0 0 30px hsl(190, 100%, 50%, 0.6),
+    0 0 60px hsl(315, 100%, 60%, 0.4);
+}
+
+.tv-card-item .tv-card-img {
+  transition: filter 0.3s ease;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tv-card-item.focused .tv-card-img {
+  filter: brightness(1.2) saturate(1.3);
+}
+
+.tv-card-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+  padding: 1rem;
+}
+

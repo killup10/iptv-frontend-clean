@@ -75,6 +75,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private long lastPosition = 0L;
     private boolean isScreenLocked = false;
     private boolean isSeekPending = false;
+    private int currentSeasonIndex = -1;
+    private int currentChapterIndex = -1;
 
     // Episode switching (avoid UI stalls/ANR when moving between episodes)
     private boolean isEpisodeSwitchInProgress = false;
@@ -206,6 +208,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         sessionToken = getIntent().getStringExtra("session_token");
         deviceId = getIntent().getStringExtra("device_id");
         apiBaseUrl = getIntent().getStringExtra("api_base_url");
+        currentSeasonIndex = getIntent().getIntExtra("season_index", -1);
+        currentChapterIndex = getIntent().getIntExtra("chapter_index", -1);
         if (lastPosition > 0) {
             isSeekPending = true;
         }
@@ -277,6 +281,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         sessionToken = intent.getStringExtra("session_token");
         deviceId = intent.getStringExtra("device_id");
         apiBaseUrl = intent.getStringExtra("api_base_url");
+        currentSeasonIndex = intent.getIntExtra("season_index", -1);
+        currentChapterIndex = intent.getIntExtra("chapter_index", -1);
 
         String nextVideoUrl = intent.getStringExtra("video_url");
         String nextVideoTitle = intent.getStringExtra("video_title");
@@ -406,7 +412,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private Media buildMediaForCurrentUrl() {
         Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
         media.setHWDecoderEnabled(true, false);
-        media.addOption(":network-caching=1500");
+        media.addOption(":network-caching=1000");
         media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
         return media;
     }
@@ -551,13 +557,25 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     }
                     break;
                 case MediaPlayer.Event.Playing:
-                    playPauseButton.setImageResource(android.R.drawable.ic_media_pause);
+                    playPauseButton.setImageResource(R.drawable.ic_pause);
                     recoveryAttempts = 0;
                     isRecoveringPlayback = false;
                     lastTimeChangedSystemMs = System.currentTimeMillis();
                     if (isSeekPending && !isLiveTV) {
-                        mediaPlayer.setTime(lastPosition * 1000);
-                        isSeekPending = false;
+                        final long targetPos = lastPosition * 1000;
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            try {
+                                if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                                    long currentPos = mediaPlayer.getTime();
+                                    if (currentPos < targetPos - 2000) {
+                                        mediaPlayer.setTime(targetPos);
+                                        Log.d(TAG, "Seek executed via playing delay to: " + targetPos + "ms (current position was " + currentPos + "ms)");
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error executing seek on delayed handler", e);
+                            }
+                        }, 500);
                     } else if (isLiveTV) {
                         isSeekPending = false;
                         lastPosition = 0L;
@@ -568,17 +586,29 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     hideControls();
                     break;
                 case MediaPlayer.Event.Paused:
-                    playPauseButton.setImageResource(android.R.drawable.ic_media_play);
+                    playPauseButton.setImageResource(R.drawable.ic_play);
                     // Enviar progreso cuando se pausa (siempre)
                     notifyProgressUpdate(mediaPlayer.getTime(), false, true);
                     break;
                 case MediaPlayer.Event.Stopped:
-                    playPauseButton.setImageResource(android.R.drawable.ic_media_play);
+                    playPauseButton.setImageResource(R.drawable.ic_play);
                     notifyProgressUpdate(mediaPlayer.getTime(), false, true);
                     break;
                 case MediaPlayer.Event.TimeChanged:
                     lastTimeChangedSystemMs = System.currentTimeMillis();
                     lastPlaybackPositionMs = event.getTimeChanged();
+                    
+                    // One-shot seek on TimeChanged when player starts reporting time and seek is still pending
+                    if (isSeekPending && !isLiveTV && lastPosition > 0) {
+                        long currentPos = event.getTimeChanged();
+                        if (currentPos > 0 && currentPos < lastPosition * 1000 - 2000) {
+                            final long targetPos = lastPosition * 1000;
+                            mediaPlayer.setTime(targetPos);
+                            isSeekPending = false;
+                            Log.d(TAG, "Seek executed via TimeChanged event to: " + targetPos + "ms (current position was " + currentPos + "ms)");
+                        }
+                    }
+                    
                     currentTime.setText(formatTime(event.getTimeChanged()));
                     seekBar.setProgress((int) event.getTimeChanged());
                     // Enviar progreso con throttling (cada 10 segundos)
@@ -710,11 +740,95 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
     }
 
+    private String cleanUrl(String url) {
+        if (url == null) return "";
+        try {
+            // URL Decode in case it's encoded (like in api/resolve?url=...)
+            String decoded = java.net.URLDecoder.decode(url, "UTF-8");
+            
+            // If it contains "url=", extract the url parameter
+            if (decoded.contains("url=")) {
+                int start = decoded.indexOf("url=") + 4;
+                int end = decoded.indexOf("&", start);
+                if (end == -1) {
+                    decoded = decoded.substring(start);
+                } else {
+                    decoded = decoded.substring(start, end);
+                }
+                // Decode again because it was nested
+                decoded = java.net.URLDecoder.decode(decoded, "UTF-8");
+            }
+            
+            // Normalize dropbox domains
+            decoded = decoded.replace("www.dropbox.com", "dl.dropboxusercontent.com")
+                             .replace("dropbox.com", "dl.dropboxusercontent.com");
+            
+            // Remove query parameters
+            int queryIdx = decoded.indexOf("?");
+            if (queryIdx >= 0) {
+                decoded = decoded.substring(0, queryIdx);
+            }
+            
+            // Remove protocol and domain to get the path
+            if (decoded.startsWith("http://")) {
+                decoded = decoded.substring(7);
+            } else if (decoded.startsWith("https://")) {
+                decoded = decoded.substring(8);
+            }
+            
+            int slashIdx = decoded.indexOf("/");
+            if (slashIdx >= 0) {
+                decoded = decoded.substring(slashIdx); // Keep only the path part e.g. /s/abcde12345/Episode.mp4
+            }
+            
+            return decoded;
+        } catch (Exception e) {
+            Log.w(TAG, "Error cleaning URL for fuzzy match: " + url, e);
+            // Fallback to basic string cleaning
+            int qIdx = url.indexOf("?");
+            if (qIdx >= 0) {
+                return url.substring(0, qIdx);
+            }
+            return url;
+        }
+    }
+
     private int getCurrentChapterGlobalIndex() {
         if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
             return -1;
         }
-        return chapterUrls.indexOf(currentVideoUrl);
+
+        // 1. Intentar por URL exacta (para contenido no-Dropbox o si coincide)
+        int index = chapterUrls.indexOf(currentVideoUrl);
+        if (index >= 0) {
+            return index;
+        }
+
+        // 2. Intentar por coincidencia difusa (fuzzy match) de la ruta limpia de la URL
+        String cleanCurrent = cleanUrl(currentVideoUrl);
+        if (!cleanCurrent.isEmpty()) {
+            for (int i = 0; i < chapterUrls.size(); i++) {
+                String cleanChapter = cleanUrl(chapterUrls.get(i));
+                if (!cleanChapter.isEmpty() && cleanChapter.equals(cleanCurrent)) {
+                    Log.d(TAG, "Fuzzy match found for chapter index " + i + ": " + cleanCurrent);
+                    return i;
+                }
+            }
+        }
+
+        // 3. Si no coincide, buscar por indices de temporada/capitulo utilizando las variables de control actualizadas
+        int sIndex = (currentSeasonIndex >= 0) ? currentSeasonIndex : getIntent().getIntExtra("season_index", -1);
+        int cIndex = (currentChapterIndex >= 0) ? currentChapterIndex : getIntent().getIntExtra("chapter_index", -1);
+
+        if (sIndex >= 0 && cIndex >= 0 && chapterSeasonIndices != null && chapterIndices != null) {
+            for (int i = 0; i < chapterSeasonIndices.size() && i < chapterIndices.size(); i++) {
+                if (chapterSeasonIndices.get(i) == sIndex && chapterIndices.get(i) == cIndex) {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
     }
 
     private void appendCurrentChapterProgress(Intent progressIntent) {
@@ -899,6 +1013,19 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             isSeekPending = false;
             lastPlaybackPositionMs = 0L;
 
+            // Resolve the new indices and update them
+            int targetIdx = getCurrentChapterGlobalIndex();
+            if (targetIdx >= 0) {
+                if (chapterSeasonIndices != null && targetIdx < chapterSeasonIndices.size()) {
+                    currentSeasonIndex = chapterSeasonIndices.get(targetIdx);
+                    getIntent().putExtra("season_index", currentSeasonIndex);
+                }
+                if (chapterIndices != null && targetIdx < chapterIndices.size()) {
+                    currentChapterIndex = chapterIndices.get(targetIdx);
+                    getIntent().putExtra("chapter_index", currentChapterIndex);
+                }
+            }
+
             if (libVlc == null) {
                 libVlc = VLCInstance.getInstance(getApplicationContext());
             }
@@ -914,7 +1041,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
                 Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
                 media.setHWDecoderEnabled(true, false);
-                media.addOption(":network-caching=1500");
+                media.addOption(":network-caching=1000");
                 media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
 
                 mediaPlayer.setMedia(media);
@@ -952,6 +1079,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     }
 
     private void setupControls() {
+        ImageButton backButton = findViewById(R.id.back_button);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> {
+                closeReason = "user_back_button";
+                finish();
+            });
+        }
+
         playPauseButton.setOnClickListener(v -> {
             if (mediaPlayer.isPlaying()) mediaPlayer.pause();
             else mediaPlayer.play();
@@ -1044,12 +1179,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     }
 
     private void updateVideoTitleWithChapterInfo() {
-        if (currentVideoUrl == null || chapterUrls == null || chapterUrls.isEmpty()) {
+        if (chapterUrls == null || chapterUrls.isEmpty()) {
             return;
         }
 
-        // Encontrar el índice del capítulo actual
-        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        int currentIndex = getCurrentChapterGlobalIndex();
         if (currentIndex >= 0 && chapterSeasonNumbers != null && chapterNumbers != null &&
             currentIndex < chapterSeasonNumbers.size() && currentIndex < chapterNumbers.size()) {
 
@@ -1071,11 +1205,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             return;
         }
 
-        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        int currentIndex = getCurrentChapterGlobalIndex();
         if (currentIndex > 0) {
             String prevTitle = (chapterTitles != null && currentIndex - 1 < chapterTitles.size())
                 ? chapterTitles.get(currentIndex - 1)
                 : "Episodio " + currentIndex;
+
+            // Actualizar la información en el intent para el cambio del próximo capítulo
+            if (chapterSeasonIndices != null && currentIndex - 1 < chapterSeasonIndices.size() &&
+                chapterIndices != null && currentIndex - 1 < chapterIndices.size()) {
+                getIntent().putExtra("season_index", chapterSeasonIndices.get(currentIndex - 1));
+                getIntent().putExtra("chapter_index", chapterIndices.get(currentIndex - 1));
+            }
 
             requestEpisodeSwitch(chapterUrls.get(currentIndex - 1), prevTitle);
         } else {
@@ -1089,11 +1230,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             return;
         }
 
-        int currentIndex = chapterUrls.indexOf(currentVideoUrl);
+        int currentIndex = getCurrentChapterGlobalIndex();
         if (currentIndex >= 0 && currentIndex < chapterUrls.size() - 1) {
             String nextTitle = (chapterTitles != null && currentIndex + 1 < chapterTitles.size())
                 ? chapterTitles.get(currentIndex + 1)
                 : "Episodio " + (currentIndex + 2);
+
+            // Actualizar la información en el intent para el cambio del próximo capítulo
+            if (chapterSeasonIndices != null && currentIndex + 1 < chapterSeasonIndices.size() &&
+                chapterIndices != null && currentIndex + 1 < chapterIndices.size()) {
+                getIntent().putExtra("season_index", chapterSeasonIndices.get(currentIndex + 1));
+                getIntent().putExtra("chapter_index", chapterIndices.get(currentIndex + 1));
+            }
 
             requestEpisodeSwitch(chapterUrls.get(currentIndex + 1), nextTitle);
         } else {
@@ -1105,20 +1253,23 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         isScreenLocked = !isScreenLocked;
 
         if (isScreenLocked) {
-            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_lock));
-            controlsContainer.setAlpha(0.3f);
-            Toast.makeText(this, "Pantalla bloqueada 🔒", Toast.LENGTH_SHORT).show();
+            lockButton.setImageDrawable(getDrawable(R.drawable.ic_lock));
+            controlsContainer.setVisibility(View.GONE);
+            topControlsContainer.setVisibility(View.GONE);
+            Toast.makeText(this, "Pantalla bloqueada 🔒\nMantén presionado para desbloquear", Toast.LENGTH_SHORT).show();
         } else {
-            lockButton.setImageDrawable(getDrawable(android.R.drawable.ic_lock_silent_mode_off));
-            controlsContainer.setAlpha(1.0f);
+            lockButton.setImageDrawable(getDrawable(R.drawable.ic_unlock));
+            controlsContainer.setVisibility(View.VISIBLE);
+            topControlsContainer.setVisibility(View.VISIBLE);
             Toast.makeText(this, "Pantalla desbloqueada 🔓", Toast.LENGTH_SHORT).show();
+            hideControls();
         }
     }
 
     private void hideControls() {
         controlsHandler.removeCallbacksAndMessages(null);
         controlsHandler.postDelayed(() -> {
-            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            if (mediaPlayer != null && mediaPlayer.isPlaying() && !isScreenLocked) {
                 controlsContainer.setVisibility(View.GONE);
                 topControlsContainer.setVisibility(View.GONE);
             }
@@ -1126,6 +1277,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     }
 
     private void toggleControls() {
+        if (isScreenLocked) {
+            // Si está bloqueada, no hacer nada para evitar mostrar los controles en toques accidentales
+            return;
+        }
         if (controlsContainer.getVisibility() == View.VISIBLE) {
             controlsContainer.setVisibility(View.GONE);
             topControlsContainer.setVisibility(View.GONE);
@@ -1268,6 +1423,134 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private int currentChannelSelection = 0;
     private AlertDialog currentChannelDialog = null;
 
+    private void loadImageAsync(final String urlString, final android.widget.ImageView imageView) {
+        if (urlString == null || urlString.trim().isEmpty()) {
+            imageView.setImageResource(android.R.drawable.ic_menu_gallery);
+            return;
+        }
+        imageView.setImageResource(android.R.drawable.ic_menu_gallery);
+        imageView.setTag(urlString);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    java.net.URL url = new java.net.URL(urlString);
+                    java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                    connection.setDoInput(true);
+                    connection.connect();
+                    java.io.InputStream input = connection.getInputStream();
+                    final android.graphics.Bitmap myBitmap = android.graphics.BitmapFactory.decodeStream(input);
+                    imageView.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (urlString.equals(imageView.getTag())) {
+                                imageView.setImageBitmap(myBitmap);
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+    private class ChannelAdapter extends android.widget.BaseAdapter {
+        private final ArrayList<Integer> visibleIndices;
+
+        public ChannelAdapter(ArrayList<Integer> visibleIndices) {
+            this.visibleIndices = visibleIndices;
+        }
+
+        @Override
+        public int getCount() {
+            return visibleIndices.size();
+        }
+
+        @Override
+        public Object getItem(int position) {
+            if (position >= 0 && position < visibleIndices.size()) {
+                return channelNames.get(visibleIndices.get(position));
+            }
+            return null;
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            LinearLayout rowLayout;
+            if (convertView == null) {
+                rowLayout = new LinearLayout(VLCPlayerActivity.this);
+                rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+                rowLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                int paddingPx = (int) (10 * getResources().getDisplayMetrics().density);
+                rowLayout.setPadding(paddingPx, paddingPx, paddingPx, paddingPx);
+
+                // Logo ImageView
+                android.widget.ImageView logoView = new android.widget.ImageView(VLCPlayerActivity.this);
+                logoView.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+                int logoSize = (int) (40 * getResources().getDisplayMetrics().density);
+                LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(logoSize, logoSize);
+                logoParams.rightMargin = (int) (14 * getResources().getDisplayMetrics().density);
+                rowLayout.addView(logoView, logoParams);
+
+                // Channel Name TextView
+                TextView textView = new TextView(VLCPlayerActivity.this);
+                textView.setTextSize(14);
+                textView.setTextColor(0xFFFFFFFF);
+                textView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+                rowLayout.addView(textView, textParams);
+
+                // Status Indicator
+                android.widget.ImageView statusIndicator = new android.widget.ImageView(VLCPlayerActivity.this);
+                int indicatorSize = (int) (20 * getResources().getDisplayMetrics().density);
+                LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(indicatorSize, indicatorSize);
+                rowLayout.addView(statusIndicator, indicatorParams);
+            } else {
+                rowLayout = (LinearLayout) convertView;
+            }
+
+            int channelIndex = visibleIndices.get(position);
+            String channelName = channelNames.get(channelIndex);
+            String logoUrl = (channelLogos != null && channelIndex < channelLogos.size()) ? channelLogos.get(channelIndex) : "";
+
+            android.widget.ImageView logoView = (android.widget.ImageView) rowLayout.getChildAt(0);
+            TextView textView = (TextView) rowLayout.getChildAt(1);
+            android.widget.ImageView statusIndicator = (android.widget.ImageView) rowLayout.getChildAt(2);
+
+            textView.setText(channelName);
+
+            boolean isCurrent = (channelIndex == currentChannelSelection);
+            
+            // Premium background card layout style
+            android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
+            itemBg.setCornerRadius(10 * getResources().getDisplayMetrics().density);
+            
+            if (isCurrent) {
+                itemBg.setColor(0x2200FFFF); // translucent cyan
+                itemBg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), 0xFF00FFFF);
+                textView.setTextColor(0xFF00FFFF);
+                statusIndicator.setImageResource(android.R.drawable.presence_online);
+            } else {
+                itemBg.setColor(0xFF1E1E2C);
+                itemBg.setStroke((int) (1 * getResources().getDisplayMetrics().density), 0xFF2A2A3D);
+                textView.setTextColor(0xFFE2E2E2);
+                statusIndicator.setImageResource(android.R.drawable.presence_invisible);
+            }
+            rowLayout.setBackground(itemBg);
+
+            loadImageAsync(logoUrl, logoView);
+
+            return rowLayout;
+        }
+    }
+
     private void showLiveChannelsDialog() {
         if (channelNames == null || channelUrls == null || channelNames.isEmpty() || channelUrls.isEmpty()) {
             Toast.makeText(this, "No hay canales disponibles", Toast.LENGTH_SHORT).show();
@@ -1282,20 +1565,36 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         LinearLayout contentLayout = new LinearLayout(this);
         contentLayout.setOrientation(LinearLayout.VERTICAL);
         int paddingPx = (int) (20 * getResources().getDisplayMetrics().density);
-        contentLayout.setPadding(paddingPx, paddingPx / 2, paddingPx, 0);
+        contentLayout.setPadding(paddingPx, paddingPx / 2, paddingPx, paddingPx);
+        contentLayout.setBackgroundColor(0xFF0F0B1E); // Slate dark purple background
 
         EditText searchInput = new EditText(this);
         searchInput.setSingleLine(true);
         searchInput.setHint("Buscar canal...");
         searchInput.setTextColor(getColor(android.R.color.white));
         searchInput.setHintTextColor(0xFFB0B0B0);
-        contentLayout.addView(searchInput, new LinearLayout.LayoutParams(
+        
+        android.graphics.drawable.GradientDrawable searchBg = new android.graphics.drawable.GradientDrawable();
+        searchBg.setColor(0xFF1B1435);
+        searchBg.setCornerRadius(10 * getResources().getDisplayMetrics().density);
+        searchBg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), 0xFF3D2E70);
+        searchInput.setBackground(searchBg);
+        
+        int inputPadding = (int) (12 * getResources().getDisplayMetrics().density);
+        searchInput.setPadding(inputPadding, inputPadding, inputPadding, inputPadding);
+        
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+        );
+        searchParams.bottomMargin = (int) (16 * getResources().getDisplayMetrics().density);
+        contentLayout.addView(searchInput, searchParams);
 
         ListView listView = new ListView(this);
         listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        listView.setDivider(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+        listView.setDividerHeight((int) (8 * getResources().getDisplayMetrics().density));
+        
         int listHeightPx = (int) (360 * getResources().getDisplayMetrics().density);
         contentLayout.addView(listView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -1303,11 +1602,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         ));
 
         ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
-        ArrayAdapter<String> channelAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_list_item_single_choice,
-                new ArrayList<>()
-        );
+        ChannelAdapter channelAdapter = new ChannelAdapter(visibleChannelIndices);
         listView.setAdapter(channelAdapter);
         applyChannelFilter("", visibleChannelIndices, channelAdapter, channelCount);
 
@@ -1402,9 +1697,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         dialogInstance.show();
     }
 
-    private void applyChannelFilter(String query, ArrayList<Integer> visibleChannelIndices, ArrayAdapter<String> adapter, int channelCount) {
+    private void applyChannelFilter(String query, ArrayList<Integer> visibleChannelIndices, ChannelAdapter adapter, int channelCount) {
         visibleChannelIndices.clear();
-        adapter.clear();
 
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
         for (int i = 0; i < channelCount; i++) {
@@ -1413,7 +1707,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 continue;
             }
             visibleChannelIndices.add(i);
-            adapter.add(i == currentChannelSelection ? channelName + "  - Actual" : channelName);
         }
         adapter.notifyDataSetChanged();
     }
@@ -1470,7 +1763,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     // Crear nueva media
                     Media media = new Media(libVlc, android.net.Uri.parse(newChannelUrl));
                     media.setHWDecoderEnabled(true, false);
-                    media.addOption(":network-caching=1500");
+                    media.addOption(":network-caching=1000");
                     media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
 
                     mediaPlayer.setMedia(media);

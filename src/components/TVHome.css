@@ -15,6 +15,7 @@
   scroll-padding-top: 18px;
   box-sizing: border-box;
   scroll-behavior: auto;
+  will-change: scroll-position;
 }
 
 .tv-home-container::-webkit-scrollbar {
@@ -48,7 +49,8 @@
   border: 1px solid rgba(34, 211, 238, 0.1);
   box-shadow: 0 14px 52px rgba(0, 0, 0, 0.28);
   background: #020617;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, border-color, box-shadow;
 }
 
 .tv-home-spotlight.is-focused {
@@ -386,6 +388,7 @@
   overflow-y: hidden;
   padding-bottom: 10px;
   scroll-behavior: auto;
+  will-change: scroll-position;
 }
 
 .section-carousel::-webkit-scrollbar {
@@ -393,10 +396,10 @@
 }
 
 .carousel-item {
-  flex: 0 0 178px;
+  flex: 0 0 230px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
   transition: transform 180ms ease;
 }
@@ -542,15 +545,20 @@
   height: 100%;
   border: 4px solid rgba(34, 211, 238, 0.82);
   border-radius: 18px;
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.64), inset 0 0 16px rgba(34, 211, 238, 0.24);
   animation: pulse-glow 0.6s ease-in-out infinite;
+  will-change: opacity, transform;
+  transform: translate3d(0, 0, 0);
 }
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 12px rgba(34, 211, 238, 0.36), inset 0 0 12px rgba(34, 211, 238, 0.18);
+    opacity: 0.55;
+    transform: scale(1.0) translate3d(0, 0, 0);
   }
   50% {
-    box-shadow: 0 0 24px rgba(34, 211, 238, 0.64), inset 0 0 16px rgba(34, 211, 238, 0.24);
+    opacity: 1.0;
+    transform: scale(1.02) translate3d(0, 0, 0);
   }
 }
 
@@ -562,9 +570,9 @@
 
 .item-name {
   margin: 0;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.25;
-  font-weight: 700;
+  font-weight: 800;
   color: #e2e8f0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -733,7 +741,7 @@
   }
 
   .carousel-item {
-    flex: 0 0 170px;
+    flex: 0 0 210px;
   }
 }
 
@@ -760,6 +768,6 @@
   }
 
   .carousel-item {
-    flex: 0 0 160px;
+    flex: 0 0 190px;
   }
 }

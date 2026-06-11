@@ -1,0 +1,672 @@
+﻿diff --git a/src/App.jsx b/src/App.jsx
+index 439f752..5eb5c6f 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -4,6 +4,7 @@ import { App as CapacitorApp } from '@capacitor/app';
+ import { useAuth } from "./context/AuthContext.jsx";
+ import SearchBar from "./components/SearchBar.jsx";
+ import { getUserSubscriptionSummary } from "./utils/userSubscription.js";
++import { isAndroidMobile } from "./utils/platformUtils.js";
+ 
+ const SEARCH_SELECTION_TYPE_MAP = {
+   pelicula: 'movie',
+@@ -47,6 +48,7 @@ function App() {
+   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
+   const isLiveTVPage = location.pathname === '/live-tv';
+   const isHomePage = location.pathname === '/';
++  const isAndroidMobileUI = isAndroidMobile();
+ 
+   const [scrolled, setScrolled] = useState(false);
+   const [dropdownOpen, setDropdownOpen] = useState(false);
+@@ -232,6 +234,72 @@ function App() {
+   };
+   
+   const shouldShowLayout = !isAuthPage && !isWatchPage;
++  const mobileNavItems = [
++    { path: '/', label: 'Inicio', icon: 'home' },
++    { path: '/live-tv', label: 'TV', icon: 'tv' },
++    { path: '/peliculas', label: 'Pelis', icon: 'play' },
++    { path: '/series', label: 'Series', icon: 'series' },
++    { path: '/kids', label: 'Kids', icon: 'kids' },
++  ];
++
++  const getMobileNavItemClasses = (path) => {
++    const active = path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
++    return `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-bold transition ${
++      active
++        ? 'bg-cyan-400/16 text-cyan-100 ring-1 ring-cyan-300/35'
++        : 'text-slate-400 active:bg-white/8 active:text-white'
++    }`;
++  };
++
++  const renderMobileNavIcon = (icon) => {
++    const common = "h-5 w-5";
++    switch (icon) {
++      case 'tv':
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
++            <rect x="3" y="6" width="18" height="12" rx="2" />
++            <path d="M8 21h8" />
++            <path d="M12 18v3" />
++          </svg>
++        );
++      case 'play':
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
++            <path d="M8 5v14l11-7z" />
++          </svg>
++        );
++      case 'heart':
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
++            <path d="M12 21s-7-4.35-9.4-8.18C.72 9.82 2.28 6 5.75 6A5.1 5.1 0 0 1 12 8.1 5.1 5.1 0 0 1 18.25 6c3.47 0 5.03 3.82 3.15 6.82C19 16.65 12 21 12 21z" />
++          </svg>
++        );
++      case 'series':
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
++            <rect x="4" y="5" width="16" height="14" rx="2" />
++            <path d="M8 9h8" />
++            <path d="M8 13h5" />
++          </svg>
++        );
++      case 'kids':
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
++            <path d="M12 4 4 8l8 4 8-4-8-4Z" />
++            <path d="m4 12 8 4 8-4" />
++            <path d="m4 16 8 4 8-4" />
++          </svg>
++        );
++      default:
++        return (
++          <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
++            <path d="M3 11.5 12 4l9 7.5" />
++            <path d="M5 10.5V20h14v-9.5" />
++            <path d="M9 20v-6h6v6" />
++          </svg>
++        );
++    }
++  };
+ 
+   const mainContainerStyle = {
+     backgroundImage: "url('./fondo.png')",
+@@ -261,23 +329,54 @@ function App() {
+           color: transparent;
+           font-weight: bold;
+         }
++
++        @media (max-width: 767px) {
++          body {
++            background: #020617;
++          }
++
++          .android-mobile-shell {
++            background:
++              radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.16), transparent 28%),
++              radial-gradient(circle at 86% 4%, rgba(244, 63, 94, 0.12), transparent 24%),
++              linear-gradient(180deg, #020617 0%, #07111f 44%, #020617 100%);
++          }
++
++          .mobile-ui-active .container {
++            max-width: 100%;
++          }
++
++          .mobile-ui-active main > .container {
++            padding-top: 1.25rem !important;
++            padding-bottom: 7rem !important;
++            padding-left: 0.75rem !important;
++            padding-right: 0.75rem !important;
++          }
++
++          .mobile-ui-active main input {
++            min-height: 48px;
++            border-radius: 1rem;
++          }
++        }
+       `}</style>
+-      <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
++      <div style={isAndroidMobileUI ? { minHeight: '100vh', width: '100%' } : mainContainerStyle} className={`min-h-screen bg-black text-white flex flex-col ${isAndroidMobileUI ? 'android-mobile-shell mobile-ui-active' : ''}`}>
+       {shouldShowLayout && (
+         <header 
+           className={`fixed top-0 left-0 right-0 z-[90] transition-colors duration-300 ${
+-            scrolled ? 'bg-black/95 backdrop-blur-sm' : 'bg-transparent'
++            isAndroidMobileUI
++              ? 'border-b border-white/10 bg-slate-950 shadow-[0_10px_30px_rgba(2,6,23,0.35)]'
++              : scrolled ? 'bg-black/95 backdrop-blur-sm' : 'bg-transparent'
+           }`}
+         >
+-          <div className="container mx-auto px-4">
+-            <div className="flex items-center justify-between h-20">
++          <div className="container mx-auto px-3 sm:px-4">
++            <div className={`flex items-center justify-between ${isAndroidMobileUI ? 'h-16' : 'h-20'}`}>
+               {/* Logo y Navegación Principal */}
+               <div className="flex items-center flex-1">
+                 <Link to="/" className="flex items-center py-2" onClick={closeAllMenus}>
+                   <img 
+                     src="./logo-teamg.png" 
+                     alt="TeamG Play Logo" 
+-                    className="h-16 sm:h-18 drop-shadow-glow-logo hover:scale-105 transition-transform duration-300"
++                    className={`${isAndroidMobileUI ? 'h-11' : 'h-16 sm:h-18'} drop-shadow-glow-logo hover:scale-105 transition-transform duration-300`}
+                     style={{ objectFit: 'contain' }}
+                   />
+                 </Link>
+@@ -334,11 +433,11 @@ function App() {
+               </div>
+ 
+               {/* Menú de Usuario y Hamburguesa */}
+-              <div className="flex items-center space-x-4">
++              <div className={`flex items-center ${isAndroidMobileUI ? 'min-w-0 flex-1 justify-end gap-2' : 'space-x-4'}`}>
+                 {/* Search Bar - Solo en Home */}
+                 {location.pathname === '/' && (
+-                  <div className="flex-1 flex justify-center px-2 lg:ml-6 lg:justify-end">
+-                    <div className="max-w-lg w-full lg:max-w-xs">
++                  <div className={`${isAndroidMobileUI ? 'max-w-[min(54vw,220px)] flex-1 px-0' : 'flex-1 flex justify-center px-2 lg:ml-6 lg:justify-end'}`}>
++                    <div className={`${isAndroidMobileUI ? 'w-full' : 'max-w-lg w-full lg:max-w-xs'}`}>
+                       <SearchBar 
+                         items={allSearchItems}
+                         onSelectItem={handleSearchSelectItem}
+@@ -396,7 +495,7 @@ function App() {
+                     setMobileContenidoOpen(false);
+                     setMobileMenuOpen((current) => !current);
+                   }}
+-                  className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
++                  className="md:hidden inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-slate-200 shadow-lg shadow-black/20 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+                   aria-expanded={mobileMenuOpen}
+                 >
+                   <span className="sr-only">Abrir menú principal</span>
+@@ -411,9 +510,9 @@ function App() {
+             </div>
+ 
+             {mobileMenuOpen && (
+-              <div id="mobile-menu" className="md:hidden fixed inset-0 top-20 z-50">
+-                <div className="px-2 pt-2 pb-3 space-y-1 bg-black/95 backdrop-blur-sm border-t border-gray-700">
+-                  <Link to="/live-tv" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>TV en Vivo</Link>
++              <div id="mobile-menu" className="md:hidden fixed inset-x-0 top-16 z-50 px-3 pt-3">
++                <div className="max-h-[calc(100vh-5rem)] space-y-1 overflow-y-auto rounded-3xl border border-white/10 bg-slate-950 p-3 shadow-2xl shadow-black/50">
++                  <Link to="/live-tv" className="block rounded-2xl px-4 py-3 text-base font-bold text-slate-100 active:bg-cyan-400/12" onClick={closeAllMenus}>TV en Vivo</Link>
+                   <Link to="/peliculas" className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium" onClick={closeAllMenus}>Películas</Link>
+                   
+                   {/* Contenido Submenu */}
+@@ -421,7 +520,7 @@ function App() {
+                     <button
+                       type="button"
+                       onClick={() => setMobileContenidoOpen((current) => !current)}
+-                      className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left flex items-center justify-between"
++                      className="flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-base font-bold text-slate-100 active:bg-cyan-400/12"
+                     >
+                       Contenido
+                       <svg className={`w-4 h-4 transition-transform ${mobileContenidoOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+@@ -429,12 +528,12 @@ function App() {
+                       </svg>
+                     </button>
+                     {mobileContenidoOpen && (
+-                      <div className="pl-4 space-y-1">
+-                        <Link to="/series" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Series</Link>
+-                        <Link to="/animes" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Animes</Link>
+-                        <Link to="/doramas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Doramas</Link>
+-                        <Link to="/novelas" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Novelas</Link>
+-                        <Link to="/documentales" className="text-gray-400 hover:text-white block px-3 py-2 rounded-md text-sm font-medium" onClick={closeAllMenus}>Documentales</Link>
++                      <div className="ml-3 space-y-1 border-l border-white/10 pl-3">
++                        <Link to="/series" className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 active:bg-white/8 active:text-white" onClick={closeAllMenus}>Series</Link>
++                        <Link to="/animes" className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 active:bg-white/8 active:text-white" onClick={closeAllMenus}>Animes</Link>
++                        <Link to="/doramas" className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 active:bg-white/8 active:text-white" onClick={closeAllMenus}>Doramas</Link>
++                        <Link to="/novelas" className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 active:bg-white/8 active:text-white" onClick={closeAllMenus}>Novelas</Link>
++                        <Link to="/documentales" className="block rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 active:bg-white/8 active:text-white" onClick={closeAllMenus}>Documentales</Link>
+                       </div>
+                     )}
+                   </div>
+@@ -473,12 +572,12 @@ function App() {
+         </header>
+       )}
+ 
+-      <main className={`flex-grow ${shouldShowLayout ? 'pt-20' : ''}`}>
++      <main className={`flex-grow ${shouldShowLayout ? (isAndroidMobileUI ? 'pb-24 pt-16' : 'pt-20') : ''}`}>
+         <Outlet context={{ setAllSearchItems }} />
+       </main>
+ 
+       {shouldShowLayout && (
+-        <footer className="bg-black text-gray-500 py-8 border-t border-gray-800">
++        <footer className={`${isAndroidMobileUI ? 'hidden' : ''} bg-black text-gray-500 py-8 border-t border-gray-800`}>
+           <div className="container mx-auto px-4">
+             <div className="flex flex-col md:flex-row justify-between">
+               <div className="mb-6 md:mb-0">
+@@ -515,6 +614,23 @@ function App() {
+           </div>
+         </footer>
+       )}
++      {shouldShowLayout && isAndroidMobileUI && (
++        <nav className="fixed bottom-0 left-0 right-0 z-[85] border-t border-white/10 bg-slate-950 px-2 pb-[calc(env(safe-area-inset-bottom)+0.45rem)] pt-2 shadow-[0_-12px_30px_rgba(2,6,23,0.45)]" aria-label="Navegacion movil principal">
++          <div className="mx-auto flex max-w-md gap-1.5">
++            {mobileNavItems.map((item) => (
++              <Link
++                key={item.path}
++                to={item.path}
++                className={getMobileNavItemClasses(item.path)}
++                onClick={closeAllMenus}
++              >
++                {renderMobileNavIcon(item.icon)}
++                <span className="truncate">{item.label}</span>
++              </Link>
++            ))}
++          </div>
++        </nav>
++      )}
+       {exitToastMessage && (
+         <div className="fixed bottom-8 left-1/2 z-[9999] -translate-x-1/2 rounded-full bg-black/90 px-5 py-3 text-sm font-semibold text-white shadow-2xl ring-1 ring-white/15">
+           {exitToastMessage}
+diff --git a/src/components/Card.jsx b/src/components/Card.jsx
+index d6e17a5..1372ce8 100644
+--- a/src/components/Card.jsx
++++ b/src/components/Card.jsx
+@@ -3,7 +3,7 @@ import { FilmIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+ import { LockClosedIcon, PlayIcon as PlaySolidIcon } from '@heroicons/react/24/solid';
+ import { useAuth } from '../context/AuthContext.jsx';
+ import { rewriteImageUrl } from '../utils/imageUrl.js';
+-import { isAndroidTV } from '../utils/platformUtils.js';
++import { isAndroidMobile, isAndroidTV } from '../utils/platformUtils.js';
+ import { getAccessLockState } from '../utils/planAccess.js';
+ import { getTVItemTrailerUrl } from '../utils/tvContentUtils.js';
+ 
+@@ -28,6 +28,7 @@ function Card({
+ }) {
+   const { user } = useAuth();
+   const isClassicVariant = variant === 'classic';
++  const isAndroidMobileUI = isAndroidMobile();
+   const autoLockState = showPlanLock
+     ? getAccessLockState(item, user?.plan, { fallbackPlans: fallbackRequiredPlans })
+     : { locked: false, lockMessage: '' };
+@@ -147,10 +148,10 @@ function Card({
+     : 'relative z-50 flex w-[46px] items-center justify-center rounded-xl border border-red-400/30 bg-red-950/70 py-2.5 text-white transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300/55 hover:bg-red-800/80 hover:shadow-[0_12px_24px_rgba(127,29,29,0.45)]';
+ 
+   const heartButtonClasses = isClassicVariant
+-    ? 'absolute right-1.5 top-1.5 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-red-500 bg-black/30 text-red-500 backdrop-blur-sm transition-all duration-150 hover:bg-red-500 hover:text-white hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] sm:h-7 sm:w-7'
++    ? 'absolute right-1.5 top-1.5 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/45 text-red-300 shadow-lg shadow-black/25 backdrop-blur-sm transition-all duration-150 active:scale-95 hover:bg-red-500 hover:text-white hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] sm:h-7 sm:w-7'
+     : 'absolute right-2 top-2 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-fuchsia-300/35 bg-gradient-to-br from-violet-950/92 via-fuchsia-900/72 to-slate-950/88 text-pink-200 shadow-[0_12px_24px_rgba(88,28,135,0.34)] backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-200/55 hover:text-white hover:shadow-[0_16px_30px_rgba(217,70,239,0.35)] sm:h-8 sm:w-8';
+   const posterShellClasses = isClassicVariant
+-    ? 'relative aspect-[2/3] overflow-hidden rounded-lg bg-zinc-800 shadow-lg transition-transform duration-300 group-hover/card:scale-105'
++    ? 'relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/8 bg-zinc-900 shadow-[0_12px_28px_rgba(2,6,23,0.42)] transition-transform duration-300 group-hover/card:scale-105'
+     : 'relative aspect-[2/3] overflow-hidden rounded-[22px] border border-fuchsia-300/12 bg-[#090214] shadow-[0_18px_44px_rgba(46,16,101,0.38)] transition-all duration-300 group-hover/card:scale-[1.025] group-hover/card:border-cyan-300/40 group-hover/card:shadow-[0_0_0_1px_rgba(217,70,239,0.3),0_0_22px_rgba(217,70,239,0.36),0_0_46px_rgba(34,211,238,0.18),0_28px_60px_rgba(15,23,42,0.42)]';
+   const selectedCardClasses = isSelected
+     ? (isClassicVariant
+@@ -167,7 +168,7 @@ function Card({
+     ? 'p-3'
+     : 'relative overflow-hidden rounded-[24px] border border-fuchsia-300/26 bg-[linear-gradient(135deg,rgba(94,24,129,0.58),rgba(41,10,78,0.84)_38%,rgba(12,18,48,0.92)_100%)] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.18),0_18px_36px_rgba(88,28,135,0.34),0_0_28px_rgba(34,211,238,0.12)] backdrop-blur-xl';
+   const baseOverlayClasses = isClassicVariant
+-    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/85 to-transparent px-3 py-4 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
++    ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/92 via-black/62 to-transparent px-2.5 pb-3 pt-9 transition-opacity duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0'
+     : 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-[#090214]/96 via-[#1a0938]/76 to-transparent px-3 py-4 transition-all duration-300 group-hover/card:pointer-events-none group-hover/card:opacity-0';
+   const basePanelClasses = isClassicVariant
+     ? ''
+@@ -192,7 +193,7 @@ function Card({
+       </div>
+     );
+   const ratingClasses = isClassicVariant
+-    ? 'pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1 rounded-md bg-black/80 px-2 py-1 text-xs font-semibold text-yellow-400'
++    ? 'pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1 rounded-full border border-yellow-300/25 bg-black/72 px-2 py-1 text-[11px] font-bold text-yellow-300 backdrop-blur-sm'
+     : 'pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1 rounded-full border border-amber-200/35 bg-gradient-to-r from-[#2f0a4f]/90 to-[#13051f]/88 px-2.5 py-1 text-xs font-semibold text-amber-200 shadow-[0_10px_24px_rgba(88,28,135,0.28)] backdrop-blur-md';
+   const newEpisodesClasses = isClassicVariant
+     ? 'animate-elegant-pulse absolute right-2 top-2 z-20 whitespace-nowrap rounded-full border border-red-400/30 bg-gradient-to-r from-red-600 to-red-700 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg shadow-red-500/40 backdrop-blur-md'
+@@ -249,7 +250,8 @@ function Card({
+           className={`h-full w-full object-cover ${isLocked ? 'brightness-[0.72] saturate-[0.72]' : ''}`}
+           style={{
+             aspectRatio: '2/3',
+-            objectFit: 'cover',
++            objectFit: itemType === 'channel' && isAndroidMobileUI ? 'contain' : 'cover',
++            backgroundColor: itemType === 'channel' && isAndroidMobileUI ? '#050816' : undefined,
+             maxHeight: '100%',
+             width: '100%',
+           }}
+@@ -442,7 +444,7 @@ function Card({
+               </div>
+             )}
+ 
+-            <p className="pointer-events-none line-clamp-2 text-[13px] sm:text-sm md:text-base font-semibold text-white leading-tight">
++            <p className="pointer-events-none line-clamp-2 text-[13px] sm:text-sm md:text-base font-black text-white leading-tight">
+               {item.name || item.title || 'Titulo no disponible'}
+             </p>
+             {item.releaseYear && (
+diff --git a/src/components/Carousel.jsx b/src/components/Carousel.jsx
+index b7696fe..9e05430 100644
+--- a/src/components/Carousel.jsx
++++ b/src/components/Carousel.jsx
+@@ -1,7 +1,7 @@
+ import React, { useMemo, useRef, useState } from 'react';
+ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+ import Card from './Card';
+-import { isAndroid } from '../utils/platformUtils.js';
++import { isAndroid, isAndroidMobile } from '../utils/platformUtils.js';
+ 
+ function Carousel({
+   title,
+@@ -26,6 +26,7 @@ function Carousel({
+   const [isHovering, setIsHovering] = useState(false);
+   const itemRefs = useRef([]);
+   const isClassicVariant = variant === 'classic';
++  const isAndroidMobileUI = isAndroidMobile();
+   const resolvedCardVariant = cardVariant || (isClassicVariant ? 'classic' : 'brand');
+ 
+   const dpadEnabled = useMemo(() => {
+@@ -105,14 +106,19 @@ function Carousel({
+ 
+   return (
+     <section
+-      className={isClassicVariant ? 'mb-6 md:mb-8 lg:mb-12' : 'relative mb-7 md:mb-10 lg:mb-12'}
++      className={isClassicVariant ? 'mb-5 md:mb-8 lg:mb-12' : 'relative mb-7 md:mb-10 lg:mb-12'}
+       onMouseEnter={() => setIsHovering(true)}
+       onMouseLeave={() => setIsHovering(false)}
+     >
+       {isClassicVariant ? (
+-        <h2 className="mb-3 px-2 text-lg font-semibold text-white sm:px-4 sm:text-xl md:mb-4 md:px-1 md:text-2xl">
+-          {title}
+-        </h2>
++        <div className="mb-3 flex items-center justify-between px-1.5 sm:px-4 md:mb-4 md:px-1">
++          <h2 className="text-[17px] font-black leading-tight text-white sm:text-xl md:text-2xl">
++            {title}
++          </h2>
++          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-slate-300">
++            {items.length}
++          </span>
++        </div>
+       ) : (
+         <div className="mb-4 flex flex-col gap-3 px-2 sm:px-4 md:px-1 lg:flex-row lg:items-end lg:justify-between">
+           <div className="min-w-0">
+@@ -171,12 +177,12 @@ function Carousel({
+         <div
+           ref={scrollContainerRef}
+           className={isClassicVariant
+-            ? 'flex overflow-x-auto pb-4 pl-2 pr-2 hide-scrollbar sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-1 md:pr-1 [&>*]:w-[110px] [&>*]:flex-shrink-0 sm:[&>*]:w-[140px] md:[&>*]:w-[160px] lg:[&>*]:w-[220px] xl:[&>*]:w-[240px]'
++            ? 'flex overflow-x-auto pb-3 pl-1.5 pr-3 hide-scrollbar sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-1 md:pr-1 [&>*]:w-[122px] [&>*]:flex-shrink-0 sm:[&>*]:w-[140px] md:[&>*]:w-[160px] lg:[&>*]:w-[220px] xl:[&>*]:w-[240px]'
+             : 'hide-scrollbar flex overflow-x-auto pb-4 pl-2 pr-2 sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-4 md:pr-4 xl:space-x-5 2xl:space-x-6 [&>*]:w-[110px] [&>*]:flex-shrink-0 sm:[&>*]:w-[140px] md:[&>*]:w-[160px] lg:[&>*]:w-[230px] xl:[&>*]:w-[260px] 2xl:[&>*]:w-[280px]'}
+           style={{
+             scrollBehavior: 'smooth',
+             WebkitOverflowScrolling: 'touch',
+-            gap: '0.75rem',
++            gap: isAndroidMobileUI && isClassicVariant ? '0.65rem' : '0.75rem',
+           }}
+           aria-label={`Carrusel de ${title}`}
+         >
+diff --git a/src/components/ParentalPinModal.jsx b/src/components/ParentalPinModal.jsx
+index 05a52af..3c40182 100644
+--- a/src/components/ParentalPinModal.jsx
++++ b/src/components/ParentalPinModal.jsx
+@@ -1,5 +1,5 @@
+ import React, { useState, useEffect } from 'react';
+-import Button from './Button';
++import { Button } from './ui/button.jsx';
+ 
+ export default function ParentalPinModal({
+   isOpen,
+diff --git a/src/pages/Home.jsx b/src/pages/Home.jsx
+index 053d7ff..bf24e87 100644
+--- a/src/pages/Home.jsx
++++ b/src/pages/Home.jsx
+@@ -1215,6 +1215,13 @@ onProceedWithTrial={proceedWithTrial}
+   }
+ 
+   if (isAndroidMobileUI) {
++    const mobileQuickLinks = [
++      { to: '/live-tv', label: 'TV en vivo', accent: 'from-cyan-400/22 to-sky-500/12' },
++      { to: '/peliculas', label: 'Peliculas', accent: 'from-amber-300/22 to-orange-500/12' },
++      { to: '/series', label: 'Series', accent: 'from-fuchsia-400/22 to-violet-500/12' },
++      { to: '/kids', label: 'Kids', accent: 'from-emerald-300/22 to-cyan-500/12' },
++    ];
++
+     return (
+       <>
+         <style>{`
+@@ -1250,18 +1257,22 @@ onProceedWithTrial={proceedWithTrial}
+           .drop-shadow-glow-logo {
+             filter: drop-shadow(0 0 25px hsl(var(--secondary) / 0.6)) drop-shadow(0 0 15px hsl(var(--primary) / 0.5));
+           }
++
++          .mobile-home-surface {
++            background:
++              radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.14), transparent 28%),
++              radial-gradient(circle at 88% 8%, rgba(244, 63, 94, 0.12), transparent 24%),
++              linear-gradient(180deg, rgba(2, 6, 23, 0.2), rgba(2, 6, 23, 0.96) 46%, #020617 100%);
++          }
+         `}</style>
+         <div
+-          className="min-h-screen text-white"
++          className="mobile-home-surface min-h-screen text-white"
+           style={{
+-            backgroundImage: "url('./fondo.png')",
+-            backgroundSize: 'cover',
+-            backgroundPosition: 'center',
+-            backgroundAttachment: 'fixed',
++            backgroundColor: '#020617',
+           }}
+         >
+           {recentlyAdded.length > 0 && (
+-            <div className="px-0 pb-1 pt-2">
++            <div className="px-0 pb-1 pt-3">
+               <CoverCarousel
+                 items={recentlyAdded}
+                 onItemClick={(item, itemType) => navigateToItem(item, itemType)}
+@@ -1271,7 +1282,19 @@ onProceedWithTrial={proceedWithTrial}
+               />
+             </div>
+           )}
+-          <div className="container mx-auto space-y-8 px-4 pb-8 pt-2 sm:px-6 md:space-y-12 lg:px-8">
++          <div className="mx-auto flex max-w-md gap-2 overflow-x-auto px-4 pb-2 pt-3 hide-scrollbar">
++            {mobileQuickLinks.map((link) => (
++              <Link
++                key={link.to}
++                to={link.to}
++                className={`shrink-0 rounded-2xl border border-white/10 bg-gradient-to-br ${link.accent} px-4 py-3 text-sm font-black text-white shadow-lg shadow-black/18 active:scale-95`}
++              >
++                {link.label}
++              </Link>
++            ))}
++          </div>
++
++          <div className="container mx-auto space-y-6 px-3 pb-6 pt-2 sm:px-5 md:space-y-10 lg:px-8">
+             {recentlyAdded.length > 0 && (
+               <Carousel
+                 title="Recien Agregados"
+diff --git a/src/pages/LiveTVPage.jsx b/src/pages/LiveTVPage.jsx
+index 4235567..205caf8 100644
+--- a/src/pages/LiveTVPage.jsx
++++ b/src/pages/LiveTVPage.jsx
+@@ -191,7 +191,7 @@ export default function LiveTVPage() {
+ 
+   if (showInitialLoading) {
+     return (
+-      <div className="flex min-h-[calc(100vh-128px)] items-center justify-center">
++      <div className="flex min-h-[calc(100vh-128px)] items-center justify-center px-4">
+         <div className="h-16 w-16 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />
+         <p className="ml-4 text-xl text-white">Cargando Interfaz...</p>
+       </div>
+@@ -212,9 +212,9 @@ export default function LiveTVPage() {
+   }
+ 
+   return (
+-    <div className="container mx-auto px-4 py-8 text-white sm:px-6 lg:px-8">
+-      <div className="mb-8 flex flex-col items-center justify-between gap-4 md:flex-row">
+-        <h1 className="text-center text-3xl font-bold md:text-left sm:text-4xl">
++    <div className="container mx-auto px-3 pb-28 pt-5 text-white sm:px-6 sm:pt-8 lg:px-8">
++      <div className="mb-5 flex flex-col items-stretch justify-between gap-3 md:flex-row md:items-center">
++        <h1 className="text-center text-3xl font-black md:text-left sm:text-4xl">
+           TV en Vivo
+         </h1>
+         <input
+@@ -222,21 +222,21 @@ export default function LiveTVPage() {
+           placeholder="Buscar canal..."
+           value={searchTerm}
+           onChange={(e) => setSearchTerm(e.target.value)}
+-          className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 placeholder-gray-400 transition-shadow focus:border-red-500 focus:ring-2 focus:ring-red-500 md:w-2/5 lg:w-1/3"
++          className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-base placeholder-slate-400 shadow-lg shadow-black/20 transition-shadow focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/45 md:w-2/5 lg:w-1/3"
+         />
+       </div>
+ 
+       {!isLoadingCategories && filterCategories.length > 0 && (
+-        <div className="mb-8 flex flex-wrap justify-center gap-2 border-b border-gray-700 pb-4 md:justify-start">
++        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-white/10 pb-4 hide-scrollbar md:flex-wrap md:justify-start">
+           {filterCategories.map((categoryName) => (
+             <button
+               key={categoryName}
+               onClick={() => handleCategoryButtonClick(categoryName)}
+               disabled={isLoadingChannels && selectedCategory === categoryName}
+-              className={`rounded-md px-4 py-2 text-sm font-medium transition-all duration-150 ease-in-out ${
++              className={`shrink-0 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all duration-150 ease-in-out ${
+                 selectedCategory === categoryName
+-                  ? 'bg-red-600 text-white shadow-lg ring-2 ring-red-400'
+-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-gray-500'
++                  ? 'bg-red-600 text-white shadow-lg shadow-red-950/35 ring-2 ring-red-300/60'
++                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/45'
+               } ${(isLoadingChannels && selectedCategory === categoryName) ? 'cursor-wait opacity-50' : ''}`}
+             >
+               {categoryName}
+@@ -257,7 +257,7 @@ export default function LiveTVPage() {
+       )}
+ 
+       {!showChannelLoading && !error && displayedChannels.length > 0 && (
+-        <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
++        <div className="grid grid-cols-2 gap-x-3 gap-y-5 pb-4 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+           {displayedChannels.map((channel) => (
+             <Card
+               key={channel.id || channel._id}
+diff --git a/src/pages/MoviesPage.jsx b/src/pages/MoviesPage.jsx
+index eae371b..77cedb4 100644
+--- a/src/pages/MoviesPage.jsx
++++ b/src/pages/MoviesPage.jsx
+@@ -391,8 +391,8 @@ export default function MoviesPage() {
+ 
+     if (!selectedMainSectionKey) {
+         return (
+-            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+-                <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 text-center sm:text-left">Explorar Películas</h1>
++            <div className="container mx-auto px-3 pb-28 pt-5 sm:px-6 sm:py-8 lg:px-8">
++                <h1 className="mb-5 text-center text-3xl font-black text-white sm:mb-8 sm:text-left sm:text-4xl">Explorar Peliculas</h1>
+                 {mainSections.length > 0 ? (
+                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+                         {mainSections.map(section => {
+@@ -420,24 +420,24 @@ export default function MoviesPage() {
+     const genresToShow = selectedMainSectionKey === 'por-generos' ? allGenres : getUniqueValuesFromArray(movies, 'genres');
+ 
+     return (
+-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
++        <div className="container mx-auto px-3 pb-28 pt-5 sm:px-6 sm:py-8 lg:px-8">
++            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                 <div className="flex items-center">
+                     <button
+                         onClick={() => { setSelectedMainSectionKey(null); setSearchTerm(''); }}
+-                        className="mr-3 text-gray-300 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
++                        className="mr-2 rounded-2xl border border-white/10 bg-slate-900 p-2 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                         title="Volver a Secciones"
+                     >
+                         <ChevronLeftIcon className="w-6 h-6 sm:w-7 sm:h-7" />
+                     </button>
+-                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight">
++                    <h1 className="text-2xl font-black leading-tight text-white sm:text-3xl md:text-4xl">
+                         {currentMainSection?.displayName || "Películas"}
+                     </h1>
+                 </div>
+-                <div className="flex items-center gap-4">
++                <div className="flex items-center gap-2">
+                     <button
+                         onClick={toggleGridView}
+-                        className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
++                        className="rounded-2xl border border-white/10 bg-slate-900 p-3 text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
+                         aria-label="Cambiar vista de cuadrícula"
+                     >
+                         <Squares2X2Icon className="w-5 h-5" />
+@@ -447,18 +447,18 @@ export default function MoviesPage() {
+                         placeholder={`Buscar...`}
+                         value={searchTerm}
+                         onChange={(e) => setSearchTerm(e.target.value)}
+-                        className="w-full md:w-auto px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-shadow"
++                        className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white placeholder-gray-400 transition-shadow focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/45 md:w-auto"
+                     />
+                 </div>
+             </div>
+ 
+             {genresToShow.length > 1 && (
+-                <div className="flex flex-wrap gap-2 mb-8 pb-4 border-b border-gray-700">
++                <div className="mb-6 flex gap-2 overflow-x-auto border-b border-white/10 pb-4 hide-scrollbar md:flex-wrap">
+                     {genresToShow.map(genre => (
+                         <button
+                             key={genre}
+                             onClick={() => setSelectedGenre(genre)}
+-                            className={`px-3.5 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${selectedGenre === genre ? 'bg-red-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'}`}
++                            className={`shrink-0 rounded-2xl px-4 py-2.5 text-xs font-bold transition-colors duration-150 sm:text-sm ${selectedGenre === genre ? 'bg-red-600 text-white shadow-lg' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                         >
+                             {genre}
+                         </button>
+@@ -467,7 +467,7 @@ export default function MoviesPage() {
+             )}
+ 
+             {movies.length > 0 ? (
+-                <div className={`grid ${getGridClass()} gap-6`}>
++                <div className={`grid ${getGridClass()} gap-3 sm:gap-5 md:gap-6`}>
+                     {movies.map((movie, index) => {
+                         if (movies.length === index + 1) {
+                             return (
+diff --git a/src/pages/SeriesPage.jsx b/src/pages/SeriesPage.jsx
+index dcbc87a..a01dd71 100644
+--- a/src/pages/SeriesPage.jsx
++++ b/src/pages/SeriesPage.jsx
+@@ -374,20 +374,20 @@ const handleAddToMyList = async (item) => {
+           100% { background-position: 0% 50%; }
+         }
+       `}</style>
+-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+-        <div className="flex flex-col md:flex-row gap-8">
++      <div className="container mx-auto px-3 pb-28 pt-5 sm:px-6 sm:py-8 lg:px-8">
++        <div className="flex flex-col gap-5 md:flex-row md:gap-8">
+           <div className="md:w-64 flex-shrink-0">
+-            <div className="bg-zinc-800 rounded-lg p-4 sticky top-24">
++            <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-3 md:sticky md:top-24 md:rounded-lg md:bg-zinc-800 md:p-4">
+               <h2 className="text-xl font-bold mb-4 text-white">Categorías</h2>
+-              <div className="space-y-2">
++              <div className="flex gap-2 overflow-x-auto hide-scrollbar md:block md:space-y-2">
+                 {SUBCATEGORIAS.map(subcategoria => (
+                   <button
+                     key={subcategoria}
+                     onClick={() => setSelectedSubcategoria(subcategoria)}
+-                    className={`flex w-full items-center justify-between gap-3 rounded-md px-4 py-2 text-left transition-colors ${
++                    className={`flex shrink-0 items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-left text-sm font-bold transition-colors md:w-full md:rounded-md md:py-2 ${
+                       selectedSubcategoria === subcategoria
+                         ? 'bg-red-600 text-white'
+-                        : 'text-gray-300 hover:bg-zinc-700'
++                        : 'bg-slate-800 text-gray-300 hover:bg-zinc-700 md:bg-transparent'
+                     } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text font-bold' : ''}`}
+                   >
+                     <span>{subcategoria}</span>
+@@ -405,14 +405,14 @@ const handleAddToMyList = async (item) => {
+           </div>
+ 
+           <div className="flex-1">
+-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+-              <h1 className={`text-3xl font-bold text-white ${selectedSubcategoria === 'ZONA KIDS' ? 'rainbow-text' : ''}`}>
++            <div className="mb-5 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
++              <h1 className={`text-2xl font-black text-white sm:text-3xl ${selectedSubcategoria === 'ZONA KIDS' ? 'rainbow-text' : ''}`}>
+                 Series: {selectedSubcategoria}
+               </h1>
+-              <div className="flex items-center gap-4">
++              <div className="flex items-center gap-2">
+                   <button
+                     onClick={toggleGridView}
+-                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
++                    className="rounded-2xl border border-white/10 bg-slate-900 p-3 text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
+                     aria-label="Cambiar vista de cuadrícula"
+                   >
+                     <Squares2X2Icon className="w-5 h-5" />
+@@ -422,13 +422,13 @@ const handleAddToMyList = async (item) => {
+                     placeholder="Buscar series..."
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+-                    className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
++                    className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white placeholder-gray-400 focus:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/45 sm:w-auto"
+                   />
+               </div>
+             </div>
+ 
+             {filteredSeries.length > 0 ? (
+-              <div className={`grid ${getGridClass()} gap-6`}>
++              <div className={`grid ${getGridClass()} gap-3 sm:gap-5 md:gap-6`}>
+                 {filteredSeries.map((serie, index) => {
+                   if (filteredSeries.length === index + 1) {
+                       return (

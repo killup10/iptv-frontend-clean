@@ -85,10 +85,11 @@ if (isAndroidTV()) {
 - **Back/Escape**: Volver
 - **Volumen**: Control automático
 
-### 3. Reproductor Nativo
-- **Android TV usa ExoPlayer nativo** (no VLC)
+### 3. Reproductor
+- **Android TV puede usar VLC o ExoPlayer** (configurable)
+- `TVSeriesChapters` funciona con ambos
+- La selección de capítulo se pasa al reproductor activo
 - Soporta: MKV, MP4, AVI, WebM, etc.
-- Botón flotante "📺 CANAL" para cambiar sin salir
 
 ### 4. Interfaz TV
 - **TVGrid**: Grilla de canales/series con navegación 2D
@@ -109,8 +110,8 @@ if (isAndroidTV()) {
 ```javascript
 // En platformUtils.js
 getPlatform() → 'android-tv' (si es TV)
-getPlayerType() → 'android-tv-native' (usar ExoPlayer)
-getUIType() → 'tv' (usar TVGrid, TVVideoPlayer)
+getPlayerType() → 'android-vlc' o 'android-exoplayer' (según configuración)
+getUIType() → 'tv' (usar TVGrid, TVVideoPlayer, TVSeriesChapters)
 ```
 
 ## 📊 Compatibilidad
@@ -189,7 +190,7 @@ npm run tv:sync
 ```
 Web/Desktop:      [Botones pequeños] [Touch] [16:9]
 Mobile Android:   [VLC Player]      [Touch] [Gestos]
-Android TV:       [ExoPlayer]       [D-Pad] [Grilla 4x3]
+Android TV:       [VLC o ExoPlayer] [D-Pad] [Grilla 4x3]
 ```
 
 ---

@@ -190,8 +190,11 @@ export default function ZonaKids() {
       <div className="flex flex-col md:flex-row gap-8">
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-            <h1 className="text-3xl font-bold text-white flex items-center">
-              🌈 Zona Kids
+            <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+              <span>🌈 Zona Kids</span>
+              <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
+                {filteredContent.length}
+              </span>
             </h1>
             <input
               type="text"

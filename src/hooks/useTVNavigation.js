@@ -80,7 +80,7 @@ export const useTVNavigation = (options = {}) => {
       element.classList.add('tv-focused');
       focusedElementRef.current = element;
       // Scroll al elemento si es necesario
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
   };
 

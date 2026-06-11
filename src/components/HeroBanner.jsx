@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Play, Info, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { rewriteImageUrl } from '../utils/imageUrl.js';
 
 export default function HeroBanner({ 
   items = [], 
@@ -26,7 +27,7 @@ export default function HeroBanner({
 
   // Definir valores por defecto para evitar errores cuando no hay items
   const item = randomItems && randomItems.length > 0 ? randomItems[currentIndex] : null;
-  const trailerUrl = item ? (item.trailer_url || item.trailerUrl || item.urlTrailer || '') : '';
+  const trailerUrl = item ? rewriteImageUrl(item.trailer_url || item.trailerUrl || item.urlTrailer || '') : '';
 
   // Reiniciar el video cuando cambia el índice
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function HeroBanner({
   const isSerie = contentType === 'serie';
   
   // Obtener imagen de fondo
-  const backgroundImage = item.poster || item.portada || item.image || item.imagen || '';
+  const backgroundImage = rewriteImageUrl(item.poster || item.portada || item.image || item.imagen || '');
   
   // Obtener información
   const title = item.nombre || item.title || item.nombre || 'Sin título';
@@ -175,7 +176,7 @@ export default function HeroBanner({
         )}
       </div>
 
-      {/* Gradiente oscuro para mejor legibilidad */}
+      {/* Gradiente oscuro para mejor legibilidad del texto */}
       <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent opacity-80" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
 
