@@ -295,7 +295,12 @@ export default function AdminPanel() {
     hora: "14:00",
     estadio: "Estadio Azteca, CDMX, México",
     fase: "Fase de Grupos - Grupo A (Inaugural)",
-    canales: []
+    canales: [],
+    goles1: 0,
+    goles2: 0,
+    estado: "PRÓXIMO",
+    clave: false,
+    grupo: "A"
   });
 
   // Mapa de búsqueda rápida O(1) de canales para optimizar el panel de administración
@@ -344,7 +349,12 @@ export default function AdminPanel() {
       hora: match.hora,
       estadio: match.estadio,
       fase: match.fase,
-      canales: match.canales || []
+      canales: match.canales || [],
+      goles1: match.goles1 !== undefined ? match.goles1 : 0,
+      goles2: match.goles2 !== undefined ? match.goles2 : 0,
+      estado: match.estado || "PRÓXIMO",
+      clave: match.clave !== undefined ? match.clave : false,
+      grupo: match.grupo || ""
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -370,13 +380,19 @@ export default function AdminPanel() {
       hora: "14:00",
       estadio: "Estadio Azteca, CDMX, México",
       fase: "Fase de Grupos - Grupo A (Inaugural)",
-      canales: []
+      canales: [],
+      goles1: 0,
+      goles2: 0,
+      estado: "PRÓXIMO",
+      clave: false,
+      grupo: "A"
     });
   };
 
   const handleMatchFormChange = (e) => {
-    const { name, value } = e.target;
-    setMatchForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? checked : value;
+    setMatchForm(prev => ({ ...prev, [name]: val }));
   };
 
   const handleMatchChannelSelect = (channelId) => {
@@ -1921,6 +1937,74 @@ export default function AdminPanel() {
                     <option key={phase} value={phase}>{phase}</option>
                   ))}
                 </Select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Grupo (A - L)</label>
+                  <Select
+                    name="grupo"
+                    value={matchForm.grupo}
+                    onChange={handleMatchFormChange}
+                  >
+                    <option value="">Ninguno (Fase Eliminatoria)</option>
+                    {["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(g => (
+                      <option key={g} value={g}>Grupo {g}</option>
+                    ))}
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Estado del Partido</label>
+                  <Select
+                    name="estado"
+                    value={matchForm.estado}
+                    onChange={handleMatchFormChange}
+                    required
+                  >
+                    <option value="PRÓXIMO">PRÓXIMO (Próximamente)</option>
+                    <option value="EN VIVO">EN VIVO (Jugándose)</option>
+                    <option value="FINALIZADO">FINALIZADO (Concluido)</option>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Goles {matchForm.equipo1}</label>
+                  <Input
+                    name="goles1"
+                    type="number"
+                    min="0"
+                    value={matchForm.goles1}
+                    onChange={handleMatchFormChange}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 mb-1">Goles {matchForm.equipo2}</label>
+                  <Input
+                    name="goles2"
+                    type="number"
+                    min="0"
+                    value={matchForm.goles2}
+                    onChange={handleMatchFormChange}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  id="clave-match-checkbox"
+                  name="clave"
+                  type="checkbox"
+                  checked={matchForm.clave}
+                  onChange={handleMatchFormChange}
+                  className="w-4 h-4 text-red-600 bg-gray-700 border-gray-600 rounded focus:ring-red-500 focus:ring-2 focus:ring-offset-gray-800"
+                />
+                <label htmlFor="clave-match-checkbox" className="text-sm font-semibold text-gray-300 cursor-pointer select-none">
+                  ⭐ Destacar como Partido Clave (barra lateral derecha)
+                </label>
               </div>
 
               <div className="border-t border-gray-700 pt-4 space-y-4">

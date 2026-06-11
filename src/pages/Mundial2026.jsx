@@ -209,125 +209,154 @@ function Mundial2026() {
     loadData();
   }, []);
 
-  // Datos de los Grupos del Mundial Oficiales (Format de 48 Equipos - Grupos A al L)
-  const GROUPS_DATA = {
-    A: [
-      { pais: "México", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Corea del Sur", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Sudáfrica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "República Checa", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    B: [
-      { pais: "Canadá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Suiza", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Catar", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Bosnia y Herzegovina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    C: [
-      { pais: "Brasil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Marruecos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Escocia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Haití", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    D: [
-      { pais: "EE. UU.", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Paraguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Australia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Turquía", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    E: [
-      { pais: "Alemania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Ecuador", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Costa de Marfil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Curazao", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    F: [
-      { pais: "Países Bajos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Japón", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Túnez", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Suecia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    G: [
-      { pais: "Bélgica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Irán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Egipto", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Nueva Zelanda", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    H: [
-      { pais: "España", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Uruguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Arabia Saudita", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Cabo Verde", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    I: [
-      { pais: "Francia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Senegal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Noruega", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Irak", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    J: [
-      { pais: "Argentina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Austria", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Argelia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Jordania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    K: [
-      { pais: "Portugal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Colombia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Uzbekistán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "R. D. del Congo", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ],
-    L: [
-      { pais: "Inglaterra", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Croacia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Panamá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      { pais: "Ghana", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-    ]
-  };
+  // Datos de los Grupos del Mundial Oficiales (Format de 48 Equipos - Grupos A al L) - Calculados Dinámicamente
+  const GROUPS_DATA = React.useMemo(() => {
+    const groups = {
+      A: [
+        { pais: "México", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Corea del Sur", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Sudáfrica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "República Checa", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      B: [
+        { pais: "Canadá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suiza", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Catar", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Bosnia y Herzegovina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      C: [
+        { pais: "Brasil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Marruecos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Escocia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Haití", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      D: [
+        { pais: "EE. UU.", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Paraguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Australia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Turquía", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      E: [
+        { pais: "Alemania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ecuador", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Costa de Marfil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Curazao", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      F: [
+        { pais: "Países Bajos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Japón", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Túnez", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suecia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      G: [
+        { pais: "Bélgica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Egipto", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Nueva Zelanda", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      H: [
+        { pais: "España", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uruguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Arabia Saudita", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Cabo Verde", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      I: [
+        { pais: "Francia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Senegal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Noruega", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irak", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      J: [
+        { pais: "Argentina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Austria", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Argelia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Jordania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      K: [
+        { pais: "Portugal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Colombia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uzbekistán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "R. D. del Congo", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      L: [
+        { pais: "Inglaterra", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Croacia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Panamá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ghana", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ]
+    };
 
-  // Calendario de partidos destacados reales
-  const MATCHES = [
-    {
-      id: 1,
-      fecha: "11 de Junio, 2026",
-      hora: "14:00",
-      estadio: "Estadio Azteca, CDMX, México",
-      fase: "Fase de Grupos - Grupo A (Inaugural)",
-      equipo1: { nombre: "México", score: 0 },
-      equipo2: { nombre: "Sudáfrica", score: 0 },
-      estado: "PRÓXIMO",
-    },
-    {
-      id: 2,
-      fecha: "11 de Junio, 2026",
-      hora: "19:00",
-      estadio: "Estadio BBVA, Monterrey, México",
-      fase: "Fase de Grupos - Grupo A",
-      equipo1: { nombre: "Corea del Sur", score: 0 },
-      equipo2: { nombre: "República Checa", score: 0 },
-      estado: "PRÓXIMO",
-    },
-    {
-      id: 3,
-      fecha: "12 de Junio, 2026",
-      hora: "17:00",
-      estadio: "BMO Field, Toronto, Canadá",
-      fase: "Fase de Grupos - Grupo B",
-      equipo1: { nombre: "Canadá", score: 0 },
-      equipo2: { nombre: "Bosnia y Herzegovina", score: 0 },
-      estado: "PRÓXIMO",
-    },
-    {
-      id: 4,
-      fecha: "12 de Junio, 2026",
-      hora: "18:00",
-      estadio: "SoFi Stadium, Los Ángeles, EE. UU.",
-      fase: "Fase de Grupos - Grupo D",
-      equipo1: { nombre: "EE. UU.", score: 0 },
-      equipo2: { nombre: "Paraguay", score: 0 },
-      estado: "PRÓXIMO",
-    },
-  ];
+    // Computar estadísticas en base a los partidos cargados desde base de datos
+    mundialMatches.forEach((match) => {
+      if (match.grupo && match.estado === "FINALIZADO") {
+        const groupKey = String(match.grupo).toUpperCase();
+        const groupTeams = groups[groupKey];
+        if (groupTeams) {
+          const t1 = groupTeams.find(t => t.pais === match.equipo1);
+          const t2 = groupTeams.find(t => t.pais === match.equipo2);
+          
+          if (t1 && t2) {
+            const g1 = Number(match.goles1 || 0);
+            const g2 = Number(match.goles2 || 0);
+            
+            t1.pj += 1;
+            t2.pj += 1;
+            t1.gf += g1;
+            t1.gc += g2;
+            t2.gf += g2;
+            t2.gc += g1;
+            
+            if (g1 > g2) {
+              t1.g += 1;
+              t2.p += 1;
+              t1.pts += 3;
+            } else if (g2 > g1) {
+              t2.g += 1;
+              t1.p += 1;
+              t2.pts += 3;
+            } else {
+              t1.e += 1;
+              t2.e += 1;
+              t1.pts += 1;
+              t2.pts += 1;
+            }
+          }
+        }
+      }
+    });
+
+    // Ordenar los equipos de cada grupo según reglas oficiales (PTS, luego Diferencia, luego Favor)
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const diffA = a.gf - a.gc;
+        const diffB = b.gf - b.gc;
+        if (diffB !== diffA) return diffB - diffA;
+        return b.gf - a.gf;
+      });
+    });
+
+    return groups;
+  }, [mundialMatches]);
+
+  // Calendario de partidos destacados reales - Filtrados por "clave" desde base de datos
+  const MATCHES = React.useMemo(() => {
+    const filtered = resolvedMundialMatches.filter(m => m.clave === true);
+    
+    // Si no hay ninguno destacado en la base de datos, mostramos los primeros 4 partidos de la lista
+    const listToMap = filtered.length > 0 ? filtered : resolvedMundialMatches.slice(0, 4);
+    
+    return listToMap.map(m => ({
+      id: m.id,
+      fase: m.fase,
+      fecha: m.fecha,
+      hora: m.hora,
+      estadio: m.estadio,
+      equipo1: { nombre: m.equipo1, score: m.goles1 || 0 },
+      equipo2: { nombre: m.equipo2, score: m.goles2 || 0 },
+      estado: m.estado || "PRÓXIMO"
+    }));
+  }, [resolvedMundialMatches]);
 
   // Estadios emblemáticos
   const STADIUMS = [
@@ -495,9 +524,25 @@ function Mundial2026() {
                           <div className="absolute inset-0 bg-gradient-to-r from-lime-500/[0.02] to-cyan-500/[0.02] opacity-0 group-hover/match:opacity-100 transition-opacity pointer-events-none" />
 
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/5 pb-3 mb-3">
-                            <span className="text-[10px] uppercase tracking-wider font-extrabold text-cyan-400 bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-500/10">
-                              {match.fase}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] uppercase tracking-wider font-extrabold text-cyan-400 bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-500/10">
+                                {match.fase}
+                              </span>
+                              {match.grupo && (
+                                <span className="text-[10px] uppercase tracking-wider font-extrabold text-lime-400 bg-lime-950/30 px-2 py-0.5 rounded border border-lime-500/10">
+                                  Grupo {match.grupo}
+                                </span>
+                              )}
+                              {match.estado !== "PRÓXIMO" && (
+                                <span className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded border ${
+                                  match.estado === "EN VIVO"
+                                    ? "text-red-400 bg-red-950/30 border-red-500/20 animate-pulse"
+                                    : "text-purple-400 bg-purple-950/30 border-purple-500/20"
+                                }`}>
+                                  {match.estado}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-3 text-xs text-slate-400">
                               <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-lime-400" /> {match.fecha}</span>
                               <span className="text-white font-bold font-mono bg-white/5 px-2 py-0.5 rounded">{match.hora}</span>
@@ -516,11 +561,19 @@ function Mundial2026() {
                               />
                             </div>
 
-                            {/* VS Badge */}
-                            <div className="sm:col-span-1 flex justify-center">
-                              <span className="text-xs font-black px-3 py-1 rounded-full bg-slate-900 border border-white/10 text-slate-500 select-none shadow-inner">
-                                VS
-                              </span>
+                            {/* VS Badge / Score */}
+                            <div className="sm:col-span-1 flex flex-col items-center justify-center">
+                              {match.estado === "PRÓXIMO" ? (
+                                <span className="text-xs font-black px-3 py-1 rounded-full bg-slate-900 border border-white/10 text-slate-500 select-none shadow-inner">
+                                  VS
+                                </span>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-sm font-black font-mono px-3.5 py-1 rounded-xl bg-lime-400/10 border border-lime-400/30 text-lime-400 select-none shadow-md shadow-lime-400/5 tracking-wider">
+                                    {match.goles1} - {match.goles2}
+                                  </span>
+                                </div>
+                              )}
                             </div>
 
                             {/* Equipo 2 */}
@@ -725,7 +778,16 @@ function Mundial2026() {
                       >
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                           <span>{match.fase}</span>
-                          <span className="text-cyan-400 uppercase tracking-widest">{match.estado}</span>
+                          <span className={
+                            match.estado === "EN VIVO"
+                              ? "text-lime-400 font-extrabold uppercase tracking-widest animate-pulse flex items-center gap-1"
+                              : match.estado === "FINALIZADO"
+                              ? "text-fuchsia-400 uppercase tracking-widest"
+                              : "text-cyan-400 uppercase tracking-widest"
+                          }>
+                            {match.estado === "EN VIVO" && <span className="w-1.5 h-1.5 rounded-full bg-lime-400 inline-block mr-1"></span>}
+                            {match.estado}
+                          </span>
                         </div>
                         <div className="flex items-center justify-between">
                           {/* Equipo 1 */}
@@ -735,7 +797,11 @@ function Mundial2026() {
                           </div>
                           {/* Score simulated */}
                           <div className="bg-black/50 border border-white/10 rounded-lg px-2 py-0.5 text-[11px] font-black text-white/60">
-                            -
+                            {match.estado === "PRÓXIMO" ? (
+                              "-"
+                            ) : (
+                              <span className="text-lime-300 font-mono font-black">{match.equipo1.score} - {match.equipo2.score}</span>
+                            )}
                           </div>
                           {/* Equipo 2 */}
                           <div className="flex items-center gap-2 flex-row-reverse">
