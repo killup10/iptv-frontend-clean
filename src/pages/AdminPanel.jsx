@@ -278,6 +278,7 @@ export default function AdminPanel() {
   const [dragInfo, setDragInfo] = useState(null);
   const [adminUsers, setAdminUsers] = useState([]);
   const [userEdits, setUserEdits] = useState({}); // Estado local para ediciones de usuarios
+  const [expandedDevices, setExpandedDevices] = useState({}); // Estado local para expandir dispositivos de cada usuario
 
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -1627,11 +1628,19 @@ export default function AdminPanel() {
                         >
                           Eliminar Usuario
                         </Button>
+                        <Button
+                          onClick={() => setExpandedDevices(prev => ({ ...prev, [usr._id]: !prev[usr._id] }))}
+                          className="ml-2 text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          {expandedDevices[usr._id] ? "Ocultar Dispositivos" : "Ver Dispositivos"}
+                        </Button>
                       </div>
                     </div>
                   </div>
                   <div className="mt-4">
-                    <AdminUserDevices userId={usr._id} username={usr.username} />
+                    {expandedDevices[usr._id] && (
+                      <AdminUserDevices userId={usr._id} username={usr.username} />
+                    )}
                   </div>
                 </div>
               ))}
