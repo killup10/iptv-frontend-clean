@@ -882,9 +882,18 @@ function Mundial2026() {
                             <span className="font-bold text-xs text-slate-300">{match.equipo2.nombre}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[9px] font-semibold text-slate-500 uppercase">
-                          <MapPin className="w-3 h-3 text-slate-500" />
-                          <span>{match.estadio}</span>
+                        <div className="flex items-center justify-between text-[9px] font-semibold text-slate-500 uppercase border-t border-white/5 pt-2">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-slate-500" />
+                            <span className="max-w-[110px] truncate">{match.estadio}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="w-3 h-3 text-lime-400" />
+                            <span className="text-slate-400">{match.fecha}</span>
+                            <span className="text-white font-bold font-mono bg-white/5 px-1.5 py-0.5 rounded text-[10px]">
+                              {match.hora}
+                            </span>
+                          </span>
                         </div>
                       </div>
                     ))}
