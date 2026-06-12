@@ -127,6 +127,7 @@ function Mundial2026() {
   const [allCatalogChannels, setAllCatalogChannels] = useState([]);
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [activeGroupTab, setActiveGroupTab] = useState("A");
+  const [filterTab, setFilterTab] = useState("active"); // "active", "finished", "all"
 
   // Mapa de búsqueda rápida O(1) de canales para optimizar el renderizado y evitar lag
   const channelsMap = React.useMemo(() => {
@@ -164,6 +165,28 @@ function Mundial2026() {
       };
     });
   }, [mundialMatches, channelsMap]);
+
+  // Memoizar la lista de partidos a mostrar, filtrada y ordenada por relevancia
+  const displayMatches = React.useMemo(() => {
+    let list = [...resolvedMundialMatches];
+
+    // Ordenar: EN VIVO primero, luego PRÓXIMO, luego FINALIZADO
+    list.sort((a, b) => {
+      if (a.estado === "EN VIVO" && b.estado !== "EN VIVO") return -1;
+      if (a.estado !== "EN VIVO" && b.estado === "EN VIVO") return 1;
+      if (a.estado === "PRÓXIMO" && b.estado === "FINALIZADO") return -1;
+      if (a.estado === "FINALIZADO" && b.estado === "PRÓXIMO") return 1;
+      return a.id - b.id;
+    });
+
+    if (filterTab === "active") {
+      return list.filter(m => m.estado === "EN VIVO" || m.estado === "PRÓXIMO");
+    }
+    if (filterTab === "finished") {
+      return list.filter(m => m.estado === "FINALIZADO");
+    }
+    return list;
+  }, [resolvedMundialMatches, filterTab]);
 
   // Cuenta regresiva para el Mundial 2026 (11 de Junio, 2026)
   const [timeLeft, setTimeLeft] = useState({
@@ -514,6 +537,40 @@ function Mundial2026() {
                   <p className="text-slate-400 text-xs md:text-sm mb-3.5">
                     Selecciona un partido del fixture y haz clic en los canales disponibles debajo para ver la transmisión en directo.
                   </p>
+                  
+                  {/* Selector de Pestañas de Fixture */}
+                  <div className="flex flex-wrap gap-1 p-1 bg-slate-950/60 border border-white/5 rounded-xl mb-4 self-start">
+                    <button
+                      onClick={() => setFilterTab("active")}
+                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
+                        filterTab === "active"
+                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      En Vivo / Próximos
+                    </button>
+                    <button
+                      onClick={() => setFilterTab("finished")}
+                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
+                        filterTab === "finished"
+                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Finalizados
+                    </button>
+                    <button
+                      onClick={() => setFilterTab("all")}
+                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
+                        filterTab === "all"
+                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Todos ({resolvedMundialMatches.length})
+                    </button>
+                  </div>
                 </div>
 
                 {loadingChannels ? (
@@ -521,9 +578,9 @@ function Mundial2026() {
                     <div className="w-10 h-10 border-2 border-lime-400 border-t-transparent rounded-full animate-spin mb-4" />
                     <p className="text-xs text-slate-500 font-semibold uppercase tracking-widest">Cargando fixture y canales...</p>
                   </div>
-                ) : resolvedMundialMatches.length > 0 ? (
+                ) : displayMatches.length > 0 ? (
                   <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {resolvedMundialMatches.map((match) => {
+                    {displayMatches.map((match) => {
                       const associatedChannels = match.associatedChannels || [];
 
                       return (
@@ -652,13 +709,18 @@ function Mundial2026() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-12 bg-black/20 border border-dashed border-white/5 rounded-2xl">
-                    <p className="text-sm text-slate-400 font-bold mb-1">
-                      No hay partidos programados en el fixture
+                  <div className="text-center py-12 bg-slate-950/20 border border-white/5 rounded-2xl w-full">
+                    <p className="text-slate-400 text-sm mb-2">
+                      No hay partidos en esta categoría
                     </p>
-                    <p className="text-xs text-slate-600">
-                      Los partidos aparecerán aquí tan pronto como sean agregados desde el Panel de Administración.
-                    </p>
+                    {filterTab === "active" && (
+                      <button
+                        onClick={() => setFilterTab("all")}
+                        className="text-xs text-lime-400 font-bold hover:underline"
+                      >
+                        Ver todos los partidos ({resolvedMundialMatches.length})
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

@@ -316,9 +316,9 @@ export default function AdminPanel() {
     return map;
   }, [channels]);
 
-  // Memoizar los partidos cargados con sus canales resueltos
+  // Memoizar los partidos cargados con sus canales resueltos y ordenados por relevancia (EN VIVO -> PRÓXIMO -> FINALIZADO)
   const resolvedMundialMatches = React.useMemo(() => {
-    return mundialMatches.map(match => {
+    const list = mundialMatches.map(match => {
       const associated = (match.canales || [])
         .map(chId => channelsMap.get(String(chId)))
         .filter(Boolean);
@@ -326,6 +326,15 @@ export default function AdminPanel() {
         ...match,
         associatedChannels: associated
       };
+    });
+
+    // Ordenar: EN VIVO primero, luego PRÓXIMO, luego FINALIZADO
+    return list.sort((a, b) => {
+      if (a.estado === "EN VIVO" && b.estado !== "EN VIVO") return -1;
+      if (a.estado !== "EN VIVO" && b.estado === "EN VIVO") return 1;
+      if (a.estado === "PRÓXIMO" && b.estado === "FINALIZADO") return -1;
+      if (a.estado === "FINALIZADO" && b.estado === "PRÓXIMO") return 1;
+      return a.id - b.id;
     });
   }, [mundialMatches, channelsMap]);
 
