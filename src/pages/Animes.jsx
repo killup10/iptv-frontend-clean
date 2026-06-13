@@ -14,6 +14,7 @@ import { getCollections, addItemsToCollection } from '../utils/api.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 
 
 
@@ -26,6 +27,15 @@ export function Animes() {
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const filteredAnimes = useMemo(() => {
     let filtered = [...animes];
@@ -275,7 +285,7 @@ export function Animes() {
 
 
 
-  if (loading) {
+  if (loading && !isMobile) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
         <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
@@ -335,63 +345,79 @@ export function Animes() {
           filter: drop-shadow(0 0 25px hsl(var(--secondary) / 0.6)) drop-shadow(0 0 15px hsl(var(--primary) / 0.5));
         }
       `}</style>
-      <div 
-        className="text-white min-h-screen"
-        style={{
-          backgroundImage: `url(./fondo.png)`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-      >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
-              <span>Animes</span>
-              <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
-                {filteredAnimes.length}
-              </span>
-            </h1>
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <button
-                onClick={toggleGridView}
-                className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
-                aria-label="Cambiar vista de cuadrícula"
-              >
-                <Squares2X2Icon className="w-5 h-5" />
-              </button>
-              <input
-                type="text"
-                placeholder="Buscar animes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
-              />
-            </div>
-          </div>
-
-          
-          {filteredAnimes.length > 0 ? (
-            <div className={`grid ${getGridClass()} gap-6`}>
-              {filteredAnimes.map(anime => (
-                <Card
-                  key={anime.id || anime._id}
-                  item={anime}
-                  onClick={() => handleAnimeClick(anime)}
-                  itemType="anime"
-                  onPlayTrailer={handlePlayTrailerClick}
-                  onAddToMyList={handleAddToMyList}
-                  onAddToCollectionClick={handleOpenCollectionsModal}
+      {isMobile ? (
+        <MobileArcadeDeck
+          items={animes}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onItemClick={handleAnimeClick}
+          onPlayTrailer={handlePlayTrailerClick}
+          onAddToMyList={handleAddToMyList}
+          onAddToCollectionClick={handleOpenCollectionsModal}
+          title="Animes"
+          itemType="anime"
+          variant="arcade"
+          loading={loading}
+        />
+      ) : (
+        <div 
+          className="text-white min-h-screen"
+          style={{
+            backgroundImage: `url(./fondo.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed'
+          }}
+        >
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
+                <span>Animes</span>
+                <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
+                  {filteredAnimes.length}
+                </span>
+              </h1>
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <button
+                  onClick={toggleGridView}
+                  className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                  aria-label="Cambiar vista de cuadrícula"
+                >
+                  <Squares2X2Icon className="w-5 h-5" />
+                </button>
+                <input
+                  type="text"
+                  placeholder="Buscar animes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
                 />
-              ))}
+              </div>
             </div>
-          ) : (
-            <p className="text-center text-gray-400 mt-8">
-              {searchTerm ? "No se encontraron animes que coincidan con la búsqueda." : "No hay animes disponibles en este momento."}
-            </p>
-          )}
+
+            
+            {filteredAnimes.length > 0 ? (
+              <div className={`grid ${getGridClass()} gap-6`}>
+                {filteredAnimes.map(anime => (
+                  <Card
+                    key={anime.id || anime._id}
+                    item={anime}
+                    onClick={() => handleAnimeClick(anime)}
+                    itemType="anime"
+                    onPlayTrailer={handlePlayTrailerClick}
+                    onAddToMyList={handleAddToMyList}
+                    onAddToCollectionClick={handleOpenCollectionsModal}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-400 mt-8">
+                {searchTerm ? "No se encontraron animes que coincidan con la búsqueda." : "No hay animes disponibles en este momento."}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal

@@ -152,6 +152,7 @@ function App() {
 
   useEffect(() => {
     closeAllMenus();
+    window.scrollTo(0, 0);
   }, [closeAllMenus, location.pathname]);
 
   useEffect(() => {
@@ -303,35 +304,14 @@ function App() {
           font-weight: bold;
         }
 
-        .kids-animated-text {
-          background-image: linear-gradient(to right, #ff007f, #ffaa00, #00d4ff, #00ff66, #ff007f);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          font-weight: 900;
-          text-shadow: 0 0 8px rgba(255, 0, 127, 0.15);
-          animation: kidsTextHue 4s linear infinite;
-        }
-        @keyframes kidsTextHue {
-          0% { background-position: 0% 50%; }
-          100% { background-position: 200% 50%; }
-        }
-        @keyframes kidBounce {
-          0%, 100% { transform: translateY(0) scale(1); }
-          50% { transform: translateY(-4px) scale(1.2); }
-        }
-        .animate-kid-bounce {
-          display: inline-block;
-          animation: kidBounce 1.8s ease-in-out infinite;
-        }
       `}</style>
       <div style={mainContainerStyle} className="min-h-screen bg-black text-white flex flex-col">
       {shouldShowLayout && (
         <header 
-          className={`fixed top-0 left-0 right-0 z-[90] transition-all duration-300 ${
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999 }}
+          className={`transition-all duration-300 ${
             scrolled 
-              ? 'bg-[#090514]/85 border-b border-fuchsia-300/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)] backdrop-blur-md' 
+              ? 'bg-[#090514] border-b border-fuchsia-300/10 shadow-md' 
               : 'bg-transparent'
           }`}
         >
@@ -410,8 +390,8 @@ function App() {
                     )}
                   </div>
                   
-                  <Link to="/kids" className="kids-animated-text hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
-                    <span className="animate-kid-bounce">🧸</span>
+                  <Link to="/kids" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
+                    <span>🐻</span>
                     <span>Zona Kids</span>
                   </Link>
                   <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
@@ -501,7 +481,7 @@ function App() {
 
             {/* Mobile Navigation Drawer Panel */}
             <div 
-              className={`md:hidden fixed inset-0 z-[100] transition-all duration-300 ${
+              className={`md:hidden fixed inset-0 z-[1000] transition-all duration-300 ${
                 mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
@@ -594,8 +574,8 @@ function App() {
                     )}
                   </div>
  
-                  <Link to="/kids" className="flex items-center gap-3 kids-animated-text hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
-                    <span className="text-lg animate-kid-bounce">🧸</span> Zona Kids
+                  <Link to="/kids" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">🐻</span> Zona Kids
                   </Link>
                   <Link to="/colecciones" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">💎</span> Colecciones

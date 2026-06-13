@@ -105,7 +105,7 @@ function Carousel({
 
   return (
     <section
-      className={isClassicVariant ? 'mb-6 md:mb-8 lg:mb-12' : 'relative mb-7 md:mb-10 lg:mb-12'}
+      className={isClassicVariant ? 'mb-3 md:mb-6 lg:mb-8' : 'relative mb-4 md:mb-8 lg:mb-10'}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
@@ -177,8 +177,8 @@ function Carousel({
         <div
           ref={scrollContainerRef}
           className={isClassicVariant
-            ? 'flex overflow-x-auto pb-4 pl-2 pr-2 hide-scrollbar sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-1 md:pr-1 [&>*]:w-[110px] [&>*]:flex-shrink-0 sm:[&>*]:w-[140px] md:[&>*]:w-[160px] lg:[&>*]:w-[220px] xl:[&>*]:w-[240px]'
-            : 'hide-scrollbar flex overflow-x-auto pb-4 pl-2 pr-2 sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-4 md:pr-4 xl:space-x-5 2xl:space-x-6 [&>*]:w-[110px] [&>*]:flex-shrink-0 sm:[&>*]:w-[140px] md:[&>*]:w-[160px] lg:[&>*]:w-[230px] xl:[&>*]:w-[260px] 2xl:[&>*]:w-[280px]'}
+            ? 'flex overflow-x-auto pb-4 pl-2 pr-2 hide-scrollbar sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-1 md:pr-1 [&>*]:w-[130px] [&>*]:flex-shrink-0 sm:[&>*]:w-[145px] md:[&>*]:w-[165px] lg:[&>*]:w-[220px] xl:[&>*]:w-[240px]'
+            : 'hide-scrollbar flex overflow-x-auto pb-4 pl-2 pr-2 sm:space-x-3 sm:pl-4 sm:pr-4 md:space-x-4 md:pl-4 md:pr-4 xl:space-x-5 2xl:space-x-6 [&>*]:w-[130px] [&>*]:flex-shrink-0 sm:[&>*]:w-[145px] md:[&>*]:w-[165px] lg:[&>*]:w-[230px] xl:[&>*]:w-[260px] 2xl:[&>*]:w-[280px]'}
           style={{
             scrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch',

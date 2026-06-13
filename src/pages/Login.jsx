@@ -3,6 +3,82 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { isAndroidTV } from "../utils/platformUtils.js";
 import { Laptop, Smartphone, Eye, EyeOff, Loader2, Trophy, Users, PlayCircle, Star } from "lucide-react";
+import axiosInstance from "../utils/axiosInstance.js";
+
+// Mapeador de países a códigos ISO para banderas de FlagCDN
+const countryToCode = {
+  "Alemania": "de",
+  "Angola": "ao",
+  "Arabia Saudita": "sa",
+  "Argelia": "dz",
+  "Argentina": "ar",
+  "Australia": "au",
+  "Austria": "at",
+  "Bélgica": "be",
+  "Bolivia": "bo",
+  "Brasil": "br",
+  "Camerún": "cm",
+  "Canadá": "ca",
+  "Catar": "qa",
+  "Chile": "cl",
+  "China": "cn",
+  "Colombia": "co",
+  "Corea del Sur": "kr",
+  "Costa de Marfil": "ci",
+  "Costa Rica": "cr",
+  "Croacia": "hr",
+  "Dinamarca": "dk",
+  "Ecuador": "ec",
+  "EE. UU.": "us",
+  "Egipto": "eg",
+  "El Salvador": "sv",
+  "Escocia": "gb-sct",
+  "España": "es",
+  "Francia": "fr",
+  "Gales": "gb-wls",
+  "Ghana": "gh",
+  "Grecia": "gr",
+  "Honduras": "hn",
+  "Hungría": "hu",
+  "Inglaterra": "gb-eng",
+  "Irak": "iq",
+  "Irán": "ir",
+  "Irlanda": "ie",
+  "Islandia": "is",
+  "Italia": "it",
+  "Jamaica": "jm",
+  "Japón": "jp",
+  "Marruecos": "ma",
+  "México": "mx",
+  "Nigeria": "ng",
+  "Noruega": "no",
+  "Nueva Zelanda": "nz",
+  "Países Bajos": "nl",
+  "Panamá": "pa",
+  "Paraguay": "py",
+  "Perú": "pe",
+  "Polonia": "pl",
+  "Portugal": "pt",
+  "República Checa": "cz",
+  "Rumania": "ro",
+  "Senegal": "sn",
+  "Serbia": "rs",
+  "Sudáfrica": "za",
+  "Suecia": "se",
+  "Suiza": "ch",
+  "Túnez": "tn",
+  "Turquía": "tr",
+  "Ucrania": "ua",
+  "Uruguay": "uy",
+  "Venezuela": "ve"
+};
+
+const getFlagUrl = (countryName) => {
+  const code = countryToCode[countryName];
+  if (!code) return "https://flagcdn.com/w40/un.png";
+  return `https://flagcdn.com/w40/${code}.png`;
+};
+
 
 const TV_LOGIN_FOCUSABLE_COUNT = 6;
 
@@ -143,6 +219,31 @@ function Login() {
     minutos: 0,
     segundos: 0,
   });
+
+  const [nextMatch, setNextMatch] = useState({
+    equipo1: "México",
+    equipo2: "Sudáfrica",
+    fecha: "11 de Junio, 2026",
+    hora: "14:00",
+    estado: "PRÓXIMO",
+    goles1: 0,
+    goles2: 0
+  });
+
+  // Cargar el partido más próximo desde el backend
+  useEffect(() => {
+    async function loadNextMatch() {
+      try {
+        const response = await axiosInstance.get("/api/worldcup/public/next-match");
+        if (response.data) {
+          setNextMatch(response.data);
+        }
+      } catch (error) {
+        console.error("Error al cargar el próximo partido:", error);
+      }
+    }
+    loadNextMatch();
+  }, []);
 
   // Cuenta regresiva exacta al 11 de Junio, 2026 a las 14:00 (Hora del partido inaugural)
   useEffect(() => {
@@ -413,21 +514,33 @@ function Login() {
             
             <div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.25em] mb-1.5 flex items-center justify-center gap-1">
-                ⚽ Próximo Partido
+                ⚽ {nextMatch.estado === "EN VIVO" ? "PARTIDO EN VIVO" : "PRÓXIMO PARTIDO"}
               </div>
               <div className="text-sm font-black text-white flex items-center justify-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <img src="https://flagcdn.com/w40/mx.png" alt="México" className="w-5 h-3.5 object-cover rounded-sm" />
-                  <span>México</span>
+                  <img
+                    src={getFlagUrl(nextMatch.equipo1)}
+                    alt={nextMatch.equipo1}
+                    className="w-5 h-3.5 object-cover rounded-sm border border-white/5"
+                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                  />
+                  <span>{nextMatch.equipo1}</span>
                 </div>
-                <span className="text-slate-400 text-xs font-extrabold">vs</span>
+                <span className="text-slate-400 text-xs font-extrabold">
+                  {nextMatch.estado === "EN VIVO" ? `${nextMatch.goles1 || 0} - ${nextMatch.goles2 || 0}` : "vs"}
+                </span>
                 <div className="flex items-center gap-1.5">
-                  <img src="https://flagcdn.com/w40/za.png" alt="Sudáfrica" className="w-5 h-3.5 object-cover rounded-sm" />
-                  <span>Sudáfrica</span>
+                  <img
+                    src={getFlagUrl(nextMatch.equipo2)}
+                    alt={nextMatch.equipo2}
+                    className="w-5 h-3.5 object-cover rounded-sm border border-white/5"
+                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                  />
+                  <span>{nextMatch.equipo2}</span>
                 </div>
               </div>
-              <div className="text-[11px] text-lime-400 font-bold mt-1 tracking-wider">
-                11 JUN 2026 - 14:00
+              <div className="text-[11px] text-lime-400 font-bold mt-1 tracking-wider uppercase">
+                {nextMatch.fecha} - {nextMatch.hora}
               </div>
             </div>
           </div>

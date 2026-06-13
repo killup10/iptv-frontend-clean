@@ -18,6 +18,7 @@ import Toast from '../components/Toast.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 
 const getUniqueValuesFromArray = (items, field) => {
     if (!items || items.length === 0) return ['Todas'];
@@ -43,6 +44,15 @@ export default function MoviesPage() {
 
     const [movies, setMovies] = useState([]);
     const [page, setPage] = useState(1);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
     const [totalPages, setTotalPages] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -128,7 +138,8 @@ export default function MoviesPage() {
         try {
             const isGenreSection = mainSection === 'por-generos';
             const sectionToFetch = isGenreSection ? null : mainSection;
-            const data = await fetchUserMovies(currentPage, 20, sectionToFetch, genre, search);
+            const limit = window.innerWidth < 768 ? 1000 : 20;
+            const data = await fetchUserMovies(currentPage, limit, sectionToFetch, genre, search);
             
             setMovies(prevMovies => currentPage === 1 ? data.videos : [...prevMovies, ...data.videos]);
             setTotalPages(data.totalPages);
@@ -380,7 +391,7 @@ export default function MoviesPage() {
         }
       };
 
-    if (isLoading && page === 1) {
+    if (isLoading && page === 1 && !isMobile) {
         return <div className="flex justify-center items-center min-h-[calc(100vh-128px)]"><div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div></div>;
     }
 
@@ -419,6 +430,44 @@ export default function MoviesPage() {
 
     const currentMainSection = mainSections.find(s => s.key === selectedMainSectionKey);
     const genresToShow = selectedMainSectionKey === 'por-generos' ? allGenres : getUniqueValuesFromArray(movies, 'genres');
+
+    if (isMobile && selectedMainSectionKey) {
+        return (
+            <>
+                <MobileArcadeDeck
+                    items={movies}
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    onItemClick={handleMovieClick}
+                    onPlayTrailer={handlePlayTrailerClick}
+                    onAddToMyList={handleAddToMyListSafe}
+                    onAddToCollectionClick={handleOpenCollectionsModal}
+                    title={currentMainSection?.displayName || "Películas"}
+                    itemType="movie"
+                    variant="cinematic"
+                    categories={genresToShow}
+                    selectedCategory={selectedGenre}
+                    onCategoryChange={setSelectedGenre}
+                    loading={isLoading}
+                />
+                
+                {vodDetail?.item && (
+                    <MobileVodDetailModal
+                        isOpen={Boolean(vodDetail?.item)}
+                        item={vodDetail.item}
+                        itemType={vodDetail.itemType}
+                        canContinue={detailCanContinue}
+                        progressPercent={detailProgressPercent}
+                        onClose={closeVodDetail}
+                        onContinue={handleContinueFromDetail}
+                        onPlay={handlePlayFromDetail}
+                        onAddToMyList={handleAddToMyListSafe}
+                        onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+                    />
+                )}
+            </>
+        );
+    }
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">

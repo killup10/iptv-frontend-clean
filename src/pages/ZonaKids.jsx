@@ -10,6 +10,8 @@ import TrailerModal from '../components/TrailerModal.jsx';
 import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
+import Toast from '../components/Toast.jsx';
 
 export default function ZonaKids() {
   const { user } = useAuth();
@@ -19,6 +21,33 @@ export default function ZonaKids() {
   const [error, setError] = useState(null);
   const setAllSearchItems = null; // SearchBar global solo en Home
   const [searchTerm, setSearchTerm] = useState("");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleAddToMyListSafe = async (item) => {
+    try {
+      const result = await addItemToMyList(item);
+      setToastMessage(
+        result.status === 'duplicate'
+          ? `"${item.name || item.title}" ya estaba en Mi Lista`
+          : `"${item.name || item.title}" agregado a Mi Lista`,
+      );
+      setToastType(result.status === 'duplicate' ? 'info' : 'success');
+    } catch (error) {
+      console.error('[ZonaKids.jsx] Error al agregar a Mi Lista:', error);
+      setToastMessage('Error al agregar a Mi Lista');
+      setToastType('error');
+    }
+  };
 
   const [collections, setCollections] = useState([]);
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -167,7 +196,7 @@ export default function ZonaKids() {
     return titleMatch || descMatch;
   });
 
-  if (isLoading) return (
+  if (isLoading && !isMobile) return (
     <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
       <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
     </div>
@@ -185,13 +214,75 @@ export default function ZonaKids() {
     </p>
   );
 
+  if (isMobile) {
+    return (
+      <>
+        <MobileArcadeDeck
+          items={content}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onItemClick={handleContentClick}
+          onPlayTrailer={openTrailer}
+          onAddToMyList={handleAddToMyListSafe}
+          onAddToCollectionClick={handleOpenCollectionsModal}
+          title="Zona Kids"
+          itemType="kids"
+          variant="arcade"
+          loading={isLoading}
+        />
+        <ContentAccessModal
+          isOpen={showAccessModal}
+          onClose={closeAccessModal}
+          data={accessModalData}
+          onProceedWithTrial={handleProceedWithTrial}
+          onGoBack={handleGoBack}
+        />
+        {showTrailerModal && currentTrailerUrl && (
+          <TrailerModal
+            trailerUrl={currentTrailerUrl}
+            onClose={closeTrailer}
+          />
+        )}
+        {vodDetail?.item && (
+          <MobileVodDetailModal
+            isOpen={Boolean(vodDetail?.item)}
+            item={vodDetail.item}
+            itemType={vodDetail.itemType}
+            canContinue={detailCanContinue}
+            progressPercent={detailProgressPercent}
+            onClose={closeVodDetail}
+            onContinue={handleContinueFromDetail}
+            onPlay={handlePlayFromDetail}
+            onAddToMyList={handleAddToMyListSafe}
+            onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+          />
+        )}
+        <CollectionsModal
+            isOpen={isCollectionsModalOpen}
+            onClose={handleCloseCollectionsModal}
+            item={selectedItemForCollection}
+            collections={collections.filter(c => c.itemsModel === 'Video')}
+            onAddToCollection={handleAddToCollection}
+        />
+        {toastMessage && (
+            <Toast
+              message={toastMessage}
+              type={toastType}
+              duration={3000}
+              onClose={() => setToastMessage('')}
+            />
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col md:flex-row gap-8">
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-white flex items-center gap-2">
-              <span>🌈 Zona Kids</span>
+              <span>🐻 Zona Kids</span>
               <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
                 {filteredContent.length}
               </span>

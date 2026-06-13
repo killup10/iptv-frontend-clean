@@ -777,7 +777,7 @@ function Mundial2026() {
                   </h2>
                   
                   {/* Selector de Pestañas de Grupos */}
-                  <div className="flex gap-1 overflow-x-auto max-w-full pb-2 sm:pb-0 hide-scrollbar">
+                  <div className="grid grid-cols-6 sm:flex sm:flex-wrap gap-1 max-w-full pb-2 sm:pb-0">
                     {Object.keys(GROUPS_DATA).map((group) => (
                       <button
                         key={group}
@@ -798,15 +798,15 @@ function Mundial2026() {
                 <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/25">
                   <table className="min-w-full text-left border-collapse">
                     <thead>
-                      <tr className="border-b border-white/5 text-slate-500 text-xs sm:text-sm font-black uppercase tracking-wider bg-white/[0.02]">
-                        <th className="py-4 sm:py-5 px-4 w-12 text-center">Pos</th>
-                        <th className="py-4 sm:py-5 px-4">País</th>
-                        <th className="py-4 sm:py-5 px-4 text-center">PJ</th>
-                        <th className="py-4 sm:py-5 px-4 text-center">G</th>
-                        <th className="py-4 sm:py-5 px-4 text-center">E</th>
-                        <th className="py-4 sm:py-5 px-4 text-center">P</th>
-                        <th className="py-5 sm:py-6 px-4 text-center">GF:GC</th>
-                        <th className="py-4 sm:py-5 px-4 text-center font-bold text-lime-400">Pts</th>
+                      <tr className="border-b border-white/5 text-slate-500 text-[10px] sm:text-sm font-black uppercase tracking-wider bg-white/[0.02]">
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 w-8 sm:w-12 text-center">Pos</th>
+                        <th className="py-3 sm:py-5 px-1.5 sm:px-4">País</th>
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">PJ</th>
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">G</th>
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">E</th>
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">P</th>
+                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">GF:GC</th>
+                        <th className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-bold text-lime-400">Pts</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -815,19 +815,24 @@ function Mundial2026() {
                           key={team.pais}
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
                         >
-                          <td className="py-5 sm:py-7 px-4 text-center font-bold text-sm sm:text-base text-slate-400">{idx + 1}</td>
-                          <td className="py-5 sm:py-7 px-4 flex items-center gap-4">
-                            <img src={getFlagUrl(team.pais)} alt={team.pais} className="w-8 h-5.5 object-cover rounded shadow-md" />
-                            <span className="font-bold text-base sm:text-lg text-slate-200">{team.pais}</span>
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center font-bold text-xs sm:text-base text-slate-400">{idx + 1}</td>
+                          <td className="py-3 sm:py-5 px-1.5 sm:px-4 flex items-center gap-1.5 sm:gap-4 min-w-0">
+                            <img
+                              src={getFlagUrl(team.pais)}
+                              alt={team.pais}
+                              className="w-5 h-3.5 sm:w-8 sm:h-5.5 object-cover rounded shadow-md flex-shrink-0"
+                              onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                            />
+                            <span className="font-bold text-xs sm:text-base text-slate-200 truncate">{team.pais}</span>
                           </td>
-                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.pj}</td>
-                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.g}</td>
-                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.e}</td>
-                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-300">{team.p}</td>
-                          <td className="py-5 sm:py-7 px-4 text-center text-sm sm:text-base text-slate-400">
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.pj}</td>
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.g}</td>
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.e}</td>
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.p}</td>
+                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-400">
                             {team.gf}:{team.gc}
                           </td>
-                          <td className="py-5 sm:py-7 px-4 text-center font-black text-base sm:text-lg text-lime-300">{team.pts}</td>
+                          <td className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-black text-xs sm:text-lg text-lime-300">{team.pts}</td>
                         </tr>
                       ))}
                     </tbody>

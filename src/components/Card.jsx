@@ -194,9 +194,7 @@ function Card({
   const ratingClasses = isClassicVariant
     ? 'pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1 rounded-md bg-black/80 px-2 py-1 text-xs font-semibold text-yellow-400'
     : 'pointer-events-none absolute left-2 top-2 z-30 flex items-center gap-1 rounded-full border border-amber-200/35 bg-gradient-to-r from-[#2f0a4f]/90 to-[#13051f]/88 px-2.5 py-1 text-xs font-semibold text-amber-200 shadow-[0_10px_24px_rgba(88,28,135,0.28)] backdrop-blur-md';
-  const newEpisodesClasses = isClassicVariant
-    ? 'animate-elegant-pulse absolute right-2 top-2 z-20 whitespace-nowrap rounded-full border border-red-400/30 bg-gradient-to-r from-red-600 to-red-700 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg shadow-red-500/40 backdrop-blur-md'
-    : 'animate-elegant-pulse absolute right-2 top-2 z-20 whitespace-nowrap rounded-full border border-fuchsia-200/25 bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg shadow-fuchsia-500/35 backdrop-blur-md';
+  const newEpisodesClasses = 'animate-elegant-pulse absolute left-2 top-2 z-20 whitespace-nowrap rounded-full border border-fuchsia-200/25 bg-gradient-to-r from-fuchsia-600 via-purple-600 to-pink-600 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg shadow-fuchsia-500/35 backdrop-blur-md';
   const lockScrimClasses = isClassicVariant
     ? 'pointer-events-none absolute inset-0 z-[2] bg-black/38'
     : 'pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(180deg,rgba(8,4,20,0.22),rgba(2,6,23,0.58))]';
@@ -299,7 +297,14 @@ function Card({
         )}
 
         {showItemTypeBadge && itemType && itemType !== 'item' && (
-          <div className="absolute left-2 top-10 z-10">
+          <div 
+            className="absolute left-2 z-10"
+            style={{
+              top: item.hasNewEpisodes 
+                ? (ratingDisplay ? '54px' : '30px') 
+                : (ratingDisplay ? '30px' : '8px')
+            }}
+          >
             <div className="relative inline-block">
               <div className="absolute inset-0 rounded-md bg-gradient-to-r from-pink-500 to-purple-600 blur-sm opacity-75"></div>
               <div className="relative rounded-md border border-pink-400 bg-gradient-to-r from-pink-500 to-purple-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">

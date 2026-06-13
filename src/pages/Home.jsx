@@ -907,7 +907,7 @@ onProceedWithTrial={proceedWithTrial}
               />
             </div>
           )}
-          <div className="relative container mx-auto space-y-8 px-4 pb-8 pt-2 sm:px-6 md:space-y-12 lg:px-8 z-10">
+          <div className="relative container mx-auto space-y-4 px-3 pb-6 pt-2 sm:px-6 md:space-y-8 lg:px-8 z-10">
             {recentlyAdded.length > 0 && (
               <Carousel
                 title="Recien Agregados"

@@ -11,6 +11,7 @@ import { getCollections, addItemsToCollection } from '../utils/api.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 
 
 export function Doramas() {
@@ -21,6 +22,15 @@ export function Doramas() {
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const filteredDoramas = useMemo(() => {
     let filtered = [...doramas];
@@ -185,7 +195,7 @@ export function Doramas() {
   };
 
 
-  if (loading) {
+  if (loading && !isMobile) {
     return (
       <>
         <style>{`
@@ -268,63 +278,79 @@ export function Doramas() {
           filter: drop-shadow(0 0 25px hsl(var(--secondary) / 0.6)) drop-shadow(0 0 15px hsl(var(--primary) / 0.5));
         }
       `}</style>
-      <div 
-        className="text-white min-h-screen"
-        style={{
-          backgroundImage: `url(./fondo.png)`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-      >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
-              <span>K-Dramas</span>
-              <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
-                {filteredDoramas.length}
-              </span>
-            </h1>
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <button
-                onClick={toggleGridView}
-                className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
-                aria-label="Cambiar vista de cuadrícula"
-              >
-                <Squares2X2Icon className="w-5 h-5" />
-              </button>
-              <input
-                type="text"
-                placeholder="Buscar K-Dramas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
-              />
+      {isMobile ? (
+        <MobileArcadeDeck
+          items={doramas}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onItemClick={handleDoramaClick}
+          onPlayTrailer={handlePlayTrailerClick}
+          onAddToMyList={handleAddToMyList}
+          onAddToCollectionClick={handleOpenCollectionsModal}
+          title="K-Dramas"
+          itemType="dorama"
+          variant="arcade"
+          loading={loading}
+        />
+      ) : (
+        <div 
+          className="text-white min-h-screen"
+          style={{
+            backgroundImage: `url(./fondo.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed'
+          }}
+        >
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
+                <span>K-Dramas</span>
+                <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
+                  {filteredDoramas.length}
+                </span>
+              </h1>
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <button
+                  onClick={toggleGridView}
+                  className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                  aria-label="Cambiar vista de cuadrícula"
+                >
+                  <Squares2X2Icon className="w-5 h-5" />
+                </button>
+                <input
+                  type="text"
+                  placeholder="Buscar K-Dramas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
+                />
+              </div>
             </div>
-          </div>
 
-          
-          {filteredDoramas.length > 0 ? (
-          <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
-            {filteredDoramas.map((dorama) => (
-              <Card
-                key={dorama._id || dorama.id}
-                item={dorama}
-                onClick={() => handleDoramaClick(dorama)}
-                itemType="dorama"
-                onPlayTrailer={handlePlayTrailerClick}
-                onAddToMyList={handleAddToMyList}
-                onAddToCollectionClick={handleOpenCollectionsModal}
-              />
-            ))}
+            
+            {filteredDoramas.length > 0 ? (
+            <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
+              {filteredDoramas.map((dorama) => (
+                <Card
+                  key={dorama._id || dorama.id}
+                  item={dorama}
+                  onClick={() => handleDoramaClick(dorama)}
+                  itemType="dorama"
+                  onPlayTrailer={handlePlayTrailerClick}
+                  onAddToMyList={handleAddToMyList}
+                  onAddToCollectionClick={handleOpenCollectionsModal}
+                />
+              ))}
+            </div>
+            ) : (
+              <p className="text-gray-400 text-center mt-8 py-10 text-lg">
+                {searchTerm ? "No se encontraron K-Dramas que coincidan con la búsqueda." : "No hay K-Dramas disponibles en este momento."}
+              </p>
+            )}
           </div>
-          ) : (
-            <p className="text-gray-400 text-center mt-8 py-10 text-lg">
-              {searchTerm ? "No se encontraron K-Dramas que coincidan con la búsqueda." : "No hay K-Dramas disponibles en este momento."}
-            </p>
-          )}
         </div>
-      </div>
+      )}
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal
           trailerUrl={currentTrailerUrl}

@@ -16,6 +16,7 @@ import Toast from '../components/Toast.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import { SERIES_SUBCATEGORIES, buildSeriesSubcategoryCounts } from '../utils/seriesSubcategoryUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 
 const SUBCATEGORIAS = SERIES_SUBCATEGORIES;
 
@@ -29,6 +30,15 @@ export default function SeriesPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -138,8 +148,9 @@ export default function SeriesPage() {
       setError(null);
 
       try {
-                    // OPTIMIZADO: Reducido de 3000 a 20 items por página
-          const data = await fetchUserSeries(currentPage, 20, subcategoria);
+          // Dynamic limit: 1000 on mobile for full deck catalog, 20 on desktop for grid pagination
+          const limit = window.innerWidth < 768 ? 1000 : 20;
+          const data = await fetchUserSeries(currentPage, limit, subcategoria);
           setSeries(prevSeries => currentPage === 1 ? data.videos : [...prevSeries, ...data.videos]);
           setTotalPages(data.totalPages);
           setPage(data.page);
@@ -341,7 +352,7 @@ const handleAddToMyList = async (item) => {
       return filtered;
   }, [series, searchTerm]);
 
-  if (isLoading && page === 1) return (
+  if (isLoading && page === 1 && !isMobile) return (
     <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
       <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
     </div>
@@ -361,39 +372,71 @@ const handleAddToMyList = async (item) => {
 
   return (
     <>
-      <style>{`
-        .rainbow-text {
-          background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          animation: rainbow-animation 5s linear infinite;
-        }
-        @keyframes rainbow-animation {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-      `}</style>
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Categorías: Desktop Sidebar (hidden on mobile) */}
-          <div className="hidden md:block md:w-64 flex-shrink-0">
-            <div className="bg-zinc-900/80 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-4 sticky top-24 shadow-xl">
-              <h2 className="text-xl font-bold mb-4 text-white">Categorías</h2>
-              <div className="space-y-2">
+
+      {isMobile ? (
+        <MobileArcadeDeck
+          items={series}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onItemClick={handleSerieClick}
+          onPlayTrailer={handlePlayTrailerClick}
+          onAddToMyList={handleAddToMyListSafe}
+          onAddToCollectionClick={handleOpenCollectionsModal}
+          title="Series"
+          itemType="serie"
+          variant="arcade"
+          categories={SUBCATEGORIAS}
+          selectedCategory={selectedSubcategoria}
+          onCategoryChange={setSelectedSubcategoria}
+          loading={isLoading}
+        />
+      ) : (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Categorías: Desktop Sidebar (hidden on mobile) */}
+            <div className="hidden md:block md:w-64 flex-shrink-0">
+              <div className="bg-zinc-900/80 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-4 sticky top-24 shadow-xl">
+                <h2 className="text-xl font-bold mb-4 text-white">Categorías</h2>
+                <div className="space-y-2">
+                  {SUBCATEGORIAS.map(subcategoria => (
+                    <button
+                      key={subcategoria}
+                      onClick={() => setSelectedSubcategoria(subcategoria)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left transition-all duration-200 ${
+                        selectedSubcategoria === subcategoria
+                          ? 'bg-[#00e5ff] text-black font-bold shadow-[0_0_15px_rgba(0,229,255,0.35)] scale-[1.02]'
+                          : 'text-gray-300 hover:bg-zinc-800 hover:text-white'
+                      }`}
+                    >
+                      <span>{subcategoria}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-colors ${
+                        selectedSubcategoria === subcategoria
+                          ? 'bg-black/15 text-black'
+                          : 'bg-zinc-800 text-slate-400'
+                      }`}>
+                        {subcategoryCounts[subcategoria] ?? 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Categorías: Mobile Horizontal Row (visible on mobile, hidden on desktop) */}
+            <div className="block md:hidden -mx-4 px-4 overflow-x-auto whitespace-nowrap mb-6 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex gap-2 pb-2">
                 {SUBCATEGORIAS.map(subcategoria => (
                   <button
                     key={subcategoria}
                     onClick={() => setSelectedSubcategoria(subcategoria)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left transition-all duration-200 ${
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
                       selectedSubcategoria === subcategoria
-                        ? 'bg-[#00e5ff] text-black font-bold shadow-[0_0_15px_rgba(0,229,255,0.35)] scale-[1.02]'
-                        : 'text-gray-300 hover:bg-zinc-800 hover:text-white'
-                    } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text font-bold' : ''}`}
+                        ? 'bg-[#00e5ff] text-black shadow-[0_0_10px_rgba(0,229,255,0.3)] scale-[1.02]'
+                        : 'bg-zinc-900/90 border border-zinc-800 text-gray-300 hover:bg-zinc-800'
+                    }`}
                   >
                     <span>{subcategoria}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-colors ${
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
                       selectedSubcategoria === subcategoria
                         ? 'bg-black/15 text-black'
                         : 'bg-zinc-800 text-slate-400'
@@ -404,104 +447,79 @@ const handleAddToMyList = async (item) => {
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Categorías: Mobile Horizontal Row (visible on mobile, hidden on desktop) */}
-          <div className="block md:hidden -mx-4 px-4 overflow-x-auto whitespace-nowrap mb-6 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-            <div className="flex gap-2 pb-2">
-              {SUBCATEGORIAS.map(subcategoria => (
-                <button
-                  key={subcategoria}
-                  onClick={() => setSelectedSubcategoria(subcategoria)}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
-                    selectedSubcategoria === subcategoria
-                      ? 'bg-[#00e5ff] text-black shadow-[0_0_10px_rgba(0,229,255,0.3)] scale-[1.02]'
-                      : 'bg-zinc-900/90 border border-zinc-800 text-gray-300 hover:bg-zinc-800'
-                  } ${subcategoria === 'ZONA KIDS' && selectedSubcategoria !== 'ZONA KIDS' ? 'rainbow-text' : ''}`}
-                >
-                  <span>{subcategoria}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                    selectedSubcategoria === subcategoria
-                      ? 'bg-black/15 text-black'
-                      : 'bg-zinc-800 text-slate-400'
-                  }`}>
-                    {subcategoryCounts[subcategoria] ?? 0}
+            <div className="flex-1">
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+                  <span>Series: {selectedSubcategoria}</span>
+                  <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
+                    {filteredSeries.length}
                   </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex-1">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-              <h1 className={`text-3xl font-bold text-white flex items-center gap-2 ${selectedSubcategoria === 'ZONA KIDS' ? 'rainbow-text' : ''}`}>
-                <span>Series: {selectedSubcategoria}</span>
-                <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
-                  {filteredSeries.length}
-                </span>
-              </h1>
-              <div className="flex items-center gap-4">
-                  <button
-                    onClick={toggleGridView}
-                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
-                    aria-label="Cambiar vista de cuadrícula"
-                  >
-                    <Squares2X2Icon className="w-5 h-5" />
-                  </button>
-                  <input
-                    type="text"
-                    placeholder="Buscar series..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  />
-              </div>
-            </div>
-
-            {filteredSeries.length > 0 ? (
-              <div className={`grid ${getGridClass()} gap-6`}>
-                {filteredSeries.map((serie, index) => {
-                  if (filteredSeries.length === index + 1) {
-                      return (
-                          <div ref={lastSerieElementRef} key={serie.id || serie._id}>
-                              <Card
-                                  item={serie}
-                                  onClick={() => handleSerieClick(serie)}
-                                  itemType="serie"
-                                  onPlayTrailer={handlePlayTrailerClick}
-                                  onAddToCollectionClick={handleOpenCollectionsModal}
-                                  onAddToMyList={handleAddToMyListSafe}
-                              />
-                          </div>
-                      );
-                  } else {
-                      return (
-                          <Card
-                              key={serie.id || serie._id}
-                              item={serie}
-                              onClick={() => handleSerieClick(serie)}
-                              itemType="serie"
-                              onPlayTrailer={handlePlayTrailerClick}
-                              onAddToCollectionClick={handleOpenCollectionsModal}
-                              onAddToMyList={handleAddToMyListSafe}
-                          />
-                      );
-                  }
-                })}
-              </div>
-            ) : (
-              <p className="text-center text-gray-400 mt-8">
-                No hay series disponibles en la categoría {selectedSubcategoria}.
-              </p>
-            )}
-
-            {loadingMore && (
-                <div className="flex justify-center items-center mt-8">
-                    <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
+                </h1>
+                <div className="flex items-center gap-4">
+                    <button
+                      onClick={toggleGridView}
+                      className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white p-2 rounded-md transition-colors"
+                      aria-label="Cambiar vista de cuadrícula"
+                    >
+                      <Squares2X2Icon className="w-5 h-5" />
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="Buscar series..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    />
                 </div>
-            )}
+              </div>
+
+              {filteredSeries.length > 0 ? (
+                <div className={`grid ${getGridClass()} gap-6`}>
+                  {filteredSeries.map((serie, index) => {
+                    if (filteredSeries.length === index + 1) {
+                        return (
+                            <div ref={lastSerieElementRef} key={serie.id || serie._id}>
+                                <Card
+                                    item={serie}
+                                    onClick={() => handleSerieClick(serie)}
+                                    itemType="serie"
+                                    onPlayTrailer={handlePlayTrailerClick}
+                                    onAddToCollectionClick={handleOpenCollectionsModal}
+                                    onAddToMyList={handleAddToMyListSafe}
+                                />
+                            </div>
+                        );
+                    } else {
+                        return (
+                            <Card
+                                key={serie.id || serie._id}
+                                item={serie}
+                                onClick={() => handleSerieClick(serie)}
+                                itemType="serie"
+                                onPlayTrailer={handlePlayTrailerClick}
+                                onAddToCollectionClick={handleOpenCollectionsModal}
+                                onAddToMyList={handleAddToMyListSafe}
+                            />
+                        );
+                    }
+                  })}
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 mt-8">
+                  No hay series disponibles en la categoría {selectedSubcategoria}.
+                </p>
+              )}
+
+              {loadingMore && (
+                  <div className="flex justify-center items-center mt-8">
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
+                  </div>
+              )}
+            </div>
           </div>
         </div>
+      )}
 
         <ContentAccessModal
           isOpen={showAccessModal}
@@ -549,7 +567,6 @@ const handleAddToMyList = async (item) => {
             onClose={() => setToastMessage('')}
             />
         )}
-      </div>
     </>
   );
 }
