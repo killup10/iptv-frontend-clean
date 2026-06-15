@@ -440,7 +440,7 @@ function Login() {
       `}</style>
 
       <div 
-        className="min-h-screen flex flex-col lg:flex-row items-center justify-center p-4 md:p-8 lg:p-12 relative overflow-hidden select-none"
+        className={`min-h-screen flex ${isTVMode ? 'flex-row' : 'flex-col lg:flex-row'} items-center justify-center p-4 md:p-8 lg:p-12 relative overflow-hidden select-none`}
         style={{
           backgroundColor: "#03010b",
           backgroundImage: "linear-gradient(to bottom, rgba(3, 1, 10, 0.45), rgba(3, 1, 10, 0.96)), url('./fondo_mundial.png')",

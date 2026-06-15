@@ -77,6 +77,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private boolean isSeekPending = false;
     private int currentSeasonIndex = -1;
     private int currentChapterIndex = -1;
+    private boolean hasStartedPlayback = false;
+    private int autoPlayCount = 0;
 
     // Episode switching (avoid UI stalls/ANR when moving between episodes)
     private boolean isEpisodeSwitchInProgress = false;
@@ -386,6 +388,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             return;
         }
         isActivityClosing = false;
+        hasStartedPlayback = false;
+        autoPlayCount = 0;
         lastTimeChangedSystemMs = System.currentTimeMillis();
         recoveryHandler.removeCallbacks(stallWatchdogRunnable);
 
@@ -412,7 +416,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private Media buildMediaForCurrentUrl() {
         Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
         media.setHWDecoderEnabled(true, false);
-        media.addOption(":network-caching=1000");
+        media.addOption(":network-caching=200");
+        media.addOption(":live-caching=200");
+        media.addOption(":clock-jitter=0");
+        media.addOption(":clock-synchro=0");
         media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
         return media;
     }
@@ -557,6 +564,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     }
                     break;
                 case MediaPlayer.Event.Playing:
+                    hasStartedPlayback = true;
                     playPauseButton.setImageResource(R.drawable.ic_pause);
                     recoveryAttempts = 0;
                     isRecoveringPlayback = false;
@@ -589,6 +597,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     playPauseButton.setImageResource(R.drawable.ic_play);
                     // Enviar progreso cuando se pausa (siempre)
                     notifyProgressUpdate(mediaPlayer.getTime(), false, true);
+                    if (!hasStartedPlayback && autoPlayCount < 3) {
+                        autoPlayCount++;
+                        Log.d(TAG, "Force playing from Paused state on start (attempt " + autoPlayCount + ")");
+                        mediaPlayer.play();
+                    }
                     break;
                 case MediaPlayer.Event.Stopped:
                     playPauseButton.setImageResource(R.drawable.ic_play);
@@ -1012,6 +1025,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             lastPosition = 0L;
             isSeekPending = false;
             lastPlaybackPositionMs = 0L;
+            hasStartedPlayback = false;
+            autoPlayCount = 0;
 
             // Resolve the new indices and update them
             int targetIdx = getCurrentChapterGlobalIndex();
@@ -1041,7 +1056,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
                 Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
                 media.setHWDecoderEnabled(true, false);
-                media.addOption(":network-caching=1000");
+                media.addOption(":network-caching=200");
+                media.addOption(":live-caching=200");
+                media.addOption(":clock-jitter=0");
+                media.addOption(":clock-synchro=0");
                 media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
 
                 mediaPlayer.setMedia(media);
@@ -1763,7 +1781,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     // Crear nueva media
                     Media media = new Media(libVlc, android.net.Uri.parse(newChannelUrl));
                     media.setHWDecoderEnabled(true, false);
-                    media.addOption(":network-caching=1000");
+                    media.addOption(":network-caching=200");
+                    media.addOption(":live-caching=200");
+                    media.addOption(":clock-jitter=0");
+                    media.addOption(":clock-synchro=0");
                     media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
 
                     mediaPlayer.setMedia(media);
