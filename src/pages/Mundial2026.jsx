@@ -4,6 +4,8 @@ import { fetchUserChannels } from "../utils/api.js";
 import { rewriteImageUrl } from "../utils/imageUrl.js";
 import { Play, Trophy, Calendar, MapPin, Users, Info, ChevronLeft, ChevronRight, Bell, Sparkles } from "lucide-react";
 import axiosInstance from "../utils/axiosInstance.js";
+import { isAndroidTV } from "../utils/platformUtils.js";
+import { getTVFocusZone, focusTVNav, TV_FOCUS_ZONE_CONTENT } from "../utils/tvFocusZone.js";
 
 // Lista de palabras clave para filtrar canales de deportes
 const SPORTS_KEYWORDS = ["deporte", "sport", "espn", "fox", "directv", "dtv", "telemundo", "televisa", "azteca", "liga", "gol", "tnt", "win", "bein", "sky", "tyc", "direct"];
@@ -129,6 +131,12 @@ function Mundial2026() {
   const [activeGroupTab, setActiveGroupTab] = useState("A");
   const [filterTab, setFilterTab] = useState("active"); // "active", "finished", "all"
 
+  // TV focus states
+  const [tvFocusArea, setTvFocusArea] = useState("filters"); // "filters", "channels", "groups"
+  const [focusedFilterIndex, setFocusedFilterIndex] = useState(0);
+  const [focusedChannelIndex, setFocusedChannelIndex] = useState(0);
+  const [focusedGroupIndex, setFocusedGroupIndex] = useState(0);
+
   // Mapa de búsqueda rápida O(1) de canales para optimizar el renderizado y evitar lag
   const channelsMap = React.useMemo(() => {
     const map = new Map();
@@ -188,6 +196,39 @@ function Mundial2026() {
     return list;
   }, [resolvedMundialMatches, filterTab]);
 
+  // Memoizar canales enfocables para navegación D-pad en 1D
+  const focusableChannels = React.useMemo(() => {
+    const list = [];
+    displayMatches.forEach((match, matchIndex) => {
+      const channels = match.associatedChannels || [];
+      channels.forEach((channel, channelIndex) => {
+        list.push({
+          channel,
+          match,
+          matchIndex,
+          channelIndex,
+          id: channel._id || channel.id
+        });
+      });
+    });
+    return list;
+  }, [displayMatches]);
+
+  const findChannelGlobalIndex = (matchIdx, chIdx) => {
+    return focusableChannels.findIndex(
+      item => item.matchIndex === matchIdx && item.channelIndex === chIdx
+    );
+  };
+
+  // Clampear el índice del canal enfocado si cambia la lista
+  useEffect(() => {
+    if (focusableChannels.length === 0) {
+      setFocusedChannelIndex(0);
+    } else if (focusedChannelIndex >= focusableChannels.length) {
+      setFocusedChannelIndex(focusableChannels.length - 1);
+    }
+  }, [focusableChannels, focusedChannelIndex]);
+
   // Cuenta regresiva para el Mundial 2026 (11 de Junio, 2026)
   const [timeLeft, setTimeLeft] = useState({
     dias: 0,
@@ -242,6 +283,250 @@ function Mundial2026() {
 
     loadData();
   }, []);
+
+  // Escuchar cuando el foco pase del Nav al Contenido
+  useEffect(() => {
+    const handleFocusContent = () => {
+      if (isAndroidTV()) {
+        setTvFocusArea('filters');
+        setFocusedFilterIndex(0);
+      }
+    };
+
+    window.addEventListener("teamg:tv-focus-content", handleFocusContent);
+    return () => window.removeEventListener("teamg:tv-focus-content", handleFocusContent);
+  }, []);
+
+  // Manejar keydown para control remoto en Smart TV (D-pad)
+  useEffect(() => {
+    if (!isAndroidTV()) return;
+
+    const handleKeyDown = (event) => {
+      if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
+        return;
+      }
+
+      let key = event.key;
+      if (event.keyCode === 19) key = 'ArrowUp';
+      else if (event.keyCode === 20) key = 'ArrowDown';
+      else if (event.keyCode === 21) key = 'ArrowLeft';
+      else if (event.keyCode === 22) key = 'ArrowRight';
+      else if (event.keyCode === 23 || event.keyCode === 66) key = 'Enter';
+
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) {
+        event.preventDefault();
+      } else {
+        return;
+      }
+
+      if (tvFocusArea === 'filters') {
+        if (key === 'ArrowLeft') {
+          if (focusedFilterIndex === 0) {
+            focusTVNav();
+          } else {
+            setFocusedFilterIndex(prev => prev - 1);
+          }
+        } else if (key === 'ArrowRight') {
+          if (focusedFilterIndex < 2) {
+            setFocusedFilterIndex(prev => prev + 1);
+          }
+        } else if (key === 'ArrowDown') {
+          if (focusableChannels.length > 0) {
+            setTvFocusArea('channels');
+            setFocusedChannelIndex(0);
+          } else {
+            setTvFocusArea('groups');
+            setFocusedGroupIndex(0);
+          }
+        } else if (key === 'Enter') {
+          const filterTabs = ["active", "finished", "all"];
+          setFilterTab(filterTabs[focusedFilterIndex]);
+        }
+      } 
+      else if (tvFocusArea === 'channels') {
+        if (focusableChannels.length === 0) {
+          setTvFocusArea('filters');
+          return;
+        }
+
+        const currentFocusItem = focusableChannels[focusedChannelIndex];
+        if (!currentFocusItem) {
+          setFocusedChannelIndex(0);
+          return;
+        }
+
+        const currentMatch = currentFocusItem.match;
+        const matchChannels = currentMatch.associatedChannels || [];
+        const i = currentFocusItem.channelIndex;
+        const col = i % 3;
+
+        if (key === 'ArrowLeft') {
+          if (col === 0) {
+            focusTVNav();
+          } else {
+            setFocusedChannelIndex(prev => prev - 1);
+          }
+        } else if (key === 'ArrowRight') {
+          if (i + 1 < matchChannels.length && col < 2) {
+            setFocusedChannelIndex(prev => prev + 1);
+          }
+        } else if (key === 'ArrowUp') {
+          if (i - 3 >= 0) {
+            const targetIdx = findChannelGlobalIndex(currentFocusItem.matchIndex, i - 3);
+            if (targetIdx !== -1) setFocusedChannelIndex(targetIdx);
+          } else {
+            let found = false;
+            for (let mIdx = currentFocusItem.matchIndex - 1; mIdx >= 0; mIdx--) {
+              const prevMatch = displayMatches[mIdx];
+              if (prevMatch && prevMatch.associatedChannels && prevMatch.associatedChannels.length > 0) {
+                const prevLen = prevMatch.associatedChannels.length;
+                const lastRowStart = Math.floor((prevLen - 1) / 3) * 3;
+                const targetChIdx = Math.min(lastRowStart + col, prevLen - 1);
+                const targetIdx = findChannelGlobalIndex(mIdx, targetChIdx);
+                if (targetIdx !== -1) {
+                  setFocusedChannelIndex(targetIdx);
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (!found) {
+              setTvFocusArea('filters');
+            }
+          }
+        } else if (key === 'ArrowDown') {
+          if (i + 3 < matchChannels.length) {
+            const targetIdx = findChannelGlobalIndex(currentFocusItem.matchIndex, i + 3);
+            if (targetIdx !== -1) setFocusedChannelIndex(targetIdx);
+          } else {
+            let found = false;
+            for (let mIdx = currentFocusItem.matchIndex + 1; mIdx < displayMatches.length; mIdx++) {
+              const nextMatch = displayMatches[mIdx];
+              if (nextMatch && nextMatch.associatedChannels && nextMatch.associatedChannels.length > 0) {
+                const nextLen = nextMatch.associatedChannels.length;
+                const targetChIdx = Math.min(col, nextLen - 1);
+                const targetIdx = findChannelGlobalIndex(mIdx, targetChIdx);
+                if (targetIdx !== -1) {
+                  setFocusedChannelIndex(targetIdx);
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (!found) {
+              setTvFocusArea('groups');
+              setFocusedGroupIndex(0);
+            }
+          }
+        } else if (key === 'Enter') {
+          handleChannelClick(currentFocusItem.channel);
+        }
+      } 
+      else if (tvFocusArea === 'groups') {
+        const groupTabs = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+        if (key === 'ArrowLeft') {
+          if (focusedGroupIndex === 0) {
+            focusTVNav();
+          } else {
+            setFocusedGroupIndex(prev => prev - 1);
+          }
+        } else if (key === 'ArrowRight') {
+          if (focusedGroupIndex < 11) {
+            setFocusedGroupIndex(prev => prev + 1);
+          }
+        } else if (key === 'ArrowUp') {
+          if (focusableChannels.length > 0) {
+            setTvFocusArea('channels');
+            setFocusedChannelIndex(focusableChannels.length - 1);
+          } else {
+            setTvFocusArea('filters');
+            setFocusedFilterIndex(0);
+          }
+        } else if (key === 'Enter') {
+          setActiveGroupTab(groupTabs[focusedGroupIndex]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusableChannels, displayMatches]);
+
+  // Hacer scroll automático al elemento enfocado en Smart TV
+  useEffect(() => {
+    if (!isAndroidTV()) return;
+
+    let targetId = "";
+    if (tvFocusArea === 'filters') {
+      targetId = `tv-filter-${focusedFilterIndex}`;
+    } else if (tvFocusArea === 'channels') {
+      const focusedChannel = focusableChannels[focusedChannelIndex];
+      if (focusedChannel) {
+        targetId = `tv-channel-${focusedChannel.channel._id || focusedChannel.channel.id}`;
+      }
+    } else if (tvFocusArea === 'groups') {
+      targetId = `tv-group-${focusedGroupIndex}`;
+    }
+
+    if (targetId) {
+      const element = document.getElementById(targetId);
+      if (element) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+      }
+    }
+  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusableChannels]);
+
+  // CSS helpers for D-pad focus states on Smart TV
+  const isChannelFocused = (channelId) => {
+    if (!isAndroidTV() || tvFocusArea !== 'channels') return false;
+    const focusedChannel = focusableChannels[focusedChannelIndex];
+    return focusedChannel && (focusedChannel.channel._id || focusedChannel.channel.id) === channelId;
+  };
+
+  const getFilterBtnClass = (tabName, index) => {
+    const isActive = filterTab === tabName;
+    const isFocused = isAndroidTV() && tvFocusArea === 'filters' && focusedFilterIndex === index;
+    
+    let base = "text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ";
+    if (isFocused) {
+      base += "outline-none ring-4 ring-lime-400 scale-[1.04] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 bg-lime-500 text-slate-950 ";
+    } else if (isActive) {
+      base += "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10 ";
+    } else {
+      base += "text-slate-400 hover:text-white ";
+    }
+    return base;
+  };
+
+  const getGroupBtnClass = (groupName, index) => {
+    const isActive = activeGroupTab === groupName;
+    const isFocused = isAndroidTV() && tvFocusArea === 'groups' && focusedGroupIndex === index;
+    
+    let base = "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-xs font-black uppercase transition-all duration-300 cursor-pointer ";
+    if (isFocused) {
+      base += "outline-none ring-4 ring-lime-400 scale-[1.08] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 bg-lime-400 text-black font-extrabold ";
+    } else if (isActive) {
+      base += "bg-lime-400 text-black font-extrabold ";
+    } else {
+      base += "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white ";
+    }
+    return base;
+  };
+
+  const getChannelBtnClass = (channelId) => {
+    const isFocused = isChannelFocused(channelId);
+    let base = "group/channel cursor-pointer rounded-xl bg-slate-950/60 border border-white/5 p-2.5 flex items-center gap-3 transition-all duration-300 hover:bg-slate-900/80 active:scale-[0.98] ";
+    if (isFocused) {
+      base += "outline-none ring-4 ring-lime-400 scale-[1.04] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 bg-slate-900/80 ";
+    } else {
+      base += "hover:border-lime-400/40 ";
+    }
+    return base;
+  };
 
   // Datos de los Grupos del Mundial Oficiales (Format de 48 Equipos - Grupos A al L) - Calculados Dinámicamente
   const GROUPS_DATA = React.useMemo(() => {
@@ -541,32 +826,23 @@ function Mundial2026() {
                   {/* Selector de Pestañas de Fixture */}
                   <div className="flex flex-wrap gap-1 p-1 bg-slate-950/60 border border-white/5 rounded-xl mb-4 self-start">
                     <button
+                      id="tv-filter-0"
                       onClick={() => setFilterTab("active")}
-                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
-                        filterTab === "active"
-                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={getFilterBtnClass("active", 0)}
                     >
                       En Vivo / Próximos
                     </button>
                     <button
+                      id="tv-filter-1"
                       onClick={() => setFilterTab("finished")}
-                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
-                        filterTab === "finished"
-                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={getFilterBtnClass("finished", 1)}
                     >
                       Finalizados
                     </button>
                     <button
+                      id="tv-filter-2"
                       onClick={() => setFilterTab("all")}
-                      className={`text-xs px-3.5 py-1.5 rounded-lg font-bold tracking-wide transition-all duration-200 ${
-                        filterTab === "all"
-                          ? "bg-lime-500 text-slate-950 shadow-md shadow-lime-500/10"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={getFilterBtnClass("all", 2)}
                     >
                       Todos ({resolvedMundialMatches.length})
                     </button>
@@ -672,8 +948,9 @@ function Mundial2026() {
                                   {associatedChannels.map((channel) => (
                                     <div
                                       key={channel._id || channel.id}
+                                      id={`tv-channel-${channel._id || channel.id}`}
                                       onClick={() => handleChannelClick(channel)}
-                                      className="group/channel cursor-pointer rounded-xl bg-slate-950/60 border border-white/5 hover:border-lime-400/40 p-2.5 flex items-center gap-3 transition-all duration-300 hover:bg-slate-900/80 active:scale-[0.98]"
+                                      className={getChannelBtnClass(channel._id || channel.id)}
                                     >
                                       <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 group-hover/channel:border-lime-400/30 transition-colors">
                                         <img
@@ -778,15 +1055,12 @@ function Mundial2026() {
                   
                   {/* Selector de Pestañas de Grupos */}
                   <div className="grid grid-cols-6 sm:flex sm:flex-wrap gap-1 max-w-full pb-2 sm:pb-0">
-                    {Object.keys(GROUPS_DATA).map((group) => (
+                    {Object.keys(GROUPS_DATA).map((group, idx) => (
                       <button
                         key={group}
+                        id={`tv-group-${idx}`}
                         onClick={() => setActiveGroupTab(group)}
-                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-xs font-black uppercase transition-all duration-300 cursor-pointer ${
-                          activeGroupTab === group
-                            ? "bg-lime-400 text-black font-extrabold"
-                            : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                        }`}
+                        className={getGroupBtnClass(group, idx)}
                       >
                         {group}
                       </button>

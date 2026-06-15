@@ -140,7 +140,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private String apiBaseUrl;
     private boolean isLiveTV = false;
 
-    private static final int MAX_AUTO_RECOVERY_ATTEMPTS = 6;
+    private static final int MAX_AUTO_RECOVERY_ATTEMPTS = 20;
     private static final long RECOVERY_BASE_DELAY_MS = 2500L;
     private static final long STALL_TIMEOUT_MS = 20000L;
     private static final long STALL_CHECK_INTERVAL_MS = 5000L;

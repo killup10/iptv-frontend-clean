@@ -134,6 +134,8 @@ public class ExoPlayerActivity extends AppCompatActivity {
     private boolean isScreenLocked = false;
     private boolean isSwitchingPlayerEngine = false;
     private boolean engineFallbackAttempted = false;
+    private int retryCount = 0;
+    private static final int MAX_RETRIES = 10;
     private long pendingSeekPositionMs = -1L;
     private long lastProgressSyncAtMs = 0L;
     private int currentAspectRatioIndex = 0;
@@ -543,12 +545,24 @@ public class ExoPlayerActivity extends AppCompatActivity {
                     switchPlayerEngine("android-vlc", true, "decoder_fallback");
                     return;
                 }
-                Toast.makeText(
-                    ExoPlayerActivity.this,
-                    "Error de reproduccion: " + error.getMessage(),
-                    Toast.LENGTH_LONG
-                ).show();
-                showControls();
+
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    Log.w(TAG, "Playback error, attempting auto-retry " + retryCount + "/" + MAX_RETRIES);
+                    Toast.makeText(
+                        ExoPlayerActivity.this,
+                        "Reconectando transmisión...",
+                        Toast.LENGTH_SHORT
+                    ).show();
+                    retryPlayback();
+                } else {
+                    Toast.makeText(
+                        ExoPlayerActivity.this,
+                        "Error de reproduccion: " + error.getMessage(),
+                        Toast.LENGTH_LONG
+                    ).show();
+                    showControls();
+                }
             }
 
             @Override
@@ -558,6 +572,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
                 }
 
                 if (playbackState == Player.STATE_READY) {
+                    retryCount = 0;
                     mediaDurationMs = resolveDurationMs();
                     if (pendingStartTimeMs > 0L) {
                         player.seekTo(pendingStartTimeMs);
@@ -594,6 +609,20 @@ public class ExoPlayerActivity extends AppCompatActivity {
         });
 
         loadMedia(currentVideoUrl, pendingStartTimeMs);
+    }
+
+    private void retryPlayback() {
+        if (player == null || TextUtils.isEmpty(currentVideoUrl)) {
+            return;
+        }
+        final long currentPos = player.getCurrentPosition();
+        Log.d(TAG, "retryPlayback: Reconnecting to " + currentVideoUrl + " from position " + currentPos + " ms");
+        
+        uiHandler.postDelayed(() -> {
+            if (player != null && !isFinishing() && !isDestroyed()) {
+                loadMedia(currentVideoUrl, isLiveTV ? 0L : currentPos);
+            }
+        }, 3000);
     }
 
     private void loadMedia(String targetUrl, long startPositionMs) {

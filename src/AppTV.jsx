@@ -11,6 +11,7 @@ import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowse
 
 const HOME_BACK_ROUTES = new Set([
   '/live-tv',
+  '/mundial-2026',
   '/peliculas',
   '/series',
   '/animes',

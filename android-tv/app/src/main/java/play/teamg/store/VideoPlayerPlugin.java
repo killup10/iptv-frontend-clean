@@ -510,19 +510,10 @@ public class VideoPlayerPlugin extends Plugin {
     }
 
     private String resolvePlayerType(String requestedPlayerType, boolean isLiveTV, String contentType) {
-        if ("android-vlc".equalsIgnoreCase(requestedPlayerType)) {
-            return "android-vlc";
-        }
-        if (isAndroidTvDevice() && !Boolean.TRUE.equals(isLiveTV)) {
-            Log.d(TAG, "Forzando VLC en Android TV para VOD por compatibilidad AC3/E-AC3. contentType=" + contentType);
-            return "android-vlc";
-        }
         if ("android-exoplayer".equalsIgnoreCase(requestedPlayerType)) {
             return "android-exoplayer";
         }
-        return isAndroidTvDevice() && Boolean.TRUE.equals(isLiveTV)
-            ? "android-exoplayer"
-            : "android-vlc";
+        return "android-vlc";
     }
 
     private boolean shouldUseExoplayer(String playerType) {

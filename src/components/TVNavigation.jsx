@@ -21,6 +21,7 @@ export default function TVNavigation() {
     { key: 'search', action: 'search', label: 'Buscar', icon: 'search' },
     { key: 'home', path: '/', label: 'Inicio', icon: 'home' },
     { key: 'live', path: '/live-tv', label: 'TV en vivo', icon: 'live' },
+    { key: 'mundial', path: '/mundial-2026', label: 'Mundial 2026', icon: 'trophy' },
     { key: 'movies', path: '/peliculas', label: 'Películas', icon: 'movies' },
     { key: 'series', path: '/series', label: 'Series', icon: 'series' },
     { key: 'animes', path: '/animes', label: 'Animes', icon: 'animes' },
@@ -202,6 +203,16 @@ export default function TVNavigation() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
             <polyline points="17 2 12 7 7 2" />
+          </svg>
+        );
+      case 'trophy':
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+            <path d="M4 22h16" />
+            <path d="M10 14.66V17c0 .55-.45 1-1 1H4v2h16v-2h-5c-.55 0-1-.45-1-1v-2.34" />
+            <path d="M12 2a6 6 0 0 1 6 6v4a6 6 0 0 1-6 6 6 6 0 0 1-6-6V8a6 6 0 0 1 6-6z" />
           </svg>
         );
       case 'movies':
