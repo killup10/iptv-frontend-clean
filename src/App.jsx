@@ -468,6 +468,15 @@ function App() {
                         Cambiar Perfil
                       </button>
                       <button
+                        onClick={() => {
+                          closeAllMenus();
+                          navigate("/settings");
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-b border-gray-100"
+                      >
+                        ⚙️ Configuración
+                      </button>
+                      <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
@@ -641,6 +650,15 @@ function App() {
                     className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full text-left transition border-b border-white/5 mb-2"
                   >
                     👤 Cambiar Perfil
+                  </button>
+                  <button 
+                    onClick={() => {
+                      closeAllMenus();
+                      navigate("/settings");
+                    }} 
+                    className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full text-left transition border-b border-white/5 mb-2"
+                  >
+                    ⚙️ Configuración
                   </button>
                   <button 
                     onClick={handleLogout} 

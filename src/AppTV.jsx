@@ -21,6 +21,7 @@ const HOME_BACK_ROUTES = new Set([
   '/kids',
   '/colecciones',
   '/mi-lista',
+  '/settings',
 ]);
 
 function normalizeGlobalSearchItems(items, fallbackType) {

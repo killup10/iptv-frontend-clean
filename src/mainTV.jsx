@@ -19,6 +19,7 @@ import TVMoviesPage from './pages/TVMoviesPage.jsx';
 import TVKidsPage from './pages/TVKidsPage.jsx';
 import Mundial2026 from './pages/Mundial2026.jsx';
 import Profiles from './pages/Profiles.jsx';
+import Settings from './pages/Settings.jsx';
 import './index.css';
 
 function TVApp() {
@@ -84,6 +85,7 @@ function TVApp() {
               element={<TVMyListPage />}
             />
             <Route path="watch/:itemType/:itemId" element={<Watch />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

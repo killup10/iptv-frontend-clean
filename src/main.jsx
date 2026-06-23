@@ -31,6 +31,7 @@ const MyList = React.lazy(() => import('./pages/MyList.jsx'));
 const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
 const Mundial2026 = React.lazy(() => import('./pages/Mundial2026.jsx'));
 const Profiles = React.lazy(() => import('./pages/Profiles.jsx'));
+const Settings = React.lazy(() => import('./pages/Settings.jsx'));
 
 import { isAndroidTV } from './utils/platformUtils.js';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -208,6 +209,16 @@ const router = createHashRouter([
           <ProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <Profiles />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "settings",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Settings />
             </Suspense>
           </ProtectedRoute>
         ),
