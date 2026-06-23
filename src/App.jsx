@@ -36,7 +36,7 @@ function getSearchSelectionType(item) {
 
 function App() {
   console.log('[App.jsx] Renderizando App (App.jsx)...'); 
-  const { user, logout } = useAuth();
+  const { user, activeProfile, clearActiveProfile, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -273,7 +273,8 @@ function App() {
     navigate(`/watch/${type}/${item._id || item.id}`);
   };
   
-  const shouldShowLayout = !isAuthPage && !isWatchPage;
+  const isProfilesPage = location.pathname === "/profiles";
+  const shouldShowLayout = !isAuthPage && !isWatchPage && !isProfilesPage;
 
   const mainContainerStyle = {
     backgroundImage: "url('./fondo.png')",
@@ -438,15 +439,34 @@ function App() {
                     className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
                   >
                     <span className="sr-only">Abrir menú de usuario</span>
-                    <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center">
-                      <span className="text-white font-semibold">
-                        {user?.username?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
+                    {activeProfile ? (
+                      <div 
+                        className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center border border-white/20 shadow-md transition hover:scale-105 duration-200"
+                        style={{ backgroundColor: `hsl(${activeProfile.color || '263 64% 15%'})` }}
+                      >
+                        <img src={activeProfile.avatar} alt={activeProfile.name} className="w-[85%] h-[85%] object-contain" />
+                      </div>
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center">
+                        <span className="text-white font-semibold">
+                          {user?.username?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                   </button>
 
                   {dropdownOpen && (
                     <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                      <button
+                        onClick={() => {
+                          closeAllMenus();
+                          clearActiveProfile();
+                          navigate("/profiles");
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-b border-gray-100"
+                      >
+                        Cambiar Perfil
+                      </button>
                       <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -500,13 +520,24 @@ function App() {
                 {/* User Profile Info */}
                 <div className="flex items-center justify-between pb-6 border-b border-white/5 mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-red-500 via-pink-600 to-fuchsia-600 flex items-center justify-center shadow-[0_0_12px_rgba(239,68,68,0.45)]">
-                      <span className="text-white font-bold text-base">
-                        {user?.username?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
+                    {activeProfile ? (
+                      <div 
+                        className="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center border border-white/20 shadow-md"
+                        style={{ backgroundColor: `hsl(${activeProfile.color || '263 64% 15%'})` }}
+                      >
+                        <img src={activeProfile.avatar} alt={activeProfile.name} className="w-[85%] h-[85%] object-contain" />
+                      </div>
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-r from-red-500 via-pink-600 to-fuchsia-600 flex items-center justify-center shadow-[0_0_12px_rgba(239,68,68,0.45)]">
+                        <span className="text-white font-bold text-base">
+                          {user?.username?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">{user?.username}</p>
+                      <p className="text-sm font-bold text-white truncate">
+                        {activeProfile ? activeProfile.name : user?.username}
+                      </p>
                       <span className="inline-block mt-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
                         {userPlanCaption}
                       </span>
@@ -601,6 +632,16 @@ function App() {
                       <p className="text-[10px] text-gray-500 mt-1">{userExpirationDateCaption}</p>
                     )}
                   </div>
+                  <button 
+                    onClick={() => {
+                      closeAllMenus();
+                      clearActiveProfile();
+                      navigate("/profiles");
+                    }} 
+                    className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full text-left transition border-b border-white/5 mb-2"
+                  >
+                    👤 Cambiar Perfil
+                  </button>
                   <button 
                     onClick={handleLogout} 
                     className="flex items-center gap-3 text-red-400 hover:text-red-300 px-3 py-3 rounded-xl hover:bg-red-500/5 text-base font-semibold w-full text-left transition"

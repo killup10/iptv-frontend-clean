@@ -244,6 +244,19 @@ axiosInstance.interceptors.request.use(
       debugLog('axiosInstance: No token found in storage.');
     }
 
+    const activeProfileString = await storage.getItem('activeProfile');
+    if (activeProfileString) {
+      try {
+        const activeProfile = JSON.parse(activeProfileString);
+        if (activeProfile && activeProfile._id) {
+          config.headers['x-profile-id'] = activeProfile._id;
+          debugLog('axiosInstance: x-profile-id header added.', activeProfile._id);
+        }
+      } catch (err) {
+        debugLog('axiosInstance: Error parsing activeProfile.', err);
+      }
+    }
+
     const deviceId = await getOrCreateDeviceId();
     config.headers['x-device-id'] = deviceId;
     debugLog('axiosInstance: x-device-id header added.', deviceId);

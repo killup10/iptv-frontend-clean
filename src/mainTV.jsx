@@ -18,6 +18,7 @@ import TVMyListPage from './pages/TVMyListPage.jsx';
 import TVMoviesPage from './pages/TVMoviesPage.jsx';
 import TVKidsPage from './pages/TVKidsPage.jsx';
 import Mundial2026 from './pages/Mundial2026.jsx';
+import Profiles from './pages/Profiles.jsx';
 import './index.css';
 
 function TVApp() {
@@ -28,6 +29,7 @@ function TVApp() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/profiles" element={<ProtectedRoute><Profiles /></ProtectedRoute>} />
 
           <Route
             path="/"

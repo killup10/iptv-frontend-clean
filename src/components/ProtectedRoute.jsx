@@ -4,7 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx'; // Asegúrate que la ruta a tu AuthContext sea correcta
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { user, isLoadingAuth } = useAuth(); // Asumimos que tu AuthContext expone 'user' y 'isLoadingAuth'
+  const { user, activeProfile, isLoadingAuth } = useAuth(); // Asumimos que tu AuthContext expone 'user' y 'isLoadingAuth'
   const location = useLocation();
 
   // Si aún está cargando la información de autenticación, muestra un loader
@@ -21,6 +21,11 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   // Se guarda la 'location' actual para que después del login se pueda redirigir de vuelta.
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Si está logueado pero no ha elegido perfil, y no está en la página de perfiles, redirigir a /profiles
+  if (!activeProfile && location.pathname !== '/profiles') {
+    return <Navigate to="/profiles" replace />;
   }
 
   // Si la ruta es solo para administradores y el usuario no es admin, redirigir

@@ -31,6 +31,7 @@ function buildUserState(rawUser, token) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [activeProfile, setActiveProfile] = useState(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
@@ -38,19 +39,33 @@ export function AuthProvider({ children }) {
       try {
         const storedUserString = await storage.getItem("user");
         const token = await storage.getItem("token");
+        const storedProfileString = await storage.getItem("activeProfile");
 
         if (!storedUserString || !token) {
           setUser(null);
+          setActiveProfile(null);
           return;
         }
 
         const storedUser = JSON.parse(storedUserString);
         setUser(buildUserState(storedUser, token));
+
+        if (storedProfileString) {
+          try {
+            setActiveProfile(JSON.parse(storedProfileString));
+          } catch (e) {
+            setActiveProfile(null);
+          }
+        } else {
+          setActiveProfile(null);
+        }
       } catch (error) {
         console.error("AuthContext: Error sincronizando sesion desde storage:", error);
         await storage.removeItem("user");
         await storage.removeItem("token");
+        await storage.removeItem("activeProfile");
         setUser(null);
+        setActiveProfile(null);
       }
     };
 
@@ -60,7 +75,7 @@ export function AuthProvider({ children }) {
     };
 
     const handleStorageChange = async (event) => {
-      if (event.key === "user" || event.key === "token" || event.key === null) {
+      if (event.key === "user" || event.key === "token" || event.key === "activeProfile" || event.key === null) {
         await syncUserFromStorage();
       }
     };
@@ -69,8 +84,10 @@ export function AuthProvider({ children }) {
       const reason = event?.detail?.reason || "401";
       await storage.removeItem("user");
       await storage.removeItem("token");
+      await storage.removeItem("activeProfile");
       await stopActivePlayback(reason);
       setUser(null);
+      setActiveProfile(null);
     };
 
     checkStoredSession();
@@ -117,7 +134,9 @@ export function AuthProvider({ children }) {
       await storage.removeItem("user");
       await storage.removeItem("token");
       await storage.removeItem("deviceId");
+      await storage.removeItem("activeProfile");
       setUser(null);
+      setActiveProfile(null);
     }
   };
 
@@ -140,8 +159,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const selectProfile = async (profile) => {
+    if (profile) {
+      await storage.setItem("activeProfile", JSON.stringify(profile));
+      setActiveProfile(profile);
+    } else {
+      await storage.removeItem("activeProfile");
+      setActiveProfile(null);
+    }
+  };
+
+  const clearActiveProfile = async () => {
+    await storage.removeItem("activeProfile");
+    setActiveProfile(null);
+  };
+
   const contextValue = {
     user,
+    activeProfile,
+    selectProfile,
+    clearActiveProfile,
     login,
     logout,
     register: registerUser,
