@@ -591,8 +591,24 @@ function Login() {
               </div>
 
               {loginError && (
-                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl p-3 mb-6 text-center text-sm">
-                  ⚠️ {loginError}
+                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl p-4 mb-6 text-center text-sm flex flex-col items-center gap-3">
+                  <span>⚠️ {loginError}</span>
+                  {(loginError.toLowerCase().includes("aprobacion") || 
+                    loginError.toLowerCase().includes("aprobación") || 
+                    loginError.toLowerCase().includes("inactiva") ||
+                    loginError.toLowerCase().includes("pendiente")) && (
+                    <a
+                      href="https://wa.me/51912194777?text=Hola%20TeamG%20Play,%20solicito%20la%20aprobación%20de%20mi%20cuenta."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all duration-200 mt-1 shadow-md hover:scale-[1.03] outline-none"
+                    >
+                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.835-4.577c1.72.1.332-.751 1.944-.65 1.579.94 3.732 1.439 5.221 1.44 5.555 0 10.078-4.522 10.081-10.081.002-2.693-1.045-5.225-2.951-7.132C19.281 1.096 16.755.044 14.06.044c-5.56 0-10.083 4.523-10.086 10.083-.001 1.895.5 3.734 1.451 5.37l-1.023 3.73 3.829-.983zm13.111-6.167c-.29-.146-1.72-.85-1.987-.947-.266-.097-.46-.146-.653.146-.193.29-.747.947-.915 1.14-.167.194-.335.219-.626.073-.29-.146-1.226-.452-2.335-1.44-.863-.77-1.445-1.72-1.614-2.012-.17-.29-.018-.447.127-.592.13-.13.29-.34.436-.51.145-.17.193-.29.29-.485.097-.193.048-.364-.025-.51-.072-.145-.653-1.577-.894-2.16-.235-.568-.475-.49-.653-.5-.17-.006-.364-.007-.56-.007-.193 0-.508.073-.773.364-.266.29-1.014.99-1.014 2.412 0 1.42 1.037 2.79 1.182 2.98.145.195 2.036 3.11 4.931 4.364.688.298 1.225.476 1.643.609.692.22 1.323.19 1.82.115.554-.083 1.72-.702 1.962-1.38.242-.678.242-1.26.17-1.38-.073-.12-.266-.194-.556-.34z" />
+                      </svg>
+                      Activar por WhatsApp
+                    </a>
+                  )}
                 </div>
               )}
 
