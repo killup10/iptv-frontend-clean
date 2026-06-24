@@ -6,6 +6,8 @@ import SearchBar from "./components/SearchBar.jsx";
 import { getUserSubscriptionSummary } from "./utils/userSubscription.js";
 import axiosInstance from "./utils/axiosInstance.js";
 import { fetchVideoCounts } from "./utils/api.js";
+import UpdateModal from "./components/UpdateModal.jsx";
+import packageJson from "../package.json";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -44,6 +46,53 @@ function App() {
     console.log('[App.jsx] Estado del usuario:', user);
     console.log('[App.jsx] Ubicación actual:', location.pathname);
   }, [user, location.pathname]);
+
+  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '' });
+
+  // Version checker for In-App Updates
+  useEffect(() => {
+    const checkUpdates = async () => {
+      try {
+        const response = await axiosInstance.get('/api/updates/check');
+        const { version: latestVersion, url, desktopUrl, notes } = response.data;
+        
+        const localVersion = packageJson.version || '1.5.6';
+        
+        // Helper to check if version is newer
+        const isNewerVersion = (local, server) => {
+          if (!local || !server) return false;
+          const localParts = local.split('.').map(Number);
+          const serverParts = server.split('.').map(Number);
+          for (let i = 0; i < Math.max(localParts.length, serverParts.length); i++) {
+            const localVal = localParts[i] || 0;
+            const serverVal = serverParts[i] || 0;
+            if (serverVal > localVal) return true;
+            if (localVal > serverVal) return false;
+          }
+          return false;
+        };
+
+        if (isNewerVersion(localVersion, latestVersion)) {
+          // Resolve correct download URL based on environment
+          const isElectron = typeof window !== 'undefined' && window.electronMPV;
+          const resolvedUrl = isElectron ? desktopUrl : url;
+          
+          setUpdateInfo({
+            isOpen: true,
+            latestVersion,
+            notes,
+            downloadUrl: resolvedUrl
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to check for updates:', err);
+      }
+    };
+    
+    // Check update on startup (wait 3 seconds to avoid blocking main content load)
+    const timer = setTimeout(checkUpdates, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
@@ -716,6 +765,13 @@ function App() {
         </footer>
       )}
       </div>
+      <UpdateModal
+        isOpen={updateInfo.isOpen}
+        latestVersion={updateInfo.latestVersion}
+        notes={updateInfo.notes}
+        downloadUrl={updateInfo.downloadUrl}
+        onClose={() => setUpdateInfo(prev => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 }

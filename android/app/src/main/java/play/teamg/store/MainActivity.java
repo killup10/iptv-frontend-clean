@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(VideoPlayerPlugin.class);
     registerPlugin(PermissionManager.class);
+    registerPlugin(AppUpdatePlugin.class);
     super.onCreate(savedInstanceState);
     
     // Configurar WebChromeClient para manejar solicitudes de permiso

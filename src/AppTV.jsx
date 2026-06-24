@@ -8,6 +8,9 @@ import { TV_OPEN_SEARCH_EVENT } from "./utils/tvSearchEvents.js";
 import { getTVItemId, resolveTVItemType, unwrapTVItems } from "./utils/tvContentUtils.js";
 import { focusTVContent, getTVFocusZone, TV_FOCUS_ZONE_MODAL } from "./utils/tvFocusZone.js";
 import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowseCache.js";
+import UpdateModal from "./components/UpdateModal.jsx";
+import packageJson from "../package.json";
+import axiosInstance from "./utils/axiosInstance.js";
 
 const HOME_BACK_ROUTES = new Set([
   '/live-tv',
@@ -40,6 +43,47 @@ function AppTV() {
   const navigate = useNavigate();
   const isWatchPage = location.pathname.startsWith('/watch');
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  
+  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '' });
+
+  // Version checker for TV updates (checks tvUrl)
+  useEffect(() => {
+    const checkUpdates = async () => {
+      try {
+        const response = await axiosInstance.get('/api/updates/check');
+        const { version: latestVersion, tvUrl, notes } = response.data;
+        
+        const localVersion = packageJson.version || '1.5.6';
+        
+        const isNewerVersion = (local, server) => {
+          if (!local || !server) return false;
+          const localParts = local.split('.').map(Number);
+          const serverParts = server.split('.').map(Number);
+          for (let i = 0; i < Math.max(localParts.length, serverParts.length); i++) {
+            const localVal = localParts[i] || 0;
+            const serverVal = serverParts[i] || 0;
+            if (serverVal > localVal) return true;
+            if (localVal > serverVal) return false;
+          }
+          return false;
+        };
+
+        if (isNewerVersion(localVersion, latestVersion)) {
+          setUpdateInfo({
+            isOpen: true,
+            latestVersion,
+            notes,
+            downloadUrl: tvUrl
+          });
+        }
+      } catch (err) {
+        console.warn('[AppTV] Failed to check for updates:', err);
+      }
+    };
+    
+    const timer = setTimeout(checkUpdates, 3000);
+    return () => clearTimeout(timer);
+  }, []);
   const [globalSearchItems, setGlobalSearchItems] = useState([]);
   const globalSearchLoadedRef = useRef(false);
   const globalSearchLoadingRef = useRef(false);
@@ -322,6 +366,13 @@ function AppTV() {
           </footer>
         )}
       </div>
+      <UpdateModal
+        isOpen={updateInfo.isOpen}
+        latestVersion={updateInfo.latestVersion}
+        notes={updateInfo.notes}
+        downloadUrl={updateInfo.downloadUrl}
+        onClose={() => setUpdateInfo(prev => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 }
