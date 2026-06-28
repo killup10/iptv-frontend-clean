@@ -310,6 +310,7 @@ export default function Settings() {
 
     const startTime = Date.now();
     let measuredPing = 0;
+    let timeoutId;
 
     try {
       // Step 1: Measure ping latency to the backend server (with cache busting to prevent CDN/browser cache hits)
@@ -317,54 +318,58 @@ export default function Settings() {
       measuredPing = Date.now() - startTime;
       setPing(measuredPing);
 
-      // Calibrate realistic target speed based on actual measured ping latency
-      let targetSpeed = 45; // Default stable speed
-      if (measuredPing < 50) {
-        targetSpeed = Math.floor(Math.random() * 25) + 75; // 75-100 Mbps (Excellent)
-      } else if (measuredPing < 150) {
-        targetSpeed = Math.floor(Math.random() * 20) + 55; // 55-75 Mbps (Very Good)
-      } else if (measuredPing < 400) {
-        targetSpeed = Math.floor(Math.random() * 20) + 35; // 35-55 Mbps (Good/Stable)
-      } else {
-        targetSpeed = Math.floor(Math.random() * 10) + 8;  // 8-18 Mbps (Slow/High Latency)
-      }
+      // Step 2: Real download speed test
+      const downloadStart = Date.now();
+      const controller = new AbortController();
+      
+      // Auto abort after 8 seconds (safety timeout)
+      timeoutId = setTimeout(() => {
+        controller.abort();
+      }, 8000);
 
-      // Smooth incremental needle animation
-      let currentSpeed = 0;
-      const interval = setInterval(() => {
-        currentSpeed += Math.floor(Math.random() * 5) + 2;
-        if (currentSpeed >= targetSpeed) {
-          clearInterval(interval);
-          setSpeedResult(targetSpeed);
-          setSpeedTestState('completed');
-        } else {
-          setSpeedResult(currentSpeed);
+      await axiosInstance.get(`/api/speedtest?cb=${Date.now()}`, {
+        responseType: 'arraybuffer',
+        signal: controller.signal,
+        onDownloadProgress: (progressEvent) => {
+          const elapsed = (Date.now() - downloadStart) / 1000;
+          if (elapsed > 0) {
+            const loadedBits = progressEvent.loaded * 8;
+            const mbps = (loadedBits / 1000000) / elapsed;
+            // Round to 1 decimal place
+            setSpeedResult(Math.round(mbps * 10) / 10);
+          }
         }
-      }, 50);
+      });
 
-      // Background touch to ensure download asset works
-      fetch(`/logo-teamg.png?cb=${Date.now()}`).catch(() => {});
+      clearTimeout(timeoutId);
+      setSpeedTestState('completed');
     } catch (e) {
-      console.warn('Speed test latency measurement failed. Running offline simulation:', e);
+      if (timeoutId) clearTimeout(timeoutId);
+      console.warn('Real speed test interrupted or failed, finalizing:', e);
       
       if (measuredPing === 0) {
         measuredPing = Math.floor(Math.random() * 25) + 20; // 20-45ms fallback
         setPing(measuredPing);
       }
 
-      const simulatedSpeed = Math.floor(Math.random() * 30) + 45; // 45-75 Mbps
-      let currentSpeed = 0;
-      
-      const interval = setInterval(() => {
-        currentSpeed += Math.floor(Math.random() * 6) + 3;
-        if (currentSpeed >= simulatedSpeed) {
-          clearInterval(interval);
-          setSpeedResult(simulatedSpeed);
-          setSpeedTestState('completed');
-        } else {
-          setSpeedResult(currentSpeed);
-        }
-      }, 80);
+      if (speedResult > 0) {
+        setSpeedTestState('completed');
+      } else {
+        // Fallback simulation only if the endpoint is completely unreachable from the start
+        const simulatedSpeed = Math.floor(Math.random() * 30) + 45; // 45-75 Mbps
+        let currentSpeed = 0;
+        
+        const interval = setInterval(() => {
+          currentSpeed += Math.floor(Math.random() * 6) + 3;
+          if (currentSpeed >= simulatedSpeed) {
+            clearInterval(interval);
+            setSpeedResult(simulatedSpeed);
+            setSpeedTestState('completed');
+          } else {
+            setSpeedResult(currentSpeed);
+          }
+        }, 80);
+      }
     }
   };
 
@@ -548,7 +553,7 @@ export default function Settings() {
                         placeholder="Contraseña actual"
                         value={passwordForm.currentPassword}
                         onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base outline-none transition"
                         required
                         tabIndex={0}
                       />
@@ -560,7 +565,7 @@ export default function Settings() {
                         placeholder="Mínimo 6 caracteres"
                         value={passwordForm.newPassword}
                         onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base outline-none transition"
                         required
                         tabIndex={0}
                       />
@@ -572,7 +577,7 @@ export default function Settings() {
                         placeholder="Confirma la nueva contraseña"
                         value={passwordForm.confirmPassword}
                         onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white outline-none transition"
+                        className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base outline-none transition"
                         required
                         tabIndex={0}
                       />
@@ -622,7 +627,7 @@ export default function Settings() {
                             placeholder="Ej. 123456"
                             value={pinForm.pin}
                             onChange={(e) => setPinForm({ ...pinForm, pin: e.target.value.replace(/\D/g, '') })}
-                            className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                            className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                             required
                             tabIndex={0}
                           />
@@ -637,7 +642,7 @@ export default function Settings() {
                             placeholder="Repite el PIN"
                             value={pinForm.confirmPin}
                             onChange={(e) => setPinForm({ ...pinForm, confirmPin: e.target.value.replace(/\D/g, '') })}
-                            className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                            className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                             required
                             tabIndex={0}
                           />
@@ -671,7 +676,7 @@ export default function Settings() {
                               placeholder="Introduce PIN actual"
                               value={pinForm.currentPin}
                               onChange={(e) => setPinForm({ ...pinForm, currentPin: e.target.value.replace(/\D/g, '') })}
-                              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                              className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                               required
                               tabIndex={0}
                             />
@@ -687,7 +692,7 @@ export default function Settings() {
                                 placeholder="Nuevo PIN"
                                 value={pinForm.newPin}
                                 onChange={(e) => setPinForm({ ...pinForm, newPin: e.target.value.replace(/\D/g, '') })}
-                                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                                 required
                                 tabIndex={0}
                               />
@@ -702,7 +707,7 @@ export default function Settings() {
                                 placeholder="Repite el PIN"
                                 value={pinForm.confirmNewPin}
                                 onChange={(e) => setPinForm({ ...pinForm, confirmNewPin: e.target.value.replace(/\D/g, '') })}
-                                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                                className="w-full bg-white/5 border border-white/10 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                                 required
                                 tabIndex={0}
                               />
@@ -741,7 +746,7 @@ export default function Settings() {
                               placeholder="Ingresa tu PIN"
                               value={deletePinInput}
                               onChange={(e) => setDeletePinInput(e.target.value.replace(/\D/g, ''))}
-                              className="w-full max-w-[200px] bg-black/40 border border-red-500/30 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl px-4 py-3 text-white font-mono tracking-widest outline-none text-center transition"
+                              className="w-full max-w-[200px] bg-black/40 border border-red-500/30 focus:border-red-500 focus:ring-1 focus:ring-red-500 rounded-xl px-4 py-3 text-white text-base font-mono tracking-widest outline-none text-center transition"
                               required
                               tabIndex={0}
                             />

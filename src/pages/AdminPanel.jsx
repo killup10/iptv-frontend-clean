@@ -227,6 +227,50 @@ const WORLD_CUP_PHASES = [
   "Dieciseisavos de Final", "Octavos de Final", "Cuartos de Final", "Semifinal", "Tercer Puesto", "Gran Final"
 ];
 
+const BRACKET_SLOTS_BY_PHASE = {
+  "Dieciseisavos de Final": [
+    { key: "d-1", label: "Dieciseisavos - Llave 1 (1A vs 3º Mejor 1)" },
+    { key: "d-2", label: "Dieciseisavos - Llave 2 (2B vs 2C)" },
+    { key: "d-3", label: "Dieciseisavos - Llave 3 (1C vs 3º Mejor 2)" },
+    { key: "d-4", label: "Dieciseisavos - Llave 4 (1B vs 2D)" },
+    { key: "d-5", label: "Dieciseisavos - Llave 5 (1E vs 3º Mejor 3)" },
+    { key: "d-6", label: "Dieciseisavos - Llave 6 (2E vs 2F)" },
+    { key: "d-7", label: "Dieciseisavos - Llave 7 (1G vs 3º Mejor 4)" },
+    { key: "d-8", label: "Dieciseisavos - Llave 8 (2G vs 2H)" },
+    { key: "d-9", label: "Dieciseisavos - Llave 9 (1I vs 3º Mejor 5)" },
+    { key: "d-10", label: "Dieciseisavos - Llave 10 (2I vs 2J)" },
+    { key: "d-11", label: "Dieciseisavos - Llave 11 (1K vs 3º Mejor 6)" },
+    { key: "d-12", label: "Dieciseisavos - Llave 12 (2K vs 2L)" },
+    { key: "d-13", label: "Dieciseisavos - Llave 13 (1H vs 3º Mejor 7)" },
+    { key: "d-14", label: "Dieciseisavos - Llave 14 (1J vs 3º Mejor 8)" },
+    { key: "d-15", label: "Dieciseisavos - Llave 15 (1F vs 2A)" },
+    { key: "d-16", label: "Dieciseisavos - Llave 16 (1L vs 2J)" }
+  ],
+  "Octavos de Final": [
+    { key: "o-1", label: "Octavos - Llave 1 (Ganador Llave 1 vs 2)" },
+    { key: "o-2", label: "Octavos - Llave 2 (Ganador Llave 3 vs 4)" },
+    { key: "o-3", label: "Octavos - Llave 3 (Ganador Llave 5 vs 6)" },
+    { key: "o-4", label: "Octavos - Llave 4 (Ganador Llave 7 vs 8)" },
+    { key: "o-5", label: "Octavos - Llave 5 (Ganador Llave 9 vs 10)" },
+    { key: "o-6", label: "Octavos - Llave 6 (Ganador Llave 11 vs 12)" },
+    { key: "o-7", label: "Octavos - Llave 7 (Ganador Llave 13 vs 14)" },
+    { key: "o-8", label: "Octavos - Llave 8 (Ganador Llave 15 vs 16)" }
+  ],
+  "Cuartos de Final": [
+    { key: "c-1", label: "Cuartos - Llave 1 (Ganador Octavos 1 vs 2)" },
+    { key: "c-2", label: "Cuartos - Llave 2 (Ganador Octavos 3 vs 4)" },
+    { key: "c-3", label: "Cuartos - Llave 3 (Ganador Octavos 5 vs 6)" },
+    { key: "c-4", label: "Cuartos - Llave 4 (Ganador Octavos 7 vs 8)" }
+  ],
+  "Semifinal": [
+    { key: "s-1", label: "Semifinal - Llave 1 (Ganador Cuartos 1 vs 2)" },
+    { key: "s-2", label: "Semifinal - Llave 2 (Ganador Cuartos 3 vs 4)" }
+  ],
+  "Gran Final": [
+    { key: "f-1", label: "Gran Final (Ganador Semis 1 vs 2)" }
+  ]
+};
+
 const VOD_MANAGEMENT_TABS = [
     { value: 'manage_vod', label: 'Gestionar VOD', tipo: '' },
     { value: 'manage_series', label: 'Gestionar Series', tipo: 'serie' },
@@ -301,7 +345,8 @@ export default function AdminPanel() {
     goles2: 0,
     estado: "PRÓXIMO",
     clave: false,
-    grupo: "A"
+    grupo: "A",
+    bracketKey: ""
   });
 
   // Mapa de búsqueda rápida O(1) de canales para optimizar el panel de administración
@@ -364,7 +409,8 @@ export default function AdminPanel() {
       goles2: match.goles2 !== undefined ? match.goles2 : 0,
       estado: match.estado || "PRÓXIMO",
       clave: match.clave !== undefined ? match.clave : false,
-      grupo: match.grupo || ""
+      grupo: match.grupo || "",
+      bracketKey: match.bracketKey || ""
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -395,7 +441,8 @@ export default function AdminPanel() {
       goles2: 0,
       estado: "PRÓXIMO",
       clave: false,
-      grupo: "A"
+      grupo: "A",
+      bracketKey: ""
     });
   };
 
@@ -404,10 +451,15 @@ export default function AdminPanel() {
     const val = type === 'checkbox' ? checked : value;
     setMatchForm(prev => {
       const updated = { ...prev, [name]: val };
-      if (name === "fase" && val && val.includes("Grupo ")) {
-        const matchGroup = val.match(/Grupo\s+([A-L])/i);
-        if (matchGroup) {
-          updated.grupo = matchGroup[1].toUpperCase();
+      if (name === "fase") {
+        if (val && val.includes("Grupo ")) {
+          const matchGroup = val.match(/Grupo\s+([A-L])/i);
+          if (matchGroup) {
+            updated.grupo = matchGroup[1].toUpperCase();
+          }
+          updated.bracketKey = "";
+        } else {
+          updated.grupo = "";
         }
       }
       return updated;
@@ -1967,19 +2019,35 @@ export default function AdminPanel() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-1">Grupo (A - L)</label>
-                  <Select
-                    name="grupo"
-                    value={matchForm.grupo}
-                    onChange={handleMatchFormChange}
-                  >
-                    <option value="">Ninguno (Fase Eliminatoria)</option>
-                    {["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(g => (
-                      <option key={g} value={g}>Grupo {g}</option>
-                    ))}
-                  </Select>
-                </div>
+                {BRACKET_SLOTS_BY_PHASE[matchForm.fase] ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-1">Llave / Slot del Bracket (Opcional)</label>
+                    <Select
+                      name="bracketKey"
+                      value={matchForm.bracketKey || ""}
+                      onChange={handleMatchFormChange}
+                    >
+                      <option value="">Ninguno (Automático por Nombres)</option>
+                      {BRACKET_SLOTS_BY_PHASE[matchForm.fase].map(slot => (
+                        <option key={slot.key} value={slot.key}>{slot.label}</option>
+                      ))}
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-1">Grupo (A - L)</label>
+                    <Select
+                      name="grupo"
+                      value={matchForm.grupo}
+                      onChange={handleMatchFormChange}
+                    >
+                      <option value="">Ninguno (Fase Eliminatoria)</option>
+                      {["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(g => (
+                        <option key={g} value={g}>Grupo {g}</option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-semibold text-gray-300 mb-1">Estado del Partido</label>
@@ -2138,7 +2206,14 @@ export default function AdminPanel() {
                     >
                       <div className="space-y-3">
                         <div className="flex justify-between items-center text-xs text-gray-400 font-bold border-b border-gray-600 pb-2">
-                          <span>{match.fase}</span>
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            {match.fase}
+                            {match.bracketKey && (
+                              <span className="text-[10px] text-lime-400 font-extrabold uppercase bg-lime-950/45 px-1.5 py-0.5 rounded border border-lime-500/20">
+                                Llave: {match.bracketKey.toUpperCase()}
+                              </span>
+                            )}
+                          </span>
                           <span className="text-red-400 font-mono">{match.hora}</span>
                         </div>
                         

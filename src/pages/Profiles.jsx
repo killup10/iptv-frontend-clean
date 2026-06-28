@@ -81,7 +81,7 @@ export default function Profiles() {
     }
   };
 
-  const handleSelect = (profile) => {
+  const handleSelect = async (profile) => {
     if (isEditingMode) {
       // Abrir modal de edición
       setSelectedProfile(profile);
@@ -102,14 +102,16 @@ export default function Profiles() {
         setPinError("");
         setActiveModal("pin");
       } else {
-        proceedWithProfile(profile);
+        await proceedWithProfile(profile);
       }
     }
   };
 
-  const proceedWithProfile = (profile) => {
-    selectProfile(profile);
-    navigate("/");
+  const proceedWithProfile = async (profile) => {
+    await selectProfile(profile);
+    setTimeout(() => {
+      navigate("/");
+    }, 100);
   };
 
   // Crear Perfil
@@ -200,7 +202,7 @@ export default function Profiles() {
       });
       if (response.data.valid) {
         setActiveModal(null);
-        proceedWithProfile(selectedProfile);
+        await proceedWithProfile(selectedProfile);
       } else {
         setPinInput("");
         setPinError("PIN incorrecto. Intenta de nuevo.");
@@ -234,7 +236,7 @@ export default function Profiles() {
       });
       if (response.data.valid) {
         setActiveModal(null);
-        proceedWithProfile(selectedProfile);
+        await proceedWithProfile(selectedProfile);
       } else {
         setPinInput("");
         setPinError("PIN incorrecto. Intenta de nuevo.");

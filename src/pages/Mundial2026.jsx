@@ -130,12 +130,18 @@ function Mundial2026() {
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [activeGroupTab, setActiveGroupTab] = useState("A");
   const [filterTab, setFilterTab] = useState("active"); // "active", "finished", "all"
+  const [activeSectionTab, setActiveSectionTab] = useState("groups"); // "groups" | "brackets"
+  const [selectedBracketMatch, setSelectedBracketMatch] = useState(null);
+  const [focusedModalChannelIndex, setFocusedModalChannelIndex] = useState(0);
 
   // TV focus states
-  const [tvFocusArea, setTvFocusArea] = useState("filters"); // "filters", "channels", "groups"
+  const [tvFocusArea, setTvFocusArea] = useState("filters"); // "filters", "channels", "groups", "bracket-modal", "sectionTabs", "brackets"
   const [focusedFilterIndex, setFocusedFilterIndex] = useState(0);
   const [focusedChannelIndex, setFocusedChannelIndex] = useState(0);
   const [focusedGroupIndex, setFocusedGroupIndex] = useState(0);
+  const [focusedSectionTabIndex, setFocusedSectionTabIndex] = useState(0); // 0: groups, 1: brackets
+  const [focusedRoundIndex, setFocusedRoundIndex] = useState(0); // 0..4
+  const [focusedMatchIndex, setFocusedMatchIndex] = useState(0); // index inside round
 
   // Mapa de búsqueda rápida O(1) de canales para optimizar el renderizado y evitar lag
   const channelsMap = React.useMemo(() => {
@@ -173,6 +179,30 @@ function Mundial2026() {
       };
     });
   }, [mundialMatches, channelsMap]);
+
+
+
+  const handleBracketMatchClick = (match) => {
+    let channels = [];
+    if (match.associatedChannels && match.associatedChannels.length > 0) {
+      channels = match.associatedChannels;
+    } else {
+      channels = allCatalogChannels.filter(ch => {
+        const nameLower = (ch.name || "").toLowerCase();
+        return SPORTS_KEYWORDS.some(k => nameLower.includes(k));
+      }).slice(0, 6);
+    }
+
+    setSelectedBracketMatch({
+      ...match,
+      channels
+    });
+    
+    if (isAndroidTV()) {
+      setTvFocusArea('bracket-modal');
+      setFocusedModalChannelIndex(0);
+    }
+  };
 
   // Memoizar la lista de partidos a mostrar, filtrada y ordenada por relevancia
   const displayMatches = React.useMemo(() => {
@@ -301,6 +331,25 @@ function Mundial2026() {
   useEffect(() => {
     if (!isAndroidTV()) return;
 
+    const getRoundMatchesCount = (roundIdx) => {
+      if (roundIdx === 0) return (knockoutBracket.dieciseisavos || []).length;
+      if (roundIdx === 1) return (knockoutBracket.octavos || []).length;
+      if (roundIdx === 2) return (knockoutBracket.cuartos || []).length;
+      if (roundIdx === 3) return (knockoutBracket.semis || []).length;
+      if (roundIdx === 4) return (knockoutBracket.final || []).length;
+      return 0;
+    };
+
+    const getRoundMatch = (roundIdx, matchIdx) => {
+      let list = [];
+      if (roundIdx === 0) list = knockoutBracket.dieciseisavos || [];
+      else if (roundIdx === 1) list = knockoutBracket.octavos || [];
+      else if (roundIdx === 2) list = knockoutBracket.cuartos || [];
+      else if (roundIdx === 3) list = knockoutBracket.semis || [];
+      else if (roundIdx === 4) list = knockoutBracket.final || [];
+      return list[matchIdx];
+    };
+
     const handleKeyDown = (event) => {
       if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
         return;
@@ -312,10 +361,54 @@ function Mundial2026() {
       else if (event.keyCode === 21) key = 'ArrowLeft';
       else if (event.keyCode === 22) key = 'ArrowRight';
       else if (event.keyCode === 23 || event.keyCode === 66) key = 'Enter';
+      else if (event.keyCode === 4 || event.key === 'Backspace' || event.key === 'Escape') key = 'Escape';
 
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(key)) {
         event.preventDefault();
       } else {
+        return;
+      }
+
+      if (selectedBracketMatch) {
+        if (key === 'Escape') {
+          setSelectedBracketMatch(null);
+          setTvFocusArea('brackets');
+          return;
+        }
+
+        const channels = selectedBracketMatch.channels || [];
+        const N = channels.length;
+
+        if (key === 'ArrowLeft') {
+          if (focusedModalChannelIndex < N && focusedModalChannelIndex % 2 === 1) {
+            setFocusedModalChannelIndex(prev => prev - 1);
+          }
+        } else if (key === 'ArrowRight') {
+          if (focusedModalChannelIndex < N && focusedModalChannelIndex % 2 === 0 && focusedModalChannelIndex + 1 < N) {
+            setFocusedModalChannelIndex(prev => prev + 1);
+          }
+        } else if (key === 'ArrowUp') {
+          if (focusedModalChannelIndex === N) {
+            setFocusedModalChannelIndex(N - 1);
+          } else if (focusedModalChannelIndex - 2 >= 0) {
+            setFocusedModalChannelIndex(prev => prev - 2);
+          }
+        } else if (key === 'ArrowDown') {
+          if (focusedModalChannelIndex < N) {
+            if (focusedModalChannelIndex + 2 < N) {
+              setFocusedModalChannelIndex(prev => prev + 2);
+            } else {
+              setFocusedModalChannelIndex(N);
+            }
+          }
+        } else if (key === 'Enter') {
+          if (focusedModalChannelIndex === N) {
+            setSelectedBracketMatch(null);
+            setTvFocusArea('brackets');
+          } else if (channels[focusedModalChannelIndex]) {
+            handleChannelClick(channels[focusedModalChannelIndex]);
+          }
+        }
         return;
       }
 
@@ -335,8 +428,8 @@ function Mundial2026() {
             setTvFocusArea('channels');
             setFocusedChannelIndex(0);
           } else {
-            setTvFocusArea('groups');
-            setFocusedGroupIndex(0);
+            setTvFocusArea('sectionTabs');
+            setFocusedSectionTabIndex(0);
           }
         } else if (key === 'Enter') {
           const filterTabs = ["active", "finished", "all"];
@@ -414,14 +507,46 @@ function Mundial2026() {
               }
             }
             if (!found) {
-              setTvFocusArea('groups');
-              setFocusedGroupIndex(0);
+              setTvFocusArea('sectionTabs');
+              setFocusedSectionTabIndex(0);
             }
           }
         } else if (key === 'Enter') {
           handleChannelClick(currentFocusItem.channel);
         }
       } 
+      else if (tvFocusArea === 'sectionTabs') {
+        if (key === 'ArrowLeft') {
+          if (focusedSectionTabIndex === 0) {
+            focusTVNav();
+          } else {
+            setFocusedSectionTabIndex(0);
+          }
+        } else if (key === 'ArrowRight') {
+          if (focusedSectionTabIndex === 0) {
+            setFocusedSectionTabIndex(1);
+          }
+        } else if (key === 'ArrowUp') {
+          if (focusableChannels.length > 0) {
+            setTvFocusArea('channels');
+            setFocusedChannelIndex(focusableChannels.length - 1);
+          } else {
+            setTvFocusArea('filters');
+            setFocusedFilterIndex(0);
+          }
+        } else if (key === 'ArrowDown') {
+          if (activeSectionTab === 'groups') {
+            setTvFocusArea('groups');
+            setFocusedGroupIndex(0);
+          } else {
+            setTvFocusArea('brackets');
+            setFocusedRoundIndex(0);
+            setFocusedMatchIndex(0);
+          }
+        } else if (key === 'Enter') {
+          setActiveSectionTab(focusedSectionTabIndex === 0 ? "groups" : "brackets");
+        }
+      }
       else if (tvFocusArea === 'groups') {
         const groupTabs = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
         if (key === 'ArrowLeft') {
@@ -435,22 +560,53 @@ function Mundial2026() {
             setFocusedGroupIndex(prev => prev + 1);
           }
         } else if (key === 'ArrowUp') {
-          if (focusableChannels.length > 0) {
-            setTvFocusArea('channels');
-            setFocusedChannelIndex(focusableChannels.length - 1);
-          } else {
-            setTvFocusArea('filters');
-            setFocusedFilterIndex(0);
-          }
+          setTvFocusArea('sectionTabs');
+          setFocusedSectionTabIndex(0);
         } else if (key === 'Enter') {
           setActiveGroupTab(groupTabs[focusedGroupIndex]);
+        }
+      }
+      else if (tvFocusArea === 'brackets') {
+        const roundLen = getRoundMatchesCount(focusedRoundIndex);
+        if (key === 'ArrowUp') {
+          if (focusedMatchIndex > 0) {
+            setFocusedMatchIndex(prev => prev - 1);
+          } else {
+            setTvFocusArea('sectionTabs');
+            setFocusedSectionTabIndex(1);
+          }
+        } else if (key === 'ArrowDown') {
+          if (focusedMatchIndex < roundLen - 1) {
+            setFocusedMatchIndex(prev => prev + 1);
+          }
+        } else if (key === 'ArrowLeft') {
+          if (focusedRoundIndex > 0) {
+            const prevRound = focusedRoundIndex - 1;
+            const prevLen = getRoundMatchesCount(prevRound);
+            setFocusedRoundIndex(prevRound);
+            setFocusedMatchIndex(Math.min(focusedMatchIndex * 2, prevLen - 1));
+          } else {
+            focusTVNav();
+          }
+        } else if (key === 'ArrowRight') {
+          if (focusedRoundIndex < 4) {
+            const nextRound = focusedRoundIndex + 1;
+            const nextLen = getRoundMatchesCount(nextRound);
+            setFocusedRoundIndex(nextRound);
+            setFocusedMatchIndex(Math.min(Math.floor(focusedMatchIndex / 2), nextLen - 1));
+          }
+        } else if (key === 'Enter') {
+          const match = getRoundMatch(focusedRoundIndex, focusedMatchIndex);
+          if (match) {
+            handleBracketMatchClick(match);
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusableChannels, displayMatches]);
+  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusedSectionTabIndex, focusedRoundIndex, focusedMatchIndex, activeSectionTab, focusableChannels, displayMatches, selectedBracketMatch, focusedModalChannelIndex, knockoutBracket]);
 
   // Hacer scroll automático al elemento enfocado en Smart TV
   useEffect(() => {
@@ -466,6 +622,14 @@ function Mundial2026() {
       }
     } else if (tvFocusArea === 'groups') {
       targetId = `tv-group-${focusedGroupIndex}`;
+    } else if (tvFocusArea === 'sectionTabs') {
+      targetId = `tv-section-tab-${focusedSectionTabIndex}`;
+    } else if (tvFocusArea === 'brackets') {
+      targetId = `tv-bracket-match-${focusedRoundIndex}-${focusedMatchIndex}`;
+    } else if (tvFocusArea === 'bracket-modal' && selectedBracketMatch) {
+      targetId = focusedModalChannelIndex === selectedBracketMatch.channels.length
+        ? "tv-modal-close"
+        : `tv-modal-channel-${focusedModalChannelIndex}`;
     }
 
     if (targetId) {
@@ -478,7 +642,7 @@ function Mundial2026() {
         });
       }
     }
-  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusableChannels]);
+  }, [tvFocusArea, focusedFilterIndex, focusedChannelIndex, focusedGroupIndex, focusedSectionTabIndex, focusedRoundIndex, focusedMatchIndex, focusedModalChannelIndex, selectedBracketMatch]);
 
   // CSS helpers for D-pad focus states on Smart TV
   const isChannelFocused = (channelId) => {
@@ -524,6 +688,36 @@ function Mundial2026() {
       base += "outline-none ring-4 ring-lime-400 scale-[1.04] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 bg-slate-900/80 ";
     } else {
       base += "hover:border-lime-400/40 ";
+    }
+    return base;
+  };
+
+  const getSectionTabClass = (tabName, index) => {
+    const isActive = activeSectionTab === tabName;
+    const isFocused = isAndroidTV() && tvFocusArea === 'sectionTabs' && focusedSectionTabIndex === index;
+    
+    let base = "text-sm font-black uppercase tracking-wider pb-2 border-b-2 transition-all duration-300 ";
+    if (isFocused) {
+      base += "outline-none text-lime-400 border-lime-400 scale-[1.04] ring-2 ring-lime-400 px-2 rounded-lg bg-lime-400/10 ";
+    } else if (isActive) {
+      base += "text-lime-400 border-lime-400 ";
+    } else {
+      base += "text-slate-400 border-transparent hover:text-white ";
+    }
+    return base;
+  };
+
+  const getBracketMatchClass = (match, rIdx, mIdx) => {
+    const isLive = match.estado === "EN VIVO";
+    const isFocused = isAndroidTV() && tvFocusArea === 'brackets' && focusedRoundIndex === rIdx && focusedMatchIndex === mIdx;
+    
+    let base = "relative overflow-hidden rounded-2xl bg-[#090616]/70 border p-3 flex flex-col gap-2 transition-all duration-300 cursor-pointer ";
+    if (isFocused) {
+      base += "outline-none ring-4 ring-lime-400 scale-[1.04] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 ";
+    } else if (isLive) {
+      base += "border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.15)] hover:border-red-500/60 ";
+    } else {
+      base += "border-white/5 hover:border-lime-400/40 hover:scale-[1.03] ";
     }
     return base;
   };
@@ -658,6 +852,387 @@ function Mundial2026() {
     return groups;
   }, [resolvedMundialMatches]);
 
+  // 1. Calcular los mejores terceros en base a la tabla de posiciones actual
+  const bestThirds = React.useMemo(() => {
+    const thirds = [];
+    Object.keys(GROUPS_DATA).forEach(groupKey => {
+      const group = GROUPS_DATA[groupKey];
+      if (group && group[2]) {
+        thirds.push({
+          ...group[2],
+          grupo: groupKey
+        });
+      }
+    });
+    // Ordenar terceros: Puntos, Diferencia, Goles a Favor
+    thirds.sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const diffA = a.gf - a.gc;
+      const diffB = b.gf - b.gc;
+      if (diffB !== diffA) return diffB - diffA;
+      return b.gf - a.gf;
+    });
+    return thirds;
+  }, [GROUPS_DATA]);
+
+  // 2. Calcular partidos de la Fase Eliminatoria (Brackets) dinámicamente
+  const knockoutBracket = React.useMemo(() => {
+    // Definición de emparejamientos de Dieciseisavos: [Equipo1Source, Equipo2Source]
+    const pairings = [
+      { t1: { type: 'winner', group: 'A' }, t2: { type: 'third', index: 0 } },  // 1A vs Mejor Tercero 1
+      { t1: { type: 'runnerup', group: 'B' }, t2: { type: 'runnerup', group: 'C' } }, // 2B vs 2C
+      { t1: { type: 'winner', group: 'C' }, t2: { type: 'third', index: 1 } },  // 1C vs Mejor Tercero 2
+      { t1: { type: 'winner', group: 'B' }, t2: { type: 'runnerup', group: 'D' } }, // 1B vs 2D
+      { t1: { type: 'winner', group: 'E' }, t2: { type: 'third', index: 2 } },  // 1E vs Mejor Tercero 3
+      { t1: { type: 'runnerup', group: 'E' }, t2: { type: 'runnerup', group: 'F' } }, // 2E vs 2F
+      { t1: { type: 'winner', group: 'G' }, t2: { type: 'third', index: 3 } },  // 1G vs Mejor Tercero 4
+      { t1: { type: 'runnerup', group: 'G' }, t2: { type: 'runnerup', group: 'H' } }, // 2G vs 2H
+      { t1: { type: 'winner', group: 'I' }, t2: { type: 'third', index: 4 } },  // 1I vs Mejor Tercero 5
+      { t1: { type: 'runnerup', group: 'I' }, t2: { type: 'runnerup', group: 'J' } }, // 2I vs 2J
+      { t1: { type: 'winner', group: 'K' }, t2: { type: 'third', index: 5 } },  // 1K vs Mejor Tercero 6
+      { t1: { type: 'runnerup', group: 'K' }, t2: { type: 'runnerup', group: 'L' } }, // 2K vs 2L
+      { t1: { type: 'winner', group: 'H' }, t2: { type: 'third', index: 6 } },  // 1H vs Mejor Tercero 7
+      { t1: { type: 'winner', group: 'J' }, t2: { type: 'third', index: 7 } },  // 1J vs Mejor Tercero 8
+      { t1: { type: 'winner', group: 'F' }, t2: { type: 'runnerup', group: 'A' } }, // 1F vs 2A
+      { t1: { type: 'winner', group: 'L' }, t2: { type: 'runnerup', group: 'J' } }  // 1L vs 2J
+    ];
+
+    const getTeamName = (source) => {
+      if (source.type === 'winner') {
+        const group = GROUPS_DATA[source.group];
+        if (group && group[0] && group[0].pj > 0) {
+          return group[0].pais;
+        }
+        return `1º Grupo ${source.group}`;
+      }
+      if (source.type === 'runnerup') {
+        const group = GROUPS_DATA[source.group];
+        if (group && group[1] && group[1].pj > 0) {
+          return group[1].pais;
+        }
+        return `2º Grupo ${source.group}`;
+      }
+      if (source.type === 'third') {
+        const thirdTeam = bestThirds[source.index];
+        if (thirdTeam && thirdTeam.pj > 0) {
+          return thirdTeam.pais;
+        }
+        return `3º Mejor ${source.index + 1}`;
+      }
+      return 'Por definir';
+    };
+
+    // Crear mapa de equipo a grupo para poder identificar emparejamientos dinámicos
+    const teamToGroup = {};
+    Object.keys(GROUPS_DATA).forEach(groupKey => {
+      GROUPS_DATA[groupKey].forEach(team => {
+        teamToGroup[team.pais.toLowerCase()] = groupKey;
+      });
+    });
+
+    const teamMatchesSource = (teamName, source) => {
+      if (!teamName || !source) return false;
+      const nameLower = teamName.toLowerCase();
+      
+      const computedName = getTeamName(source);
+      if (nameLower === computedName.toLowerCase()) return true;
+      
+      const teamGroup = teamToGroup[nameLower];
+      if (!teamGroup) return false;
+      
+      if (source.type === 'winner' || source.type === 'runnerup') {
+        return teamGroup === source.group;
+      }
+      if (source.type === 'third') {
+        return true; // Permitir cualquier tercer lugar si el otro equipo coincide
+      }
+      return false;
+    };
+
+    // Dieciseisavos de Final (Round of 32)
+    const dieciseisavos = pairings.map((p, idx) => {
+      const equipo1 = getTeamName(p.t1);
+      const equipo2 = getTeamName(p.t2);
+      
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `d-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("dieciseis") || m.fase?.toLowerCase().includes("16avos") || m.fase?.toLowerCase().includes("1/16") || m.fase?.toLowerCase().includes("32avos") || m.fase?.toLowerCase().includes("diez y seis")) &&
+          (
+            ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+             (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase())) ||
+            (teamMatchesSource(m.equipo1, p.t1) && teamMatchesSource(m.equipo2, p.t2)) ||
+            (teamMatchesSource(m.equipo1, p.t2) && teamMatchesSource(m.equipo2, p.t1))
+          )
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `d-${idx + 1}` || 
+          (!dbMatch.bracketKey && (
+            (teamMatchesSource(dbMatch.equipo1, p.t1) && teamMatchesSource(dbMatch.equipo2, p.t2)) ||
+            (teamMatchesSource(dbMatch.equipo1, p.t2) && teamMatchesSource(dbMatch.equipo2, p.t1))
+          ));
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `d-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: useExactDbTeams ? dbMatch.equipo1 : (isReversed ? dbMatch.equipo2 : dbMatch.equipo1),
+          goles1: useExactDbTeams ? dbMatch.goles1 : (isReversed ? dbMatch.goles2 : dbMatch.goles1),
+          equipo2: useExactDbTeams ? dbMatch.equipo2 : (isReversed ? dbMatch.equipo1 : dbMatch.equipo2),
+          goles2: useExactDbTeams ? dbMatch.goles2 : (isReversed ? dbMatch.goles1 : dbMatch.goles2),
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `d-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Octavos de Final (Round of 16)
+    const octavosPairings = [
+      { m1: dieciseisavos[0], m2: dieciseisavos[1] },
+      { m1: dieciseisavos[2], m2: dieciseisavos[3] },
+      { m1: dieciseisavos[4], m2: dieciseisavos[5] },
+      { m1: dieciseisavos[6], m2: dieciseisavos[7] },
+      { m1: dieciseisavos[8], m2: dieciseisavos[9] },
+      { m1: dieciseisavos[10], m2: dieciseisavos[11] },
+      { m1: dieciseisavos[12], m2: dieciseisavos[13] },
+      { m1: dieciseisavos[14], m2: dieciseisavos[15] }
+    ];
+
+    const octavos = octavosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador 16avos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador 16avos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `o-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `o-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `o-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `o-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Cuartos de Final
+    const cuartosPairings = [
+      { m1: octavos[0], m2: octavos[1] },
+      { m1: octavos[2], m2: octavos[3] },
+      { m1: octavos[4], m2: octavos[5] },
+      { m1: octavos[6], m2: octavos[7] }
+    ];
+
+    const cuartos = cuartosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Octavos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Octavos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `c-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("cuarto") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `c-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `c-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `c-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Semifinales
+    const semisPairings = [
+      { m1: cuartos[0], m2: cuartos[1] },
+      { m1: cuartos[2], m2: cuartos[3] }
+    ];
+
+    const semis = semisPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Cuartos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Cuartos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `s-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("semifinal") || m.fase?.toLowerCase().includes("semi-final")) &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `s-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `s-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `s-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Gran Final
+    const finalPairings = [
+      { m1: semis[0], m2: semis[1] }
+    ];
+
+    const final = finalPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Semis 1`;
+      const equipo2 = p.m2.ganador || `Ganador Semis 2`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `f-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("final") && !m.fase?.toLowerCase().includes("semi") && !m.fase?.toLowerCase().includes("cuarto") && !m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `f-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `f-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `f-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    return {
+      dieciseisavos,
+      octavos,
+      cuartos,
+      semis,
+      final
+    };
+  }, [GROUPS_DATA, bestThirds, resolvedMundialMatches]);
+
   // Calendario de partidos destacados reales - Filtrados por "clave" desde base de datos
   const MATCHES = React.useMemo(() => {
     const filtered = resolvedMundialMatches.filter(m => m.clave === true);
@@ -708,6 +1283,120 @@ function Mundial2026() {
       imagen: "https://st1.uvnimg.com/57/06/1ea828bd4fd2a0bbd5583b39f240/002-sofi-stadium-donde-queda-y-que-partidos-de-copa-america-se-jugaran-ahi.jpg",
     },
   ];
+
+  const renderBracket = () => {
+    const rounds = [
+      { title: "Dieciseisavos de Final", data: knockoutBracket.dieciseisavos || [] },
+      { title: "Octavos de Final", data: knockoutBracket.octavos || [] },
+      { title: "Cuartos de Final", data: knockoutBracket.cuartos || [] },
+      { title: "Semifinales", data: knockoutBracket.semis || [] },
+      { title: "Gran Final", data: knockoutBracket.final || [] }
+    ];
+
+    return (
+      <div className="w-full overflow-x-auto py-4 hide-scrollbar select-none">
+        <div className="flex gap-6 min-w-[1250px] justify-between px-2">
+          {rounds.map((round, rIdx) => (
+            <div key={rIdx} className="flex-1 flex flex-col min-w-[220px]">
+              <div className="text-center py-2 bg-slate-900/60 border border-white/5 rounded-xl mb-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400">
+                  {round.title}
+                </span>
+              </div>
+              <div className="flex-1 flex flex-col justify-around gap-4 min-h-[480px]">
+                {round.data.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 border border-dashed border-white/5 rounded-2xl bg-white/[0.01] min-h-[100px]">
+                    <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 text-center">
+                      Por definir
+                    </span>
+                  </div>
+                ) : (
+                  round.data.map((match, mIdx) => {
+                    const isFinished = match.estado === "FINALIZADO";
+                    const isLive = match.estado === "EN VIVO";
+                    
+                    const win1 = match.ganador === match.equipo1;
+                    const win2 = match.ganador === match.equipo2;
+                    
+                    const hasWinner = !!match.ganador;
+
+                    return (
+                      <div
+                        id={`tv-bracket-match-${rIdx}-${mIdx}`}
+                        key={match.id}
+                        onClick={() => handleBracketMatchClick(match)}
+                        className={getBracketMatchClass(match, rIdx, mIdx)}
+                      >
+                        {/* Live Badge */}
+                        {isLive && (
+                          <span className="absolute top-2 right-2 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                          </span>
+                        )}
+
+                        {/* Header details */}
+                        <div className="flex justify-between items-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5 pb-1.5 mb-0.5">
+                          <span>{match.fecha}</span>
+                          <span className={isLive ? "text-red-400 font-extrabold animate-pulse" : "text-slate-400 font-bold"}>
+                            {isLive ? "EN VIVO" : match.hora}
+                          </span>
+                        </div>
+
+                        {/* Team 1 Row */}
+                        <div className={`flex items-center justify-between gap-2 ${hasWinner && !win1 ? "opacity-40" : ""}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={getFlagUrl(match.equipo1)}
+                              alt=""
+                              className="w-5 h-3.5 object-cover rounded shadow-sm border border-white/10 flex-shrink-0"
+                              onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                            />
+                            <span className={`text-[11px] truncate ${win1 ? "text-lime-300 font-extrabold" : "text-slate-200 font-bold"}`}>
+                              {match.equipo1}
+                            </span>
+                          </div>
+                          {!isFinished && !isLive ? (
+                            <span className="text-[10px] text-slate-600 font-bold font-mono">-</span>
+                          ) : (
+                            <span className={`text-[11px] font-black font-mono ${win1 ? "text-lime-300" : "text-slate-300"}`}>
+                              {match.goles1}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Team 2 Row */}
+                        <div className={`flex items-center justify-between gap-2 ${hasWinner && !win2 ? "opacity-40" : ""}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={getFlagUrl(match.equipo2)}
+                              alt=""
+                              className="w-5 h-3.5 object-cover rounded shadow-sm border border-white/10 flex-shrink-0"
+                              onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                            />
+                            <span className={`text-[11px] truncate ${win2 ? "text-lime-300 font-extrabold" : "text-slate-200 font-bold"}`}>
+                              {match.equipo2}
+                            </span>
+                          </div>
+                          {!isFinished && !isLive ? (
+                            <span className="text-[10px] text-slate-600 font-bold font-mono">-</span>
+                          ) : (
+                            <span className={`text-[11px] font-black font-mono ${win2 ? "text-lime-300" : "text-slate-300"}`}>
+                              {match.goles2}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const handleChannelClick = (channel) => {
     navigate(`/watch/channel/${channel._id || channel.id}`, {
@@ -1048,70 +1737,96 @@ function Mundial2026() {
             {/* CARD 3: TABLA DE GRUPOS (col-span-8) */}
             <div className="lg:col-span-8 border-double-bezel rounded-[2rem] p-1.5">
               <div className="inner-bezel rounded-[calc(2rem-0.375rem)] p-4 sm:p-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3.5">
-                  <h2 className="text-lg md:text-xl font-black uppercase tracking-wider text-white flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-lime-400" /> Clasificaciones de Grupos
-                  </h2>
-                  
-                  {/* Selector de Pestañas de Grupos */}
-                  <div className="grid grid-cols-6 sm:flex sm:flex-wrap gap-1 max-w-full pb-2 sm:pb-0">
-                    {Object.keys(GROUPS_DATA).map((group, idx) => (
-                      <button
-                        key={group}
-                        id={`tv-group-${idx}`}
-                        onClick={() => setActiveGroupTab(group)}
-                        className={getGroupBtnClass(group, idx)}
-                      >
-                        {group}
-                      </button>
-                    ))}
-                  </div>
+                
+                {/* Selector de Sección (Tablas de Grupos vs Brackets) */}
+                <div className="flex border-b border-white/5 pb-3 mb-4 gap-4">
+                  <button
+                    id="tv-section-tab-0"
+                    onClick={() => setActiveSectionTab("groups")}
+                    className={getSectionTabClass("groups", 0)}
+                  >
+                    Tablas de Grupos
+                  </button>
+                  <button
+                    id="tv-section-tab-1"
+                    onClick={() => setActiveSectionTab("brackets")}
+                    className={getSectionTabClass("brackets", 1)}
+                  >
+                    Fase Eliminatoria (Brackets)
+                  </button>
                 </div>
 
-                {/* Tabla de Resultados del Grupo */}
-                <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/25">
-                  <table className="min-w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-white/5 text-slate-500 text-[10px] sm:text-sm font-black uppercase tracking-wider bg-white/[0.02]">
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 w-8 sm:w-12 text-center">Pos</th>
-                        <th className="py-3 sm:py-5 px-1.5 sm:px-4">País</th>
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">PJ</th>
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">G</th>
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">E</th>
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">P</th>
-                        <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">GF:GC</th>
-                        <th className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-bold text-lime-400">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {GROUPS_DATA[activeGroupTab].map((team, idx) => (
-                        <tr
-                          key={team.pais}
-                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                        >
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center font-bold text-xs sm:text-base text-slate-400">{idx + 1}</td>
-                          <td className="py-3 sm:py-5 px-1.5 sm:px-4 flex items-center gap-1.5 sm:gap-4 min-w-0">
-                            <img
-                              src={getFlagUrl(team.pais)}
-                              alt={team.pais}
-                              className="w-5 h-3.5 sm:w-8 sm:h-5.5 object-cover rounded shadow-md flex-shrink-0"
-                              onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
-                            />
-                            <span className="font-bold text-xs sm:text-base text-slate-200 truncate">{team.pais}</span>
-                          </td>
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.pj}</td>
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.g}</td>
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.e}</td>
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.p}</td>
-                          <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-400">
-                            {team.gf}:{team.gc}
-                          </td>
-                          <td className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-black text-xs sm:text-lg text-lime-300">{team.pts}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {activeSectionTab === "groups" ? (
+                  <>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3.5">
+                      <h2 className="text-lg md:text-xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-lime-400" /> Clasificaciones de Grupos
+                      </h2>
+                      
+                      {/* Selector de Pestañas de Grupos */}
+                      <div className="grid grid-cols-6 sm:flex sm:flex-wrap gap-1 max-w-full pb-2 sm:pb-0">
+                        {Object.keys(GROUPS_DATA).map((group, idx) => (
+                          <button
+                            key={group}
+                            id={`tv-group-${idx}`}
+                            onClick={() => setActiveGroupTab(group)}
+                            className={getGroupBtnClass(group, idx)}
+                          >
+                            {group}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tabla de Resultados del Grupo */}
+                    <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/25">
+                      <table className="min-w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/5 text-slate-500 text-[10px] sm:text-sm font-black uppercase tracking-wider bg-white/[0.02]">
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 w-8 sm:w-12 text-center">Pos</th>
+                            <th className="py-3 sm:py-5 px-1.5 sm:px-4">País</th>
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">PJ</th>
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">G</th>
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">E</th>
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">P</th>
+                            <th className="py-3 sm:py-5 px-1 sm:px-4 text-center">GF:GC</th>
+                            <th className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-bold text-lime-400">Pts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {GROUPS_DATA[activeGroupTab].map((team, idx) => (
+                            <tr
+                              key={team.pais}
+                              className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                            >
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center font-bold text-xs sm:text-base text-slate-400">{idx + 1}</td>
+                              <td className="py-3 sm:py-5 px-1.5 sm:px-4 flex items-center gap-1.5 sm:gap-4 min-w-0">
+                                <img
+                                  src={getFlagUrl(team.pais)}
+                                  alt={team.pais}
+                                  className="w-5 h-3.5 sm:w-8 sm:h-5.5 object-cover rounded shadow-md flex-shrink-0"
+                                  onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                                />
+                                <span className="font-bold text-xs sm:text-base text-slate-200 truncate">{team.pais}</span>
+                              </td>
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.pj}</td>
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.g}</td>
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.e}</td>
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-300">{team.p}</td>
+                              <td className="py-3 sm:py-5 px-1 sm:px-4 text-center text-xs sm:text-base text-slate-400">
+                                {team.gf}:{team.gc}
+                              </td>
+                              <td className="py-3 sm:py-5 px-1.5 sm:px-4 text-center font-black text-xs sm:text-lg text-lime-300">{team.pts}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  renderBracket()
+                )}
+
               </div>
             </div>
 
@@ -1226,6 +1941,103 @@ function Mundial2026() {
 
         </div>
       </div>
+
+      {selectedBracketMatch && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in">
+          <div className="border-double-bezel rounded-[2rem] p-1.5 max-w-lg w-full shadow-2xl relative">
+            <div className="inner-bezel rounded-[calc(2rem-0.375rem)] p-6 flex flex-col gap-6">
+              
+              {/* Match Header */}
+              <div className="text-center border-b border-white/5 pb-4">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-cyan-400 bg-cyan-950/30 px-2.5 py-1 rounded border border-cyan-500/10 inline-block mb-3">
+                  {selectedBracketMatch.fase || "Fase Eliminatoria"}
+                </span>
+                <h3 className="text-xl font-black text-white flex items-center justify-center gap-3">
+                  <span>{selectedBracketMatch.equipo1}</span>
+                  <img
+                    src={getFlagUrl(selectedBracketMatch.equipo1)}
+                    alt=""
+                    className="w-7 h-5 object-cover rounded shadow border border-white/10"
+                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                  />
+                  <span className="text-slate-500 font-bold px-2">VS</span>
+                  <img
+                    src={getFlagUrl(selectedBracketMatch.equipo2)}
+                    alt=""
+                    className="w-7 h-5 object-cover rounded shadow border border-white/10"
+                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
+                  />
+                  <span>{selectedBracketMatch.equipo2}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-2 font-semibold">
+                  {selectedBracketMatch.fecha} &middot; {selectedBracketMatch.hora}
+                </p>
+              </div>
+
+              {/* Channels Grid */}
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-wider text-lime-400 block mb-1">
+                  📺 SELECCIONA UN CANAL PARA VER LA TRANSMISIÓN:
+                </span>
+                
+                <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                  {selectedBracketMatch.channels.map((channel, idx) => {
+                    const isFocused = isAndroidTV() && focusedModalChannelIndex === idx;
+                    return (
+                      <div
+                        key={channel._id || channel.id}
+                        id={`tv-modal-channel-${idx}`}
+                        onClick={() => handleChannelClick(channel)}
+                        className={`group/modal-channel cursor-pointer rounded-xl bg-slate-950/60 border p-3 flex items-center gap-3 transition-all duration-300 ${
+                          isFocused
+                            ? "outline-none ring-4 ring-lime-400 scale-[1.04] border-lime-400/50 shadow-[0_0_25px_rgba(163,230,53,0.8)] z-10 bg-slate-900/80"
+                            : "border-white/5 hover:border-lime-400/40 hover:bg-slate-900/40"
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <img
+                            src={rewriteImageUrl(channel.customThumbnail || channel.logo || channel.thumbnail)}
+                            alt={channel.name}
+                            onError={(e) => { e.target.src = "./logo-teamg.png"; }}
+                            className="w-full h-full object-contain p-1"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-xs text-slate-300 group-hover/modal-channel:text-white truncate block">
+                            {channel.name}
+                          </span>
+                          <span className="text-[9px] text-lime-400 font-semibold flex items-center gap-1 mt-0.5 animate-pulse">
+                            VER EN VIVO
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-center border-t border-white/5 pt-4">
+                <button
+                  id="tv-modal-close"
+                  onClick={() => {
+                    setSelectedBracketMatch(null);
+                    setTvFocusArea('channels');
+                  }}
+                  className={`px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                    isAndroidTV() && focusedModalChannelIndex === selectedBracketMatch.channels.length
+                      ? "bg-lime-400 text-slate-950 ring-4 ring-lime-400 scale-[1.05] shadow-[0_0_25px_rgba(163,230,53,0.8)]"
+                      : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  Cerrar Ventana
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
