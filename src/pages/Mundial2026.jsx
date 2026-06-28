@@ -180,6 +180,517 @@ function Mundial2026() {
     });
   }, [mundialMatches, channelsMap]);
 
+  // Datos de los Grupos del Mundial Oficiales (Format de 48 Equipos - Grupos A al L) - Calculados Dinámicamente
+  const GROUPS_DATA = React.useMemo(() => {
+    const groups = {
+      A: [
+        { pais: "México", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Corea del Sur", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Sudáfrica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "República Checa", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      B: [
+        { pais: "Canadá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suiza", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Catar", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Bosnia y Herzegovina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      C: [
+        { pais: "Brasil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Marruecos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Escocia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Haití", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      D: [
+        { pais: "EE. UU.", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Paraguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Australia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Turquía", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      E: [
+        { pais: "Alemania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ecuador", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Costa de Marfil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Curazao", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      F: [
+        { pais: "Países Bajos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Japón", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Túnez", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suecia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      G: [
+        { pais: "Bélgica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Egipto", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Nueva Zelanda", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      H: [
+        { pais: "España", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uruguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Arabia Saudita", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Cabo Verde", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      I: [
+        { pais: "Francia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Senegal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Noruega", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irak", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      J: [
+        { pais: "Argentina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Austria", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Argelia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Jordania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      K: [
+        { pais: "Portugal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Colombia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uzbekistán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "R. D. del Congo", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      L: [
+        { pais: "Inglaterra", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Croacia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Panamá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ghana", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ]
+    };
+
+    // Computar estadísticas en base a los partidos cargados desde base de datos
+    resolvedMundialMatches.forEach((match) => {
+      if (match.grupo && (match.estado === "FINALIZADO" || match.estado === "EN VIVO")) {
+        const groupKey = String(match.grupo).toUpperCase();
+        const groupTeams = groups[groupKey];
+        if (groupTeams) {
+          const t1 = groupTeams.find(t => t.pais === match.equipo1);
+          const t2 = groupTeams.find(t => t.pais === match.equipo2);
+          
+          if (t1 && t2) {
+            const g1 = Number(match.goles1 || 0);
+            const g2 = Number(match.goles2 || 0);
+            
+            t1.pj += 1;
+            t2.pj += 1;
+            t1.gf += g1;
+            t1.gc += g2;
+            t2.gf += g2;
+            t2.gc += g1;
+            
+            if (g1 > g2) {
+              t1.g += 1;
+              t2.p += 1;
+              t1.pts += 3;
+            } else if (g2 > g1) {
+              t2.g += 1;
+              t1.p += 1;
+              t2.pts += 3;
+            } else {
+              t1.e += 1;
+              t2.e += 1;
+              t1.pts += 1;
+              t2.pts += 1;
+            }
+          }
+        }
+      }
+    });
+
+    // Ordenar los equipos de cada grupo según reglas oficiales (PTS, luego Diferencia, luego Favor)
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const diffA = a.gf - a.gc;
+        const diffB = b.gf - b.gc;
+        if (diffB !== diffA) return diffB - diffA;
+        return b.gf - a.gf;
+      });
+    });
+
+    return groups;
+  }, [resolvedMundialMatches]);
+
+  // 1. Calcular los mejores terceros en base a la tabla de posiciones actual
+  const bestThirds = React.useMemo(() => {
+    const thirds = [];
+    Object.keys(GROUPS_DATA).forEach(groupKey => {
+      const group = GROUPS_DATA[groupKey];
+      if (group && group[2]) {
+        thirds.push({
+          ...group[2],
+          grupo: groupKey
+        });
+      }
+    });
+    // Ordenar terceros: Puntos, Diferencia, Goles a Favor
+    thirds.sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const diffA = a.gf - a.gc;
+      const diffB = b.gf - b.gc;
+      if (diffB !== diffA) return diffB - diffA;
+      return b.gf - a.gf;
+    });
+    return thirds;
+  }, [GROUPS_DATA]);
+
+  // 2. Calcular partidos de la Fase Eliminatoria (Brackets) dinámicamente
+  const knockoutBracket = React.useMemo(() => {
+    // Definición de emparejamientos de Dieciseisavos: [Equipo1Source, Equipo2Source]
+    const pairings = [
+      { t1: { type: 'winner', group: 'A' }, t2: { type: 'third', index: 0 } },  // 1A vs Mejor Tercero 1
+      { t1: { type: 'runnerup', group: 'B' }, t2: { type: 'runnerup', group: 'C' } }, // 2B vs 2C
+      { t1: { type: 'winner', group: 'C' }, t2: { type: 'third', index: 1 } },  // 1C vs Mejor Tercero 2
+      { t1: { type: 'winner', group: 'B' }, t2: { type: 'runnerup', group: 'D' } }, // 1B vs 2D
+      { t1: { type: 'winner', group: 'E' }, t2: { type: 'third', index: 2 } },  // 1E vs Mejor Tercero 3
+      { t1: { type: 'runnerup', group: 'E' }, t2: { type: 'runnerup', group: 'F' } }, // 2E vs 2F
+      { t1: { type: 'winner', group: 'G' }, t2: { type: 'third', index: 3 } },  // 1G vs Mejor Tercero 4
+      { t1: { type: 'runnerup', group: 'G' }, t2: { type: 'runnerup', group: 'H' } }, // 2G vs 2H
+      { t1: { type: 'winner', group: 'I' }, t2: { type: 'third', index: 4 } },  // 1I vs Mejor Tercero 5
+      { t1: { type: 'runnerup', group: 'I' }, t2: { type: 'runnerup', group: 'J' } }, // 2I vs 2J
+      { t1: { type: 'winner', group: 'K' }, t2: { type: 'third', index: 5 } },  // 1K vs Mejor Tercero 6
+      { t1: { type: 'runnerup', group: 'K' }, t2: { type: 'runnerup', group: 'L' } }, // 2K vs 2L
+      { t1: { type: 'winner', group: 'H' }, t2: { type: 'third', index: 6 } },  // 1H vs Mejor Tercero 7
+      { t1: { type: 'winner', group: 'J' }, t2: { type: 'third', index: 7 } },  // 1J vs Mejor Tercero 8
+      { t1: { type: 'winner', group: 'F' }, t2: { type: 'runnerup', group: 'A' } }, // 1F vs 2A
+      { t1: { type: 'winner', group: 'L' }, t2: { type: 'runnerup', group: 'J' } }  // 1L vs 2J
+    ];
+
+    const getTeamName = (source) => {
+      if (source.type === 'winner') {
+        const group = GROUPS_DATA[source.group];
+        if (group && group[0] && group[0].pj > 0) {
+          return group[0].pais;
+        }
+        return `1º Grupo ${source.group}`;
+      }
+      if (source.type === 'runnerup') {
+        const group = GROUPS_DATA[source.group];
+        if (group && group[1] && group[1].pj > 0) {
+          return group[1].pais;
+        }
+        return `2º Grupo ${source.group}`;
+      }
+      if (source.type === 'third') {
+        const thirdTeam = bestThirds[source.index];
+        if (thirdTeam && thirdTeam.pj > 0) {
+          return thirdTeam.pais;
+        }
+        return `3º Mejor ${source.index + 1}`;
+      }
+      return 'Por definir';
+    };
+
+    // Crear mapa de equipo a grupo para poder identificar emparejamientos dinámicos
+    const teamToGroup = {};
+    Object.keys(GROUPS_DATA).forEach(groupKey => {
+      GROUPS_DATA[groupKey].forEach(team => {
+        teamToGroup[team.pais.toLowerCase()] = groupKey;
+      });
+    });
+
+    const teamMatchesSource = (teamName, source) => {
+      if (!teamName || !source) return false;
+      const nameLower = teamName.toLowerCase();
+      
+      const computedName = getTeamName(source);
+      if (nameLower === computedName.toLowerCase()) return true;
+      
+      const teamGroup = teamToGroup[nameLower];
+      if (!teamGroup) return false;
+      
+      if (source.type === 'winner' || source.type === 'runnerup') {
+        return teamGroup === source.group;
+      }
+      if (source.type === 'third') {
+        return true; // Permitir cualquier tercer lugar si el otro equipo coincide
+      }
+      return false;
+    };
+
+    // Dieciseisavos de Final (Round of 32)
+    const dieciseisavos = pairings.map((p, idx) => {
+      const equipo1 = getTeamName(p.t1);
+      const equipo2 = getTeamName(p.t2);
+      
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `d-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("dieciseis") || m.fase?.toLowerCase().includes("16avos") || m.fase?.toLowerCase().includes("1/16") || m.fase?.toLowerCase().includes("32avos") || m.fase?.toLowerCase().includes("diez y seis")) &&
+          (
+            ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+             (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase())) ||
+            (teamMatchesSource(m.equipo1, p.t1) && teamMatchesSource(m.equipo2, p.t2)) ||
+            (teamMatchesSource(m.equipo1, p.t2) && teamMatchesSource(m.equipo2, p.t1))
+          )
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `d-${idx + 1}` || 
+          (!dbMatch.bracketKey && (
+            (teamMatchesSource(dbMatch.equipo1, p.t1) && teamMatchesSource(dbMatch.equipo2, p.t2)) ||
+            (teamMatchesSource(dbMatch.equipo1, p.t2) && teamMatchesSource(dbMatch.equipo2, p.t1))
+          ));
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `d-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: useExactDbTeams ? dbMatch.equipo1 : (isReversed ? dbMatch.equipo2 : dbMatch.equipo1),
+          goles1: useExactDbTeams ? dbMatch.goles1 : (isReversed ? dbMatch.goles2 : dbMatch.goles1),
+          equipo2: useExactDbTeams ? dbMatch.equipo2 : (isReversed ? dbMatch.equipo1 : dbMatch.equipo2),
+          goles2: useExactDbTeams ? dbMatch.goles2 : (isReversed ? dbMatch.goles1 : dbMatch.goles2),
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `d-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Octavos de Final (Round of 16)
+    const octavosPairings = [
+      { m1: dieciseisavos[0], m2: dieciseisavos[1] },
+      { m1: dieciseisavos[2], m2: dieciseisavos[3] },
+      { m1: dieciseisavos[4], m2: dieciseisavos[5] },
+      { m1: dieciseisavos[6], m2: dieciseisavos[7] },
+      { m1: dieciseisavos[8], m2: dieciseisavos[9] },
+      { m1: dieciseisavos[10], m2: dieciseisavos[11] },
+      { m1: dieciseisavos[12], m2: dieciseisavos[13] },
+      { m1: dieciseisavos[14], m2: dieciseisavos[15] }
+    ];
+
+    const octavos = octavosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador 16avos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador 16avos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `o-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `o-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `o-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `o-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Cuartos de Final
+    const cuartosPairings = [
+      { m1: octavos[0], m2: octavos[1] },
+      { m1: octavos[2], m2: octavos[3] },
+      { m1: octavos[4], m2: octavos[5] },
+      { m1: octavos[6], m2: octavos[7] }
+    ];
+
+    const cuartos = cuartosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Octavos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Octavos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `c-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("cuarto") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `c-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `c-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `c-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Semifinales
+    const semisPairings = [
+      { m1: cuartos[0], m2: cuartos[1] },
+      { m1: cuartos[2], m2: cuartos[3] }
+    ];
+
+    const semis = semisPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Cuartos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Cuartos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `s-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("semifinal") || m.fase?.toLowerCase().includes("semi-final")) &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `s-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `s-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `s-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    // Gran Final
+    const finalPairings = [
+      { m1: semis[0], m2: semis[1] }
+    ];
+
+    const final = finalPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Semis 1`;
+      const equipo2 = p.m2.ganador || `Ganador Semis 2`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `f-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("final") && !m.fase?.toLowerCase().includes("semi") && !m.fase?.toLowerCase().includes("cuarto") && !m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `f-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `f-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `f-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    return {
+      dieciseisavos,
+      octavos,
+      cuartos,
+      semis,
+      final
+    };
+  }, [GROUPS_DATA, bestThirds, resolvedMundialMatches]);
+
 
 
   const handleBracketMatchClick = (match) => {
@@ -722,516 +1233,7 @@ function Mundial2026() {
     return base;
   };
 
-  // Datos de los Grupos del Mundial Oficiales (Format de 48 Equipos - Grupos A al L) - Calculados Dinámicamente
-  const GROUPS_DATA = React.useMemo(() => {
-    const groups = {
-      A: [
-        { pais: "México", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Corea del Sur", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Sudáfrica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "República Checa", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      B: [
-        { pais: "Canadá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Suiza", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Catar", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Bosnia y Herzegovina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      C: [
-        { pais: "Brasil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Marruecos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Escocia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Haití", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      D: [
-        { pais: "EE. UU.", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Paraguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Australia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Turquía", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      E: [
-        { pais: "Alemania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Ecuador", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Costa de Marfil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Curazao", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      F: [
-        { pais: "Países Bajos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Japón", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Túnez", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Suecia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      G: [
-        { pais: "Bélgica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Irán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Egipto", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Nueva Zelanda", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      H: [
-        { pais: "España", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Uruguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Arabia Saudita", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Cabo Verde", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      I: [
-        { pais: "Francia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Senegal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Noruega", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Irak", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      J: [
-        { pais: "Argentina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Austria", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Argelia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Jordania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      K: [
-        { pais: "Portugal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Colombia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Uzbekistán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "R. D. del Congo", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ],
-      L: [
-        { pais: "Inglaterra", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Croacia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Panamá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-        { pais: "Ghana", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
-      ]
-    };
 
-    // Computar estadísticas en base a los partidos cargados desde base de datos
-    resolvedMundialMatches.forEach((match) => {
-      if (match.grupo && (match.estado === "FINALIZADO" || match.estado === "EN VIVO")) {
-        const groupKey = String(match.grupo).toUpperCase();
-        const groupTeams = groups[groupKey];
-        if (groupTeams) {
-          const t1 = groupTeams.find(t => t.pais === match.equipo1);
-          const t2 = groupTeams.find(t => t.pais === match.equipo2);
-          
-          if (t1 && t2) {
-            const g1 = Number(match.goles1 || 0);
-            const g2 = Number(match.goles2 || 0);
-            
-            t1.pj += 1;
-            t2.pj += 1;
-            t1.gf += g1;
-            t1.gc += g2;
-            t2.gf += g2;
-            t2.gc += g1;
-            
-            if (g1 > g2) {
-              t1.g += 1;
-              t2.p += 1;
-              t1.pts += 3;
-            } else if (g2 > g1) {
-              t2.g += 1;
-              t1.p += 1;
-              t2.pts += 3;
-            } else {
-              t1.e += 1;
-              t2.e += 1;
-              t1.pts += 1;
-              t2.pts += 1;
-            }
-          }
-        }
-      }
-    });
-
-    // Ordenar los equipos de cada grupo según reglas oficiales (PTS, luego Diferencia, luego Favor)
-    Object.keys(groups).forEach(key => {
-      groups[key].sort((a, b) => {
-        if (b.pts !== a.pts) return b.pts - a.pts;
-        const diffA = a.gf - a.gc;
-        const diffB = b.gf - b.gc;
-        if (diffB !== diffA) return diffB - diffA;
-        return b.gf - a.gf;
-      });
-    });
-
-    return groups;
-  }, [resolvedMundialMatches]);
-
-  // 1. Calcular los mejores terceros en base a la tabla de posiciones actual
-  const bestThirds = React.useMemo(() => {
-    const thirds = [];
-    Object.keys(GROUPS_DATA).forEach(groupKey => {
-      const group = GROUPS_DATA[groupKey];
-      if (group && group[2]) {
-        thirds.push({
-          ...group[2],
-          grupo: groupKey
-        });
-      }
-    });
-    // Ordenar terceros: Puntos, Diferencia, Goles a Favor
-    thirds.sort((a, b) => {
-      if (b.pts !== a.pts) return b.pts - a.pts;
-      const diffA = a.gf - a.gc;
-      const diffB = b.gf - b.gc;
-      if (diffB !== diffA) return diffB - diffA;
-      return b.gf - a.gf;
-    });
-    return thirds;
-  }, [GROUPS_DATA]);
-
-  // 2. Calcular partidos de la Fase Eliminatoria (Brackets) dinámicamente
-  const knockoutBracket = React.useMemo(() => {
-    // Definición de emparejamientos de Dieciseisavos: [Equipo1Source, Equipo2Source]
-    const pairings = [
-      { t1: { type: 'winner', group: 'A' }, t2: { type: 'third', index: 0 } },  // 1A vs Mejor Tercero 1
-      { t1: { type: 'runnerup', group: 'B' }, t2: { type: 'runnerup', group: 'C' } }, // 2B vs 2C
-      { t1: { type: 'winner', group: 'C' }, t2: { type: 'third', index: 1 } },  // 1C vs Mejor Tercero 2
-      { t1: { type: 'winner', group: 'B' }, t2: { type: 'runnerup', group: 'D' } }, // 1B vs 2D
-      { t1: { type: 'winner', group: 'E' }, t2: { type: 'third', index: 2 } },  // 1E vs Mejor Tercero 3
-      { t1: { type: 'runnerup', group: 'E' }, t2: { type: 'runnerup', group: 'F' } }, // 2E vs 2F
-      { t1: { type: 'winner', group: 'G' }, t2: { type: 'third', index: 3 } },  // 1G vs Mejor Tercero 4
-      { t1: { type: 'runnerup', group: 'G' }, t2: { type: 'runnerup', group: 'H' } }, // 2G vs 2H
-      { t1: { type: 'winner', group: 'I' }, t2: { type: 'third', index: 4 } },  // 1I vs Mejor Tercero 5
-      { t1: { type: 'runnerup', group: 'I' }, t2: { type: 'runnerup', group: 'J' } }, // 2I vs 2J
-      { t1: { type: 'winner', group: 'K' }, t2: { type: 'third', index: 5 } },  // 1K vs Mejor Tercero 6
-      { t1: { type: 'runnerup', group: 'K' }, t2: { type: 'runnerup', group: 'L' } }, // 2K vs 2L
-      { t1: { type: 'winner', group: 'H' }, t2: { type: 'third', index: 6 } },  // 1H vs Mejor Tercero 7
-      { t1: { type: 'winner', group: 'J' }, t2: { type: 'third', index: 7 } },  // 1J vs Mejor Tercero 8
-      { t1: { type: 'winner', group: 'F' }, t2: { type: 'runnerup', group: 'A' } }, // 1F vs 2A
-      { t1: { type: 'winner', group: 'L' }, t2: { type: 'runnerup', group: 'J' } }  // 1L vs 2J
-    ];
-
-    const getTeamName = (source) => {
-      if (source.type === 'winner') {
-        const group = GROUPS_DATA[source.group];
-        if (group && group[0] && group[0].pj > 0) {
-          return group[0].pais;
-        }
-        return `1º Grupo ${source.group}`;
-      }
-      if (source.type === 'runnerup') {
-        const group = GROUPS_DATA[source.group];
-        if (group && group[1] && group[1].pj > 0) {
-          return group[1].pais;
-        }
-        return `2º Grupo ${source.group}`;
-      }
-      if (source.type === 'third') {
-        const thirdTeam = bestThirds[source.index];
-        if (thirdTeam && thirdTeam.pj > 0) {
-          return thirdTeam.pais;
-        }
-        return `3º Mejor ${source.index + 1}`;
-      }
-      return 'Por definir';
-    };
-
-    // Crear mapa de equipo a grupo para poder identificar emparejamientos dinámicos
-    const teamToGroup = {};
-    Object.keys(GROUPS_DATA).forEach(groupKey => {
-      GROUPS_DATA[groupKey].forEach(team => {
-        teamToGroup[team.pais.toLowerCase()] = groupKey;
-      });
-    });
-
-    const teamMatchesSource = (teamName, source) => {
-      if (!teamName || !source) return false;
-      const nameLower = teamName.toLowerCase();
-      
-      const computedName = getTeamName(source);
-      if (nameLower === computedName.toLowerCase()) return true;
-      
-      const teamGroup = teamToGroup[nameLower];
-      if (!teamGroup) return false;
-      
-      if (source.type === 'winner' || source.type === 'runnerup') {
-        return teamGroup === source.group;
-      }
-      if (source.type === 'third') {
-        return true; // Permitir cualquier tercer lugar si el otro equipo coincide
-      }
-      return false;
-    };
-
-    // Dieciseisavos de Final (Round of 32)
-    const dieciseisavos = pairings.map((p, idx) => {
-      const equipo1 = getTeamName(p.t1);
-      const equipo2 = getTeamName(p.t2);
-      
-      const dbMatch = resolvedMundialMatches.find(m => 
-        m.bracketKey === `d-${idx + 1}` || (
-          !m.bracketKey &&
-          (m.fase?.toLowerCase().includes("dieciseis") || m.fase?.toLowerCase().includes("16avos") || m.fase?.toLowerCase().includes("1/16") || m.fase?.toLowerCase().includes("32avos") || m.fase?.toLowerCase().includes("diez y seis")) &&
-          (
-            ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
-             (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase())) ||
-            (teamMatchesSource(m.equipo1, p.t1) && teamMatchesSource(m.equipo2, p.t2)) ||
-            (teamMatchesSource(m.equipo1, p.t2) && teamMatchesSource(m.equipo2, p.t1))
-          )
-        )
-      );
-
-      if (dbMatch) {
-        const useExactDbTeams = dbMatch.bracketKey === `d-${idx + 1}` || 
-          (!dbMatch.bracketKey && (
-            (teamMatchesSource(dbMatch.equipo1, p.t1) && teamMatchesSource(dbMatch.equipo2, p.t2)) ||
-            (teamMatchesSource(dbMatch.equipo1, p.t2) && teamMatchesSource(dbMatch.equipo2, p.t1))
-          ));
-        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
-        return {
-          id: `d-${idx + 1}`,
-          dbId: dbMatch._id || dbMatch.id,
-          equipo1: useExactDbTeams ? dbMatch.equipo1 : (isReversed ? dbMatch.equipo2 : dbMatch.equipo1),
-          goles1: useExactDbTeams ? dbMatch.goles1 : (isReversed ? dbMatch.goles2 : dbMatch.goles1),
-          equipo2: useExactDbTeams ? dbMatch.equipo2 : (isReversed ? dbMatch.equipo1 : dbMatch.equipo2),
-          goles2: useExactDbTeams ? dbMatch.goles2 : (isReversed ? dbMatch.goles1 : dbMatch.goles2),
-          estado: dbMatch.estado || "PRÓXIMO",
-          fecha: dbMatch.fecha || "Por definir",
-          hora: dbMatch.hora || "Por definir",
-          ganador: dbMatch.estado === "FINALIZADO" 
-            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
-            : null,
-          associatedChannels: dbMatch.associatedChannels || []
-        };
-      }
-
-      return {
-        id: `d-${idx + 1}`,
-        equipo1,
-        goles1: 0,
-        equipo2,
-        goles2: 0,
-        estado: "PRÓXIMO",
-        fecha: "Por definir",
-        hora: "Por definir",
-        ganador: null,
-        associatedChannels: []
-      };
-    });
-
-    // Octavos de Final (Round of 16)
-    const octavosPairings = [
-      { m1: dieciseisavos[0], m2: dieciseisavos[1] },
-      { m1: dieciseisavos[2], m2: dieciseisavos[3] },
-      { m1: dieciseisavos[4], m2: dieciseisavos[5] },
-      { m1: dieciseisavos[6], m2: dieciseisavos[7] },
-      { m1: dieciseisavos[8], m2: dieciseisavos[9] },
-      { m1: dieciseisavos[10], m2: dieciseisavos[11] },
-      { m1: dieciseisavos[12], m2: dieciseisavos[13] },
-      { m1: dieciseisavos[14], m2: dieciseisavos[15] }
-    ];
-
-    const octavos = octavosPairings.map((p, idx) => {
-      const equipo1 = p.m1.ganador || `Ganador 16avos ${idx * 2 + 1}`;
-      const equipo2 = p.m2.ganador || `Ganador 16avos ${idx * 2 + 2}`;
-
-      const dbMatch = resolvedMundialMatches.find(m => 
-        m.bracketKey === `o-${idx + 1}` || (
-          !m.bracketKey &&
-          m.fase?.toLowerCase().includes("octavo") &&
-          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
-           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
-        )
-      );
-
-      if (dbMatch) {
-        const useExactDbTeams = dbMatch.bracketKey === `o-${idx + 1}`;
-        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
-        return {
-          id: `o-${idx + 1}`,
-          dbId: dbMatch._id || dbMatch.id,
-          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
-          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
-          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
-          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
-          estado: dbMatch.estado || "PRÓXIMO",
-          fecha: dbMatch.fecha || "Por definir",
-          hora: dbMatch.hora || "Por definir",
-          ganador: dbMatch.estado === "FINALIZADO" 
-            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
-            : null,
-          associatedChannels: dbMatch.associatedChannels || []
-        };
-      }
-
-      return {
-        id: `o-${idx + 1}`,
-        equipo1,
-        goles1: 0,
-        equipo2,
-        goles2: 0,
-        estado: "PRÓXIMO",
-        fecha: "Por definir",
-        hora: "Por definir",
-        ganador: null,
-        associatedChannels: []
-      };
-    });
-
-    // Cuartos de Final
-    const cuartosPairings = [
-      { m1: octavos[0], m2: octavos[1] },
-      { m1: octavos[2], m2: octavos[3] },
-      { m1: octavos[4], m2: octavos[5] },
-      { m1: octavos[6], m2: octavos[7] }
-    ];
-
-    const cuartos = cuartosPairings.map((p, idx) => {
-      const equipo1 = p.m1.ganador || `Ganador Octavos ${idx * 2 + 1}`;
-      const equipo2 = p.m2.ganador || `Ganador Octavos ${idx * 2 + 2}`;
-
-      const dbMatch = resolvedMundialMatches.find(m => 
-        m.bracketKey === `c-${idx + 1}` || (
-          !m.bracketKey &&
-          m.fase?.toLowerCase().includes("cuarto") &&
-          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
-           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
-        )
-      );
-
-      if (dbMatch) {
-        const useExactDbTeams = dbMatch.bracketKey === `c-${idx + 1}`;
-        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
-        return {
-          id: `c-${idx + 1}`,
-          dbId: dbMatch._id || dbMatch.id,
-          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
-          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
-          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
-          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
-          estado: dbMatch.estado || "PRÓXIMO",
-          fecha: dbMatch.fecha || "Por definir",
-          hora: dbMatch.hora || "Por definir",
-          ganador: dbMatch.estado === "FINALIZADO" 
-            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
-            : null,
-          associatedChannels: dbMatch.associatedChannels || []
-        };
-      }
-
-      return {
-        id: `c-${idx + 1}`,
-        equipo1,
-        goles1: 0,
-        equipo2,
-        goles2: 0,
-        estado: "PRÓXIMO",
-        fecha: "Por definir",
-        hora: "Por definir",
-        ganador: null,
-        associatedChannels: []
-      };
-    });
-
-    // Semifinales
-    const semisPairings = [
-      { m1: cuartos[0], m2: cuartos[1] },
-      { m1: cuartos[2], m2: cuartos[3] }
-    ];
-
-    const semis = semisPairings.map((p, idx) => {
-      const equipo1 = p.m1.ganador || `Ganador Cuartos ${idx * 2 + 1}`;
-      const equipo2 = p.m2.ganador || `Ganador Cuartos ${idx * 2 + 2}`;
-
-      const dbMatch = resolvedMundialMatches.find(m => 
-        m.bracketKey === `s-${idx + 1}` || (
-          !m.bracketKey &&
-          (m.fase?.toLowerCase().includes("semifinal") || m.fase?.toLowerCase().includes("semi-final")) &&
-          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
-           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
-        )
-      );
-
-      if (dbMatch) {
-        const useExactDbTeams = dbMatch.bracketKey === `s-${idx + 1}`;
-        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
-        return {
-          id: `s-${idx + 1}`,
-          dbId: dbMatch._id || dbMatch.id,
-          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
-          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
-          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
-          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
-          estado: dbMatch.estado || "PRÓXIMO",
-          fecha: dbMatch.fecha || "Por definir",
-          hora: dbMatch.hora || "Por definir",
-          ganador: dbMatch.estado === "FINALIZADO" 
-            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
-            : null,
-          associatedChannels: dbMatch.associatedChannels || []
-        };
-      }
-
-      return {
-        id: `s-${idx + 1}`,
-        equipo1,
-        goles1: 0,
-        equipo2,
-        goles2: 0,
-        estado: "PRÓXIMO",
-        fecha: "Por definir",
-        hora: "Por definir",
-        ganador: null,
-        associatedChannels: []
-      };
-    });
-
-    // Gran Final
-    const finalPairings = [
-      { m1: semis[0], m2: semis[1] }
-    ];
-
-    const final = finalPairings.map((p, idx) => {
-      const equipo1 = p.m1.ganador || `Ganador Semis 1`;
-      const equipo2 = p.m2.ganador || `Ganador Semis 2`;
-
-      const dbMatch = resolvedMundialMatches.find(m => 
-        m.bracketKey === `f-${idx + 1}` || (
-          !m.bracketKey &&
-          m.fase?.toLowerCase().includes("final") && !m.fase?.toLowerCase().includes("semi") && !m.fase?.toLowerCase().includes("cuarto") && !m.fase?.toLowerCase().includes("octavo") &&
-          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
-           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
-        )
-      );
-
-      if (dbMatch) {
-        const useExactDbTeams = dbMatch.bracketKey === `f-${idx + 1}`;
-        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
-        return {
-          id: `f-${idx + 1}`,
-          dbId: dbMatch._id || dbMatch.id,
-          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
-          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
-          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
-          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
-          estado: dbMatch.estado || "PRÓXIMO",
-          fecha: dbMatch.fecha || "Por definir",
-          hora: dbMatch.hora || "Por definir",
-          ganador: dbMatch.estado === "FINALIZADO" 
-            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
-            : null,
-          associatedChannels: dbMatch.associatedChannels || []
-        };
-      }
-
-      return {
-        id: `f-${idx + 1}`,
-        equipo1,
-        goles1: 0,
-        equipo2,
-        goles2: 0,
-        estado: "PRÓXIMO",
-        fecha: "Por definir",
-        hora: "Por definir",
-        ganador: null,
-        associatedChannels: []
-      };
-    });
-
-    return {
-      dieciseisavos,
-      octavos,
-      cuartos,
-      semis,
-      final
-    };
-  }, [GROUPS_DATA, bestThirds, resolvedMundialMatches]);
 
   // Calendario de partidos destacados reales - Filtrados por "clave" desde base de datos
   const MATCHES = React.useMemo(() => {
