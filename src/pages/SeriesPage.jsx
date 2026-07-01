@@ -208,6 +208,7 @@ export default function SeriesPage() {
       setPage(1);
       setTotalPages(0);
       setHasMore(true);
+      setIsLoading(true);
       loadSeries(1, selectedSubcategoria);
   }, [selectedSubcategoria, user?.token]);
 

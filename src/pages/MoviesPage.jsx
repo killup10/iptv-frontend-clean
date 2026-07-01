@@ -223,6 +223,7 @@ export default function MoviesPage() {
             setPage(1);
             setTotalPages(0);
             setHasMore(true);
+            setIsLoading(true);
             loadMovies(1, selectedMainSectionKey, selectedGenre, debouncedSearchTerm);
         }
     }, [selectedMainSectionKey, selectedGenre, debouncedSearchTerm, user?.token]);

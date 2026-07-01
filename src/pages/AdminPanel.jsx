@@ -332,6 +332,7 @@ export default function AdminPanel() {
 
   // --- Estados para el Mundial 2026 Admin ---
   const [mundialMatches, setMundialMatches] = useState([]);
+  const [selectedBracketAdminRound, setSelectedBracketAdminRound] = useState('octavos');
   const [editingMatchId, setEditingMatchId] = useState(null);
   const [matchForm, setMatchForm] = useState({
     equipo1: "México",
@@ -382,6 +383,507 @@ export default function AdminPanel() {
       return a.id - b.id;
     });
   }, [mundialMatches, channelsMap]);
+
+  // --- Cálculo del Bracket y Standing para Administración ---
+  const GROUPS_DATA = React.useMemo(() => {
+    const groups = {
+      A: [
+        { pais: "México", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Corea del Sur", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Sudáfrica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "República Checa", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      B: [
+        { pais: "Canadá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suiza", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Catar", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Bosnia y Herzegovina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      C: [
+        { pais: "Brasil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Marruecos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Escocia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Haití", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      D: [
+        { pais: "EE. UU.", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Paraguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Australia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Turquía", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      E: [
+        { pais: "Alemania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ecuador", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Costa de Marfil", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Curazao", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      F: [
+        { pais: "Países Bajos", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Japón", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Túnez", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Suecia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      G: [
+        { pais: "Bélgica", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Egipto", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Nueva Zelanda", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      H: [
+        { pais: "España", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uruguay", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Arabia Saudita", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Cabo Verde", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      I: [
+        { pais: "Francia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Senegal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Noruega", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Irak", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      J: [
+        { pais: "Argentina", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Austria", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Argelia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Jordania", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      K: [
+        { pais: "Portugal", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Colombia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Uzbekistán", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "R. D. del Congo", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ],
+      L: [
+        { pais: "Inglaterra", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Croacia", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Panamá", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+        { pais: "Ghana", pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, pts: 0 },
+      ]
+    };
+
+    resolvedMundialMatches.forEach((match) => {
+      let grupoVal = match.grupo;
+      if (!grupoVal && match.fase && match.fase.includes("Grupo ")) {
+        const matchGroup = match.fase.match(/Grupo\s+([A-L])/i);
+        if (matchGroup) {
+          grupoVal = matchGroup[1].toUpperCase();
+        }
+      }
+
+      if (grupoVal && (match.estado === "FINALIZADO" || match.estado === "EN VIVO")) {
+        const groupKey = String(grupoVal).toUpperCase();
+        const groupTeams = groups[groupKey];
+        if (groupTeams) {
+          const t1 = groupTeams.find(t => t.pais === match.equipo1);
+          const t2 = groupTeams.find(t => t.pais === match.equipo2);
+          
+          if (t1 && t2) {
+            const g1 = Number(match.goles1 || 0);
+            const g2 = Number(match.goles2 || 0);
+            
+            t1.pj += 1;
+            t2.pj += 1;
+            t1.gf += g1;
+            t1.gc += g2;
+            t2.gf += g2;
+            t2.gc += g1;
+            
+            if (g1 > g2) {
+              t1.g += 1;
+              t2.p += 1;
+              t1.pts += 3;
+            } else if (g2 > g1) {
+              t2.g += 1;
+              t1.p += 1;
+              t2.pts += 3;
+            } else {
+              t1.e += 1;
+              t2.e += 1;
+              t1.pts += 1;
+              t2.pts += 1;
+            }
+          }
+        }
+      }
+    });
+
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const diffA = a.gf - a.gc;
+        const diffB = b.gf - b.gc;
+        if (diffB !== diffA) return diffB - diffA;
+        return b.gf - a.gf;
+      });
+    });
+
+    return groups;
+  }, [resolvedMundialMatches]);
+
+  const bestThirds = React.useMemo(() => {
+    const thirds = [];
+    Object.keys(GROUPS_DATA).forEach(groupKey => {
+      const group = GROUPS_DATA[groupKey];
+      if (group && group[2]) {
+        thirds.push({
+          ...group[2],
+          grupo: groupKey
+        });
+      }
+    });
+
+    thirds.sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      const diffA = a.gf - a.gc;
+      const diffB = b.gf - b.gc;
+      if (diffB !== diffA) return diffB - diffA;
+      return b.gf - a.gf;
+    });
+    return thirds;
+  }, [GROUPS_DATA]);
+
+  const knockoutBracket = React.useMemo(() => {
+    const pairings = [
+      { t1: { type: 'winner', group: 'A' }, t2: { type: 'third', index: 0 } },
+      { t1: { type: 'runnerup', group: 'B' }, t2: { type: 'runnerup', group: 'C' } },
+      { t1: { type: 'winner', group: 'C' }, t2: { type: 'third', index: 1 } },
+      { t1: { type: 'winner', group: 'B' }, t2: { type: 'runnerup', group: 'D' } },
+      { t1: { type: 'winner', group: 'E' }, t2: { type: 'third', index: 2 } },
+      { t1: { type: 'runnerup', group: 'E' }, t2: { type: 'runnerup', group: 'F' } },
+      { t1: { type: 'winner', group: 'G' }, t2: { type: 'third', index: 3 } },
+      { t1: { type: 'runnerup', group: 'G' }, t2: { type: 'runnerup', group: 'H' } },
+      { t1: { type: 'winner', group: 'I' }, t2: { type: 'third', index: 4 } },
+      { t1: { type: 'runnerup', group: 'I' }, t2: { type: 'runnerup', group: 'J' } },
+      { t1: { type: 'winner', group: 'K' }, t2: { type: 'third', index: 5 } },
+      { t1: { type: 'runnerup', group: 'K' }, t2: { type: 'runnerup', group: 'L' } },
+      { t1: { type: 'winner', group: 'H' }, t2: { type: 'third', index: 6 } },
+      { t1: { type: 'winner', group: 'J' }, t2: { type: 'third', index: 7 } },
+      { t1: { type: 'winner', group: 'F' }, t2: { type: 'runnerup', group: 'A' } },
+      { t1: { type: 'winner', group: 'L' }, t2: { type: 'runnerup', group: 'J' } }
+    ];
+
+    const getTeamName = (source) => {
+      if (source.type === 'winner') {
+        const group = GROUPS_DATA[source.group];
+        return group && group[0] ? group[0].pais : `1º Grupo ${source.group}`;
+      } else if (source.type === 'runnerup') {
+        const group = GROUPS_DATA[source.group];
+        return group && group[1] ? group[1].pais : `2º Grupo ${source.group}`;
+      } else if (source.type === 'third') {
+        const third = bestThirds[source.index];
+        return third ? third.pais : `3º Mejor Tercero ${source.index + 1}`;
+      }
+      return 'Por definir';
+    };
+
+    const dieciseisavos = pairings.map((p, idx) => {
+      const equipo1 = getTeamName(p.t1);
+      const equipo2 = getTeamName(p.t2);
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `d-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("dieciseis") || m.fase?.toLowerCase().includes("16avos") || m.fase?.toLowerCase().includes("1/16") || m.fase?.toLowerCase().includes("32avos")) &&
+          (
+            ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+             (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+          )
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `d-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `d-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: useExactDbTeams ? dbMatch.equipo1 : (isReversed ? dbMatch.equipo2 : dbMatch.equipo1),
+          goles1: useExactDbTeams ? dbMatch.goles1 : (isReversed ? dbMatch.goles2 : dbMatch.goles1),
+          equipo2: useExactDbTeams ? dbMatch.equipo2 : (isReversed ? dbMatch.equipo1 : dbMatch.equipo2),
+          goles2: useExactDbTeams ? dbMatch.goles2 : (isReversed ? dbMatch.goles1 : dbMatch.goles2),
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `d-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    const octavosPairings = [
+      { m1: dieciseisavos[0], m2: dieciseisavos[1] },
+      { m1: dieciseisavos[2], m2: dieciseisavos[3] },
+      { m1: dieciseisavos[4], m2: dieciseisavos[5] },
+      { m1: dieciseisavos[6], m2: dieciseisavos[7] },
+      { m1: dieciseisavos[8], m2: dieciseisavos[9] },
+      { m1: dieciseisavos[10], m2: dieciseisavos[11] },
+      { m1: dieciseisavos[12], m2: dieciseisavos[13] },
+      { m1: dieciseisavos[14], m2: dieciseisavos[15] }
+    ];
+
+    const octavos = octavosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador 16avos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador 16avos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `o-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `o-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `o-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `o-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    const cuartosPairings = [
+      { m1: octavos[0], m2: octavos[1] },
+      { m1: octavos[2], m2: octavos[3] },
+      { m1: octavos[4], m2: octavos[5] },
+      { m1: octavos[6], m2: octavos[7] }
+    ];
+
+    const cuartos = cuartosPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Octavos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Octavos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `c-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("cuarto") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `c-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `c-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `c-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    const semisPairings = [
+      { m1: cuartos[0], m2: cuartos[1] },
+      { m1: cuartos[2], m2: cuartos[3] }
+    ];
+
+    const semis = semisPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Cuartos ${idx * 2 + 1}`;
+      const equipo2 = p.m2.ganador || `Ganador Cuartos ${idx * 2 + 2}`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `s-${idx + 1}` || (
+          !m.bracketKey &&
+          (m.fase?.toLowerCase().includes("semifinal") || m.fase?.toLowerCase().includes("semi-final")) &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `s-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `s-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `s-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    const finalPairings = [
+      { m1: semis[0], m2: semis[1] }
+    ];
+
+    const final = finalPairings.map((p, idx) => {
+      const equipo1 = p.m1.ganador || `Ganador Semis 1`;
+      const equipo2 = p.m2.ganador || `Ganador Semis 2`;
+
+      const dbMatch = resolvedMundialMatches.find(m => 
+        m.bracketKey === `f-${idx + 1}` || (
+          !m.bracketKey &&
+          m.fase?.toLowerCase().includes("final") && !m.fase?.toLowerCase().includes("semi") && !m.fase?.toLowerCase().includes("cuarto") && !m.fase?.toLowerCase().includes("octavo") &&
+          ((m.equipo1?.toLowerCase() === equipo1.toLowerCase() && m.equipo2?.toLowerCase() === equipo2.toLowerCase()) ||
+           (m.equipo1?.toLowerCase() === equipo2.toLowerCase() && m.equipo2?.toLowerCase() === equipo1.toLowerCase()))
+        )
+      );
+
+      if (dbMatch) {
+        const useExactDbTeams = dbMatch.bracketKey === `f-${idx + 1}`;
+        const isReversed = !useExactDbTeams && dbMatch.equipo1?.toLowerCase() === equipo2.toLowerCase();
+        return {
+          id: `f-${idx + 1}`,
+          dbId: dbMatch._id || dbMatch.id,
+          equipo1: isReversed ? dbMatch.equipo2 : dbMatch.equipo1,
+          goles1: isReversed ? dbMatch.goles2 : dbMatch.goles1,
+          equipo2: isReversed ? dbMatch.equipo1 : dbMatch.equipo2,
+          goles2: isReversed ? dbMatch.goles1 : dbMatch.goles2,
+          estado: dbMatch.estado || "PRÓXIMO",
+          fecha: dbMatch.fecha || "Por definir",
+          hora: dbMatch.hora || "Por definir",
+          ganador: dbMatch.estado === "FINALIZADO" 
+            ? (Number(dbMatch.goles1) > Number(dbMatch.goles2) ? dbMatch.equipo1 : dbMatch.equipo2)
+            : null,
+          associatedChannels: dbMatch.associatedChannels || []
+        };
+      }
+
+      return {
+        id: `f-${idx + 1}`,
+        equipo1,
+        goles1: 0,
+        equipo2,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        fecha: "Por definir",
+        hora: "Por definir",
+        ganador: null,
+        associatedChannels: []
+      };
+    });
+
+    return {
+      dieciseisavos,
+      octavos,
+      cuartos,
+      semis,
+      final
+    };
+  }, [GROUPS_DATA, bestThirds, resolvedMundialMatches]);
+
+  const handleProgramBracketSlot = (slotKey, calculatedEquipo1, calculatedEquipo2, phaseName) => {
+    // 1. Buscar si ya existe un partido guardado con ese bracketKey en resolvedMundialMatches
+    const dbMatch = resolvedMundialMatches.find(m => m.bracketKey === slotKey);
+    
+    if (dbMatch) {
+      // Editar el partido existente
+      handleEditMatch(dbMatch);
+    } else {
+      // Programar un nuevo partido para este slot con los nombres pre-calculados
+      setEditingMatchId(null);
+      setMatchForm({
+        equipo1: calculatedEquipo1 || "",
+        equipo2: calculatedEquipo2 || "",
+        fecha: "Por definir",
+        hora: "Por definir",
+        estadio: "Por definir",
+        fase: phaseName,
+        grupo: "",
+        bracketKey: slotKey,
+        canales: [],
+        goles1: 0,
+        goles2: 0,
+        estado: "PRÓXIMO",
+        clave: true
+      });
+    }
+
+    // Scroll suave al contenedor del formulario
+    setTimeout(() => {
+      const formElement = document.getElementById("match-form-container");
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
 
   const loadMundialMatches = useCallback(async () => {
     try {
@@ -1928,7 +2430,7 @@ export default function AdminPanel() {
 
       {activeTab === "manage_mundial" && (
         <section className="space-y-8">
-          <div className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto border border-red-500/20">
+          <div id="match-form-container" className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto border border-red-500/20">
             <h2 className="text-2xl font-bold mb-6 text-center text-red-500">
               {editingMatchId ? "Editar Partido de Fixture" : "Agregar Nuevo Partido al Fixture"}
             </h2>
@@ -2189,6 +2691,118 @@ export default function AdminPanel() {
                 )}
               </div>
             </form>
+          </div>
+
+          {/* NUEVO: Control de Llaves del Bracket */}
+          <div className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl border border-lime-500/20">
+            <h2 className="text-2xl font-bold mb-2 text-lime-400">Control de Llaves del Bracket (Fase Eliminatoria)</h2>
+            <p className="text-xs text-slate-400 mb-6">
+              Selecciona una ronda del bracket para ver los partidos proyectados con los clasificados actuales de la base de datos.
+              Haz clic en "Programar Llave" o "Editar Programación" para configurar su fecha, hora y canales de transmisión rápidamente sin escribir nombres manualmente.
+            </p>
+            
+            {/* Selector de ronda del bracket */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {[
+                { key: 'dieciseisavos', label: 'Dieciseisavos' },
+                { key: 'octavos', label: 'Octavos de Final' },
+                { key: 'cuartos', label: 'Cuartos de Final' },
+                { key: 'semis', label: 'Semifinales' },
+                { key: 'final', label: 'Gran Final' }
+              ].map(round => (
+                <button
+                  key={round.key}
+                  type="button"
+                  onClick={() => setSelectedBracketAdminRound(round.key)}
+                  className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+                    selectedBracketAdminRound === round.key 
+                      ? 'bg-lime-500 text-slate-950 font-black shadow-lg shadow-lime-500/20' 
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  {round.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Listado de partidos en la ronda seleccionada */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {(knockoutBracket[selectedBracketAdminRound] || []).map((slot) => {
+                const isScheduled = resolvedMundialMatches.some(m => m.bracketKey === slot.id);
+                
+                return (
+                  <div 
+                    key={slot.id} 
+                    className={`p-4 rounded-xl border flex flex-col justify-between transition ${
+                      isScheduled 
+                        ? 'bg-gray-900/80 border-lime-500/30' 
+                        : 'bg-slate-800/40 border-slate-700/60 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-b border-slate-700 pb-2">
+                        <span className="text-lime-400 font-extrabold uppercase bg-lime-950/30 px-1.5 py-0.5 rounded border border-lime-500/10">
+                          {slot.id.toUpperCase()}
+                        </span>
+                        <span>
+                          {isScheduled ? (
+                            <span className="text-lime-400 font-bold">PROGRAMADO</span>
+                          ) : (
+                            <span className="text-yellow-400/80 font-bold">PENDIENTE</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {/* Equipos */}
+                      <div className="space-y-2 py-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-200">{slot.equipo1}</span>
+                          {isScheduled && (
+                            <span className="text-xs font-black text-lime-400 font-mono bg-lime-950/20 px-1.5 py-0.5 rounded">{slot.goles1}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-200">{slot.equipo2}</span>
+                          {isScheduled && (
+                            <span className="text-xs font-black text-lime-400 font-mono bg-lime-950/20 px-1.5 py-0.5 rounded">{slot.goles2}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Info Programación */}
+                      {isScheduled && (
+                        <div className="text-[10px] text-slate-400 space-y-0.5 pt-1 border-t border-slate-700/50 font-medium">
+                          <p>📅 {slot.fecha} • 🕒 {slot.hora}</p>
+                          {slot.associatedChannels && slot.associatedChannels.length > 0 && (
+                            <p className="text-lime-400/90 font-semibold">📺 {slot.associatedChannels.length} canales vinculados</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleProgramBracketSlot(
+                        slot.id, 
+                        slot.equipo1, 
+                        slot.equipo2,
+                        selectedBracketAdminRound === 'dieciseisavos' ? 'Dieciseisavos de Final' :
+                        selectedBracketAdminRound === 'octavos' ? 'Octavos de Final' :
+                        selectedBracketAdminRound === 'cuartos' ? 'Cuartos de Final' :
+                        selectedBracketAdminRound === 'semis' ? 'Semifinal' : 'Gran Final'
+                      )}
+                      className={`w-full mt-4 py-2 rounded-lg text-xs font-bold transition ${
+                        isScheduled 
+                          ? 'bg-lime-500/10 text-lime-400 border border-lime-500/30 hover:bg-lime-500 hover:text-slate-950' 
+                          : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500 hover:text-slate-950'
+                      }`}
+                    >
+                      {isScheduled ? 'Editar Programación' : 'Programar Llave'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl">

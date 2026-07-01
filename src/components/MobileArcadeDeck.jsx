@@ -482,9 +482,19 @@ export function MobileArcadeDeck({
       <main className="relative flex-1 flex items-center justify-center min-h-[46vh] max-h-[52vh] w-full overflow-hidden">
         {/* Loading / Empty states */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center text-center p-6 mt-10 z-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
-            <p className="text-zinc-400 text-sm">Cargando...</p>
+          <div className="flex flex-col items-center justify-center text-center p-6 z-10 w-full relative">
+            {/* Pulsing Skeleton Card */}
+            <div className="relative w-[54vw] aspect-[2/3] max-w-[240px] rounded-[22px] overflow-hidden bg-gradient-to-br from-zinc-900/50 via-zinc-950/70 to-black border border-cyan-500/20 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex flex-col items-center justify-center p-4">
+              <Film className="w-12 h-12 text-cyan-500/30 animate-pulse mb-3" />
+              <div className="h-2 w-24 bg-zinc-800/80 rounded-full mb-2 animate-pulse"></div>
+              <div className="h-2 w-16 bg-zinc-800/50 rounded-full animate-pulse"></div>
+              
+              {/* Shimmer light reflection effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-shimmer"></div>
+            </div>
+            <p className="text-cyan-400/80 text-xs font-bold uppercase tracking-widest mt-6 animate-pulse drop-shadow-[0_0_8px_rgba(6,182,212,0.3)]">
+              Cargando contenido...
+            </p>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center p-6 mt-10 z-10">
@@ -728,6 +738,31 @@ export function MobileArcadeDeck({
               </button>
             </div>
           </div>
+        ) : loading ? (
+          <div className="backdrop-blur-md bg-zinc-950/70 border border-cyan-500/10 rounded-2xl p-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+            {/* Metadata Line Skeleton */}
+            <div className="flex gap-2.5 mb-3">
+              <div className="h-3.5 w-10 bg-zinc-800/80 rounded-full animate-pulse"></div>
+              <div className="h-3.5 w-12 bg-zinc-800/80 rounded-full animate-pulse"></div>
+              <div className="h-3.5 w-16 bg-zinc-800/80 rounded-full animate-pulse"></div>
+            </div>
+
+            {/* Title Skeleton */}
+            <div className="h-5 w-48 bg-zinc-800/80 rounded-lg mb-3 animate-pulse"></div>
+
+            {/* Description Skeleton */}
+            <div className="space-y-2 mb-4">
+              <div className="h-3 w-full bg-zinc-800/50 rounded animate-pulse"></div>
+              <div className="h-3 w-3/4 bg-zinc-800/50 rounded animate-pulse"></div>
+            </div>
+
+            {/* Buttons Row Skeleton */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-9 bg-zinc-800/80 rounded-xl animate-pulse"></div>
+              <div className="w-9 h-9 bg-zinc-800/80 rounded-xl animate-pulse"></div>
+              <div className="w-9 h-9 bg-zinc-800/80 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
         ) : (
           <div className="h-[148px] flex items-center justify-center bg-zinc-950/20 border border-zinc-900 rounded-2xl p-4">
             <span className="text-zinc-600 text-xs">Selecciona un elemento</span>
@@ -747,6 +782,17 @@ export function MobileArcadeDeck({
         .mask-edges-scroll {
           mask-image: linear-gradient(to right, transparent, white 8%, white 92%, transparent);
           -webkit-mask-image: linear-gradient(to right, transparent, white 8%, white 92%, transparent);
+        }
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 1.5s infinite linear;
         }
       `}</style>
     </div>

@@ -7,6 +7,7 @@ import { getUserProgress, fetchChannelForPlayback, fetchUserChannels } from "@/u
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
 import TrailerModal from "@/components/TrailerModal.jsx";
+import EpgGuide from "@/components/EpgGuide.jsx";
 import { App as CapacitorApp } from '@capacitor/app';
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
@@ -1107,7 +1108,7 @@ export function Watch() {
 
   // Cargar catálogo de canales para permitir cambio directo (canal anterior/siguiente)
   useEffect(() => {
-    if (itemType !== 'channel' || isBrowserPlaybackBlocked) {
+    if (itemType !== 'channel') {
       setChannelList([]);
       setCurrentChannelIndex(-1);
       setChannelListReady(true);
@@ -3091,7 +3092,7 @@ export function Watch() {
       </div>
     );
 
-  const hasValidContent = itemData.url || (itemData.chapters && itemData.chapters.length > 0);
+  const hasValidContent = itemData.url || (itemData.chapters && itemData.chapters.length > 0) || itemType === 'channel';
   
   if (!hasValidContent)
     return (
@@ -3636,114 +3637,151 @@ export function Watch() {
               </>
             )}
 
-            {itemType === 'channel' && !isBrowserPlaybackBlocked && (
-              <div className="w-full max-w-5xl mx-auto mb-8">
-                <div
-                  data-channel-controls="true"
-                  className="flex flex-wrap items-center justify-center gap-3 rounded-xl border border-cyan-400/30 bg-black/45 px-4 py-3 backdrop-blur-sm"
-                  onKeyDown={handleChannelControlsKeyDown}
-                >
-                  <button
-                    ref={(element) => {
-                      channelControlRefs.current[0] = element;
-                    }}
-                    data-channel-control-index="0"
-                    onClick={openChannelPicker}
-                    onFocus={() => setFocusedChannelControlIndex(0)}
-                    disabled={channelList.length === 0}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-black ${
-                      focusedChannelControlIndex === 0 ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-black' : ''
-                    }`}
-                  >
-                    Seleccionar canal
-                  </button>
-                  <button
-                    ref={(element) => {
-                      channelControlRefs.current[1] = element;
-                    }}
-                    data-channel-control-index="1"
-                    onClick={handleReloadChannel}
-                    onFocus={() => setFocusedChannelControlIndex(1)}
-                    disabled={isReloadingChannel}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-black ${
-                      focusedChannelControlIndex === 1 ? 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-black' : ''
-                    }`}
-                  >
-                    {isReloadingChannel ? 'Recargando...' : 'Recargar canal'}
-                  </button>
-                  <span className="text-xs text-gray-300">
-                    {currentChannelIndex >= 0 && channelList.length > 0
-                      ? `Canal ${currentChannelIndex + 1} de ${channelList.length}: ${itemData?.name || ''}`
-                      : 'Canal actual'}
-                  </span>
-                </div>
-                {channelPlaybackIssue && (
-                  <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
-                    {channelPlaybackIssue}
-                  </div>
-                )}
-                {isChannelPickerOpen && (
-                  <div
-                    data-channel-picker="true"
-                    className="mt-3 rounded-xl border border-indigo-400/30 bg-black/85 p-3 backdrop-blur-md"
-                    onKeyDown={handleChannelPickerKeyDown}
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        ref={channelPickerInputRef}
-                        type="text"
-                        value={channelSearch}
-                        onChange={(e) => setChannelSearch(e.target.value)}
-                        onKeyDown={handleChannelPickerKeyDown}
-                        onFocus={() => setFocusedChannelPickerIndex(-1)}
-                        placeholder="Buscar canal..."
-                        className="flex-1 rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400"
-                      />
+            {itemType === 'channel' && (
+              isTVMode ? (
+                !isBrowserPlaybackBlocked && (
+                  <div className="w-full max-w-5xl mx-auto mb-8">
+                    <div
+                      data-channel-controls="true"
+                      className="flex flex-wrap items-center justify-center gap-3 rounded-xl border border-cyan-400/30 bg-black/45 px-4 py-3 backdrop-blur-sm"
+                      onKeyDown={handleChannelControlsKeyDown}
+                    >
                       <button
-                        ref={channelPickerCloseButtonRef}
-                        onClick={() => closeChannelPicker(0)}
-                        tabIndex={isTVMode ? -1 : undefined}
-                        onFocus={() => setFocusedChannelPickerIndex(-1)}
-                        className="px-3 py-2 rounded-md text-sm bg-zinc-800 hover:bg-zinc-700 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-300"
+                        ref={(element) => {
+                          channelControlRefs.current[0] = element;
+                        }}
+                        data-channel-control-index="0"
+                        onClick={openChannelPicker}
+                        onFocus={() => setFocusedChannelControlIndex(0)}
+                        disabled={channelList.length === 0}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 focus:ring-offset-black ${
+                          focusedChannelControlIndex === 0 ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-black' : ''
+                        }`}
                       >
-                        Cerrar
+                        Seleccionar canal
                       </button>
+                      <button
+                        ref={(element) => {
+                          channelControlRefs.current[1] = element;
+                        }}
+                        data-channel-control-index="1"
+                        onClick={handleReloadChannel}
+                        onFocus={() => setFocusedChannelControlIndex(1)}
+                        disabled={isReloadingChannel}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-black ${
+                          focusedChannelControlIndex === 1 ? 'ring-2 ring-cyan-300 ring-offset-2 ring-offset-black' : ''
+                        }`}
+                      >
+                        {isReloadingChannel ? 'Recargando...' : 'Recargar canal'}
+                      </button>
+                      <span className="text-xs text-gray-300">
+                        {currentChannelIndex >= 0 && channelList.length > 0
+                          ? `Canal ${currentChannelIndex + 1} de ${channelList.length}: ${itemData?.name || ''}`
+                          : 'Canal actual'}
+                      </span>
                     </div>
-                    <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
-                      {filteredChannelList.length > 0 ? (
-                        filteredChannelList.map((channel, index) => {
-                          const isCurrent = String(channel.id) === String(itemId);
-                          const isFocused = index === focusedChannelPickerIndex;
-                          return (
-                            <button
-                              key={String(channel.id)}
-                              ref={(element) => {
-                                channelPickerItemRefs.current[index] = element;
-                              }}
-                              onClick={() => handleSelectChannel(channel)}
-                              onFocus={() => setFocusedChannelPickerIndex(index)}
-                              className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 ${
-                                isCurrent
-                                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-200'
-                                  : isFocused
-                                    ? 'bg-indigo-500/25 border border-indigo-300/70 text-white'
-                                    : 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100'
-                              }`}
-                            >
-                              {channel.name}
-                              {isCurrent ? ' (actual)' : ''}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <div className="text-sm text-zinc-300 px-2 py-4 text-center">
-                          No se encontraron canales.
+                    {channelPlaybackIssue && (
+                      <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center">
+                        {channelPlaybackIssue}
+                      </div>
+                    )}
+                    {isChannelPickerOpen && (
+                      <div
+                        data-channel-picker="true"
+                        className="mt-3 rounded-xl border border-indigo-400/30 bg-black/85 p-3 backdrop-blur-md"
+                        onKeyDown={handleChannelPickerKeyDown}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            ref={channelPickerInputRef}
+                            type="text"
+                            value={channelSearch}
+                            onChange={(e) => setChannelSearch(e.target.value)}
+                            onKeyDown={handleChannelPickerKeyDown}
+                            onFocus={() => setFocusedChannelPickerIndex(-1)}
+                            placeholder="Buscar canal..."
+                            className="flex-1 rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400"
+                          />
+                          <button
+                            ref={channelPickerCloseButtonRef}
+                            onClick={() => closeChannelPicker(0)}
+                            tabIndex={isTVMode ? -1 : undefined}
+                            onFocus={() => setFocusedChannelPickerIndex(-1)}
+                            className="px-3 py-2 rounded-md text-sm bg-zinc-800 hover:bg-zinc-700 transition-colors focus:outline-none focus:ring-2 focus:ring-zinc-300"
+                          >
+                            Cerrar
+                          </button>
                         </div>
-                      )}
-                    </div>
+                        <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+                          {filteredChannelList.length > 0 ? (
+                            filteredChannelList.map((channel, index) => {
+                              const isCurrent = String(channel.id) === String(itemId);
+                              const isFocused = index === focusedChannelPickerIndex;
+                              return (
+                                <button
+                                  key={String(channel.id)}
+                                  ref={(element) => {
+                                    channelPickerItemRefs.current[index] = element;
+                                  }}
+                                  onClick={() => handleSelectChannel(channel)}
+                                  onFocus={() => setFocusedChannelPickerIndex(index)}
+                                  className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 ${
+                                    isCurrent
+                                      ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-200'
+                                      : isFocused
+                                        ? 'bg-indigo-500/25 border border-indigo-300/70 text-white'
+                                        : 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100'
+                                  }`}
+                                >
+                                  {channel.name}
+                                  {isCurrent ? ' (actual)' : ''}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="text-sm text-zinc-300 px-2 py-4 text-center">
+                              No se encontraron canales.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                )
+              ) : (
+                <div className="w-full max-w-5xl mx-auto mb-8 space-y-4">
+                  {/* Reload / Status Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-950/60 px-4 py-2.5 backdrop-blur-sm">
+                    <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                      {currentChannelIndex >= 0 && channelList.length > 0
+                        ? `Canal ${currentChannelIndex + 1} de ${channelList.length}: ${itemData?.name || ''}`
+                        : 'Canal en Vivo'}
+                    </span>
+                    
+                    <button
+                      onClick={handleReloadChannel}
+                      disabled={isReloadingChannel}
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-600/20 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      {isReloadingChannel ? 'Recargando...' : '🔄 Recargar Señal'}
+                    </button>
+                  </div>
+
+                  {channelPlaybackIssue && (
+                    <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 text-center animate-pulse">
+                      ⚠️ {channelPlaybackIssue}
+                    </div>
+                  )}
+
+                  {/* EPG Guide */}
+                  <EpgGuide
+                    channels={channelList}
+                    currentChannelId={itemId}
+                    onSelectChannel={handleSelectChannel}
+                    isLoading={!channelListReady}
+                  />
+                </div>
+              )
             )}
 
           </div>

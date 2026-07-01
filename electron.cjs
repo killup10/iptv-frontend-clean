@@ -556,6 +556,8 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     args.push('--gpu-api=d3d11');
     args.push('--hwdec=auto-safe');
     args.push('--cache=yes');
+    args.push('--demuxer-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2');
+    args.push('--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2');
     args.push('--volume=70');
     args.push('--osc=yes');
     args.push('--input-default-bindings=yes');
