@@ -107,7 +107,7 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+    <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" style={{ zIndex: 100400 }}>
       
       {/* Modal Card - Glassmorphism & Cyber-glow */}
       <div className="relative w-full max-w-md bg-gradient-to-br from-[#0c1024] to-[#040610] border border-cyan-500/30 rounded-3xl p-6 md:p-8 text-white shadow-[0_0_50px_rgba(6,182,212,0.15)] animate-in fade-in zoom-in-95 duration-200">

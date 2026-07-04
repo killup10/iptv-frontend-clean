@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Clock3, Film, Play, Plus, Star, X } from 'lucide-react';
 import {
   getTVItemBackdrop,
@@ -144,6 +144,9 @@ export default function MobileVodDetailModal({
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [myListFeedback, setMyListFeedback] = useState({ type: '', message: '' });
 
+  const itemId = item?._id || item?.id;
+  const itemRef = useRef(item);
+
   useEffect(() => {
     if (!isOpen) {
       return undefined;
@@ -180,16 +183,12 @@ export default function MobileVodDetailModal({
   }, [isOpen, onClose]);
 
   useEffect(() => {
+    itemRef.current = item;
     setDetailItem(item || null);
-  }, [item]);
+  }, [itemId]);
 
   useEffect(() => {
-    if (!isOpen || !item) {
-      return undefined;
-    }
-
-    const itemId = item?._id || item?.id;
-    if (!itemId) {
+    if (!isOpen || !itemId) {
       return undefined;
     }
 
@@ -204,12 +203,13 @@ export default function MobileVodDetailModal({
           return;
         }
 
+        const initialItem = itemRef.current;
         setDetailItem((currentItem) => ({
-          ...(currentItem || item),
+          ...(currentItem || initialItem),
           ...fetchedItem,
-          watchProgress: currentItem?.watchProgress || item?.watchProgress || fetchedItem?.watchProgress,
-          progressTime: currentItem?.progressTime ?? item?.progressTime ?? fetchedItem?.progressTime,
-          duration: currentItem?.duration ?? item?.duration ?? fetchedItem?.duration,
+          watchProgress: fetchedItem?.watchProgress || currentItem?.watchProgress || initialItem?.watchProgress,
+          progressTime: fetchedItem?.progressTime ?? currentItem?.progressTime ?? initialItem?.progressTime,
+          duration: fetchedItem?.duration ?? currentItem?.duration ?? initialItem?.duration,
         }));
       } catch (error) {
         console.warn('[MobileVodDetailModal] No se pudo cargar el detalle completo del VOD.', error);
@@ -225,7 +225,7 @@ export default function MobileVodDetailModal({
     return () => {
       isCancelled = true;
     };
-  }, [isOpen, item]);
+  }, [isOpen, itemId]);
 
   const modalItem = detailItem || item;
   const resolvedType = resolveTVItemType(modalItem, itemType);
@@ -389,7 +389,7 @@ export default function MobileVodDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[120]">
+    <div className="fixed inset-0" style={{ zIndex: 100000 }}>
       <div
         className="absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
@@ -578,7 +578,7 @@ export default function MobileVodDetailModal({
 
                   <button
                     type="button"
-                    onClick={() => hasTrailer && onTrailer?.()}
+                    onClick={() => hasTrailer && onTrailer?.(trailerUrl)}
                     disabled={!hasTrailer}
                     className={`inline-flex items-center justify-center gap-2 rounded-[22px] border px-5 py-4 text-base font-bold backdrop-blur-sm ${
                       hasTrailer

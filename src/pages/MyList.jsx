@@ -202,7 +202,7 @@ export function MyList() {
           onContinue={handleContinueFromDetail}
           onPlay={handlePlayFromDetail}
           onAddToMyList={addItemToMyList}
-          onTrailer={detailTrailerUrl ? () => handlePlayTrailerClick(detailTrailerUrl) : null}
+          onTrailer={handlePlayTrailerClick}
         />
       )}
 

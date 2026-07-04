@@ -457,7 +457,7 @@ export default function Colecciones() {
           onContinue={handleContinueFromDetail}
           onPlay={handlePlayFromDetail}
           onAddToMyList={addItemToMyList}
-          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+          onTrailer={openTrailer}
         />
       )}
 

@@ -548,7 +548,7 @@ const handleAddToMyList = async (item) => {
             onContinue={handleContinueFromDetail}
             onPlay={handlePlayFromDetail}
             onAddToMyList={handleAddToMyListSafe}
-            onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+            onTrailer={openTrailer}
           />
         )}
 

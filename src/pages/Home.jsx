@@ -1067,11 +1067,7 @@ onProceedWithTrial={proceedWithTrial}
               );
             }}
             onAddToMyList={() => handleAddToMyListSafe(mobileVodDetail.item)}
-            onTrailer={
-              mobileVodDetailTrailerUrl
-                ? () => handlePlayTrailerClick(mobileVodDetailTrailerUrl)
-                : null
-            }
+            onTrailer={handlePlayTrailerClick}
           />
         )}
 
@@ -1381,11 +1377,7 @@ onProceedWithTrial={proceedWithTrial}
             );
           }}
           onAddToMyList={() => handleAddToMyListSafe(mobileVodDetail.item)}
-          onTrailer={
-            mobileVodDetailTrailerUrl
-              ? () => handlePlayTrailerClick(mobileVodDetailTrailerUrl)
-              : null
-          }
+          onTrailer={handlePlayTrailerClick}
         />
       )}
 

@@ -2136,7 +2136,7 @@ export function Watch() {
       try {
         console.log('[Watch.jsx] Deteniendo MPV anterior antes de iniciar nuevo...');
         await window.electronMPV.stop();
-        await new Promise(resolve => setTimeout(resolve, itemType === 'channel' ? 220 : 700));
+        await new Promise(resolve => setTimeout(resolve, 50));
         
         console.log(`--- DEBUG: Intentando reproducir con MPV... URL: ${maskUrl(videoUrl)}`);
         const mpvTitle = buildMpvDisplayTitle();
@@ -2834,7 +2834,7 @@ export function Watch() {
     try {
       if (window.electronMPV && videoUrl && bounds) {
         await window.electronMPV.stop().catch(() => {});
-        await new Promise(resolve => setTimeout(resolve, 350));
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         const result = await window.electronMPV.play(videoUrl, bounds, {
           startTime: 0,
@@ -3045,7 +3045,7 @@ export function Watch() {
               if (window.electronMPV && videoUrl && bounds) {
                 suppressMpvClosedRef.current = true;
                 window.electronMPV.stop()
-                  .then(() => new Promise(resolve => setTimeout(resolve, itemType === 'channel' ? 220 : 700)))
+                  .then(() => new Promise(resolve => setTimeout(resolve, 50)))
                   .then(() => window.electronMPV.play(videoUrl, bounds, {
                     startTime,
                     title: buildMpvDisplayTitle(),

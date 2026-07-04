@@ -43,6 +43,18 @@ export default function useElectronMpvProgress(videoId, onNextEpisode, seasons, 
         await axiosInstance.put(`/api/videos/${videoId}/progress`, progressData, {
           timeout: REQUEST_TIMEOUT_MS
         });
+        try {
+          const cacheKey = `videoProgress_${videoId}`;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            progress: progressData.progress ?? progressData.lastTime ?? 0,
+            lastTime: progressData.lastTime ?? progressData.progress ?? 0,
+            lastSeason: progressData.lastSeason,
+            lastChapter: progressData.lastChapter,
+            completed: progressData.completed || false,
+          }));
+        } catch (cacheErr) {
+          console.warn('[useElectronMpvProgress] Failed to update localStorage cache:', cacheErr);
+        }
         return true;
       } catch (e) {
         console.warn(`[useElectronMpvProgress] failed to send ${reason}`, e?.message || e);

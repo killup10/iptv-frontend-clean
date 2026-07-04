@@ -94,6 +94,14 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Auto-redirect logged-in users from root to /home
+  useEffect(() => {
+    if (location.pathname === "/" && user) {
+      console.log("[App.jsx] Usuario logueado en raíz. Redirigiendo a /home...");
+      navigate("/home", { replace: true });
+    }
+  }, [location.pathname, user, navigate]);
+
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
   const isLiveTVPage = location.pathname === '/live-tv';
@@ -323,7 +331,8 @@ function App() {
   };
   
   const isProfilesPage = location.pathname === "/profiles";
-  const shouldShowLayout = !isAuthPage && !isWatchPage && !isProfilesPage;
+  const isLandingPage = location.pathname === "/";
+  const shouldShowLayout = !isAuthPage && !isWatchPage && !isProfilesPage && !(isLandingPage && !user);
 
   const mainContainerStyle = {
     backgroundImage: "url('./fondo.png')",

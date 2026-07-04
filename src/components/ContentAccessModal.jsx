@@ -45,7 +45,8 @@ const ContentAccessModal = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/85 flex items-center justify-center z-[150] p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 animate-fade-in"
+      style={{ zIndex: 100200 }}
       onClick={onClose}
     >
       <div 

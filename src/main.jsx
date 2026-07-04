@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Lazy load de todas las páginas para mejorar performance
 const Home = React.lazy(() => import('./pages/Home.jsx'));
+const LandingPage = React.lazy(() => import('./pages/LandingPage.jsx'));
 const Login = React.lazy(() => import('./pages/Login.jsx'));
 const Register = React.lazy(() => import('./pages/Register.jsx'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword.jsx'));
@@ -54,7 +55,8 @@ const router = createHashRouter([
       { path: "login", element: <Suspense fallback={<PageLoader />}><Login /></Suspense> },
       { path: "register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense> },
       { path: "forgot-password", element: <Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense> },
-      { index: true, element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Home /></Suspense></ProtectedRoute> },
+      { index: true, element: <Suspense fallback={<PageLoader />}><LandingPage /></Suspense> },
+      { path: "home", element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Home /></Suspense></ProtectedRoute> },
       {
         path: "admin",
         element: (

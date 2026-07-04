@@ -6,7 +6,8 @@ import {
   fetchAdminChannels, createAdminChannel, updateAdminChannel,
   deleteAdminChannel, processM3UForAdmin,
   createAdminVideo, updateAdminVideo, deleteAdminVideo,
-  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser
+  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser,
+  checkAdminChannelsStatus
 } from "@/utils/api.js";
 import AdminUserDevices from "@/components/admin/AdminUserDevices.jsx";
 import MigrationPanel from "@/components/MigrationPanel.jsx";
@@ -329,6 +330,15 @@ export default function AdminPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState({ channels: false, vod: false, m3u: false, users: false });
   const [activeTab, setActiveTab] = useState("manage_users");
+
+  // --- Estados para Checker M3U ---
+  const [checkerStatus, setCheckerStatus] = useState({});
+  const [isCheckingAll, setIsCheckingAll] = useState(false);
+  const [checkerFilter, setCheckerFilter] = useState("");
+  const [checkerStatusFilter, setCheckerStatusFilter] = useState("all");
+  const [editingChannelUrlId, setEditingChannelUrlId] = useState(null);
+  const [editingChannelUrlValue, setEditingChannelUrlValue] = useState("");
+  const [savingChannelId, setSavingChannelId] = useState(null);
 
   // --- Estados para el Mundial 2026 Admin ---
   const [mundialMatches, setMundialMatches] = useState([]);
@@ -1106,6 +1116,139 @@ export default function AdminPanel() {
       setIsLoading(prev => ({ ...prev, channels: false }));
     }
   }, [clearMessages]);
+
+  const checkAllChannels = useCallback(async () => {
+    if (isCheckingAll || channels.length === 0) return;
+    setIsCheckingAll(true);
+    clearMessages();
+
+    const initialStatuses = {};
+    channels.forEach(ch => {
+      const id = ch.id || ch._id;
+      initialStatuses[id] = { checking: true, status: 'pending', code: 0, latency: 0, error: '' };
+    });
+    setCheckerStatus(initialStatuses);
+
+    const batchSize = 15;
+    const channelList = [...channels];
+
+    for (let i = 0; i < channelList.length; i += batchSize) {
+      const batch = channelList.slice(i, i + batchSize);
+      
+      setCheckerStatus(prev => {
+        const updated = { ...prev };
+        batch.forEach(ch => {
+          const id = ch.id || ch._id;
+          updated[id] = { ...updated[id], status: 'checking' };
+        });
+        return updated;
+      });
+
+      try {
+        const payload = batch.map(ch => ({ id: ch.id || ch._id, url: ch.url }));
+        const results = await checkAdminChannelsStatus(payload);
+
+        setCheckerStatus(prev => {
+          const updated = { ...prev };
+          results.forEach(res => {
+            updated[res.id] = {
+              checking: false,
+              status: res.status,
+              code: res.code,
+              latency: res.latency,
+              error: res.error || ''
+            };
+          });
+          return updated;
+        });
+      } catch (err) {
+        console.error("Error al analizar lote de canales:", err);
+        setCheckerStatus(prev => {
+          const updated = { ...prev };
+          batch.forEach(ch => {
+            const id = ch.id || ch._id;
+            updated[id] = {
+              checking: false,
+              status: 'red',
+              code: 0,
+              latency: 0,
+              error: err.message || 'Error de red'
+            };
+          });
+          return updated;
+        });
+      }
+    }
+
+    setIsCheckingAll(false);
+    setSuccessMsg("¡Análisis de todos los canales completado con éxito!");
+  }, [channels, isCheckingAll, clearMessages]);
+
+  const checkSingleChannel = useCallback(async (channel) => {
+    const id = channel.id || channel._id;
+    setCheckerStatus(prev => ({
+      ...prev,
+      [id]: { checking: true, status: 'checking', code: 0, latency: 0, error: '' }
+    }));
+
+    try {
+      const results = await checkAdminChannelsStatus([{ id, url: channel.url }]);
+      const res = results[0];
+      setCheckerStatus(prev => ({
+        ...prev,
+        [id]: {
+          checking: false,
+          status: res.status,
+          code: res.code,
+          latency: res.latency,
+          error: res.error || ''
+        }
+      }));
+    } catch (err) {
+      setCheckerStatus(prev => ({
+        ...prev,
+        [id]: {
+          checking: false,
+          status: 'red',
+          code: 0,
+          latency: 0,
+          error: err.message || 'Error de red'
+        }
+      }));
+    }
+  }, []);
+
+  const handleSaveInlineUrl = useCallback(async (channelId, name) => {
+    if (!editingChannelUrlValue) return;
+    setSavingChannelId(channelId);
+    clearMessages();
+    try {
+      const originalChannel = channels.find(ch => (ch.id || ch._id) === channelId);
+      if (!originalChannel) throw new Error("Canal no encontrado en la lista local.");
+
+      const updatedData = {
+        name: originalChannel.name,
+        url: editingChannelUrlValue.trim(),
+        logo: originalChannel.logo,
+        description: originalChannel.description,
+        section: originalChannel.section,
+        active: originalChannel.active,
+        isFeatured: originalChannel.isFeatured,
+        requiresPlan: Array.isArray(originalChannel.requiresPlan) ? originalChannel.requiresPlan : [originalChannel.requiresPlan],
+        isPubliclyVisible: originalChannel.isPubliclyVisible === undefined ? true : originalChannel.isPubliclyVisible
+      };
+
+      await updateAdminChannel(channelId, updatedData);
+      setSuccessMsg(`URL del canal "${name}" actualizada correctamente.`);
+      setEditingChannelUrlId(null);
+      await fetchChannelsList();
+    } catch (err) {
+      setErrorMsg(err.message || "Error al actualizar URL.");
+    } finally {
+      setSavingChannelId(null);
+    }
+  }, [editingChannelUrlValue, channels, fetchChannelsList, clearMessages]);
+
   const clearChannelForm = useCallback(() => { setChannelId(null); setChannelForm({ name: "", url: "", logo: "", description: "", section: "General", active: true, isFeatured: false, requiresPlan: [], isPubliclyVisible: true, }); }, []);
   const handleChannelFormChange = (e) => { const { name, value, type, checked } = e.target; setChannelForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
   const handleChannelPlanChange = (planKey) => { setChannelForm(prev => ({ ...prev, requiresPlan: prev.requiresPlan.includes(planKey) ? prev.requiresPlan.filter(p => p !== planKey) : [...prev.requiresPlan, planKey] })); };
@@ -1621,7 +1764,7 @@ export default function AdminPanel() {
             const tipoParaFiltrar = vodTabInfo.tipo;
             setVodFilterTipo(tipoParaFiltrar); 
             fetchVideosList(1, vodSearchTerm, tipoParaFiltrar);
-        } else if (activeTab === "manage_channels" || activeTab === "m3u_to_channels" || activeTab === "manage_mundial") {
+        } else if (activeTab === "manage_channels" || activeTab === "m3u_to_channels" || activeTab === "m3u_checker" || activeTab === "manage_mundial") {
             fetchChannelsList();
             if (activeTab === "manage_mundial") {
                 loadMundialMatches();
@@ -1663,10 +1806,253 @@ export default function AdminPanel() {
         <Tab label="🏆 Mundial 2026" value="manage_mundial" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Gestionar Canales" value="manage_channels" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Subir M3U Canales" value="m3u_to_channels" activeTab={activeTab} onTabChange={setActiveTab} />
+        <Tab label="🔍 Checker M3U" value="m3u_checker" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label={channelId ? "Editar Canal" : "Agregar Canal"} value="add_channel" activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
 
       {activeTab === "m3u_to_channels" && ( <section className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-lg mx-auto"> <h2 className="text-2xl font-semibold mb-6 text-center">Procesar Archivo M3U para Canales</h2> <form onSubmit={submitM3UFile} className="space-y-4"> <div> <label htmlFor="m3uFile" className="block text-sm font-medium text-gray-300 mb-1">Archivo .m3u o .m3u8</label> <Input type="file" id="m3uFile" name="m3uFile" accept=".m3u,.m3u8" onChange={handleM3UFileChange} className="file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-700" /> {m3uFileNameDisplay && <p className="text-xs text-gray-400 mt-1">Archivo seleccionado: {m3uFileNameDisplay}</p>} </div> <Button type="submit" isLoading={isLoading.m3u} disabled={!m3uFile || isLoading.m3u} className="w-full bg-green-600 hover:bg-green-700"> {isLoading.m3u ? "Procesando..." : "Procesar M3U"} </Button> </form> </section> )}
+
+      {activeTab === "m3u_checker" && (
+        <section className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold">Checker de Enlaces M3U / Canales</h2>
+              <p className="text-sm text-gray-400 mt-1">Verifica de forma rápida e implacable el estado de tus transmisiones en vivo.</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              <Button 
+                onClick={checkAllChannels} 
+                disabled={isCheckingAll || !channels.length}
+                className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 flex items-center gap-2"
+              >
+                {isCheckingAll ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                    Analizando Canales...
+                  </>
+                ) : (
+                  "Analizar Todos los Canales"
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Barra de progreso de escaneo */}
+          {isCheckingAll && (() => {
+            const total = channels.length;
+            const checked = Object.values(checkerStatus).filter(s => s.status !== 'pending' && s.status !== 'checking').length;
+            const percentage = total > 0 ? Math.round((checked / total) * 100) : 0;
+            return (
+              <div className="mb-6 p-4 bg-gray-900/60 rounded-md border border-gray-700">
+                <div className="flex justify-between items-center mb-2 text-sm text-gray-300">
+                  <span>Progreso del análisis:</span>
+                  <span className="font-semibold">{checked} / {total} canales ({percentage}%)</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                  <div 
+                    className="bg-blue-500 h-full transition-all duration-300 ease-out" 
+                    style={{ width: `${percentage}%` }}
+                  ></div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Filtros de la lista */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Buscar por nombre o URL</label>
+              <Input
+                type="text"
+                placeholder="Buscar canal..."
+                value={checkerFilter}
+                onChange={(e) => setCheckerFilter(e.target.value)}
+                className="w-full bg-gray-700 border-gray-600 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Filtrar por estado</label>
+              <Select
+                value={checkerStatusFilter}
+                onChange={(e) => setCheckerStatusFilter(e.target.value)}
+                className="w-full bg-gray-700 border-gray-600 text-white"
+              >
+                <option value="all">Todos los canales</option>
+                <option value="green">🟢 Funcionando (Verde)</option>
+                <option value="yellow">🟡 Inestable / Lento (Amarillo)</option>
+                <option value="red">🔴 Caído / Error (Rojo)</option>
+                <option value="unchecked">⚪ Sin Comprobar</option>
+              </Select>
+            </div>
+            <div className="flex items-end justify-start sm:justify-end">
+              <div className="text-xs text-gray-400 text-right">
+                <p>Total canales cargados: <span className="text-white font-semibold">{channels.length}</span></p>
+                <p className="mt-1">
+                  🟢 {Object.values(checkerStatus).filter(s => s.status === 'green').length} | 
+                  🟡 {Object.values(checkerStatus).filter(s => s.status === 'yellow').length} | 
+                  🔴 {Object.values(checkerStatus).filter(s => s.status === 'red').length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de canales para Checker */}
+          {channels && channels.length > 0 ? (() => {
+            const filtered = channels.filter(ch => {
+              const matchesSearch = 
+                normalizeSearchText(ch.name).includes(normalizeSearchText(checkerFilter)) ||
+                normalizeSearchText(ch.url).includes(normalizeSearchText(checkerFilter));
+              
+              const id = ch.id || ch._id;
+              const info = checkerStatus[id] || { status: 'unchecked' };
+              
+              let matchesStatus = true;
+              if (checkerStatusFilter === 'green') matchesStatus = info.status === 'green';
+              else if (checkerStatusFilter === 'yellow') matchesStatus = info.status === 'yellow';
+              else if (checkerStatusFilter === 'red') matchesStatus = info.status === 'red';
+              else if (checkerStatusFilter === 'unchecked') matchesStatus = info.status === 'unchecked' || info.status === 'pending';
+
+              return matchesSearch && matchesStatus;
+            });
+
+            return filtered.length > 0 ? (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar">
+                {filtered.map((ch) => {
+                  const id = ch.id || ch._id;
+                  const info = checkerStatus[id] || { status: 'unchecked', code: 0, latency: 0, error: '' };
+                  const isEditing = editingChannelUrlId === id;
+                  const isSaving = savingChannelId === id;
+
+                  let statusBadge = (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
+                      <span className="h-2 w-2 rounded-full bg-gray-500"></span>
+                      Sin comprobar
+                    </span>
+                  );
+
+                  if (info.status === 'checking' || info.status === 'pending') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/60 text-blue-300 border border-blue-800">
+                        <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse"></span>
+                        Comprobando...
+                      </span>
+                    );
+                  } else if (info.status === 'green') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-950/80 text-green-300 border border-green-800">
+                        <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                        Estable ({info.latency}ms)
+                      </span>
+                    );
+                  } else if (info.status === 'yellow') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-950/80 text-yellow-300 border border-yellow-800">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500"></span>
+                        Lento ({info.latency}ms) - {info.error}
+                      </span>
+                    );
+                  } else if (info.status === 'red') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-950/80 text-red-300 border border-red-800">
+                        <span className="h-2 w-2 rounded-full bg-red-500 animate-ping absolute inline-flex"></span>
+                        <span className="h-2 w-2 rounded-full bg-red-500 relative"></span>
+                        Falla: {info.error}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <div 
+                      key={id} 
+                      className={`flex flex-col p-4 bg-gray-750 hover:bg-gray-700 transition-all rounded-md gap-3 border-l-4 ${
+                        info.status === 'green' ? 'border-green-500' : 
+                        info.status === 'yellow' ? 'border-yellow-500' : 
+                        info.status === 'red' ? 'border-red-500' : 'border-gray-600'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={ch.logo || '/img/placeholder-thumbnail.png'}
+                            alt={ch.name}
+                            className="w-12 h-9 object-contain bg-black rounded border border-gray-600 flex-shrink-0"
+                            onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                          />
+                          <div className="min-w-0">
+                            <strong className="text-white text-base block truncate" title={ch.name}>{ch.name}</strong>
+                            <span className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded-sm">{ch.section || "General"}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {statusBadge}
+                          <Button 
+                            onClick={() => checkSingleChannel(ch)} 
+                            disabled={isCheckingAll || info.status === 'checking'}
+                            className="bg-gray-800 hover:bg-gray-600 text-white text-xs px-2.5 py-1 flex items-center gap-1 border border-gray-600"
+                          >
+                            Re-test
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* URL Edit / Show Row */}
+                      <div className="bg-gray-800/50 p-2.5 rounded border border-gray-800/80 flex items-center justify-between gap-3 text-sm">
+                        {isEditing ? (
+                          <div className="flex-grow flex items-center gap-2 w-full">
+                            <Input
+                              type="text"
+                              value={editingChannelUrlValue}
+                              onChange={(e) => setEditingChannelUrlValue(e.target.value)}
+                              className="flex-grow bg-gray-900 border-gray-700 text-white text-xs py-1"
+                              placeholder="Nueva URL m3u8..."
+                            />
+                            <Button
+                              onClick={() => handleSaveInlineUrl(id, ch.name)}
+                              disabled={isSaving}
+                              className="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-1 flex-shrink-0"
+                            >
+                              {isSaving ? "Guardando..." : "Guardar"}
+                            </Button>
+                            <Button
+                              onClick={() => setEditingChannelUrlId(null)}
+                              disabled={isSaving}
+                              className="bg-gray-600 hover:bg-gray-500 text-white text-xs px-3 py-1 flex-shrink-0"
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="min-w-0 flex-grow">
+                              <span className="text-xs text-gray-500 font-semibold block mb-0.5">Stream URL:</span>
+                              <code className="text-xs text-gray-300 break-all select-all font-mono font-normal">{ch.url}</code>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingChannelUrlId(id);
+                                setEditingChannelUrlValue(ch.url);
+                              }}
+                              className="text-gray-400 hover:text-yellow-500 transition-colors p-1"
+                              title="Editar URL de transmisión inline"
+                            >
+                              ✏️ <span className="text-xs ml-1 hover:underline">Editar Link</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-center py-10">No se encontraron canales que coincidan con los filtros.</p>
+            );
+          })() : (
+            <p className="text-gray-400 text-center py-10">No hay canales para analizar. Carga canales primero.</p>
+          )}
+        </section>
+      )}
       
       {activeTab === "add_channel" && ( <section className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto"> <h2 className="text-2xl font-semibold mb-6 text-center">{channelId ? "Editar Canal" : "Agregar Nuevo Canal"}</h2> <form onSubmit={submitChannelForm} className="space-y-4"> <Input name="name" placeholder="Nombre del Canal" value={channelForm.name} onChange={handleChannelFormChange} required /> <Input name="url" type="url" placeholder="URL del Stream (.m3u8, etc.)" value={channelForm.url} onChange={handleChannelFormChange} required /> <Input name="logo" type="url" placeholder="URL del Logo del Canal" value={channelForm.logo} onChange={handleChannelFormChange} /> <Textarea name="description" placeholder="Descripción (opcional)" value={channelForm.description} onChange={handleChannelFormChange} /> <Input name="section" placeholder="Sección/Categoría (Ej: Deportes, Noticias)" value={channelForm.section} onChange={handleChannelFormChange} /> <div className="space-y-2 pt-2"> <p className="text-sm font-medium text-gray-300">Planes Requeridos (Canal):</p> <div className="grid grid-cols-2 sm:grid-cols-3 gap-2"> {ALL_AVAILABLE_PLANS.map(plan => ( <Checkbox key={plan.key} label={plan.displayName} value={plan.key} checked={channelForm.requiresPlan.includes(plan.key)} onChange={() => handleChannelPlanChange(plan.key)} /> ))} </div> </div> <div className="flex items-center space-x-6 pt-2"> <Checkbox label="Activo" name="active" checked={channelForm.active} onChange={handleChannelFormChange} /> <Checkbox label="Destacado" name="isFeatured" checked={channelForm.isFeatured} onChange={handleChannelFormChange} /> <Checkbox label="Visible Públicamente (si no requiere plan)" name="isPubliclyVisible" checked={channelForm.isPubliclyVisible} onChange={handleChannelFormChange} /> </div> <Button type="submit" isLoading={isSubmitting} className="w-full"> {isSubmitting ? (channelId ? "Actualizando..." : "Creando...") : (channelId ? "Actualizar Canal" : "Crear Canal")} </Button> {channelId && <Button type="button" onClick={clearChannelForm} className="w-full bg-gray-600 hover:bg-gray-500 mt-2">Cancelar Edición</Button>} </form> </section> )}
       

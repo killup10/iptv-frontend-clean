@@ -94,7 +94,8 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[140] flex items-center justify-center bg-black/85 p-4"
+      className="fixed inset-0 flex items-center justify-center bg-black/85 p-4"
+      style={{ zIndex: 100100 }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"

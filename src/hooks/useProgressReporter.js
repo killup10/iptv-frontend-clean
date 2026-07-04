@@ -32,6 +32,18 @@ export default function useProgressReporter(videoRef, videoId, opts = {}) {
 
       try {
         await axiosInstance.put(`/api/videos/${videoId}/progress`, payload);
+        try {
+          const cacheKey = `videoProgress_${videoId}`;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            progress: payload.progress ?? payload.lastTime ?? 0,
+            lastTime: payload.lastTime ?? payload.progress ?? 0,
+            lastSeason: payload.lastSeason,
+            lastChapter: payload.lastChapter,
+            completed: payload.completed || false,
+          }));
+        } catch (cacheErr) {
+          console.warn('[useProgressReporter] Failed to update localStorage cache:', cacheErr);
+        }
         // update last sent markers
         lastSentAt = Date.now();
         lastSentTime = now;

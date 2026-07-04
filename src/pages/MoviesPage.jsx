@@ -190,15 +190,17 @@ export default function MoviesPage() {
                 setMainSections(sectionsDataFromAPI || []);
 
                 const moviesForSections = {};
-                for (const section of sectionsDataFromAPI) {
-                    try {
-                        const data = await fetchUserMovies(1, 5, section.key, 'Todas');
-                        moviesForSections[section.key] = data.videos;
-                    } catch (err) {
-                        console.error(`Error cargando muestra para ${section.key}:`, err);
-                        moviesForSections[section.key] = [];
-                    }
-                }
+                await Promise.all(
+                    sectionsDataFromAPI.map(async (section) => {
+                        try {
+                            const data = await fetchUserMovies(1, 5, section.key, 'Todas');
+                            moviesForSections[section.key] = data.videos;
+                        } catch (err) {
+                            console.error(`Error cargando muestra para ${section.key}:`, err);
+                            moviesForSections[section.key] = [];
+                        }
+                    })
+                );
                 setMoviesBySection(moviesForSections);
 
                 // Guardar en cache
@@ -463,7 +465,7 @@ export default function MoviesPage() {
                         onContinue={handleContinueFromDetail}
                         onPlay={handlePlayFromDetail}
                         onAddToMyList={handleAddToMyListSafe}
-                        onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+                        onTrailer={openTrailer}
                     />
                 )}
             </>
@@ -589,7 +591,7 @@ export default function MoviesPage() {
                     onContinue={handleContinueFromDetail}
                     onPlay={handlePlayFromDetail}
                     onAddToMyList={handleAddToMyListSafe}
-                    onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+                    onTrailer={openTrailer}
                 />
             )}
 

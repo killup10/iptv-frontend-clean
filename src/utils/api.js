@@ -509,6 +509,19 @@ export async function processM3UForAdmin(formData) {
   }
 }
 
+export async function checkAdminChannelsStatus(channels) {
+  const relativePath = "/api/channels/admin/check-status";
+  console.log(`API (checkAdminChannelsStatus - axios): POST ${relativePath} con ${channels.length} canales`);
+  try {
+    const response = await axiosInstance.post(relativePath, { channels });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Admin: Error al verificar estado de los canales.";
+    console.error(`API Error (checkAdminChannelsStatus - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 /* =================== ADMIN - VIDEOS (VOD) =================== */
 export async function fetchAdminVideos() {
   const relativePath = "/api/videos";

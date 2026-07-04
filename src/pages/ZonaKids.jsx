@@ -254,7 +254,7 @@ export default function ZonaKids() {
             onContinue={handleContinueFromDetail}
             onPlay={handlePlayFromDetail}
             onAddToMyList={handleAddToMyListSafe}
-            onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+            onTrailer={openTrailer}
           />
         )}
         <CollectionsModal
@@ -366,7 +366,7 @@ export default function ZonaKids() {
           onContinue={handleContinueFromDetail}
           onPlay={handlePlayFromDetail}
           onAddToMyList={addItemToMyList}
-          onTrailer={detailTrailerUrl ? () => openTrailer(detailTrailerUrl) : null}
+          onTrailer={openTrailer}
         />
       )}
       <CollectionsModal
