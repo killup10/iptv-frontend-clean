@@ -6,7 +6,7 @@ const CONTENT_SECTIONS = [
   { id: 'series_kids', label: 'Series - ZONA KIDS' },
   { id: 'animes', label: 'Animes' },
   { id: 'documentaries', label: 'Documentales' },
-  { id: 'doramas', label: 'Doramas' }
+  { id: 'doramas', label: 'Series Asiáticas' }
 ];
 
 export default function BulkUploadForm() {

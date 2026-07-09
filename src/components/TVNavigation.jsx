@@ -25,7 +25,7 @@ export default function TVNavigation() {
     { key: 'movies', path: '/peliculas', label: 'Películas', icon: 'movies' },
     { key: 'series', path: '/series', label: 'Series', icon: 'series' },
     { key: 'animes', path: '/animes', label: 'Animes', icon: 'animes' },
-    { key: 'doramas', path: '/doramas', label: 'Doramas', icon: 'doramas' },
+    { key: 'doramas', path: '/doramas', label: 'Series Asiáticas', icon: 'doramas' },
     { key: 'novelas', path: '/novelas', label: 'Novelas', icon: 'novelas' },
     { key: 'documentales', path: '/documentales', label: 'Documentales', icon: 'documentales' },
     { key: 'kids', path: '/kids', label: 'Zona Kids', icon: 'kids' },

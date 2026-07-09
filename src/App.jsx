@@ -318,7 +318,7 @@ function App() {
   const handleSearchSelectItem = (item) => {
     const type = getSearchSelectionType(item);
     closeAllMenus();
-    if (location.pathname === '/' && type !== 'channel') {
+    if (location.pathname === '/home' && type !== 'channel') {
       window.dispatchEvent(new CustomEvent('teamg:open-vod-detail', {
         detail: {
           item,
@@ -437,7 +437,7 @@ function App() {
                           Animes
                         </Link>
                         <Link to="/doramas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
-                          K-Dramas
+                          Series Asiáticas
                         </Link>
                         <Link to="/novelas" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
                           Novelas
@@ -463,8 +463,8 @@ function App() {
 
               {/* Menú de Usuario y Hamburguesa */}
               <div className="flex items-center space-x-4">
-                {/* Search Bar - Solo en Home */}
-                {location.pathname === '/' && (
+                {/* Search Bar - Global */}
+                {shouldShowLayout && (
                   <div className="flex-1 flex justify-center px-2 lg:ml-6 lg:justify-end">
                     <div className="max-w-lg w-full lg:max-w-xs">
                       <SearchBar 
@@ -660,7 +660,7 @@ function App() {
                           Animes
                         </Link>
                         <Link to="/doramas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
-                          K-Dramas
+                          Series Asiáticas
                         </Link>
                         <Link to="/novelas" className="flex items-center justify-between text-gray-400 hover:text-white block px-3 py-2 rounded-lg text-sm font-semibold transition" onClick={closeAllMenus}>
                           Novelas

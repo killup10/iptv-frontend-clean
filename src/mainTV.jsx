@@ -62,7 +62,7 @@ function TVApp() {
             />
             <Route
               path="doramas"
-              element={<TVCatalogPage title="Doramas" contentType="dorama" fallbackWatchType="dorama" />}
+              element={<TVCatalogPage title="Series Asiáticas" contentType="dorama" fallbackWatchType="dorama" />}
             />
             <Route
               path="novelas"

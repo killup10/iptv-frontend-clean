@@ -763,7 +763,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     { title: 'Canales en Vivo', items: featuredChannels },
     { title: 'Continuar Viendo', items: continueWatchingItems },
     { title: 'Animes', items: featuredAnimes },
-    { title: 'Doramas', items: featuredDoramas },
+    { title: 'Series Asiáticas', items: featuredDoramas },
     { title: 'Novelas', items: featuredNovelas },
     { title: 'Documentales', items: featuredDocumentales },
   ].filter(section => section.items && section.items.length > 0);
@@ -773,7 +773,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     if (section.title.includes('Canales')) return { ...section, type: 'channel' };
     if (section.title.includes('Series')) return { ...section, type: 'serie' };
     if (section.title.includes('Animes')) return { ...section, type: 'anime' };
-    if (section.title.includes('Doramas')) return { ...section, type: 'dorama' };
+    if (section.title.includes('Series Asiáticas')) return { ...section, type: 'dorama' };
     if (section.title.includes('Novelas')) return { ...section, type: 'novela' };
     if (section.title.includes('Documentales')) return { ...section, type: 'documental' };
     return { ...section, type: 'movie' };
@@ -804,7 +804,7 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     if (sectionTitle.includes('Canales')) itemType = 'channel';
     else if (sectionTitle.includes('Series')) itemType = 'serie';
     else if (sectionTitle.includes('Animes')) itemType = 'anime';
-    else if (sectionTitle.includes('Doramas')) itemType = 'dorama';
+    else if (sectionTitle.includes('Series Asiáticas')) itemType = 'dorama';
     else if (sectionTitle.includes('Novelas')) itemType = 'novela';
     else if (sectionTitle.includes('Documentales')) itemType = 'documental';
     else if (sectionTitle.includes('Continuar')) itemType = 'continue-watching';
@@ -988,7 +988,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredDoramas.length > 0 && (
               <Carousel
-                title="Doramas Populares"
+                title="Series Asiáticas Populares"
                 items={featuredDoramas}
                 onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1268,7 +1268,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredDoramas.length > 0 && (
           <Carousel
-            title="Doramas Populares"
+            title="Series Asiáticas Populares"
             subtitle="Historias intensas para maratonear esta semana."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/doramas')}

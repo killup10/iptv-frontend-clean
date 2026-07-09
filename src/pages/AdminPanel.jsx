@@ -277,7 +277,7 @@ const VOD_MANAGEMENT_TABS = [
     { value: 'manage_series', label: 'Gestionar Series', tipo: 'serie' },
     { value: 'manage_movies', label: 'Películas', tipo: 'pelicula' },
     { value: 'manage_animes', label: 'Animes', tipo: 'anime' },
-    { value: 'manage_doramas', label: 'Doramas', tipo: 'dorama' },
+    { value: 'manage_doramas', label: 'Series Asiáticas', tipo: 'dorama' },
     { value: 'manage_novelas', label: 'Novelas', tipo: 'novela' },
     { value: 'manage_documentales', label: 'Documentales', tipo: 'documental' },
 ];
@@ -1798,7 +1798,7 @@ export default function AdminPanel() {
         <Tab label="Películas" value="manage_movies" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Series" value="manage_series" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Animes" value="manage_animes" activeTab={activeTab} onTabChange={setActiveTab} />
-        <Tab label="Doramas" value="manage_doramas" activeTab={activeTab} onTabChange={setActiveTab} />
+        <Tab label="Series Asiáticas" value="manage_doramas" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Novelas" value="manage_novelas" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Documentales" value="manage_documentales" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Carga Masiva VOD" value="bulk_vod_upload" activeTab={activeTab} onTabChange={setActiveTab} />

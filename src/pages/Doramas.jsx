@@ -287,7 +287,7 @@ export function Doramas() {
           onPlayTrailer={handlePlayTrailerClick}
           onAddToMyList={handleAddToMyList}
           onAddToCollectionClick={handleOpenCollectionsModal}
-          title="K-Dramas"
+          title="Series Asiáticas"
           itemType="dorama"
           variant="arcade"
           loading={loading}
@@ -305,7 +305,7 @@ export function Doramas() {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
               <h1 className="text-3xl md:text-4xl font-bold text-glow-primary flex items-center gap-2">
-                <span>K-Dramas</span>
+                <span>Series Asiáticas</span>
                 <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60">
                   {filteredDoramas.length}
                 </span>
@@ -320,7 +320,7 @@ export function Doramas() {
                 </button>
                 <input
                   type="text"
-                  placeholder="Buscar K-Dramas..."
+                  placeholder="Buscar Series Asiáticas..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full sm:w-auto px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-[#00e5ff] focus:border-[#00e5ff]"
@@ -345,7 +345,7 @@ export function Doramas() {
             </div>
             ) : (
               <p className="text-gray-400 text-center mt-8 py-10 text-lg">
-                {searchTerm ? "No se encontraron K-Dramas que coincidan con la búsqueda." : "No hay K-Dramas disponibles en este momento."}
+                {searchTerm ? "No se encontraron Series Asiáticas que coincidan con la búsqueda." : "No hay Series Asiáticas disponibles en este momento."}
               </p>
             )}
           </div>

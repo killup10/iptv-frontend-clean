@@ -95,7 +95,7 @@ export default function NavBar() {
               <div className="dropdown-menu">
                 <Link to="/series" onClick={() => setIsDropdownOpen(false)}>Series</Link>
                 <Link to="/animes" onClick={() => setIsDropdownOpen(false)}>Animes</Link>
-                <Link to="/doramas" onClick={() => setIsDropdownOpen(false)}>Doramas</Link>
+                <Link to="/doramas" onClick={() => setIsDropdownOpen(false)}>Series Asiáticas</Link>
                 <Link to="/novelas" onClick={() => setIsDropdownOpen(false)}>Novelas</Link>
                 <Link to="/documentales" onClick={() => setIsDropdownOpen(false)}>Documentales</Link>
               </div>
