@@ -8,7 +8,7 @@ export const SERIES_SUBCATEGORIES = [
   'Hulu y Otros',
   'Retro',
   'Animadas',
-  'Deportes',
+  'MUNDIAL 2026',
 ];
 
 const SUBCATEGORY_ALIASES = {
@@ -20,7 +20,7 @@ const SUBCATEGORY_ALIASES = {
   'hulu y otros': ['hulu', 'paramount', 'paramount+', 'peacock', 'starz', 'showtime', 'amc', 'fx', 'syfy'],
   retro: ['retro', 'clasico', 'clasicos', 'classic', 'vintage'],
   animadas: ['animada', 'animadas', 'animated', 'animation', 'cartoon'],
-  deportes: ['deportes', 'futbol', 'deporte', 'soccer', 'sports', 'mundial', 'copa mundial'],
+  'mundial 2026': ['mundial 2026', 'mundial', 'copa mundial', 'deportes', 'futbol', 'deporte', 'soccer', 'sports'],
 };
 
 export function normalizeSeriesValue(value) {
