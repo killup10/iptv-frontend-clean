@@ -55,7 +55,7 @@ export function Animes() {
 
   // Estados para modales
   const gridOptions = [5, 4, 3, 1];
-  const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns for better mobile view
+  const [gridCols, setGridCols] = useState(gridOptions[2]); // Default to 3 columns for larger cards
 
   const [collections, setCollections] = useState([]);
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);

@@ -45,7 +45,7 @@ export function Novelas() {
   }, [novelas, searchTerm]);
   const [error, setError] = useState(null);
   const gridOptions = [5, 4, 3, 1];
-  const [gridCols, setGridCols] = useState(gridOptions[1]); // Default to 4 columns
+  const [gridCols, setGridCols] = useState(gridOptions[2]); // Default to 3 columns for larger cards
 
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
