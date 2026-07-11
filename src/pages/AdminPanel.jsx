@@ -107,7 +107,7 @@ const MAIN_SECTION_VOD_OPTIONS = [
   { key: "ZONA_KIDS", displayName: "ZONA KIDS"},
 ];
 
-const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO Max", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS" ];
+const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO Max", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS", "Deportes" ];
 
 const ALL_AVAILABLE_PLANS = [
   { key: "gplay", displayName: "GPlay" },
