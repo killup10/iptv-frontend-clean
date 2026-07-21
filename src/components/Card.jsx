@@ -308,7 +308,33 @@ function Card({
             <div className="relative inline-block">
               <div className="absolute inset-0 rounded-md bg-gradient-to-r from-pink-500 to-purple-600 blur-sm opacity-75"></div>
               <div className="relative rounded-md border border-pink-400 bg-gradient-to-r from-pink-500 to-purple-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">
-                <span className="drop-shadow-sm">{itemType.charAt(0).toUpperCase() + itemType.slice(1)}</span>
+                <span className="drop-shadow-sm">
+                  {(() => {
+                    const lower = itemType.toLowerCase();
+                    if (lower === 'dorama' || lower === 'doramas' || lower === 'k-dramas' || lower === 'k-drama') {
+                      return 'Serie Asiática';
+                    }
+                    if (lower === 'movie' || lower === 'movies' || lower === 'pelicula' || lower === 'peliculas' || lower === 'video' || lower === 'videos') {
+                      return 'Película';
+                    }
+                    if (lower === 'serie' || lower === 'series') {
+                      return 'Serie';
+                    }
+                    if (lower === 'anime' || lower === 'animes') {
+                      return 'Anime';
+                    }
+                    if (lower === 'novela' || lower === 'novelas') {
+                      return 'Novela';
+                    }
+                    if (lower === 'documental' || lower === 'documentales') {
+                      return 'Documental';
+                    }
+                    if (lower === 'zona kids' || lower === 'kids') {
+                      return 'Zona Kids';
+                    }
+                    return itemType.charAt(0).toUpperCase() + itemType.slice(1);
+                  })()}
+                </span>
               </div>
             </div>
           </div>

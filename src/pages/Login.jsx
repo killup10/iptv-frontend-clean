@@ -2,83 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { isAndroidTV } from "../utils/platformUtils.js";
-import { Laptop, Smartphone, Eye, EyeOff, Loader2, Trophy, Users, PlayCircle, Star } from "lucide-react";
-import axiosInstance from "../utils/axiosInstance.js";
-
-// Mapeador de países a códigos ISO para banderas de FlagCDN
-const countryToCode = {
-  "Alemania": "de",
-  "Angola": "ao",
-  "Arabia Saudita": "sa",
-  "Argelia": "dz",
-  "Argentina": "ar",
-  "Australia": "au",
-  "Austria": "at",
-  "Bélgica": "be",
-  "Bolivia": "bo",
-  "Brasil": "br",
-  "Camerún": "cm",
-  "Canadá": "ca",
-  "Catar": "qa",
-  "Chile": "cl",
-  "China": "cn",
-  "Colombia": "co",
-  "Corea del Sur": "kr",
-  "Costa de Marfil": "ci",
-  "Costa Rica": "cr",
-  "Croacia": "hr",
-  "Dinamarca": "dk",
-  "Ecuador": "ec",
-  "EE. UU.": "us",
-  "Egipto": "eg",
-  "El Salvador": "sv",
-  "Escocia": "gb-sct",
-  "España": "es",
-  "Francia": "fr",
-  "Gales": "gb-wls",
-  "Ghana": "gh",
-  "Grecia": "gr",
-  "Honduras": "hn",
-  "Hungría": "hu",
-  "Inglaterra": "gb-eng",
-  "Irak": "iq",
-  "Irán": "ir",
-  "Irlanda": "ie",
-  "Islandia": "is",
-  "Italia": "it",
-  "Jamaica": "jm",
-  "Japón": "jp",
-  "Marruecos": "ma",
-  "México": "mx",
-  "Nigeria": "ng",
-  "Noruega": "no",
-  "Nueva Zelanda": "nz",
-  "Países Bajos": "nl",
-  "Panamá": "pa",
-  "Paraguay": "py",
-  "Perú": "pe",
-  "Polonia": "pl",
-  "Portugal": "pt",
-  "República Checa": "cz",
-  "Rumania": "ro",
-  "Senegal": "sn",
-  "Serbia": "rs",
-  "Sudáfrica": "za",
-  "Suecia": "se",
-  "Suiza": "ch",
-  "Túnez": "tn",
-  "Turquía": "tr",
-  "Ucrania": "ua",
-  "Uruguay": "uy",
-  "Venezuela": "ve"
-};
-
-const getFlagUrl = (countryName) => {
-  const code = countryToCode[countryName];
-  if (!code) return "https://flagcdn.com/w40/un.png";
-  return `https://flagcdn.com/w40/${code}.png`;
-};
-
+import { Laptop, Smartphone, Eye, EyeOff, Loader2 } from "lucide-react";
 
 const TV_LOGIN_FOCUSABLE_COUNT = 6;
 
@@ -136,66 +60,6 @@ const activateTextInput = (input) => {
   } catch {}
 };
 
-// SVG personalizado de un balón de fútbol
-const SoccerBallIcon = (props) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="m12 2-2 3.5 2 2.5 2-2.5z" />
-    <path d="m12 22-2-3.5 2-2.5 2 2.5z" />
-    <path d="M2 12h3.5l2.5-2-2.5-2z" />
-    <path d="M22 12h-3.5l-2.5 2 2.5 2z" />
-    <path d="m5.5 6.5 2 2.5-2.5 2-2-2.5z" />
-    <path d="m18.5 17.5-2-2.5 2.5-2 2 2.5z" />
-  </svg>
-);
-
-// Componentes para el contador regresivo estilo FIFA 2026
-const DigitSlot = ({ digit, isLime = false }) => (
-  <div className={`relative w-7 sm:w-10 md:w-12 h-10 sm:h-14 md:h-16 flex items-center justify-center bg-[#070314] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow-lg shadow-black/85 ${isLime ? 'border-lime-500/30' : ''}`}>
-    {/* Sombras cilíndricas de profundidad 3D */}
-    <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-black/80 to-transparent pointer-events-none z-0" />
-    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-0" />
-    
-    {/* Línea divisoria central típica de pantalla de solapa/flip */}
-    <div className="absolute top-[50%] left-0 right-0 h-[1.5px] bg-[#000000]/90 z-10" />
-    
-    {/* El dígito */}
-    <span className={`text-base sm:text-xl md:text-3xl font-black ${isLime ? 'text-lime-400 drop-shadow-[0_0_8px_rgba(163,230,53,0.55)]' : 'text-white'} font-mono select-none z-20`}>
-      {digit}
-    </span>
-  </div>
-);
-
-const DigitGroup = ({ value, label, length = 2, isLime = false }) => {
-  const digits = String(value).padStart(length, "0").split("");
-  return (
-    <div className="flex flex-col items-center">
-      <div className="flex gap-1">
-        {digits.map((digit, idx) => (
-          <DigitSlot key={idx} digit={digit} isLime={isLime} />
-        ))}
-      </div>
-      <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-slate-400 font-extrabold mt-2">
-        {label}
-      </span>
-    </div>
-  );
-};
-
-const GroupSeparator = () => (
-  <div className="flex items-center justify-center h-10 sm:h-14 md:h-16 px-1 sm:px-1.5">
-    <span className="text-sm sm:text-lg font-black text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.65)] animate-pulse">·</span>
-  </div>
-);
-
 function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -212,62 +76,6 @@ function Login() {
   const tvLoginRefs = useRef([]);
   const usernameInputRef = useRef(null);
   const passwordInputRef = useRef(null);
-
-  const [timeLeft, setTimeLeft] = useState({
-    dias: 0,
-    horas: 0,
-    minutos: 0,
-    segundos: 0,
-  });
-
-  const [nextMatch, setNextMatch] = useState({
-    equipo1: "México",
-    equipo2: "Sudáfrica",
-    fecha: "11 de Junio, 2026",
-    hora: "14:00",
-    estado: "PRÓXIMO",
-    goles1: 0,
-    goles2: 0
-  });
-
-  // Cargar el partido más próximo desde el backend
-  useEffect(() => {
-    async function loadNextMatch() {
-      try {
-        const response = await axiosInstance.get("/api/worldcup/public/next-match");
-        if (response.data) {
-          setNextMatch(response.data);
-        }
-      } catch (error) {
-        console.error("Error al cargar el próximo partido:", error);
-      }
-    }
-    loadNextMatch();
-  }, []);
-
-  // Cuenta regresiva exacta al 11 de Junio, 2026 a las 14:00 (Hora del partido inaugural)
-  useEffect(() => {
-    const targetDate = new Date("June 11, 2026 14:00:00").getTime();
-
-    const updateTimer = () => {
-      const now = new Date().getTime();
-      const difference = targetDate - now;
-
-      if (difference <= 0) {
-        setTimeLeft({ dias: 0, horas: 0, minutos: 0, segundos: 0 });
-      } else {
-        const dias = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const horas = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutos = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        const segundos = Math.floor((difference % (1000 * 60)) / 1000);
-        setTimeLeft({ dias, horas, minutos, segundos });
-      }
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const performLogin = async () => {
     setLoginError("");
@@ -371,7 +179,7 @@ function Login() {
   const getTVLoginFocusClasses = (index, baseClasses = "") => {
     if (!isTVMode) return baseClasses;
     if (tvLoginFocusIndex === index) {
-      return `${baseClasses} ring-2 ring-amber-400 ring-offset-2 ring-offset-black scale-[1.02] border-amber-400/50 shadow-[0_0_25px_rgba(251,191,36,0.4)]`;
+      return `${baseClasses} ring-2 ring-cyan-400 ring-offset-2 ring-offset-black scale-[1.02] border-cyan-400/60 shadow-[0_0_25px_rgba(34,211,238,0.4)]`;
     }
     return baseClasses;
   };
@@ -379,11 +187,11 @@ function Login() {
   return (
     <>
       <style>{`
-        .stadium-bg-custom {
+        .classic-bg-custom {
           background-color: #03010b;
           background-image: 
-            linear-gradient(to bottom, rgba(3, 1, 10, 0.45), rgba(3, 1, 10, 0.96)),
-            url("./fondo_mundial.png");
+            linear-gradient(to bottom, rgba(3, 1, 10, 0.45), rgba(3, 1, 10, 0.92)),
+            url("./fondo.png");
           background-size: cover;
           background-position: center;
           background-attachment: fixed;
@@ -391,7 +199,7 @@ function Login() {
 
         .double-bezel-outer-custom {
           border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(13, 8, 30, 0.65);
+          background: rgba(13, 8, 30, 0.7);
           backdrop-filter: blur(28px);
           -webkit-backdrop-filter: blur(28px);
           box-shadow: 
@@ -400,186 +208,52 @@ function Login() {
         }
 
         .double-bezel-inner-custom {
-          background: rgba(4, 2, 10, 0.45);
+          background: rgba(4, 2, 10, 0.5);
           border: 1px solid rgba(255, 255, 255, 0.03);
         }
 
-        .logo-glow-pink {
-          filter: drop-shadow(0 0 25px rgba(217, 70, 239, 0.45));
+        .logo-glow-large {
+          filter: drop-shadow(0 0 25px rgba(6, 182, 212, 0.45)) drop-shadow(0 0 45px rgba(168, 85, 247, 0.35));
         }
 
-        .logo-glow-combined {
-          filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.85)) drop-shadow(0 0 35px rgba(217, 70, 239, 0.6));
+        @keyframes float-logo {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
         }
-
-        @keyframes float-wizard-hat {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-6px) rotate(1.5deg); }
-        }
-        .float-wizard-hat-animation {
-          animation: float-wizard-hat 5.5s ease-in-out infinite;
-        }
-
-        /* Bloque Flip de la Cuenta Regresiva */
-        .countdown-flip-box {
-          background: rgba(15, 11, 28, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 
-            0 8px 16px rgba(0, 0, 0, 0.5),
-            0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-        }
-
-        .countdown-divider {
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: 50%;
-          height: 1px;
-          background: rgba(255, 255, 255, 0.06);
+        .float-logo-animation {
+          animation: float-logo 5s ease-in-out infinite;
         }
       `}</style>
 
       <div 
-        className={`min-h-screen flex ${isTVMode ? 'flex-row' : 'flex-col lg:flex-row'} items-center justify-center p-4 md:p-8 lg:p-12 relative overflow-hidden select-none`}
-        style={{
-          backgroundColor: "#03010b",
-          backgroundImage: "linear-gradient(to bottom, rgba(3, 1, 10, 0.45), rgba(3, 1, 10, 0.96)), url('./fondo_mundial.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundAttachment: "fixed"
-        }}
+        className={`min-h-screen flex ${isTVMode ? 'flex-row' : 'flex-col lg:flex-row'} items-center justify-center p-4 md:p-8 lg:p-12 relative overflow-hidden select-none classic-bg-custom`}
       >
         
-        {/* PANEL IZQUIERDO: CONTENIDO DE BIENVENIDA Y CUENTA REGRESIVA */}
+        {/* PANEL IZQUIERDO: LOGO DESTACADO Y BIENVENIDA (SIN ICONOS SECUNDARIOS) */}
         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 lg:p-8 max-w-2xl z-10">
           
-          {/* Sombrero de Mago Flotante */}
-          <div className="relative flex items-center justify-center h-48 md:h-60 w-full mb-6 float-wizard-hat-animation select-none">
+          {/* Logo Principal Gigante de TeamG Play */}
+          <div className="relative flex items-center justify-center h-80 sm:h-[28rem] md:h-[34rem] w-full mb-4 float-logo-animation select-none">
             <img
               src="./logo-teamg.png"
-              alt="Logo de TeamG Play"
-              className="h-36 md:h-48 object-contain logo-glow-combined"
+              alt="TeamG Play"
+              className="h-72 sm:h-[26rem] md:h-[32rem] max-h-[70vh] object-contain logo-glow-large transition-transform duration-300 hover:scale-105"
             />
           </div>
 
-          {/* Titular Copa del Mundo */}
-          <div className="mb-6 flex flex-col items-center">
-            <div className="flex items-center gap-2 mb-1">
-              <svg viewBox="0 0 100 100" className="w-6 h-6 drop-shadow-[0_0_10px_rgba(250,204,21,0.7)]">
-                <path d="M50 15 C54 15 57 18 56 22 C55 24 53 26 51 28 C55 29 59 32 58 37 C57 41 54 44 50 45 C46 44 43 41 42 37 C41 32 45 29 49 28 C47 26 45 24 44 22 C43 18 46 15 50 15 Z" fill="#FACC15" />
-                <path d="M42 37 C42 45 40 48 45 58 C47 62 47 68 45 74 C43 78 40 80 38 82 L62 82 C60 80 57 78 55 74 C53 68 53 62 55 58 C60 48 58 45 58 37 Z" fill="#EAB308" />
-                <rect x="42" y="82" width="16" height="4" fill="#10B981" rx="1" />
-                <rect x="40" y="86" width="20" height="4" fill="#FACC15" rx="1" />
-              </svg>
-              <span className="text-2xl md:text-3xl font-black text-white tracking-widest flex items-center gap-1.5">
-                <span className="text-[#3b82f6] drop-shadow-[0_0_10px_rgba(59,130,246,0.6)]">U</span>
-                <span className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.6)]">S</span>
-                <span className="text-[#ef4444] drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]">A</span>
-                <span className="text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.4)] ml-1">2026</span>
-              </span>
-            </div>
-            <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.25em] text-slate-400">
-              La Copa del Mundo está por comenzar
-            </p>
-          </div>
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2">
+            Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-pink-500">TeamG Play</span>
+          </h1>
 
-          {/* CAJA DE CUENTA REGRESIVA AL ESTILO OFICIAL FIFA 2026 */}
-          <div className="w-full max-w-md border border-indigo-500/10 bg-[#0d0722]/50 backdrop-blur-xl rounded-3xl p-5 md:p-6 mb-5 shadow-2xl relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-0.5 rounded-full bg-[#1b103c] border border-indigo-500/20 text-[10px] font-black uppercase tracking-[0.3em] text-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.25)]">
-              Faltan
-            </div>
-            
-            <div className="flex items-center justify-center gap-1 sm:gap-1.5 mt-2">
-              <DigitGroup value={timeLeft.dias} label="Días" length={timeLeft.dias >= 100 ? 3 : 2} />
-              <GroupSeparator />
-              <DigitGroup value={timeLeft.horas} label="Horas" length={2} />
-              <GroupSeparator />
-              <DigitGroup value={timeLeft.minutos} label="Minutos" length={2} />
-              <GroupSeparator />
-              <DigitGroup value={timeLeft.segundos} label="Segundos" length={2} isLime={true} />
-            </div>
-          </div>
-
-          <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-5">
-            Vive cada partido. Cada momento. En TeamG Play.
+          <p className="text-sm md:text-base text-slate-300 max-w-md font-medium leading-relaxed">
+            Tu plataforma de entretenimiento. Accede a tu cuenta para continuar disfrutando de tu contenido favorito.
           </p>
-
-          {/* INFORMACIÓN ADICIONAL DE PARTIDOS DEBAJO DEL CONTADOR */}
-          <div className="w-full max-w-md bg-[#0e0725]/45 backdrop-blur-xl border border-white/5 rounded-2xl p-4 mb-6 shadow-2xl text-center">
-            <div className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-lime-400 flex items-center justify-center gap-1">
-              🏆 TODOS LOS 104 PARTIDOS EN VIVO
-            </div>
-            
-            <div className="border-t border-white/10 my-2.5"></div>
-            
-            <div>
-              <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.25em] mb-1.5 flex items-center justify-center gap-1">
-                ⚽ {nextMatch.estado === "EN VIVO" ? "PARTIDO EN VIVO" : "PRÓXIMO PARTIDO"}
-              </div>
-              <div className="text-sm font-black text-white flex items-center justify-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <img
-                    src={getFlagUrl(nextMatch.equipo1)}
-                    alt={nextMatch.equipo1}
-                    className="w-5 h-3.5 object-cover rounded-sm border border-white/5"
-                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
-                  />
-                  <span>{nextMatch.equipo1}</span>
-                </div>
-                <span className="text-slate-400 text-xs font-extrabold">
-                  {nextMatch.estado === "EN VIVO" ? `${nextMatch.goles1 || 0} - ${nextMatch.goles2 || 0}` : "vs"}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <img
-                    src={getFlagUrl(nextMatch.equipo2)}
-                    alt={nextMatch.equipo2}
-                    className="w-5 h-3.5 object-cover rounded-sm border border-white/5"
-                    onError={(e) => { e.currentTarget.src = "https://flagcdn.com/w40/un.png"; }}
-                  />
-                  <span>{nextMatch.equipo2}</span>
-                </div>
-              </div>
-              <div className="text-[11px] text-lime-400 font-bold mt-1 tracking-wider uppercase">
-                {nextMatch.fecha} - {nextMatch.hora}
-              </div>
-            </div>
-          </div>
-
-          {/* Menú de Categorías de Deportes al pie */}
-          <div className="grid grid-cols-4 gap-2 w-full max-w-md pt-2 border-t border-white/5">
-            <div className="flex flex-col items-center">
-              <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-1">
-                <SoccerBallIcon className="w-4 h-4 text-cyan-400" />
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Partidos en Vivo</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-1">
-                <Trophy className="w-4 h-4 text-rose-500" />
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Torneos Exclusivos</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-1">
-                <PlayCircle className="w-4 h-4 text-cyan-400" />
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Contenido On Demand</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-1">
-                <Users className="w-4 h-4 text-rose-500" />
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Comunidad Global</span>
-            </div>
-          </div>
-
         </div>
 
-        {/* PANEL DERECHO: FORMULARIO DE INICIO DE SESIÓN DE CRISTAL */}
-        <div className="flex-1 w-full max-w-md p-2 lg:p-4 z-10">
-          
-          <div className="double-bezel-outer-custom rounded-[2.5rem] p-1.5 md:p-2 custom-spring-transition">
-            <div className="double-bezel-inner-custom rounded-[calc(2.5rem-0.5rem)] p-6 md:p-8">
+        {/* PANEL DERECHO: FORMULARIO DE INICIO DE SESIÓN */}
+        <div className="w-full max-w-md z-10">
+          <div className="double-bezel-outer-custom rounded-3xl p-2 md:p-3 shadow-2xl">
+            <div className="double-bezel-inner-custom rounded-[calc(1.5rem-0.25rem)] p-6 md:p-8">
               
               <div className="text-center mb-6">
                 <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
@@ -591,24 +265,8 @@ function Login() {
               </div>
 
               {loginError && (
-                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl p-4 mb-6 text-center text-sm flex flex-col items-center gap-3">
-                  <span>⚠️ {loginError}</span>
-                  {(loginError.toLowerCase().includes("aprobacion") || 
-                    loginError.toLowerCase().includes("aprobación") || 
-                    loginError.toLowerCase().includes("inactiva") ||
-                    loginError.toLowerCase().includes("pendiente")) && (
-                    <a
-                      href="https://wa.me/51912194777?text=Hola%20TeamG%20Play,%20solicito%20la%20aprobación%20de%20mi%20cuenta."
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2.5 rounded-xl font-extrabold text-xs uppercase tracking-wider transition-all duration-200 mt-1 shadow-md hover:scale-[1.03] outline-none"
-                    >
-                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                        <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.835-4.577c1.72.1.332-.751 1.944-.65 1.579.94 3.732 1.439 5.221 1.44 5.555 0 10.078-4.522 10.081-10.081.002-2.693-1.045-5.225-2.951-7.132C19.281 1.096 16.755.044 14.06.044c-5.56 0-10.083 4.523-10.086 10.083-.001 1.895.5 3.734 1.451 5.37l-1.023 3.73 3.829-.983zm13.111-6.167c-.29-.146-1.72-.85-1.987-.947-.266-.097-.46-.146-.653.146-.193.29-.747.947-.915 1.14-.167.194-.335.219-.626.073-.29-.146-1.226-.452-2.335-1.44-.863-.77-1.445-1.72-1.614-2.012-.17-.29-.018-.447.127-.592.13-.13.29-.34.436-.51.145-.17.193-.29.29-.485.097-.193.048-.364-.025-.51-.072-.145-.653-1.577-.894-2.16-.235-.568-.475-.49-.653-.5-.17-.006-.364-.007-.56-.007-.193 0-.508.073-.773.364-.266.29-1.014.99-1.014 2.412 0 1.42 1.037 2.79 1.182 2.98.145.195 2.036 3.11 4.931 4.364.688.298 1.225.476 1.643.609.692.22 1.323.19 1.82.115.554-.083 1.72-.702 1.962-1.38.242-.678.242-1.26.17-1.38-.073-.12-.266-.194-.556-.34z" />
-                      </svg>
-                      Activar por WhatsApp
-                    </a>
-                  )}
+                <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl p-3 mb-6 text-center text-sm">
+                  ⚠️ {loginError}
                 </div>
               )}
 
@@ -628,7 +286,7 @@ function Login() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     onFocus={() => isTVMode && setTVLoginFocusIndex(0)}
-                    className="w-full rounded-lg px-4 py-3 bg-black/60 border border-white/10 text-white placeholder-slate-500 transition-all duration-300 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+                    className="w-full rounded-xl px-4 py-3 bg-black/60 border border-white/10 text-white placeholder-slate-500 transition-all duration-300 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
                     disabled={isLoggingIn}
                     autoComplete="username"
                     required
@@ -651,7 +309,7 @@ function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onFocus={() => isTVMode && setTVLoginFocusIndex(1)}
-                      className="w-full rounded-lg px-4 py-3 bg-black/60 border border-white/10 text-white placeholder-slate-500 transition-all duration-300 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 pr-10"
+                      className="w-full rounded-xl px-4 py-3 bg-black/60 border border-white/10 text-white placeholder-slate-500 transition-all duration-300 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 pr-10"
                       disabled={isLoggingIn}
                       autoComplete="current-password"
                       required
@@ -686,11 +344,11 @@ function Login() {
                     type="submit"
                     disabled={isLoggingIn}
                     onFocus={() => isTVMode && setTVLoginFocusIndex(2)}
-                    className="w-full relative group overflow-hidden rounded-lg py-3.5 text-black font-black text-sm tracking-widest uppercase transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.45)]"
+                    className="w-full relative group overflow-hidden rounded-xl py-3.5 text-white font-black text-sm tracking-widest uppercase transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
                     style={{
                       background: isLoggingIn
                         ? "#4b5563"
-                        : "linear-gradient(90deg, #f59e0b, #ea580c)",
+                        : "linear-gradient(90deg, #06b6d4, #a855f7)",
                     }}
                   >
                     {isLoggingIn ? (
@@ -699,7 +357,7 @@ function Login() {
                         <span className="text-white">Procesando...</span>
                       </>
                     ) : (
-                      <span className="text-slate-950 font-black">
+                      <span className="text-white font-black">
                         Entrar
                       </span>
                     )}
@@ -713,7 +371,7 @@ function Login() {
                 <Link
                   ref={(node) => setTVLoginRef(3, node)}
                   to="/register"
-                  className={`font-semibold text-lime-400 hover:text-lime-300 transition-colors p-1 rounded ${getTVLoginFocusClasses(3, "")}`}
+                  className={`font-semibold text-cyan-400 hover:text-cyan-300 transition-colors p-1 rounded ${getTVLoginFocusClasses(3, "")}`}
                   onFocus={() => isTVMode && setTVLoginFocusIndex(3)}
                 >
                   Regístrate aquí

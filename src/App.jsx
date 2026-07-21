@@ -395,13 +395,7 @@ function App() {
                   <Link to="/peliculas" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>
                     Películas
                   </Link>
-                  <Link to="/mundial-2026" className="relative text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1 font-bold text-lime-400 mr-2" onClick={closeAllMenus}>
-                    🏆 Mundial 2026
-                    <span className="absolute -top-0.5 right-0 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
-                    </span>
-                  </Link>
+
                   
                   {/* Dropdown Contenido */}
                   <div id="desktop-content-menu" className="relative">
@@ -627,13 +621,6 @@ function App() {
                   </Link>
                   <Link to="/peliculas" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">🎬</span> Películas
-                  </Link>
-                  <Link to="/mundial-2026" className="flex items-center gap-3 text-lime-400 hover:text-lime-300 px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-bold transition" onClick={closeAllMenus}>
-                    <span className="text-lg">🏆</span> Mundial 2026
-                    <span className="flex h-2 w-2 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
-                    </span>
                   </Link>
  
                   {/* Submenu for Content */}

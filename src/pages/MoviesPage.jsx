@@ -68,7 +68,7 @@ export default function MoviesPage() {
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     const gridOptions = [5, 4, 3, 1];
-    const [gridCols, setGridCols] = useState(gridOptions[2]); // Default to 3 columns for larger cards
+    const [gridCols, setGridCols] = useState(gridOptions[0]); // Default to 6 columns for smaller cards
 
     const [collections, setCollections] = useState([]);
     const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
