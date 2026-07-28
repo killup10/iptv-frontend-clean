@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import { storage } from '../utils/storage.js';
 import { getUserSubscriptionSummary } from '../utils/userSubscription.js';
+import { isAndroidTV } from '../utils/platformUtils.js';
 
 export default function Settings() {
   const { user, logout } = useAuth();
@@ -59,6 +60,112 @@ export default function Settings() {
   const [speedTestState, setSpeedTestState] = useState('idle'); // 'idle' | 'testing' | 'completed'
   const [speedResult, setSpeedResult] = useState(0);
   const [ping, setPing] = useState(0);
+
+  // TV D-Pad navigation state
+  const isTVMode = isAndroidTV();
+  const [tvFocusIndex, setTvFocusIndex] = useState(1); // 0: Volver, 1: Mi Cuenta, 2: Seguridad, 3: Dispositivos, 4: Preferencias, 5: Cerrar Sesión
+  const tvRefs = useRef([]);
+
+  const setTvRef = (index, node) => {
+    tvRefs.current[index] = node;
+  };
+
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
+
+  useEffect(() => {
+    if (!isTVMode) return undefined;
+
+    const resolveTVAction = (event) => {
+      switch (event.key) {
+        case "ArrowUp":
+        case "ArrowDown":
+        case "ArrowLeft":
+        case "ArrowRight":
+        case "Enter":
+          return event.key;
+        default:
+          break;
+      }
+      switch (event.keyCode) {
+        case 19: return "ArrowUp";
+        case 20: return "ArrowDown";
+        case 21: return "ArrowLeft";
+        case 22: return "ArrowRight";
+        case 23:
+        case 66: return "Enter";
+        default: return null;
+      }
+    };
+
+    const handleTVKeyDown = (event) => {
+      const action = resolveTVAction(event);
+      if (!action) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (action === "ArrowUp") {
+        setTvFocusIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+
+      if (action === "ArrowDown") {
+        setTvFocusIndex((current) => Math.min(5, current + 1));
+        return;
+      }
+
+      if (action === "Enter") {
+        if (tvFocusIndex === 0) {
+          window.history.back();
+          return;
+        }
+        if (tvFocusIndex === 1) {
+          setActiveTab('account');
+          return;
+        }
+        if (tvFocusIndex === 2) {
+          setActiveTab('security');
+          return;
+        }
+        if (tvFocusIndex === 3) {
+          setActiveTab('devices');
+          return;
+        }
+        if (tvFocusIndex === 4) {
+          setActiveTab('preferences');
+          return;
+        }
+        if (tvFocusIndex === 5) {
+          handleLogout();
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleTVKeyDown, true);
+    return () => window.removeEventListener("keydown", handleTVKeyDown, true);
+  }, [isTVMode, tvFocusIndex, handleLogout]);
+
+  useEffect(() => {
+    if (isTVMode && tvRefs.current[tvFocusIndex]) {
+      try {
+        tvRefs.current[tvFocusIndex].focus({ preventScroll: true });
+      } catch {
+        tvRefs.current[tvFocusIndex]?.focus?.();
+      }
+    }
+  }, [tvFocusIndex, isTVMode]);
+
+  const getTvFocusClasses = (index, baseClasses = "") => {
+    if (!isTVMode) return baseClasses;
+    if (tvFocusIndex === index) {
+      return `${baseClasses} ring-2 ring-cyan-400 ring-offset-2 ring-offset-black scale-[1.02] border-cyan-400/80 shadow-[0_0_25px_rgba(34,211,238,0.4)]`;
+    }
+    return baseClasses;
+  };
 
   // Fetch initial configuration data
   useEffect(() => {
@@ -416,8 +523,10 @@ export default function Settings() {
             </p>
           </div>
           <button
+            ref={(node) => setTvRef(0, node)}
             onClick={() => window.history.back()}
-            className="flex items-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 focus:ring-2 focus:ring-cyan-500 rounded-full px-5 py-2.5 text-sm font-bold transition duration-200 outline-none"
+            onFocus={() => isTVMode && setTvFocusIndex(0)}
+            className={`flex items-center gap-2 border border-white/10 bg-white/5 hover:bg-white/10 focus:ring-2 focus:ring-cyan-500 rounded-full px-5 py-2.5 text-sm font-bold transition duration-200 outline-none ${getTvFocusClasses(0, "")}`}
             tabIndex={0}
           >
             <span>←</span> Volver
@@ -430,13 +539,15 @@ export default function Settings() {
           {/* Left Panel Sidebar Tabs */}
           <div className="lg:col-span-3 flex lg:flex-col flex-wrap gap-2">
             {[
-              { id: 'account', label: '👤 Mi Cuenta' },
-              { id: 'security', label: '🔒 Seguridad y PIN' },
-              { id: 'devices', label: '📱 Dispositivos Activos' },
-              { id: 'preferences', label: '⚙️ Preferencias' },
+              { id: 'account', label: '👤 Mi Cuenta', index: 1 },
+              { id: 'security', label: '🔒 Seguridad y PIN', index: 2 },
+              { id: 'devices', label: '📱 Dispositivos Activos', index: 3 },
+              { id: 'preferences', label: '⚙️ Preferencias', index: 4 },
             ].map((tab) => (
               <button
                 key={tab.id}
+                ref={(node) => setTvRef(tab.index, node)}
+                onFocus={() => isTVMode && setTvFocusIndex(tab.index)}
                 onClick={() => {
                   setActiveTab(tab.id);
                   setPinStatus({ type: '', message: '' });
@@ -446,12 +557,23 @@ export default function Settings() {
                   activeTab === tab.id
                     ? 'bg-gradient-to-r from-cyan-900/40 via-purple-900/20 to-black text-cyan-300 border-cyan-500/50 shadow-lg shadow-cyan-950/20'
                     : 'bg-white/[0.02] hover:bg-white/[0.06] text-gray-400 border-white/5'
-                }`}
+                } ${getTvFocusClasses(tab.index, "")}`}
                 tabIndex={0}
               >
                 {tab.label}
               </button>
             ))}
+
+            {/* Botón de Cerrar Sesión en Sidebar */}
+            <button
+              ref={(node) => setTvRef(5, node)}
+              onFocus={() => isTVMode && setTvFocusIndex(5)}
+              onClick={handleLogout}
+              className={`w-full text-left px-5 py-4 rounded-2xl font-black text-sm transition-all duration-300 outline-none border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 focus:ring-2 focus:ring-red-500 mt-4 ${getTvFocusClasses(5, "")}`}
+              tabIndex={0}
+            >
+              🚪 Cerrar Sesión
+            </button>
           </div>
 
           {/* Right Panel Main Panel Content */}
@@ -522,6 +644,19 @@ export default function Settings() {
                     </div>
 
                   </div>
+                </div>
+
+                <hr className="border-white/5" />
+
+                <div>
+                  <h3 className="text-2xl font-bold uppercase tracking-tight text-red-400 mb-2">Sesión</h3>
+                  <p className="text-gray-400 text-xs mb-4">Cierra tu sesión en este dispositivo para desconectar tu cuenta.</p>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-sm px-6 py-3.5 rounded-2xl shadow-lg transition duration-200 cursor-pointer"
+                  >
+                    <span>🚪</span> Cerrar Sesión
+                  </button>
                 </div>
               </div>
             )}

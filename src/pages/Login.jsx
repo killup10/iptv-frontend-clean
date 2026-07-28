@@ -156,6 +156,11 @@ function Login() {
         return;
       }
 
+      if (tvLoginFocusIndex === 2) {
+        performLogin();
+        return;
+      }
+
       tvLoginRefs.current[tvLoginFocusIndex]?.click?.();
     };
 
@@ -164,7 +169,7 @@ function Login() {
       clearTimeout(timer);
       window.removeEventListener("keydown", handleTVLoginKeyDown, true);
     };
-  }, [isLoggingIn, isTVMode, showPassword, tvLoginFocusIndex]);
+  }, [isLoggingIn, isTVMode, showPassword, tvLoginFocusIndex, username, password]);
 
   useEffect(() => {
     if (isTVMode && tvLoginRefs.current[tvLoginFocusIndex]) {
@@ -342,6 +347,7 @@ function Login() {
                 >
                   <button
                     type="submit"
+                    onClick={handleSubmit}
                     disabled={isLoggingIn}
                     onFocus={() => isTVMode && setTVLoginFocusIndex(2)}
                     className="w-full relative group overflow-hidden rounded-xl py-3.5 text-white font-black text-sm tracking-widest uppercase transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)]"
