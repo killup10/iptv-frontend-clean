@@ -63,7 +63,9 @@ export default function Settings() {
 
   // TV D-Pad navigation state
   const isTVMode = isAndroidTV();
+  const [tvFocusArea, setTvFocusArea] = useState('sidebar'); // 'sidebar' | 'content'
   const [tvFocusIndex, setTvFocusIndex] = useState(1); // 0: Volver, 1: Mi Cuenta, 2: Seguridad, 3: Dispositivos, 4: Preferencias, 5: Cerrar Sesión
+  const [contentFocusIndex, setContentFocusIndex] = useState(0);
   const tvRefs = useRef([]);
 
   const setTvRef = (index, node) => {
@@ -74,6 +76,30 @@ export default function Settings() {
     logout();
     navigate('/login', { replace: true });
   }, [logout, navigate]);
+
+  // Auto-scroll centered view on any focus event
+  useEffect(() => {
+    const handleGlobalFocus = (event) => {
+      const el = event.target;
+      if (el && typeof el.scrollIntoView === 'function') {
+        try {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        } catch (e) {
+          console.warn('Scroll error:', e);
+        }
+      }
+    };
+    window.addEventListener('focusin', handleGlobalFocus, true);
+    return () => window.removeEventListener('focusin', handleGlobalFocus, true);
+  }, []);
+
+  const getRightPanelFocusables = useCallback(() => {
+    const container = document.getElementById('settings-right-panel');
+    if (!container) return [];
+    return Array.from(
+      container.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]')
+    );
+  }, []);
 
   useEffect(() => {
     if (!isTVMode) return undefined;
@@ -104,64 +130,133 @@ export default function Settings() {
       const action = resolveTVAction(event);
       if (!action) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-
       if (action === "ArrowUp") {
-        setTvFocusIndex((current) => Math.max(0, current - 1));
+        event.preventDefault();
+        event.stopPropagation();
+        if (tvFocusArea === 'sidebar') {
+          setTvFocusIndex((current) => {
+            const next = Math.max(0, current - 1);
+            if (next === 1) setActiveTab('account');
+            if (next === 2) setActiveTab('security');
+            if (next === 3) setActiveTab('devices');
+            if (next === 4) setActiveTab('preferences');
+            return next;
+          });
+        } else {
+          const focusables = getRightPanelFocusables();
+          if (focusables.length > 0) {
+            setContentFocusIndex((current) => {
+              const next = Math.max(0, current - 1);
+              focusables[next]?.focus?.();
+              return next;
+            });
+          }
+        }
         return;
       }
 
       if (action === "ArrowDown") {
-        setTvFocusIndex((current) => Math.min(5, current + 1));
+        event.preventDefault();
+        event.stopPropagation();
+        if (tvFocusArea === 'sidebar') {
+          setTvFocusIndex((current) => {
+            const next = Math.min(5, current + 1);
+            if (next === 1) setActiveTab('account');
+            if (next === 2) setActiveTab('security');
+            if (next === 3) setActiveTab('devices');
+            if (next === 4) setActiveTab('preferences');
+            return next;
+          });
+        } else {
+          const focusables = getRightPanelFocusables();
+          if (focusables.length > 0) {
+            setContentFocusIndex((current) => {
+              const next = Math.min(focusables.length - 1, current + 1);
+              focusables[next]?.focus?.();
+              return next;
+            });
+          }
+        }
+        return;
+      }
+
+      if (action === "ArrowRight") {
+        if (tvFocusArea === 'sidebar') {
+          event.preventDefault();
+          event.stopPropagation();
+          const focusables = getRightPanelFocusables();
+          if (focusables.length > 0) {
+            setTvFocusArea('content');
+            setContentFocusIndex(0);
+            focusables[0]?.focus?.();
+          }
+        }
+        return;
+      }
+
+      if (action === "ArrowLeft") {
+        if (tvFocusArea === 'content') {
+          event.preventDefault();
+          event.stopPropagation();
+          setTvFocusArea('sidebar');
+          if (tvRefs.current[tvFocusIndex]) {
+            tvRefs.current[tvFocusIndex].focus({ preventScroll: true });
+          }
+        }
         return;
       }
 
       if (action === "Enter") {
-        if (tvFocusIndex === 0) {
-          window.history.back();
-          return;
-        }
-        if (tvFocusIndex === 1) {
-          setActiveTab('account');
-          return;
-        }
-        if (tvFocusIndex === 2) {
-          setActiveTab('security');
-          return;
-        }
-        if (tvFocusIndex === 3) {
-          setActiveTab('devices');
-          return;
-        }
-        if (tvFocusIndex === 4) {
-          setActiveTab('preferences');
-          return;
-        }
-        if (tvFocusIndex === 5) {
-          handleLogout();
-          return;
+        if (tvFocusArea === 'sidebar') {
+          event.preventDefault();
+          event.stopPropagation();
+          if (tvFocusIndex === 0) {
+            window.history.back();
+            return;
+          }
+          if (tvFocusIndex === 1) {
+            setActiveTab('account');
+            return;
+          }
+          if (tvFocusIndex === 2) {
+            setActiveTab('security');
+            return;
+          }
+          if (tvFocusIndex === 3) {
+            setActiveTab('devices');
+            return;
+          }
+          if (tvFocusIndex === 4) {
+            setActiveTab('preferences');
+            return;
+          }
+          if (tvFocusIndex === 5) {
+            handleLogout();
+            return;
+          }
         }
       }
     };
 
     window.addEventListener("keydown", handleTVKeyDown, true);
     return () => window.removeEventListener("keydown", handleTVKeyDown, true);
-  }, [isTVMode, tvFocusIndex, handleLogout]);
+  }, [isTVMode, tvFocusArea, tvFocusIndex, handleLogout, getRightPanelFocusables]);
 
   useEffect(() => {
-    if (isTVMode && tvRefs.current[tvFocusIndex]) {
+    if (isTVMode && tvFocusArea === 'sidebar' && tvRefs.current[tvFocusIndex]) {
+      const el = tvRefs.current[tvFocusIndex];
       try {
-        tvRefs.current[tvFocusIndex].focus({ preventScroll: true });
+        el.focus({ preventScroll: true });
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       } catch {
-        tvRefs.current[tvFocusIndex]?.focus?.();
+        el?.focus?.();
       }
     }
-  }, [tvFocusIndex, isTVMode]);
+  }, [tvFocusIndex, tvFocusArea, isTVMode]);
 
   const getTvFocusClasses = (index, baseClasses = "") => {
     if (!isTVMode) return baseClasses;
-    if (tvFocusIndex === index) {
+    if (tvFocusArea === 'sidebar' && tvFocusIndex === index) {
       return `${baseClasses} ring-2 ring-cyan-400 ring-offset-2 ring-offset-black scale-[1.02] border-cyan-400/80 shadow-[0_0_25px_rgba(34,211,238,0.4)]`;
     }
     return baseClasses;
@@ -577,7 +672,7 @@ export default function Settings() {
           </div>
 
           {/* Right Panel Main Panel Content */}
-          <div className="lg:col-span-9 bg-[#080d21]/60 border border-white/5 rounded-[2rem] p-6 md:p-8 backdrop-blur-md shadow-2xl">
+          <div id="settings-right-panel" className="lg:col-span-9 bg-[#080d21]/60 border border-white/5 rounded-[2rem] p-6 md:p-8 backdrop-blur-md shadow-2xl">
             
             {/* Tab: Cuenta (Account) */}
             {activeTab === 'account' && (
