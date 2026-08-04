@@ -51,7 +51,7 @@ export function getTVItemYear(item) {
   );
 }
 
-export function getTVItemGenre(item) {
+export function getTVItemGenreList(item) {
   let rawGenres = [];
   if (Array.isArray(item?.genres)) {
     rawGenres = item.genres;
@@ -74,7 +74,14 @@ export function getTVItemGenre(item) {
     }
   }
 
-  const cleanGenres = rawGenres
+  const splitGenres = rawGenres.flatMap(g => {
+    if (typeof g === 'string') {
+      return g.split(/[,\/;]+/).map(s => s.trim());
+    }
+    return g;
+  });
+
+  return splitGenres
     .map(g => String(g || '').trim())
     .filter(g => {
       if (!g) return false;
@@ -89,7 +96,10 @@ export function getTVItemGenre(item) {
         !gl.includes('hd')
       );
     });
+}
 
+export function getTVItemGenre(item) {
+  const cleanGenres = getTVItemGenreList(item);
   if (cleanGenres.length > 0) {
     return cleanGenres.slice(0, 2).join(', ');
   }
@@ -334,6 +344,17 @@ export function isTVItem60FPS(item) {
     token.includes('60-fps') ||
     token.includes('fps60')
   ));
+}
+
+export function getTVItemQualityDisplay(item) {
+  const is4k = isTVItem4K(item);
+  const is60 = isTVItem60FPS(item);
+
+  const baseQuality = is4k ? '4K' : 'FULLHD';
+  if (is60) {
+    return `${baseQuality} / 60 FPS`;
+  }
+  return baseQuality;
 }
 
 export function getTVItemQualityBadges(item) {

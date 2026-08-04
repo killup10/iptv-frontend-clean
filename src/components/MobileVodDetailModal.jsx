@@ -4,8 +4,10 @@ import {
   getTVItemBackdrop,
   getTVItemDescription,
   getTVItemGenre,
+  getTVItemGenreList,
   getTVItemImage,
   getTVItemQualityBadges,
+  getTVItemQualityDisplay,
   getTVItemRating,
   getTVItemSeasons,
   getTVItemTitle,
@@ -285,6 +287,7 @@ export default function MobileVodDetailModal({
   const rating = getTVItemRating(modalItem);
   const year = getTVItemYear(modalItem);
   const genre = getTVItemGenre(modalItem);
+  const genreList = getTVItemGenreList(modalItem);
   const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
   const trailerUrl = getTVItemTrailerUrl(modalItem);
   const hasTrailer = Boolean(trailerUrl && onTrailer);
@@ -319,7 +322,7 @@ export default function MobileVodDetailModal({
   const metaBadges = [
     TYPE_LABELS[resolvedType] || 'VOD',
     year,
-    genre,
+    ...genreList,
     rating ? `TMDb ${rating}` : '',
     ...qualityBadges,
   ].filter(Boolean).slice(0, 6);
@@ -327,9 +330,8 @@ export default function MobileVodDetailModal({
   const detailStats = [
     hasEpisodesContent ? { label: 'Temporadas', value: String(totalSeasonCount) } : null,
     hasEpisodesContent ? { label: 'Episodios', value: String(totalEpisodeCount) } : null,
-    genre ? { label: 'Genero', value: genre } : null,
+    { label: 'Calidad', value: getTVItemQualityDisplay(modalItem) },
     rating ? { label: 'TMDb', value: rating } : null,
-    qualityBadges.length > 0 ? { label: 'Calidad', value: qualityBadges.join(' / ') } : null,
   ].filter(Boolean);
 
   const currentEpisodeSummary = hasEpisodesContent && selectedEpisode
