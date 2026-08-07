@@ -134,19 +134,21 @@ export function Home() {
   const [backgroundItems, setBackgroundItems] = useState(() => initialCachedHomeData?.allSearchItems || []);
   const [contentError, setContentError] = useState(null);
 
-  const filterByCategory = (items, genresList, keywordsList = [], excludeKeywords = []) => {
+  const filterByCategory = (items, genresList, keywordsList = [], excludeKeywords = [], maxCount = 12) => {
     if (!Array.isArray(items) || items.length === 0) return [];
+    const result = [];
     const seen = new Set();
     const lowerGenres = genresList.map(g => g.toLowerCase());
     const lowerKeywords = keywordsList.map(k => k.toLowerCase());
     const lowerExcludes = excludeKeywords.map(e => e.toLowerCase());
 
-    return items.filter(item => {
-      if (!item) return false;
+    for (let i = 0; i < items.length; i++) {
+      if (result.length >= maxCount) break;
+      const item = items[i];
+      if (!item) continue;
       const id = item._id || item.id;
-      if (!id || seen.has(id)) return false;
-
-      if (item.tipo === 'canal' || item.type === 'channel' || item.isChannel) return false;
+      if (!id || seen.has(id)) continue;
+      if (item.tipo === 'canal' || item.type === 'channel' || item.isChannel) continue;
 
       const itemGenres = Array.isArray(item.genres)
         ? item.genres.map(g => String(g).toLowerCase())
@@ -154,36 +156,38 @@ export function Home() {
 
       const itemSubcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
       const itemTitle = String(item.title || item.name || '').toLowerCase();
-      const itemDesc = String(item.description || '').toLowerCase();
       const itemTipo = String(item.tipo || '').toLowerCase();
 
       if (lowerExcludes.some(ex => itemTitle.includes(ex) || itemGenres.some(g => g.includes(ex)))) {
-        return false;
+        continue;
       }
 
       if (genresList.includes('familia')) {
         if (itemTipo === 'zona kids' || itemSubcat.includes('disney') || itemSubcat.includes('animada') || itemSubcat.includes('kids') || itemSubcat.includes('infantil')) {
           seen.add(id);
-          return true;
+          result.push(item);
+          continue;
         }
       }
 
       const genreMatch = lowerGenres.some(g => itemGenres.some(ig => ig.includes(g)) || itemSubcat.includes(g));
       if (genreMatch) {
         seen.add(id);
-        return true;
+        result.push(item);
+        continue;
       }
 
       if (lowerKeywords.length > 0) {
-        const keywordMatch = lowerKeywords.some(kw => itemTitle.includes(kw) || itemDesc.includes(kw));
+        const keywordMatch = lowerKeywords.some(kw => itemTitle.includes(kw));
         if (keywordMatch) {
           seen.add(id);
-          return true;
+          result.push(item);
+          continue;
         }
       }
+    }
 
-      return false;
-    });
+    return result;
   };
 
   const allContentPool = useMemo(() => {
@@ -205,7 +209,7 @@ export function Home() {
     addItems(featuredDoramas);
     addItems(featuredNovelas);
     addItems(featuredDocumentales);
-    addItems(backgroundItems);
+    // Sin incluir backgroundItems para evitar escanear miles de items pesados en hilo principal
 
     return Array.from(map.values());
   }, [
@@ -216,7 +220,6 @@ export function Home() {
     featuredDoramas,
     featuredNovelas,
     featuredDocumentales,
-    backgroundItems,
   ]);
 
   const adventureItems = useMemo(() => (
