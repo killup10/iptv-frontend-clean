@@ -28,6 +28,7 @@ import { Bolt, Download, Headphones, Heart, Laptop, ShieldCheck, Smartphone } fr
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import CoverCarousel from '../components/CoverCarousel.jsx';
 import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
+import { getTVItemTrailerUrl, resolveTVItemType } from '../utils/tvContentUtils.js';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import { itemMatchesGenre } from '../utils/genreUtils.js';
 
@@ -131,6 +132,7 @@ export function Home() {
   const [featuredDocumentales, setFeaturedDocumentales] = useState(() => initialCachedHomeData?.featuredDocumentales || []);
   const [recentlyAdded, setRecentlyAdded] = useState(() => initialCachedHomeData?.recentlyAdded || []);
   const [continueWatchingItems, setContinueWatchingItems] = useState(() => initialCachedHomeData?.continueWatchingItems || []);
+  const [featured4KMovies, setFeatured4KMovies] = useState(() => initialCachedHomeData?.featured4KMovies || []);
   const [backgroundItems, setBackgroundItems] = useState(() => initialCachedHomeData?.allSearchItems || []);
   const [contentError, setContentError] = useState(null);
 
@@ -139,6 +141,11 @@ export function Home() {
     const result = [];
     const seen = new Set();
     const lowerKeywords = keywordsList.map(k => k.toLowerCase());
+
+    const isFamilyCategory = targetGenres.some(g => {
+      const lower = String(g).toLowerCase();
+      return lower.includes('familiar') || lower.includes('infantil') || lower.includes('family') || lower.includes('kids');
+    });
 
     for (let i = 0; i < items.length; i++) {
       if (result.length >= maxCount) break;
@@ -150,6 +157,11 @@ export function Home() {
       // EXCLUSIVAMENTE PELÍCULAS: Excluir canales, series, animes, doramas, novelas, documentales
       const tipo = String(item.tipo || item.type || item.itemType || '').toLowerCase();
       const subcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
+      const itemTitle = String(item.title || item.name || '').toLowerCase();
+      const itemGenres = Array.isArray(item.genres)
+        ? item.genres.map(g => String(g).toLowerCase())
+        : item.genre ? [String(item.genre).toLowerCase()] : [];
+
       if (
         tipo === 'canal' ||
         tipo === 'channel' ||
@@ -168,6 +180,31 @@ export function Home() {
         continue;
       }
 
+      // EXCLUIR contenido Infantil / Disney / Pixar / Zona Kids de categorías no familiares (Terror, Acción, Ciencia Ficción)
+      const isKidsOrFamilyItem =
+        tipo === 'zona kids' ||
+        subcat.includes('disney') ||
+        subcat.includes('pixar') ||
+        subcat.includes('kids') ||
+        subcat.includes('infantil') ||
+        subcat.includes('animada') ||
+        itemGenres.some(g => g.includes('infantil') || g.includes('kids') || g.includes('familiar') || g.includes('animación') || g.includes('animacion')) ||
+        itemTitle.includes('zootopia') ||
+        itemTitle.includes('101 dalmatas') ||
+        itemTitle.includes('mario') ||
+        itemTitle.includes('minions') ||
+        itemTitle.includes('toy story') ||
+        itemTitle.includes('shrek') ||
+        itemTitle.includes('frozen') ||
+        itemTitle.includes('moana') ||
+        itemTitle.includes('encanto') ||
+        itemTitle.includes('nemo') ||
+        itemTitle.includes('cars');
+
+      if (!isFamilyCategory && isKidsOrFamilyItem) {
+        continue;
+      }
+
       let matches = false;
       for (const targetGenre of targetGenres) {
         if (itemMatchesGenre(item, targetGenre)) {
@@ -177,7 +214,6 @@ export function Home() {
       }
 
       if (!matches && lowerKeywords.length > 0) {
-        const itemTitle = String(item.title || item.name || '').toLowerCase();
         if (lowerKeywords.some(kw => itemTitle.includes(kw))) {
           matches = true;
         }
@@ -282,6 +318,50 @@ export function Home() {
       ['acción', 'action', 'combate', 'guerra', 'soldado', 'agente', 'misión', 'furia', 'wick', 'fast', 'rapidos', 'velocidad']
     )
   ), [moviesPool]);
+
+  const cine4KItems = useMemo(() => {
+    const map = new Map();
+    const addItems = (items) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((item) => {
+        if (!item) return;
+        const id = item._id || item.id;
+        if (!id || map.has(id)) return;
+        map.set(id, item);
+      });
+    };
+
+    addItems(featured4KMovies);
+
+    if (Array.isArray(moviesPool)) {
+      moviesPool.forEach((item) => {
+        if (!item) return;
+        const id = item._id || item.id;
+        if (!id || map.has(id)) return;
+
+        const subcat = String(item.subcategoria || item.categoria || item.mainSection || item.section || '').toLowerCase();
+        const title = String(item.title || item.name || '').toLowerCase();
+        const genres = Array.isArray(item.genres)
+          ? item.genres.map((g) => String(g).toLowerCase())
+          : item.genre ? [String(item.genre).toLowerCase()] : [];
+
+        if (
+          subcat.includes('4k') ||
+          subcat.includes('ultrahd') ||
+          subcat.includes('ultra hd') ||
+          subcat.includes('cine 4k') ||
+          title.includes('4k') ||
+          genres.some((g) => g.includes('4k') || g.includes('ultrahd')) ||
+          item.is4k === true ||
+          item.resolution === '4K'
+        ) {
+          map.set(id, item);
+        }
+      });
+    }
+
+    return Array.from(map.values()).slice(0, 20);
+  }, [featured4KMovies, moviesPool]);
   const [mobileVodDetail, setMobileVodDetail] = useState(null);
 
   // State for trailer modal
@@ -556,6 +636,7 @@ export function Home() {
           fetchFeaturedDoramas(),
           fetchFeaturedNovelas(),
           fetchFeaturedDocumentales(),
+          fetchUserMovies(1, 40, 'CINE_4K'),
         ]);
         console.timeEnd('[Home.jsx] Phase 1: Critical data load time');
 
@@ -569,6 +650,7 @@ export function Home() {
           featuredDoramasResult,
           featuredNovelasResult,
           featuredDocumentalesResult,
+          featured4KResult,
         ] = criticalResults;
 
         // Procesar datos visuales
@@ -581,6 +663,7 @@ export function Home() {
         const processedFeaturedDoramas = processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
         const processedFeaturedNovelas = processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
         const processedFeaturedDocumentales = processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
+        const processedFeatured4K = processResult(featured4KResult, setFeatured4KMovies, 'Featured 4K Movies', 20);
 
         // Mostrar UI inmediatamente
         setLoading(false);
@@ -913,19 +996,20 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
   const tvSections = [
     { title: 'Recién Agregados', items: recentlyAdded },
     { title: 'Continuar Viendo', items: continueWatchingItems },
+    { title: 'Canales en Vivo Destacados', items: featuredChannels },
+    { title: 'Películas Destacadas', items: featuredMovies },
+    { title: 'Cine 4K Ultra HD', items: cine4KItems },
+    { title: 'Series Populares', items: featuredSeries },
+    { title: 'Animes Destacados', items: featuredAnimes },
+    { title: 'Series Asiáticas Populares', items: featuredDoramas },
+    { title: 'Novelas Destacadas', items: featuredNovelas },
+    { title: 'Documentales Imperdibles', items: featuredDocumentales },
     { title: 'Aventura para Todos', items: adventureItems },
     { title: 'Para la Familia', items: familyItems },
     { title: 'Terror y Suspenso', items: horrorItems },
     { title: 'Acción y Adrenalina', items: actionItems },
-    { title: 'Películas Destacadas', items: featuredMovies },
-    { title: 'Series Populares', items: featuredSeries },
     { title: 'Ciencia Ficción y Fantasía', items: sciFiItems },
     { title: 'Comedia y Risas', items: comedyItems },
-    { title: 'Canales en Vivo', items: featuredChannels },
-    { title: 'Animes', items: featuredAnimes },
-    { title: 'Series Asiáticas', items: featuredDoramas },
-    { title: 'Novelas', items: featuredNovelas },
-    { title: 'Documentales', items: featuredDocumentales },
   ].filter(section => section.items && section.items.length > 0);
 
   const normalizedTVSections = tvSections.map((section) => {
@@ -1096,6 +1180,108 @@ onProceedWithTrial={proceedWithTrial}
                 showPlanLock={false}
               />
             )}
+            {featuredChannels.length > 0 && (
+              <Carousel
+                title="Canales en Vivo Destacados"
+                items={featuredChannels}
+                onItemClick={(item) => handleMobileVodSelection(item, 'channel')}
+                itemType="channel"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredMovies.length > 0 && (
+              <Carousel
+                title="Películas Destacadas"
+                items={featuredMovies}
+                onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="movie"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {cine4KItems.length > 0 && (
+              <Carousel
+                title="Cine 4K Ultra HD"
+                items={cine4KItems}
+                onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="movie"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredSeries.length > 0 && (
+              <Carousel
+                title="Series Populares"
+                items={featuredSeries}
+                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="serie"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredAnimes.length > 0 && (
+              <Carousel
+                title="Animes Destacados"
+                items={featuredAnimes}
+                onItemClick={(item) => handleMobileVodSelection(item, 'anime')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="anime"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredDoramas.length > 0 && (
+              <Carousel
+                title="Series Asiáticas Populares"
+                items={featuredDoramas}
+                onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="dorama"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredNovelas.length > 0 && (
+              <Carousel
+                title="Novelas Destacadas"
+                items={featuredNovelas}
+                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="serie"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {featuredDocumentales.length > 0 && (
+              <Carousel
+                title="Documentales Imperdibles"
+                items={featuredDocumentales}
+                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType="serie"
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
             {adventureItems.length > 0 && (
               <Carousel
                 title="Aventura para Todos"
@@ -1175,95 +1361,6 @@ onProceedWithTrial={proceedWithTrial}
                 onAddToMyListClick={handleAddToMyListSafe}
                 itemType={(item) => item.tipo || item.itemType || 'movie'}
                 showItemTypeBadge={true}
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredChannels.length > 0 && (
-              <Carousel
-                title="Canales en Vivo Destacados"
-                items={featuredChannels}
-                onItemClick={(item) => handleMobileVodSelection(item, 'channel')}
-                itemType="channel"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredMovies.length > 0 && (
-              <Carousel
-                title="Peliculas Destacadas"
-                items={featuredMovies}
-                onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="movie"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredSeries.length > 0 && (
-              <Carousel
-                title="Series Populares"
-                items={featuredSeries}
-                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="serie"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredAnimes.length > 0 && (
-              <Carousel
-                title="Animes Destacados"
-                items={featuredAnimes}
-                onItemClick={(item) => handleMobileVodSelection(item, 'anime')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="anime"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredDoramas.length > 0 && (
-              <Carousel
-                title="Series Asiáticas Populares"
-                items={featuredDoramas}
-                onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="dorama"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredNovelas.length > 0 && (
-              <Carousel
-                title="Novelas Destacadas"
-                items={featuredNovelas}
-                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="serie"
-                variant="classic"
-                cardVariant="classic"
-                showPlanLock={false}
-              />
-            )}
-            {featuredDocumentales.length > 0 && (
-              <Carousel
-                title="Documentales Imperdibles"
-                items={featuredDocumentales}
-                onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
-                onPlayTrailerClick={handlePlayTrailerClick}
-                onAddToMyListClick={handleAddToMyListSafe}
-                itemType="serie"
                 variant="classic"
                 cardVariant="classic"
                 showPlanLock={false}
@@ -1448,6 +1545,132 @@ onProceedWithTrial={proceedWithTrial}
             showPlanLock={false}
           />
         )}
+        {featuredChannels.length > 0 && (
+          <Carousel
+            title="Canales en Vivo Destacados"
+            subtitle="Lo mas visto ahora mismo."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/live-tv')}
+            items={featuredChannels}
+            onItemClick={(item) => handleMobileVodSelection(item, 'channel')}
+            itemType="channel"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredMovies.length > 0 && (
+          <Carousel
+            title="Películas Destacadas"
+            subtitle="Estrenos, favoritos del catalogo."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/peliculas')}
+            items={featuredMovies}
+            onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType="movie"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {cine4KItems.length > 0 && (
+          <Carousel
+            title="Cine 4K Ultra HD"
+            subtitle="Películas en la más alta resolución 4K Ultra HD."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={cine4KItems}
+            onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType="movie"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredSeries.length > 0 && (
+          <Carousel
+            title="Series Populares"
+            subtitle="Temporadas, episodios y maratones listos para ver."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/series')}
+            items={featuredSeries}
+            onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType="serie"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredAnimes.length > 0 && (
+          <Carousel
+            title="Animes Destacados"
+            subtitle="Shonen, fantasia y joyas recien agregadas."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/animes')}
+            items={featuredAnimes}
+            onItemClick={(item) => handleMobileVodSelection(item, 'anime')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType="anime"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredDoramas.length > 0 && (
+          <Carousel
+            title="Series Asiáticas Populares"
+            subtitle="Historias intensas para maratonear esta semana."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/doramas')}
+            items={featuredDoramas}
+            onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType="dorama"
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredNovelas.length > 0 && (
+          <Carousel
+            title="Novelas Destacadas"
+            subtitle="Clasicos y nuevas historias siempre a mano."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/novelas')}
+            items={featuredNovelas}
+            onItemClick={(item) => handleMobileVodSelection(item, 'novela')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || 'novela'}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {featuredDocumentales.length > 0 && (
+          <Carousel
+            title="Documentales Imperdibles"
+            subtitle="Historia, crimen, naturaleza y mucho mas."
+            actionLabel="Ver todos"
+            onActionClick={() => navigate('/documentales')}
+            items={featuredDocumentales}
+            onItemClick={(item) => handleMobileVodSelection(item, 'documental')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || 'documental'}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
         {adventureItems.length > 0 && (
           <Carousel
             title="Aventura para Todos"
@@ -1545,116 +1768,6 @@ onProceedWithTrial={proceedWithTrial}
             onAddToMyListClick={handleAddToMyListSafe}
             itemType={(item) => item.tipo || item.itemType || 'movie'}
             showItemTypeBadge={true}
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredChannels.length > 0 && (
-          <Carousel
-            title="Canales en Vivo Destacados"
-            subtitle="Lo mas visto ahora mismo."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/live-tv')}
-            items={featuredChannels}
-            onItemClick={(item) => handleMobileVodSelection(item, 'channel')}
-            itemType="channel"
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredMovies.length > 0 && (
-          <Carousel
-            title="Películas Destacadas"
-            subtitle="Estrenos, 4K y favoritos del catalogo."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/peliculas')}
-            items={featuredMovies}
-            onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType="movie"
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredSeries.length > 0 && (
-          <Carousel
-            title="Series Populares"
-            subtitle="Temporadas, episodios y maratones listos para ver."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/series')}
-            items={featuredSeries}
-            onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType="serie"
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredAnimes.length > 0 && (
-          <Carousel
-            title="Animes Destacados"
-            subtitle="Shonen, fantasia y joyas recien agregadas."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/animes')}
-            items={featuredAnimes}
-            onItemClick={(item) => handleMobileVodSelection(item, 'anime')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType="anime"
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredDoramas.length > 0 && (
-          <Carousel
-            title="Series Asiáticas Populares"
-            subtitle="Historias intensas para maratonear esta semana."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/doramas')}
-            items={featuredDoramas}
-            onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType="dorama"
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredNovelas.length > 0 && (
-          <Carousel
-            title="Novelas Destacadas"
-            subtitle="Clasicos y nuevas historias siempre a mano."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/novelas')}
-            items={featuredNovelas}
-            onItemClick={(item) => handleMobileVodSelection(item, 'novela')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType={(item) => item.tipo || 'novela'}
-            variant="brand"
-            cardVariant="brand"
-            showPlanLock={false}
-          />
-        )}
-        {featuredDocumentales.length > 0 && (
-          <Carousel
-            title="Documentales Imperdibles"
-            subtitle="Historia, crimen, naturaleza y mucho mas."
-            actionLabel="Ver todos"
-            onActionClick={() => navigate('/documentales')}
-            items={featuredDocumentales}
-            onItemClick={(item) => handleMobileVodSelection(item, 'documental')}
-            onPlayTrailerClick={handlePlayTrailerClick}
-            onAddToMyListClick={handleAddToMyListSafe}
-            itemType={(item) => item.tipo || 'documental'}
             variant="brand"
             cardVariant="brand"
             showPlanLock={false}
