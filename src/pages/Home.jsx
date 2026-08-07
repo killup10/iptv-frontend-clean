@@ -28,8 +28,8 @@ import { Bolt, Download, Headphones, Heart, Laptop, ShieldCheck, Smartphone } fr
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import CoverCarousel from '../components/CoverCarousel.jsx';
 import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
-import { getTVItemTrailerUrl, resolveTVItemType } from '../utils/tvContentUtils.js';
 import { addItemToMyList } from '../utils/myListUtils.js';
+import { itemMatchesGenre } from '../utils/genreUtils.js';
 
 // Helper to process settled promises
 const processResult = (result, setter, name, slice = 0) => {
@@ -134,13 +134,11 @@ export function Home() {
   const [backgroundItems, setBackgroundItems] = useState(() => initialCachedHomeData?.allSearchItems || []);
   const [contentError, setContentError] = useState(null);
 
-  const filterByCategory = (items, genresList, keywordsList = [], excludeKeywords = [], maxCount = 12) => {
+  const filterByCategory = (items, targetGenres = [], keywordsList = [], maxCount = 20) => {
     if (!Array.isArray(items) || items.length === 0) return [];
     const result = [];
     const seen = new Set();
-    const lowerGenres = genresList.map(g => g.toLowerCase());
     const lowerKeywords = keywordsList.map(k => k.toLowerCase());
-    const lowerExcludes = excludeKeywords.map(e => e.toLowerCase());
 
     for (let i = 0; i < items.length; i++) {
       if (result.length >= maxCount) break;
@@ -148,127 +146,142 @@ export function Home() {
       if (!item) continue;
       const id = item._id || item.id;
       if (!id || seen.has(id)) continue;
-      if (item.tipo === 'canal' || item.type === 'channel' || item.isChannel) continue;
 
-      const itemGenres = Array.isArray(item.genres)
-        ? item.genres.map(g => String(g).toLowerCase())
-        : item.genre ? [String(item.genre).toLowerCase()] : [];
-
-      const itemSubcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
-      const itemTitle = String(item.title || item.name || '').toLowerCase();
-      const itemTipo = String(item.tipo || '').toLowerCase();
-
-      if (lowerExcludes.some(ex => itemTitle.includes(ex) || itemGenres.some(g => g.includes(ex)))) {
+      // EXCLUSIVAMENTE PELÍCULAS: Excluir canales, series, animes, doramas, novelas, documentales
+      const tipo = String(item.tipo || item.type || item.itemType || '').toLowerCase();
+      const subcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
+      if (
+        tipo === 'canal' ||
+        tipo === 'channel' ||
+        item.isChannel ||
+        tipo === 'serie' ||
+        tipo === 'series' ||
+        tipo === 'anime' ||
+        tipo === 'dorama' ||
+        tipo === 'novela' ||
+        tipo === 'documental' ||
+        subcat.includes('anime') ||
+        subcat.includes('dorama') ||
+        subcat.includes('novela') ||
+        subcat.includes('documental')
+      ) {
         continue;
       }
 
-      if (genresList.includes('familia')) {
-        if (itemTipo === 'zona kids' || itemSubcat.includes('disney') || itemSubcat.includes('animada') || itemSubcat.includes('kids') || itemSubcat.includes('infantil')) {
-          seen.add(id);
-          result.push(item);
-          continue;
+      let matches = false;
+      for (const targetGenre of targetGenres) {
+        if (itemMatchesGenre(item, targetGenre)) {
+          matches = true;
+          break;
         }
       }
 
-      const genreMatch = lowerGenres.some(g => itemGenres.some(ig => ig.includes(g)) || itemSubcat.includes(g));
-      if (genreMatch) {
+      if (!matches && lowerKeywords.length > 0) {
+        const itemTitle = String(item.title || item.name || '').toLowerCase();
+        if (lowerKeywords.some(kw => itemTitle.includes(kw))) {
+          matches = true;
+        }
+      }
+
+      if (matches) {
         seen.add(id);
         result.push(item);
-        continue;
-      }
-
-      if (lowerKeywords.length > 0) {
-        const keywordMatch = lowerKeywords.some(kw => itemTitle.includes(kw));
-        if (keywordMatch) {
-          seen.add(id);
-          result.push(item);
-          continue;
-        }
       }
     }
 
     return result;
   };
 
-  const allContentPool = useMemo(() => {
+  // Pool enfocado 100% en PELÍCULAS
+  const moviesPool = useMemo(() => {
     const map = new Map();
-    const addItems = (items) => {
+    const addMovies = (items) => {
       if (!Array.isArray(items)) return;
       items.forEach((item) => {
-        const id = item?._id || item?.id;
-        if (id && !map.has(id)) {
-          map.set(id, item);
+        if (!item) return;
+        const id = item._id || item.id;
+        if (!id || map.has(id)) return;
+
+        const tipo = String(item.tipo || item.type || item.itemType || '').toLowerCase();
+        const subcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
+
+        // Filtro estricto para incluir SOLO películas (no series, no animes, no doramas, etc.)
+        if (
+          tipo === 'canal' ||
+          tipo === 'channel' ||
+          item.isChannel ||
+          tipo === 'serie' ||
+          tipo === 'series' ||
+          tipo === 'anime' ||
+          tipo === 'dorama' ||
+          tipo === 'novela' ||
+          tipo === 'documental' ||
+          subcat.includes('anime') ||
+          subcat.includes('dorama') ||
+          subcat.includes('novela') ||
+          subcat.includes('documental')
+        ) {
+          return;
         }
+
+        map.set(id, item);
       });
     };
 
-    addItems(recentlyAdded);
-    addItems(featuredMovies);
-    addItems(featuredSeries);
-    addItems(featuredAnimes);
-    addItems(featuredDoramas);
-    addItems(featuredNovelas);
-    addItems(featuredDocumentales);
-    // Sin incluir backgroundItems para evitar escanear miles de items pesados en hilo principal
+    addMovies(featuredMovies);
+    addMovies(recentlyAdded);
+    addMovies(backgroundItems);
 
     return Array.from(map.values());
-  }, [
-    recentlyAdded,
-    featuredMovies,
-    featuredSeries,
-    featuredAnimes,
-    featuredDoramas,
-    featuredNovelas,
-    featuredDocumentales,
-  ]);
+  }, [featuredMovies, recentlyAdded, backgroundItems]);
 
   const adventureItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['aventura', 'adventure', 'acción y aventura'],
-      ['aventura', 'adventure', 'avenger', 'marvel', 'spider', 'batman', 'jurassic', 'indiana', 'piratas', 'avatar', 'héroe', 'hero', 'misión', 'superhero', 'mando', 'star wars']
+      moviesPool,
+      ['Aventura', 'Acción y Aventura'],
+      ['aventura', 'adventure', 'avenger', 'marvel', 'spider', 'batman', 'jurassic', 'indiana', 'piratas', 'avatar', 'mando', 'star wars']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
 
   const familyItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['familia', 'family', 'familiar', 'infantil', 'kids', 'animación', 'animation'],
+      moviesPool,
+      ['Familiar', 'Infantil', 'Kids', 'Animación'],
       ['familia', 'family', 'infantil', 'kids', 'niños', 'disney', 'pixar', 'mario', 'minions', 'shrek', 'toy story', 'muñecos', 'perros', 'gatos', 'dragón', 'encanto', 'moana', 'frozen', 'intensamente', 'nemo', 'coco', 'cars']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
 
   const horrorItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['terror', 'horror', 'suspenso', 'thriller', 'misterio'],
-      ['terror', 'horror', 'suspenso', 'misterio', 'miedo', 'demonio', 'siniestro', 'exorcista', 'conjuro', 'paranormal', 'fantasma', 'halloween', 'noche', 'muerte', 'asesino', 'alien', 'zombie', 'saw', 'it', 'scream', 'valak', 'annabelle', 'evil']
+      moviesPool,
+      ['Terror', 'Suspenso', 'Misterio'],
+      ['terror', 'horror', 'suspenso', 'misterio', 'demonio', 'exorcista', 'conjuro', 'paranormal', 'fantasma', 'halloween', 'asesino', 'alien', 'zombie', 'saw', 'scream', 'valak', 'annabelle']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
 
   const sciFiItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['ciencia ficción', 'sci-fi', 'fantasía', 'fantasy'],
+      moviesPool,
+      ['Ciencia Ficción', 'Fantasía'],
       ['ciencia ficcion', 'sci-fi', 'fantasia', 'magia', 'galaxia', 'estelar', 'matrix', 'star wars', 'dune', 'avatar', 'cyber', 'futuro', 'universo', 'multiverso', 'robots', 'terminator', 'transformer']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
 
   const comedyItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['comedia', 'comedy', 'humor'],
-      ['comedia', 'comedy', 'humor', 'risa', 'locura', 'divertido', 'divertida', 'chiste', 'broma']
+      moviesPool,
+      ['Comedia'],
+      ['comedia', 'comedy', 'humor', 'risa', 'chiste']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
 
   const actionItems = useMemo(() => (
     filterByCategory(
-      allContentPool,
-      ['acción', 'action', 'adrenalina', 'guerra'],
-      ['acción', 'action', 'combate', 'peligro', 'guerra', 'soldado', 'agente', 'misión', 'furia', 'wick', 'fast', 'rapidos', 'velocidad']
+      moviesPool,
+      ['Acción'],
+      ['acción', 'action', 'combate', 'guerra', 'soldado', 'agente', 'misión', 'furia', 'wick', 'fast', 'rapidos', 'velocidad']
     )
-  ), [allContentPool]);
+  ), [moviesPool]);
   const [mobileVodDetail, setMobileVodDetail] = useState(null);
 
   // State for trailer modal
