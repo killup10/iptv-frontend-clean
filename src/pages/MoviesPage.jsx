@@ -19,16 +19,9 @@ import { addItemToMyList } from '../utils/myListUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
+import { extractUniqueGenres, itemMatchesGenre } from '../utils/genreUtils.js';
 
-const getUniqueValuesFromArray = (items, field) => {
-    if (!items || items.length === 0) return ['Todas'];
-    const values = items.flatMap(item => {
-        const fieldValue = item[field];
-        if (Array.isArray(fieldValue)) return fieldValue;
-        return fieldValue ? [fieldValue] : [];
-    }).filter(Boolean);
-    return ['Todas', ...new Set(values.sort((a,b) => a.localeCompare(b)))];
-};
+const getUniqueValuesFromArray = (items) => extractUniqueGenres(items);
 
 const isSectionAllowedForPlan = () => true;
 
@@ -147,10 +140,9 @@ export default function MoviesPage() {
             setHasMore(data.page < data.totalPages);
 
             if (isGenreSection) {
-                const newGenres = getUniqueValuesFromArray(data.videos, 'genres');
+                const newGenres = extractUniqueGenres(data.videos);
                 setAllGenres(prevGenres => {
-                    const combined = [...prevGenres, ...newGenres];
-                    return ['Todas', ...new Set(combined.filter(g => g !== 'Todas'))].sort((a,b) => a.localeCompare(b));
+                    return extractUniqueGenres([...movies, ...data.videos]);
                 });
             }
 
@@ -432,7 +424,8 @@ export default function MoviesPage() {
     }
 
     const currentMainSection = mainSections.find(s => s.key === selectedMainSectionKey);
-    const genresToShow = selectedMainSectionKey === 'por-generos' ? allGenres : getUniqueValuesFromArray(movies, 'genres');
+    const genresToShow = selectedMainSectionKey === 'por-generos' ? (allGenres.length > 1 ? allGenres : extractUniqueGenres(movies)) : extractUniqueGenres(movies);
+    const displayedMovies = selectedGenre && selectedGenre !== 'Todas' ? movies.filter(m => itemMatchesGenre(m, selectedGenre)) : movies;
 
     if (isMobile && selectedMainSectionKey) {
         return (
@@ -522,10 +515,10 @@ export default function MoviesPage() {
                 </div>
             )}
 
-            {movies.length > 0 ? (
+            {displayedMovies.length > 0 ? (
                 <div className={`grid ${getGridClass()} gap-6`}>
-                    {movies.map((movie, index) => {
-                        if (movies.length === index + 1) {
+                    {displayedMovies.map((movie, index) => {
+                        if (displayedMovies.length === index + 1) {
                             return (
                                 <div ref={lastMovieElementRef} key={movie.id || movie._id}>
                                     <Card

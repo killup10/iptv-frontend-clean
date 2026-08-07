@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation, Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
@@ -131,7 +131,141 @@ export function Home() {
   const [featuredDocumentales, setFeaturedDocumentales] = useState(() => initialCachedHomeData?.featuredDocumentales || []);
   const [recentlyAdded, setRecentlyAdded] = useState(() => initialCachedHomeData?.recentlyAdded || []);
   const [continueWatchingItems, setContinueWatchingItems] = useState(() => initialCachedHomeData?.continueWatchingItems || []);
+  const [backgroundItems, setBackgroundItems] = useState(() => initialCachedHomeData?.allSearchItems || []);
   const [contentError, setContentError] = useState(null);
+
+  const filterByCategory = (items, genresList, keywordsList = [], excludeKeywords = []) => {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    const seen = new Set();
+    const lowerGenres = genresList.map(g => g.toLowerCase());
+    const lowerKeywords = keywordsList.map(k => k.toLowerCase());
+    const lowerExcludes = excludeKeywords.map(e => e.toLowerCase());
+
+    return items.filter(item => {
+      if (!item) return false;
+      const id = item._id || item.id;
+      if (!id || seen.has(id)) return false;
+
+      if (item.tipo === 'canal' || item.type === 'channel' || item.isChannel) return false;
+
+      const itemGenres = Array.isArray(item.genres)
+        ? item.genres.map(g => String(g).toLowerCase())
+        : item.genre ? [String(item.genre).toLowerCase()] : [];
+
+      const itemSubcat = String(item.subcategoria || item.categoria || item.mainSection || '').toLowerCase();
+      const itemTitle = String(item.title || item.name || '').toLowerCase();
+      const itemDesc = String(item.description || '').toLowerCase();
+      const itemTipo = String(item.tipo || '').toLowerCase();
+
+      if (lowerExcludes.some(ex => itemTitle.includes(ex) || itemGenres.some(g => g.includes(ex)))) {
+        return false;
+      }
+
+      if (genresList.includes('familia')) {
+        if (itemTipo === 'zona kids' || itemSubcat.includes('disney') || itemSubcat.includes('animada') || itemSubcat.includes('kids') || itemSubcat.includes('infantil')) {
+          seen.add(id);
+          return true;
+        }
+      }
+
+      const genreMatch = lowerGenres.some(g => itemGenres.some(ig => ig.includes(g)) || itemSubcat.includes(g));
+      if (genreMatch) {
+        seen.add(id);
+        return true;
+      }
+
+      if (lowerKeywords.length > 0) {
+        const keywordMatch = lowerKeywords.some(kw => itemTitle.includes(kw) || itemDesc.includes(kw));
+        if (keywordMatch) {
+          seen.add(id);
+          return true;
+        }
+      }
+
+      return false;
+    });
+  };
+
+  const allContentPool = useMemo(() => {
+    const map = new Map();
+    const addItems = (items) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((item) => {
+        const id = item?._id || item?.id;
+        if (id && !map.has(id)) {
+          map.set(id, item);
+        }
+      });
+    };
+
+    addItems(recentlyAdded);
+    addItems(featuredMovies);
+    addItems(featuredSeries);
+    addItems(featuredAnimes);
+    addItems(featuredDoramas);
+    addItems(featuredNovelas);
+    addItems(featuredDocumentales);
+    addItems(backgroundItems);
+
+    return Array.from(map.values());
+  }, [
+    recentlyAdded,
+    featuredMovies,
+    featuredSeries,
+    featuredAnimes,
+    featuredDoramas,
+    featuredNovelas,
+    featuredDocumentales,
+    backgroundItems,
+  ]);
+
+  const adventureItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['aventura', 'adventure', 'acción y aventura'],
+      ['aventura', 'adventure', 'avenger', 'marvel', 'spider', 'batman', 'jurassic', 'indiana', 'piratas', 'avatar', 'héroe', 'hero', 'misión', 'superhero', 'mando', 'star wars']
+    )
+  ), [allContentPool]);
+
+  const familyItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['familia', 'family', 'familiar', 'infantil', 'kids', 'animación', 'animation'],
+      ['familia', 'family', 'infantil', 'kids', 'niños', 'disney', 'pixar', 'mario', 'minions', 'shrek', 'toy story', 'muñecos', 'perros', 'gatos', 'dragón', 'encanto', 'moana', 'frozen', 'intensamente', 'nemo', 'coco', 'cars']
+    )
+  ), [allContentPool]);
+
+  const horrorItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['terror', 'horror', 'suspenso', 'thriller', 'misterio'],
+      ['terror', 'horror', 'suspenso', 'misterio', 'miedo', 'demonio', 'siniestro', 'exorcista', 'conjuro', 'paranormal', 'fantasma', 'halloween', 'noche', 'muerte', 'asesino', 'alien', 'zombie', 'saw', 'it', 'scream', 'valak', 'annabelle', 'evil']
+    )
+  ), [allContentPool]);
+
+  const sciFiItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['ciencia ficción', 'sci-fi', 'fantasía', 'fantasy'],
+      ['ciencia ficcion', 'sci-fi', 'fantasia', 'magia', 'galaxia', 'estelar', 'matrix', 'star wars', 'dune', 'avatar', 'cyber', 'futuro', 'universo', 'multiverso', 'robots', 'terminator', 'transformer']
+    )
+  ), [allContentPool]);
+
+  const comedyItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['comedia', 'comedy', 'humor'],
+      ['comedia', 'comedy', 'humor', 'risa', 'locura', 'divertido', 'divertida', 'chiste', 'broma']
+    )
+  ), [allContentPool]);
+
+  const actionItems = useMemo(() => (
+    filterByCategory(
+      allContentPool,
+      ['acción', 'action', 'adrenalina', 'guerra'],
+      ['acción', 'action', 'combate', 'peligro', 'guerra', 'soldado', 'agente', 'misión', 'furia', 'wick', 'fast', 'rapidos', 'velocidad']
+    )
+  ), [allContentPool]);
   const [mobileVodDetail, setMobileVodDetail] = useState(null);
 
   // State for trailer modal
@@ -313,6 +447,9 @@ export function Home() {
     setFeaturedDocumentales(cachedData.featuredDocumentales || []);
     setRecentlyAdded(cachedData.recentlyAdded || []);
     setContinueWatchingItems(cachedData.continueWatchingItems || []);
+    if (cachedData.allSearchItems) {
+      setBackgroundItems(cachedData.allSearchItems);
+    }
   };
 
   // Refactored useEffect to load all data for Home and Search
@@ -535,6 +672,7 @@ export function Home() {
                 console.log('[Home.jsx] ✅ Phase 2 complete. SearchBar indexado con', fullUniqueItems.length, 'items totales');
                 searchSetter(fullUniqueItems);
               }
+              setBackgroundItems(fullUniqueItems);
 
               const fullCacheData = {
                 ...phase1CacheData,
@@ -758,10 +896,16 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
   // Preparar secciones para TV
   const tvSections = [
     { title: 'Recién Agregados', items: recentlyAdded },
+    { title: 'Continuar Viendo', items: continueWatchingItems },
+    { title: 'Aventura para Todos', items: adventureItems },
+    { title: 'Para la Familia', items: familyItems },
+    { title: 'Terror y Suspenso', items: horrorItems },
+    { title: 'Acción y Adrenalina', items: actionItems },
     { title: 'Películas Destacadas', items: featuredMovies },
     { title: 'Series Populares', items: featuredSeries },
+    { title: 'Ciencia Ficción y Fantasía', items: sciFiItems },
+    { title: 'Comedia y Risas', items: comedyItems },
     { title: 'Canales en Vivo', items: featuredChannels },
-    { title: 'Continuar Viendo', items: continueWatchingItems },
     { title: 'Animes', items: featuredAnimes },
     { title: 'Series Asiáticas', items: featuredDoramas },
     { title: 'Novelas', items: featuredNovelas },
@@ -931,6 +1075,90 @@ onProceedWithTrial={proceedWithTrial}
                 itemType={(item) => item.tipo || item.itemType || 'movie'}
                 showItemTypeBadge={true}
                 showProgressBar={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {adventureItems.length > 0 && (
+              <Carousel
+                title="Aventura para Todos"
+                items={adventureItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {familyItems.length > 0 && (
+              <Carousel
+                title="Para la Familia"
+                items={familyItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {horrorItems.length > 0 && (
+              <Carousel
+                title="Terror y Suspenso"
+                items={horrorItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {actionItems.length > 0 && (
+              <Carousel
+                title="Acción y Adrenalina"
+                items={actionItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {sciFiItems.length > 0 && (
+              <Carousel
+                title="Ciencia Ficción y Fantasía"
+                items={sciFiItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
+                variant="classic"
+                cardVariant="classic"
+                showPlanLock={false}
+              />
+            )}
+            {comedyItems.length > 0 && (
+              <Carousel
+                title="Comedia y Risas"
+                items={comedyItems}
+                onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+                onPlayTrailerClick={handlePlayTrailerClick}
+                onAddToMyListClick={handleAddToMyListSafe}
+                itemType={(item) => item.tipo || item.itemType || 'movie'}
+                showItemTypeBadge={true}
                 variant="classic"
                 cardVariant="classic"
                 showPlanLock={false}
@@ -1199,6 +1427,108 @@ onProceedWithTrial={proceedWithTrial}
             itemType={(item) => item.tipo || item.itemType || 'movie'}
             showItemTypeBadge={true}
             showProgressBar={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {adventureItems.length > 0 && (
+          <Carousel
+            title="Aventura para Todos"
+            subtitle="Emoción, héroes y grandes expediciones."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={adventureItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {familyItems.length > 0 && (
+          <Carousel
+            title="Para la Familia"
+            subtitle="Historias divertidas y aptas para disfrutar juntos."
+            actionLabel="Zona Kids"
+            onActionClick={() => navigate('/zona-kids')}
+            items={familyItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {horrorItems.length > 0 && (
+          <Carousel
+            title="Terror y Suspenso"
+            subtitle="Historias oscuras, misterio y sustos inolvidables."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={horrorItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {actionItems.length > 0 && (
+          <Carousel
+            title="Acción y Adrenalina"
+            subtitle="Combates, persecuciones y emoción pura."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={actionItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {sciFiItems.length > 0 && (
+          <Carousel
+            title="Ciencia Ficción y Fantasía"
+            subtitle="Mundos imposibles, magia y el futuro."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={sciFiItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
+            variant="brand"
+            cardVariant="brand"
+            showPlanLock={false}
+          />
+        )}
+        {comedyItems.length > 0 && (
+          <Carousel
+            title="Comedia y Risas"
+            subtitle="Las mejores comedias para alegrar tu día."
+            actionLabel="Ver películas"
+            onActionClick={() => navigate('/peliculas')}
+            items={comedyItems}
+            onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
+            onPlayTrailerClick={handlePlayTrailerClick}
+            onAddToMyListClick={handleAddToMyListSafe}
+            itemType={(item) => item.tipo || item.itemType || 'movie'}
+            showItemTypeBadge={true}
             variant="brand"
             cardVariant="brand"
             showPlanLock={false}

@@ -10,6 +10,7 @@ import {
   getTVItemBackdrop,
   getTVItemGenre
 } from '../utils/tvContentUtils.js';
+import { extractUniqueGenres, itemMatchesGenre } from '../utils/genreUtils.js';
 
 export function MobileArcadeDeck({
   items = [],
@@ -75,21 +76,9 @@ export function MobileArcadeDeck({
   // 1. Dynamic Genres Extraction
   const genres = useMemo(() => {
     if (categories && categories.length > 0) {
-      return categories;
+      return extractUniqueGenres(categories.map(c => ({ genre: c })));
     }
-    const allGenres = new Set();
-    items.forEach(item => {
-      const genreStr = getTVItemGenre(item);
-      if (genreStr) {
-        genreStr.split(',').forEach(g => {
-          const trimmed = g.trim();
-          if (trimmed && trimmed.toLowerCase() !== '4k' && trimmed.toLowerCase() !== '60fps') {
-            allGenres.add(trimmed);
-          }
-        });
-      }
-    });
-    return ['Todos', ...Array.from(allGenres).slice(0, 8)];
+    return extractUniqueGenres(items);
   }, [items, categories]);
 
   // 2. Filter items by Genre and Search Term
@@ -98,10 +87,7 @@ export function MobileArcadeDeck({
 
     // Filter by Genre locally ONLY if we are using dynamic genres (onCategoryChange is NOT provided)
     if (!onCategoryChange && currentCategory !== 'Todos' && currentCategory !== 'TODOS') {
-      result = result.filter(item => {
-        const genreStr = getTVItemGenre(item) || '';
-        return genreStr.toLowerCase().includes(currentCategory.toLowerCase());
-      });
+      result = result.filter(item => itemMatchesGenre(item, currentCategory));
     }
 
     // Filter by Search Term (normalized)
