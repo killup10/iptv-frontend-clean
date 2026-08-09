@@ -333,35 +333,52 @@ export function Home() {
 
     addItems(featured4KMovies);
 
+    const checkIs4K = (item) => {
+      if (!item) return false;
+      const subcat = String(item.subcategoria || item.categoria || item.mainSection || item.section || '').toLowerCase();
+      const title = String(item.title || item.name || '').toLowerCase();
+      const genres = Array.isArray(item.genres)
+        ? item.genres.map((g) => String(g).toLowerCase())
+        : item.genre ? [String(item.genre).toLowerCase()] : [];
+
+      return (
+        subcat.includes('4k') ||
+        subcat.includes('ultrahd') ||
+        subcat.includes('ultra hd') ||
+        subcat.includes('cine 4k') ||
+        title.includes('4k') ||
+        title.includes('2160p') ||
+        genres.some((g) => g.includes('4k') || g.includes('ultrahd')) ||
+        item.is4K === true ||
+        item.is4k === true ||
+        String(item.resolution || '').toUpperCase() === '4K'
+      );
+    };
+
     if (Array.isArray(moviesPool)) {
       moviesPool.forEach((item) => {
         if (!item) return;
         const id = item._id || item.id;
         if (!id || map.has(id)) return;
-
-        const subcat = String(item.subcategoria || item.categoria || item.mainSection || item.section || '').toLowerCase();
-        const title = String(item.title || item.name || '').toLowerCase();
-        const genres = Array.isArray(item.genres)
-          ? item.genres.map((g) => String(g).toLowerCase())
-          : item.genre ? [String(item.genre).toLowerCase()] : [];
-
-        if (
-          subcat.includes('4k') ||
-          subcat.includes('ultrahd') ||
-          subcat.includes('ultra hd') ||
-          subcat.includes('cine 4k') ||
-          title.includes('4k') ||
-          genres.some((g) => g.includes('4k') || g.includes('ultrahd')) ||
-          item.is4k === true ||
-          item.resolution === '4K'
-        ) {
+        if (checkIs4K(item)) {
           map.set(id, item);
         }
       });
     }
 
-    return Array.from(map.values()).slice(0, 20);
-  }, [featured4KMovies, moviesPool]);
+    if (Array.isArray(backgroundItems)) {
+      backgroundItems.forEach((item) => {
+        if (!item) return;
+        const id = item._id || item.id;
+        if (!id || map.has(id)) return;
+        if (checkIs4K(item)) {
+          map.set(id, item);
+        }
+      });
+    }
+
+    return Array.from(map.values()).slice(0, 40);
+  }, [featured4KMovies, moviesPool, backgroundItems]);
   const [mobileVodDetail, setMobileVodDetail] = useState(null);
 
   // State for trailer modal
@@ -730,6 +747,7 @@ export function Home() {
                 fetchVideosByType('documental', 1, 500),
                 fetchUserMovies(1, 500, 'CINE_2025'), // Cine 2025
                 fetchUserMovies(1, 500, 'CINE_2026'), // Cine 2026
+                fetchUserMovies(1, 500, 'CINE_4K'),   // Cine 4K
               ]);
               console.timeEnd('[Home.jsx] Phase 2: Full content index load time');
 
@@ -742,6 +760,7 @@ export function Home() {
                 allDocumentalesResult,
                 cine2025Result,
                 cine2026Result,
+                cine4KResult,
               ] = fullIndexResults;
 
               const allMovies = processResult(allMoviesResult, null, 'All Movies');
@@ -752,6 +771,7 @@ export function Home() {
               const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
               const cine2025 = processResult(cine2025Result, null, 'Cine 2025');
               const cine2026 = processResult(cine2026Result, null, 'Cine 2026');
+              const cine4K = processResult(cine4KResult, null, 'Cine 4K');
 
               const fullSearchItems = [
                 ...processedFeaturedChannels.map(item => ({ ...item, type: 'canal', itemType: 'channel' })),
@@ -763,6 +783,7 @@ export function Home() {
                 ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
                 ...cine2025.map(item => ({ ...item, type: 'cine-2025', itemType: 'movie' })),
                 ...cine2026.map(item => ({ ...item, type: 'cine-2026', itemType: 'movie' })),
+                ...cine4K.map(item => ({ ...item, type: 'cine-4k', itemType: 'movie' })),
               ];
 
               const fullUniqueItems = Array.from(new Map(fullSearchItems.map(item => [item._id || item.id, item])).values());
@@ -1580,7 +1601,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Cine 4K Ultra HD"
             subtitle="Películas en la más alta resolución 4K Ultra HD."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedMainSectionKey: 'CINE_4K' } })}
             items={cine4KItems}
             onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1676,7 +1697,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Aventura para Todos"
             subtitle="Emoción, héroes y grandes expediciones."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Aventura', selectedMainSectionKey: 'POR_GENERO' } })}
             items={adventureItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1693,7 +1714,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Para la Familia"
             subtitle="Historias divertidas y aptas para disfrutar juntos."
             actionLabel="Zona Kids"
-            onActionClick={() => navigate('/zona-kids')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Familiar', selectedMainSectionKey: 'POR_GENERO' } })}
             items={familyItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1710,7 +1731,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Terror y Suspenso"
             subtitle="Historias oscuras, misterio y sustos inolvidables."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } })}
             items={horrorItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1727,7 +1748,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Acción y Adrenalina"
             subtitle="Combates, persecuciones y emoción pura."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Acción', selectedMainSectionKey: 'POR_GENERO' } })}
             items={actionItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1744,7 +1765,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Ciencia Ficción y Fantasía"
             subtitle="Mundos imposibles, magia y el futuro."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Ciencia Ficción', selectedMainSectionKey: 'POR_GENERO' } })}
             items={sciFiItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
@@ -1761,7 +1782,7 @@ onProceedWithTrial={proceedWithTrial}
             title="Comedia y Risas"
             subtitle="Las mejores comedias para alegrar tu día."
             actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas')}
+            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Comedia', selectedMainSectionKey: 'POR_GENERO' } })}
             items={comedyItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}

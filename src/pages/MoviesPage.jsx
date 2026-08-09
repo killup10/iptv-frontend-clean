@@ -212,13 +212,23 @@ export default function MoviesPage() {
     }, [user?.token, dataCache]);
 
     useEffect(() => {
-        if (selectedMainSectionKey) {
+        if (location.state?.selectedMainSectionKey !== undefined) {
+            setSelectedMainSectionKey(location.state.selectedMainSectionKey);
+        }
+        if (location.state?.selectedGenre !== undefined) {
+            setSelectedGenre(location.state.selectedGenre);
+        }
+    }, [location.state]);
+
+    useEffect(() => {
+        if (selectedMainSectionKey || selectedGenre !== 'Todas') {
             setMovies([]);
             setPage(1);
             setTotalPages(0);
             setHasMore(true);
             setIsLoading(true);
-            loadMovies(1, selectedMainSectionKey, selectedGenre, debouncedSearchTerm);
+            const sectionToFetch = selectedMainSectionKey || 'POR_GENERO';
+            loadMovies(1, sectionToFetch, selectedGenre, debouncedSearchTerm);
         }
     }, [selectedMainSectionKey, selectedGenre, debouncedSearchTerm, user?.token]);
 
