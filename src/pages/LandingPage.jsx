@@ -41,6 +41,333 @@ import {
 import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
 
+// Datos enriquecidos para la muestra de contenido con portadas reales y logotipos deportivos
+const CATALOG_SHOWCASE_DATA = [
+  {
+    id: "cine2026",
+    categoryLabel: "Cine 4K",
+    categoryTitle: "Estrenos de Cine 2026",
+    badgeColor: "cyan",
+    items: [
+      {
+        title: "Avatar: Fuego y Cenizas",
+        subtitle: "Estreno Cine 2026 • 4K HDR",
+        tag: "Estreno 2026",
+        poster: "https://image.tmdb.org/t/p/w500/i9q5O7Vb6aA402jL7B4t5x0b2G7.jpg",
+        quality: "4K HDR"
+      },
+      {
+        title: "Deadpool & Wolverine",
+        subtitle: "Marvel Studios • 4K Ultra HD",
+        tag: "Top VOD",
+        poster: "https://image.tmdb.org/t/p/w500/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg",
+        quality: "4K 60FPS"
+      },
+      {
+        title: "Duna: Parte Dos",
+        subtitle: "Ciencia Ficción • IMAX Audio",
+        tag: "Imperdible",
+        poster: "https://image.tmdb.org/t/p/w500/czembW0Rk1Ke7desVsc3umEvTX6.jpg",
+        quality: "4K HDR"
+      },
+      {
+        title: "Gladiador II",
+        subtitle: "Acción Épica • 4K 60 FPS",
+        tag: "Estreno",
+        poster: "https://image.tmdb.org/t/p/w500/2cxhvwyEwRlysAmRH4iodkvo0z5.jpg",
+        quality: "4K UHD"
+      },
+      {
+        title: "Capitán América: Brave New World",
+        subtitle: "Marvel Studios • Estreno",
+        tag: "Cine 2025/2026",
+        poster: "https://image.tmdb.org/t/p/w500/pmB39e8Zc1Q1pA1M71fB7vG0D6.jpg",
+        quality: "4K HDR"
+      }
+    ]
+  },
+  {
+    id: "deportes",
+    categoryLabel: "Deportes",
+    categoryTitle: "Liga 1 Max & DSports",
+    badgeColor: "fuchsia",
+    items: [
+      {
+        title: "Liga 1 Max HD",
+        subtitle: "Fútbol Peruano • Torneo en Vivo",
+        tag: "🔴 EN VIVO",
+        poster: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=500&q=80",
+        channelName: "LIGA 1 MAX",
+        detailText: "Alianza Lima • Universitario • Cristal",
+        quality: "HD 60FPS"
+      },
+      {
+        title: "DSports / DIRECTV",
+        subtitle: "Copa Sudamericana & LaLiga",
+        tag: "🏆 EXCLUSIVO",
+        poster: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=500&q=80",
+        channelName: "DSPORTS",
+        detailText: "Conmebol Sudamericana • LaLiga EA",
+        quality: "Full HD"
+      },
+      {
+        title: "ESPN Premium & ESPN 1-4",
+        subtitle: "Champions League, Premier & F1",
+        tag: "⚡ EN VIVO",
+        poster: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=500&q=80",
+        channelName: "ESPN PREMIUM",
+        detailText: "Champions League • F1 • UFC",
+        quality: "HD 60FPS"
+      },
+      {
+        title: "Fox Sports 1 & 2 HD",
+        subtitle: "Copa Libertadores & UFC",
+        tag: "🔥 EN VIVO",
+        poster: "https://images.unsplash.com/photo-1518604666864-9ed5060764c6?w=500&q=80",
+        channelName: "FOX SPORTS",
+        detailText: "Copa Libertadores • SmackDown",
+        quality: "Full HD"
+      }
+    ]
+  },
+  {
+    id: "series",
+    categoryLabel: "Series",
+    categoryTitle: "Series, Animes & KDramas",
+    badgeColor: "cyan",
+    items: [
+      {
+        title: "Stranger Things 5",
+        subtitle: "Temporada Final • Netflix 4K",
+        tag: "Estreno",
+        poster: "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg",
+        quality: "4K HDR"
+      },
+      {
+        title: "Demon Slayer (Kimetsu)",
+        subtitle: "Castillo Infinito • Anime HD",
+        tag: "Tendencia",
+        poster: "https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg",
+        quality: "Full HD"
+      },
+      {
+        title: "La Casa del Dragón",
+        subtitle: "Temporadas 1 y 2 • HBO Max",
+        tag: "Top HBO",
+        poster: "https://image.tmdb.org/t/p/w500/1X4h40fcB4WWUmIBK0auT4zRBAV.jpg",
+        quality: "4K HDR"
+      },
+      {
+        title: "Solo Leveling",
+        subtitle: "Anime Tendencia • Audio Latino",
+        tag: "Imperdible",
+        poster: "https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8HGqd.jpg",
+        quality: "Full HD"
+      },
+      {
+        title: "El Juego del Calamar 2",
+        subtitle: "Serie Completa • Sub & Doblada",
+        tag: "KDrama",
+        poster: "https://image.tmdb.org/t/p/w500/dDlEmu3EZ0Pgg93K2SVNLCjCSvE.jpg",
+        quality: "4K UHD"
+      }
+    ]
+  },
+  {
+    id: "kids",
+    categoryLabel: "Kids",
+    categoryTitle: "Zona Infantil Segura",
+    badgeColor: "fuchsia",
+    items: [
+      {
+        title: "IntensaMente 2",
+        subtitle: "Disney Pixar • Audio Latino",
+        tag: "Familiar",
+        poster: "https://image.tmdb.org/t/p/w500/vpnVM9B6NMmQpWeZvzLvDESb2QY.jpg",
+        quality: "4K HDR"
+      },
+      {
+        title: "Moana 2",
+        subtitle: "Disney Animation • Estreno",
+        tag: "Estreno",
+        poster: "https://image.tmdb.org/t/p/w500/yh64qw9mgXBvlaWDi7Q9tpUBAvH.jpg",
+        quality: "Full HD"
+      },
+      {
+        title: "Super Mario Bros",
+        subtitle: "Nintendo & Illumination",
+        tag: "Animación",
+        poster: "https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg",
+        quality: "4K UHD"
+      },
+      {
+        title: "Kung Fu Panda 4",
+        subtitle: "Universal Pictures • Divertido",
+        tag: "Comedia",
+        poster: "https://image.tmdb.org/t/p/w500/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg",
+        quality: "Full HD"
+      },
+      {
+        title: "Mi Villano Favorito 4",
+        subtitle: "Minions • Apta para Todos",
+        tag: "Kids",
+        poster: "https://image.tmdb.org/t/p/w500/wWba3TaojhK7NdycRhoQpsG0FaH.jpg",
+        quality: "4K HDR"
+      }
+    ]
+  }
+];
+
+function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (isHovered) return;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % group.items.length);
+    }, 3800);
+    return () => clearInterval(timer);
+  }, [group.items.length, isHovered]);
+
+  const currentItem = group.items[currentIndex] || group.items[0];
+  const isCyan = group.badgeColor === "cyan";
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onSelectPlanes}
+      className={`relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814] h-[360px] cursor-pointer transition-all duration-300 transform hover:-translate-y-2 hover:shadow-[0_16px_40px_rgba(0,0,0,0.8)] ${
+        isCyan ? "hover:border-[#00F0FF]/50" : "hover:border-fuchsia-400/50"
+      }`}
+      style={{ transform: "translateZ(0)" }}
+    >
+      {/* Background Image Carousel with Smooth Fade */}
+      {group.items.map((item, idx) => (
+        <img
+          key={item.title}
+          src={item.poster}
+          alt={item.title}
+          loading="lazy"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+            idx === currentIndex ? "opacity-100 scale-100" : "opacity-0 scale-105"
+          }`}
+          onError={(e) => {
+            e.target.src = "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&q=80";
+          }}
+        />
+      ))}
+
+      {/* Dark Vignette Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/20" />
+
+      {/* Top Header Tags */}
+      <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+        <span
+          className={`text-[9px] px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider backdrop-blur-md ${
+            isCyan
+              ? "bg-[#00F0FF]/25 text-[#00F0FF] border border-[#00F0FF]/40 shadow-[0_0_12px_rgba(0,240,255,0.3)]"
+              : "bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/40 shadow-[0_0_12px_rgba(217,70,239,0.3)]"
+          }`}
+        >
+          {group.categoryLabel}
+        </span>
+
+        <span className="text-[9px] font-mono font-black bg-black/60 border border-white/10 px-2 py-0.5 rounded-full text-slate-300">
+          {currentItem.quality || "4K UHD"}
+        </span>
+      </div>
+
+      {/* Center Play Button on Hover */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
+        <div
+          className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl transition-transform duration-300 group-hover:scale-110 ${
+            isCyan
+              ? "bg-[#00F0FF]/90 text-black shadow-[0_0_25px_rgba(0,240,255,0.6)]"
+              : "bg-fuchsia-500/90 text-white shadow-[0_0_25px_rgba(217,70,239,0.6)]"
+          }`}
+        >
+          <Play className="w-5 h-5 fill-current ml-0.5" />
+        </div>
+      </div>
+
+      {/* Bottom Content Info */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end z-10 bg-gradient-to-t from-black via-black/80 to-transparent pt-12">
+        {/* Specific Sports Channel Brand Logo / Banner */}
+        {currentItem.channelName && (
+          <div className="inline-flex items-center gap-1.5 mb-1 bg-black/70 border border-white/15 px-2 py-0.5 rounded-lg w-max">
+            <Tv className="w-3 h-3 text-[#00F0FF]" />
+            <span className="text-[10px] font-black text-white uppercase tracking-wider">
+              {currentItem.channelName}
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+              currentItem.tag.includes("VIVO")
+                ? "bg-red-600/90 text-white animate-pulse"
+                : isCyan
+                ? "bg-[#00F0FF]/20 text-[#00F0FF]"
+                : "bg-fuchsia-500/20 text-fuchsia-300"
+            }`}
+          >
+            {currentItem.tag}
+          </span>
+          <span className="text-[10px] text-slate-400 font-medium truncate">
+            {currentItem.subtitle}
+          </span>
+        </div>
+
+        <h4 className="text-sm font-extrabold text-white group-hover:text-[#00F0FF] transition-colors duration-200 truncate">
+          {currentItem.title}
+        </h4>
+
+        {/* Carousel Progress Indicators */}
+        <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-white/10">
+          {group.items.map((_, dotIdx) => (
+            <button
+              key={dotIdx}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentIndex(dotIdx);
+              }}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                dotIdx === currentIndex
+                  ? isCyan
+                    ? "w-5 bg-[#00F0FF]"
+                    : "w-5 bg-fuchsia-400"
+                  : "w-1.5 bg-white/20 hover:bg-white/40"
+              }`}
+            />
+          ))}
+          <span className="text-[8px] text-slate-400 font-bold uppercase ml-auto tracking-wider">
+            {currentIndex + 1}/{group.items.length}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CatalogShowcaseGrid({ onSelectPlanes }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {CATALOG_SHOWCASE_DATA.map((group, idx) => (
+        <ShowcaseColumnCard
+          key={group.id}
+          group={group}
+          initialIndex={idx % group.items.length}
+          onSelectPlanes={onSelectPlanes}
+        />
+      ))}
+    </div>
+  );
+}
+
 function LandingPage() {
   const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -684,49 +1011,20 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* CATALOG PREVIEW GRID SECTION */}
+      {/* CATALOG PREVIEW GRID SECTION WITH DYNAMIC ROTATING COVERS */}
       <section id="catalogo" className="w-full max-w-6xl mx-auto px-6 py-20 border-t border-white/10 z-10">
         <div className="mb-14 text-center">
           <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-2">Variedad Infinita</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-3 text-white">
             Explora una muestra del contenido
           </h2>
-          <p className="text-slate-400 text-sm max-w-md mx-auto">Disfruta de las mejores producciones en la más alta resolución.</p>
+          <p className="text-slate-400 text-sm max-w-md mx-auto">
+            Disfruta de las mejores producciones, estrenos de cine y señales deportivas exclusivas en la más alta resolución.
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814]">
-            <img src="https://picsum.photos/seed/action2026/400/600" alt="Estrenos 4K" className="w-full h-80 object-cover filter brightness-90 group-hover:scale-105 transition-all duration-500" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent p-5 flex flex-col justify-end">
-              <span className="text-[9px] bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 px-2.5 py-0.5 rounded-full w-max mb-2 font-bold">Cine 4K</span>
-              <h4 className="text-sm font-bold text-white">Estrenos de Cine 2026</h4>
-            </div>
-          </div>
-
-          <div className="relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814]">
-            <img src="https://picsum.photos/seed/soccer2026/400/600" alt="Deportes en Vivo" className="w-full h-80 object-cover filter brightness-90 group-hover:scale-105 transition-all duration-500" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent p-5 flex flex-col justify-end">
-              <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 px-2.5 py-0.5 rounded-full w-max mb-2 font-bold">Deportes</span>
-              <h4 className="text-sm font-bold text-white">Liga 1 Max & DSports</h4>
-            </div>
-          </div>
-
-          <div className="relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814]">
-            <img src="https://picsum.photos/seed/anime2026/400/600" alt="Anime & Series" className="w-full h-80 object-cover filter brightness-90 group-hover:scale-105 transition-all duration-500" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent p-5 flex flex-col justify-end">
-              <span className="text-[9px] bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40 px-2.5 py-0.5 rounded-full w-max mb-2 font-bold">Series</span>
-              <h4 className="text-sm font-bold text-white">Series, Animes & KDramas</h4>
-            </div>
-          </div>
-
-          <div className="relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814]">
-            <img src="https://picsum.photos/seed/kids2026/400/600" alt="Zona Kids" className="w-full h-80 object-cover filter brightness-90 group-hover:scale-105 transition-all duration-500" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent p-5 flex flex-col justify-end">
-              <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 px-2.5 py-0.5 rounded-full w-max mb-2 font-bold">Kids</span>
-              <h4 className="text-sm font-bold text-white">Zona Infantil Segura</h4>
-            </div>
-          </div>
-        </div>
+        {/* Dynamic Carousel Showcase Cards */}
+        <CatalogShowcaseGrid onSelectPlanes={() => scrollToSection("planes")} />
       </section>
 
       {/* PLANES Y PRECIOS SECTION */}
