@@ -378,7 +378,7 @@ function App() {
             <div className="flex items-center justify-between h-20">
               {/* Logo y Navegación Principal */}
               <div className="flex items-center flex-1">
-                <Link to="/" className="flex items-center py-2" onClick={closeAllMenus}>
+                <Link to={user ? "/home" : "/"} className="flex items-center py-2" onClick={closeAllMenus}>
                   <img 
                     src="./logo-teamg.png" 
                     alt="TeamG Play Logo" 

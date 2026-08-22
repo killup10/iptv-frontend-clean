@@ -46,6 +46,20 @@ const PageLoader = () => (
   </div>
 );
 
+import { useAuth } from './context/AuthContext.jsx';
+import { Navigate } from 'react-router-dom';
+
+const RootRoute = () => {
+  const { user, isLoadingAuth } = useAuth();
+  if (isLoadingAuth) {
+    return <PageLoader />;
+  }
+  if (user) {
+    return <Navigate to="/home" replace />;
+  }
+  return <Suspense fallback={<PageLoader />}><LandingPage /></Suspense>;
+};
+
 const router = createHashRouter([
   {
     path: "/", // En HashRouter, esto se traduce a la ruta base (ej. index.html#/)
@@ -54,7 +68,7 @@ const router = createHashRouter([
       { path: "login", element: <Suspense fallback={<PageLoader />}><Login /></Suspense> },
       { path: "register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense> },
       { path: "forgot-password", element: <Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense> },
-      { index: true, element: <Suspense fallback={<PageLoader />}><LandingPage /></Suspense> },
+      { index: true, element: <RootRoute /> },
       { path: "home", element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Home /></Suspense></ProtectedRoute> },
       {
         path: "admin",

@@ -122,7 +122,7 @@ export default function Colecciones() {
   };
 
   const handleGoBack = () => {
-    navigate('/');
+    navigate('/home');
   };
 
   const toggleGridView = () => {

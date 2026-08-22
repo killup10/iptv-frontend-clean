@@ -17,7 +17,7 @@ const config: CapacitorConfig = {
     // Configuración específica para Android
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: false,
     server: {
       url: 'http://localhost',
       cleartext: true,

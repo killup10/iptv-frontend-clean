@@ -99,6 +99,42 @@
   .player-fullscreen-hide-cursor {
     cursor: none;
   }
+
+  /* ⚡ Optimización de Scroll y Compositing en Móvil (60 FPS) */
+  .mobile-touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-behavior: smooth;
+    transform: translateZ(0);
+    will-change: scroll-position;
+  }
+
+  /* ⚡ Content-Visibility para ignorar renderizado de filas fuera de pantalla */
+  .media-row-container {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 280px;
+  }
+}
+
+/* 5. Optimización de GPU en Dispositivos Móviles / Táctiles */
+@media (hover: none) and (pointer: coarse) {
+  /* Sustituir backdrop-filter: blur por fondos sólidos opacos para evitar caídas de FPS en Android WebView */
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl,
+  .backdrop-blur-sm,
+  .backdrop-blur {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(11, 13, 23, 0.96) !important;
+  }
+
+  /* Forzar renderizado en capa GPU para scroll suave */
+  [data-card] {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
 }
 
 /* 4. Estilos para tarjetas en Android TV / Smart TV */

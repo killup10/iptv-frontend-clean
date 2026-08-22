@@ -144,7 +144,7 @@ export function MyList() {
               <p className="text-gray-400 text-xl mb-4">Tu lista está vacía</p>
               <p className="text-gray-500 mb-6">Agrega contenido a tu lista desde cualquier película o serie</p>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/home')}
                 className="bg-[#00e5ff] hover:bg-[#00c4d9] text-black font-semibold py-2 px-6 rounded-lg transition-all duration-200 hover:scale-105"
               >
                 Explorar Contenido

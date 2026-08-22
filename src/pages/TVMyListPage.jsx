@@ -135,7 +135,7 @@ export default function TVMyListPage() {
           <button
             ref={emptyButtonRef}
             tabIndex={0}
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             onKeyDown={(e) => {
               if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                 e.preventDefault();

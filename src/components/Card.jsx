@@ -256,6 +256,7 @@ function Card({
             e.currentTarget.src = '/img/placeholder-thumbnail.png';
           }}
           loading="lazy"
+          decoding="async"
         />
 
         {imageScrimClasses ? <div className={imageScrimClasses} /> : null}

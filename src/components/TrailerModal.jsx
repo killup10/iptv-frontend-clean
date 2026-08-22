@@ -3,11 +3,22 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 
 const getYouTubeId = (url) => {
-  if (!url) return null;
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
 
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = String(url).match(regExp);
-  return (match && match[2] && match[2].length === 11) ? match[2] : null;
+  // If it's directly an 11-char YouTube ID (e.g. "dQw4w9WgXcQ")
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Standard URL patterns (watch?v=, youtu.be/, embed/, v/, shorts/, etc.)
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+  const match = trimmed.match(regExp);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  return null;
 };
 
 const shouldCloseTrailer = (event) => {
@@ -25,12 +36,20 @@ const shouldCloseTrailer = (event) => {
 const TrailerModal = ({ trailerUrl, onClose }) => {
   const closeButtonRef = useRef(null);
 
+  const youtubeId = useMemo(() => getYouTubeId(trailerUrl), [trailerUrl]);
+
   const youtubeEmbedUrl = useMemo(() => {
-    const youtubeId = getYouTubeId(trailerUrl);
     return youtubeId
-      ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&fs=1`
+      ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&fs=1`
       : null;
-  }, [trailerUrl]);
+  }, [youtubeId]);
+
+  const externalUrl = useMemo(() => {
+    if (youtubeId) {
+      return `https://www.youtube.com/watch?v=${youtubeId}`;
+    }
+    return String(trailerUrl || '').startsWith('http') ? trailerUrl : null;
+  }, [youtubeId, trailerUrl]);
 
   useEffect(() => {
     const closeCurrentOverlay = () => onClose();
@@ -94,27 +113,27 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black/85 p-4"
+      className="fixed inset-0 flex items-center justify-center bg-black/90 p-3 sm:p-4 backdrop-blur-sm"
       style={{ zIndex: 100100 }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-xl rounded-xl border border-gray-700 bg-black p-3 shadow-2xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl sm:p-4"
+        className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-3 shadow-2xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl sm:p-4"
         onClick={handleContentClick}
       >
         <button
           ref={closeButtonRef}
           type="button"
           onClick={onClose}
-          className="absolute left-3 top-3 z-20 rounded-full bg-gray-800 p-1.5 text-gray-300 shadow-lg transition-colors hover:bg-red-600 hover:text-white"
+          className="absolute -top-3 -right-3 z-30 rounded-full bg-zinc-800 border border-white/20 p-2 text-gray-200 shadow-xl transition-all hover:bg-red-600 hover:text-white active:scale-90"
           aria-label="Cerrar trailer"
         >
           <XMarkIcon className="h-6 w-6" />
         </button>
 
-        <div className="aspect-video overflow-hidden rounded-lg bg-black">
+        <div className="aspect-video overflow-hidden rounded-xl bg-black border border-white/5 relative shadow-inner">
           {youtubeEmbedUrl ? (
             <iframe
               width="100%"
@@ -122,9 +141,9 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
               src={youtubeEmbedUrl}
               title="Trailer"
               frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
               allowFullScreen
-              className="block"
+              className="block w-full h-full"
               tabIndex={-1}
             />
           ) : (
@@ -141,9 +160,22 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
           )}
         </div>
 
-        <p className="mt-3 text-center text-xs text-gray-500">
-          Retroceso, ESC o clic fuera cierran el trailer.
-        </p>
+        <div className="mt-3 flex items-center justify-between gap-2 px-1">
+          <p className="text-xs text-zinc-400">
+            Retroceso o tocar fuera para cerrar
+          </p>
+
+          {externalUrl && (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-400 hover:text-cyan-300 hover:underline px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/20"
+            >
+              <span>Abrir en YouTube ↗</span>
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -726,15 +726,15 @@ export function Home() {
         }
 
         // 🔥 EN BACKGROUND: Cargar TODO el contenido (sin bloquear UI) para completar el índice de búsqueda
-        // Phase 2: Los items locales ya están en SearchBar, ahora cargamos TODO para tener índice completo
+        // Phase 2: Diferido inteligentemente para no competir con el renderizado inicial y el scroll en móviles
         if (!searchDataLoadedRef.current) {
           searchDataLoadedRef.current = true;
           const searchSetter = setAllSearchItems;
 
-          // Iniciar carga en background SIN esperar
-          (async () => {
-            console.log('[Home.jsx] 🚀 Phase 2: Indexando TODO el contenido en background...');
-            console.time('[Home.jsx] Phase 2: Full content index load time');
+          const executePhase2 = () => {
+            (async () => {
+              console.log('[Home.jsx] 🚀 Phase 2: Indexando contenido diferido en background...');
+              console.time('[Home.jsx] Phase 2: Full content index load time');
 
             try {
               // Cargar TODOS los items de cada categoría (no solo destacados)
@@ -804,7 +804,16 @@ export function Home() {
               // Mantener los items locales ya cargados, no limpiar
             }
           })();
+        };
+
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          window.requestIdleCallback(() => {
+            setTimeout(executePhase2, 2500);
+          }, { timeout: 6000 });
+        } else {
+          setTimeout(executePhase2, 3500);
         }
+      }
       } catch (err) {
         console.error('[Home.jsx] ❌ General error in loadAllData:', err);
         setContentError(err.message || "Error loading content.");

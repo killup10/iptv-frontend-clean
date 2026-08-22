@@ -8,7 +8,8 @@ import {
   getTVItemSeasons,
   getTVItemImage,
   getTVItemBackdrop,
-  getTVItemGenre
+  getTVItemGenre,
+  getTVItemTrailerUrl
 } from '../utils/tvContentUtils.js';
 import { extractUniqueGenres, itemMatchesGenre } from '../utils/genreUtils.js';
 
@@ -73,10 +74,10 @@ export function MobileArcadeDeck({
   const touchEndX = useRef(0);
   const touchStartTime = useRef(0);
 
-  // 1. Dynamic Genres Extraction
+  // 1. Dynamic Genres / Categories
   const genres = useMemo(() => {
-    if (categories && categories.length > 0) {
-      return extractUniqueGenres(categories.map(c => ({ genre: c })));
+    if (Array.isArray(categories) && categories.length > 0) {
+      return categories;
     }
     return extractUniqueGenres(items);
   }, [items, categories]);
@@ -116,32 +117,37 @@ export function MobileArcadeDeck({
     setActiveIndex(0);
   }, [filteredItems.length, currentCategory]);
 
-  // 3. Preload adjacent items' images (2 ahead and 2 behind) for instant loading
+  // Virtualize the 3D card deck: slice only the visible items [-2 to +2] instead of thousands of items
+  const visibleCards = useMemo(() => {
+    if (!filteredItems.length) return [];
+    const start = Math.max(0, activeIndex - 2);
+    const end = Math.min(filteredItems.length - 1, activeIndex + 2);
+    const cards = [];
+    for (let i = start; i <= end; i++) {
+      cards.push({ item: filteredItems[i], idx: i });
+    }
+    return cards;
+  }, [filteredItems, activeIndex]);
+
+  // 3. Preload adjacent items' images with debounce to avoid network/memory spikes
   useEffect(() => {
     if (filteredItems.length === 0) return;
     
-    // We preload indices -2, -1, +1, +2 relative to the active index
-    const indicesToPreload = [activeIndex - 1, activeIndex + 1, activeIndex - 2, activeIndex + 2];
-    
-    indicesToPreload.forEach(idx => {
-      if (idx >= 0 && idx < filteredItems.length) {
-        const item = filteredItems[idx];
-        
-        // Preload poster image
-        const imgUrl = getTVItemImage(item);
-        if (imgUrl && imgUrl !== '/img/placeholder-thumbnail.png') {
-          const img = new Image();
-          img.src = imgUrl;
+    const timer = setTimeout(() => {
+      const indicesToPreload = [activeIndex - 1, activeIndex + 1];
+      indicesToPreload.forEach(idx => {
+        if (idx >= 0 && idx < filteredItems.length) {
+          const item = filteredItems[idx];
+          const imgUrl = getTVItemImage(item);
+          if (imgUrl && imgUrl !== '/img/placeholder-thumbnail.png') {
+            const img = new Image();
+            img.src = imgUrl;
+          }
         }
-        
-        // Preload backdrop background image
-        const backdropUrl = getTVItemBackdrop(item);
-        if (backdropUrl && backdropUrl !== '/img/placeholder-thumbnail.png') {
-          const bgImg = new Image();
-          bgImg.src = backdropUrl;
-        }
-      }
-    });
+      });
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [activeIndex, filteredItems]);
 
   // Auto-focus search input when opened
@@ -217,7 +223,7 @@ export function MobileArcadeDeck({
   const activeRating = activeItem ? getTVItemRating(activeItem) : '';
   const activeBackdrop = activeItem ? getTVItemBackdrop(activeItem) : '';
   const activeGenres = activeItem ? getTVItemGenre(activeItem) : '';
-  const activeTrailer = activeItem ? activeItem.trailerUrl || activeItem.trailer_url || '' : '';
+  const activeTrailer = activeItem ? getTVItemTrailerUrl(activeItem) : '';
 
   const activeSeasons = useMemo(() => {
     if (!activeItem) return '';
@@ -335,14 +341,15 @@ export function MobileArcadeDeck({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* 1. Dynamic Blur Background Poster (No backdrop-filter for ultra performance) */}
+      {/* 1. Dynamic Blur Background Poster (GPU hardware accelerated) */}
       {activeBackdrop && (
         <div 
-          className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-500 ease-out scale-105 opacity-[0.25]"
+          className="absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-300 ease-out scale-105 opacity-[0.22] pointer-events-none"
           style={{ 
             backgroundImage: `url(${activeBackdrop})`,
-            filter: 'blur(25px) brightness(0.4)',
-            willChange: 'background-image'
+            filter: 'blur(20px) brightness(0.4)',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
           }}
         />
       )}
@@ -530,11 +537,8 @@ export function MobileArcadeDeck({
 
             {/* Deck of overlapping cards */}
             <div className="relative w-[54vw] aspect-[2/3] max-w-[240px] flex items-center justify-center">
-              {filteredItems.map((item, idx) => {
+              {visibleCards.map(({ item, idx }) => {
                 const isCurrent = idx === activeIndex;
-                const isVisible = Math.abs(idx - activeIndex) <= 2;
-                if (!isVisible) return null;
-
                 const thumbnail = getTVItemImage(item);
                 const isHot = item.hasNewEpisodes || item.isHot || item.mainSection === 'POPULARES' || idx % 7 === 1;
 
@@ -552,8 +556,9 @@ export function MobileArcadeDeck({
                     style={{
                       ...getCardStyle(idx),
                       willChange: 'transform, opacity',
+                      backfaceVisibility: 'hidden',
                     }}
-                    className={`absolute inset-0 w-full h-full rounded-[22px] overflow-hidden select-none cursor-pointer transition-all duration-300 ease-out ${
+                    className={`arcade-card-transition absolute inset-0 w-full h-full rounded-[22px] overflow-hidden select-none cursor-pointer ${
                       isCurrent ? 'ring-2' : ''
                     } ${
                       variant === 'arcade'
@@ -575,6 +580,7 @@ export function MobileArcadeDeck({
                         e.currentTarget.src = '/img/placeholder-thumbnail.png';
                       }}
                       loading="lazy"
+                      decoding="async"
                     />
 
                     {/* NEW / HOT Badge */}
@@ -777,6 +783,9 @@ export function MobileArcadeDeck({
             transform: translateX(100%);
           }
         }
+        .arcade-card-transition {
+          transition: transform 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 280ms ease;
+        }
         .animate-shimmer {
           animation: shimmer 1.5s infinite linear;
         }
@@ -785,4 +794,4 @@ export function MobileArcadeDeck({
   );
 }
 
-export default MobileArcadeDeck;
+export default React.memo(MobileArcadeDeck);

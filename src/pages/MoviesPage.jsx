@@ -264,7 +264,7 @@ export default function MoviesPage() {
             setSearchTerm('');
         } else {
             // Si no estamos en una sección, ir a la página principal
-            navigate('/');
+            navigate('/home');
         }
     };
 
@@ -456,6 +456,12 @@ export default function MoviesPage() {
                     onCategoryChange={setSelectedGenre}
                     loading={isLoading}
                 />
+                {showTrailerModal && currentTrailerUrl && (
+                    <TrailerModal
+                        trailerUrl={currentTrailerUrl}
+                        onClose={closeTrailer}
+                    />
+                )}
                 
                 {vodDetail?.item && (
                     <MobileVodDetailModal
@@ -469,6 +475,23 @@ export default function MoviesPage() {
                         onPlay={handlePlayFromDetail}
                         onAddToMyList={handleAddToMyListSafe}
                         onTrailer={openTrailer}
+                    />
+                )}
+
+                <CollectionsModal
+                    isOpen={isCollectionsModalOpen}
+                    onClose={handleCloseCollectionsModal}
+                    item={selectedItemForCollection}
+                    collections={collections.filter(c => c.itemsModel === 'Video')}
+                    onAddToCollection={handleAddToCollection}
+                />
+
+                {toastMessage && (
+                    <Toast
+                        message={toastMessage}
+                        type={toastType}
+                        duration={3000}
+                        onClose={() => setToastMessage('')}
                     />
                 )}
             </>

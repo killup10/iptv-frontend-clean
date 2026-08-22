@@ -185,7 +185,7 @@ export default function ZonaKids() {
   };
 
   const handleGoBack = () => {
-    navigate('/');
+    navigate('/home');
   };
 
   const filteredContent = content.filter(item => {

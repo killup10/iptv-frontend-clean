@@ -229,7 +229,7 @@ export default function SeriesPage() {
   };
 
   const handleGoBack = () => {
-    navigate('/');
+    navigate('/home');
   };
 
   const toggleGridView = () => {

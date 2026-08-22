@@ -61,10 +61,17 @@ const activateTextInput = (input) => {
 };
 
 function Login() {
-  const { login } = useAuth();
+  const { user, isLoadingAuth, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isTVMode = isAndroidTV();
+
+  useEffect(() => {
+    if (!isLoadingAuth && user) {
+      const from = location.state?.from?.pathname || "/home";
+      navigate(from, { replace: true });
+    }
+  }, [user, isLoadingAuth, navigate, location.state]);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

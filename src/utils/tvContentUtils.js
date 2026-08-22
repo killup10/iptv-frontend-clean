@@ -180,6 +180,9 @@ export function getTVItemBackdrop(item) {
 }
 
 export function getTVItemTrailerUrl(item) {
+  if (!item) return '';
+
+  // Direct trailer fields
   const trailerUrl =
     item?.trailerUrl ||
     item?.trailer_url ||
@@ -191,6 +194,12 @@ export function getTVItemTrailerUrl(item) {
     item?.youtubeUrl ||
     item?.youtube_url ||
     item?.url_trailer ||
+    item?.trailerId ||
+    item?.youtubeId ||
+    item?.tmdbTrailer ||
+    (Array.isArray(item?.videos?.results)
+      ? item.videos.results.find(v => v.type === 'Trailer' || v.site === 'YouTube')?.key
+      : '') ||
     '';
 
   return String(trailerUrl || '').trim();

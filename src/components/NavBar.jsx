@@ -59,7 +59,7 @@ export default function NavBar() {
         }}
       >
         {/* Logo */}
-        <Link to="/" className="flex items-center">
+        <Link to="/home" className="flex items-center">
           <img 
             src="./logo-teamg.png" 
             alt="TeamG Play Logo" 

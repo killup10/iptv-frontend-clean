@@ -34,17 +34,28 @@ import {
   Link2,
   Move,
   X,
+  Copy,
+  CheckCheck,
+  ExternalLink,
 } from "lucide-react";
 import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
 
 function LandingPage() {
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState("mensual"); // "mensual" | "anual"
   const [simulatedPip, setSimulatedPip] = useState(false);
   const [pricingGroup, setPricingGroup] = useState("recomendados"); // "recomendados" | "iniciales"
   const [activeFaq, setActiveFaq] = useState(null);
+  const [isAppsModalOpen, setIsAppsModalOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyDownloaderCode = () => {
+    navigator.clipboard.writeText("3895210");
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
 
   // --- PIP Player Interactive State & Drag / Resize Logic ---
   // Helper to convert Dropbox URLs to raw direct streaming URLs
@@ -192,19 +203,19 @@ function LandingPage() {
 
   // Redireccionar si el usuario ya está autenticado
   useEffect(() => {
-    if (user) {
+    if (!isLoadingAuth && user) {
       console.log("[LandingPage] Usuario logueado detectado. Redirigiendo a /home...");
       navigate("/home", { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isLoadingAuth, navigate]);
 
   // Redireccionar si estamos dentro de una app instalada (Electron o Capacitor nativo)
   useEffect(() => {
-    if (!isWeb() && !user) {
-      console.log("[LandingPage] Detectada app nativa. Redirigiendo a /login...");
+    if (!isLoadingAuth && !isWeb() && !user) {
+      console.log("[LandingPage] Detectada app nativa sin sesión. Redirigiendo a /login...");
       navigate("/login", { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isLoadingAuth, navigate]);
 
   // Función para desplazamiento suave a anclas sin romper el HashRouter de React Router
   const scrollToSection = (id) => {
@@ -416,6 +427,9 @@ function LandingPage() {
             <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-[#00F0FF] transition-colors duration-200">Características</button>
             <button onClick={() => scrollToSection("catalogo")} className="hover:text-[#00F0FF] transition-colors duration-200">Catálogo</button>
             <button onClick={() => scrollToSection("planes")} className="hover:text-[#00F0FF] transition-colors duration-200">Planes y Precios</button>
+            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors duration-200 flex items-center gap-1.5 font-bold">
+              <Download className="w-3.5 h-3.5" /> Descargar Apps
+            </button>
             <button onClick={() => scrollToSection("testimonios")} className="hover:text-[#00F0FF] transition-colors duration-200">Opiniones</button>
             <button onClick={() => scrollToSection("faq")} className="hover:text-[#00F0FF] transition-colors duration-200">FAQ</button>
           </nav>
@@ -465,13 +479,13 @@ function LandingPage() {
               Comenzar Ahora
             </button>
 
-            <Link
-              to="/login"
-              className="px-7 py-4 rounded-full bg-white/5 border border-white/15 hover:bg-white/15 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2"
+            <button
+              onClick={() => setIsAppsModalOpen(true)}
+              className="px-7 py-4 rounded-full bg-white/5 border border-white/15 hover:bg-white/15 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2 hover:border-[#00F0FF]/50 hover:text-white"
             >
-              <Monitor className="w-4 h-4 text-cyan-400" />
-              Apps TV / PC
-            </Link>
+              <Tv className="w-4 h-4 text-cyan-400" />
+              Apps TV / PC / Móvil
+            </button>
           </div>
 
           {/* Quick Stats Badges */}
@@ -598,8 +612,16 @@ function LandingPage() {
                 Navega cómodamente desde tu sillón utilizando el control remoto oficial de tu televisor sin necesidad de conectar mouse adicionales.
               </p>
             </div>
-            <div className="mt-6 text-xs font-semibold text-[#00F0FF]">
-              Compatible con TV Box, Xiaomi, Chromecast, JVC & Android TV.
+            <div className="mt-6 flex flex-col gap-2">
+              <div className="text-xs font-semibold text-[#00F0FF]">
+                Compatible con TV Box, Xiaomi, Chromecast, JVC & Android TV.
+              </div>
+              <button
+                onClick={() => setIsAppsModalOpen(true)}
+                className="inline-flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-[#00F0FF] transition-colors pt-2 border-t border-white/10"
+              >
+                <Download className="w-3.5 h-3.5 text-[#00F0FF]" /> Descargar APK TV o Código Downloader (3895210) ➔
+              </button>
             </div>
           </div>
 
@@ -923,14 +945,169 @@ function LandingPage() {
             <span className="font-semibold text-xs text-slate-400">© 2026 TeamG Play. Todos los derechos reservados.</span>
           </div>
 
-          <div className="flex items-center gap-6 text-xs font-semibold text-slate-400">
+          <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-400">
             <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-white transition-colors">Características</button>
             <button onClick={() => scrollToSection("planes")} className="hover:text-white transition-colors">Precios</button>
+            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors flex items-center gap-1 font-bold">
+              <Download className="w-3.5 h-3.5" /> Descargar Apps
+            </button>
             <button onClick={() => scrollToSection("testimonios")} className="hover:text-white transition-colors">Opiniones</button>
             <Link to="/login" className="hover:text-white text-[#00F0FF] font-bold">Iniciar Sesión</Link>
           </div>
         </div>
       </footer>
+
+      {/* APPS & TV DOWNLOADS MODAL */}
+      {isAppsModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="relative w-full max-w-2xl bg-[#08081a] border border-cyan-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(0,240,255,0.25)] text-white">
+            
+            {/* Close Button */}
+            <button
+              onClick={() => setIsAppsModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-slate-300 hover:text-white transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-extrabold uppercase tracking-widest mb-3">
+                <Download className="w-3.5 h-3.5" /> Centro de Descargas Oficial
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-outfit font-black tracking-tight text-white">
+                Instala <span className="capcut-accent-gradient">TeamG Play</span> en tu dispositivo
+              </h2>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1.5 max-w-md mx-auto">
+                Selecciona tu equipo para descargar la aplicación oficial optimizada en 4K.
+              </p>
+            </div>
+
+            {/* Devices Grid */}
+            <div className="grid grid-cols-1 gap-4">
+              
+              {/* Option 1: Smart TV & TV Box (Featured) */}
+              <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-purple-950/20 to-black/60 border-2 border-[#00F0FF]/50 relative overflow-hidden shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]">
+                      <Tv className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-outfit font-black text-lg text-white">Smart TV / TV Box</h3>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00F0FF] text-black">
+                          Recomendado TV
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        Android TV, Fire TV Stick, Google TV, Xiaomi TV Box, TCL, Hisense
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* TV Method A: Direct APK Button */}
+                <div className="space-y-3 pt-2 border-t border-white/10">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <a
+                      href="https://teamg.store/teamgplay2TV.apk"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-3 px-5 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(0,240,255,0.4)] flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4 stroke-[2.5]" />
+                      Descargar APK Smart TV
+                    </a>
+                  </div>
+
+                  {/* TV Method B: Downloader App Code */}
+                  <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="px-2.5 py-1 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-400 font-black text-[10px] uppercase tracking-wider">
+                        Downloader
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-white">Código en App Downloader:</p>
+                        <p className="text-[11px] text-slate-400">Ingresa este código en tu TV para instalar en 10 seg.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="font-mono text-lg sm:text-xl font-black text-[#00F0FF] tracking-wider px-3 py-1 rounded-lg bg-[#00F0FF]/10 border border-[#00F0FF]/30">
+                        3895210
+                      </span>
+                      <button
+                        onClick={handleCopyDownloaderCode}
+                        className="p-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition flex items-center gap-1 text-xs font-bold"
+                        title="Copiar código"
+                      >
+                        {copiedCode ? <CheckCheck className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{copiedCode ? "Copiado" : "Copiar"}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: Android Mobile */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                    <Smartphone className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-outfit font-black text-base text-white">Android Celular / Tablet</h3>
+                    <p className="text-xs text-slate-400">Versión táctil ultra fluida 60 FPS con Menú 3D y Trailers</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://play.teamg.store/downloads/TeamG%20Play%20Mobile%201.5.8.apk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Descargar APK Móvil
+                </a>
+              </div>
+
+              {/* Option 3: Windows PC */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-400">
+                    <Laptop className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-outfit font-black text-base text-white">Windows PC (App de Escritorio)</h3>
+                    <p className="text-xs text-slate-400">Reproductor MPV nativo con modo flotante PiP y cero cortes</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://play.teamg.store/downloads/TeamG%20Play%20Desktop%20Setup%201.5.8.exe"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Descargar para PC (.exe)
+                </a>
+              </div>
+
+            </div>
+
+            {/* Fast Install Guide Footer */}
+            <div className="mt-6 p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center">
+              <p className="text-[11px] text-slate-400">
+                💡 <strong className="text-slate-300">¿Cómo usar el código Downloader en Smart TV?</strong> Abre la app <span className="text-orange-400 font-bold">Downloader</span> en tu televisor, escribe <strong className="text-[#00F0FF] font-mono">3895210</strong>, presiona <strong className="text-white">Go</strong> y la instalación iniciará sola.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* REAL DRAGGABLE & RESIZABLE PIP PLAYER OVERLAY WITH DROPBOX VIDEO SUPPORT */}
       {simulatedPip && (

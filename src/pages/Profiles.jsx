@@ -110,7 +110,7 @@ export default function Profiles() {
   const proceedWithProfile = async (profile) => {
     await selectProfile(profile);
     setTimeout(() => {
-      navigate("/");
+      navigate("/home");
     }, 100);
   };
 
