@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { isAndroidTV } from "../utils/platformUtils.js";
-import { Laptop, Smartphone, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Laptop, Smartphone, Tv, Copy, CheckCheck, Eye, EyeOff, Loader2 } from "lucide-react";
 
-const TV_LOGIN_FOCUSABLE_COUNT = 6;
+const TV_LOGIN_FOCUSABLE_COUNT = 7;
 
 const resolveTVLoginAction = (event) => {
   switch (event.key) {
@@ -80,6 +80,18 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [tvLoginFocusIndex, setTVLoginFocusIndex] = useState(0);
 
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyDownloaderCode = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    navigator.clipboard.writeText("3895210");
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
+  };
+
   const tvLoginRefs = useRef([]);
   const usernameInputRef = useRef(null);
   const passwordInputRef = useRef(null);
@@ -134,6 +146,10 @@ function Login() {
           setTVLoginFocusIndex(4);
           return;
         }
+        if (tvLoginFocusIndex === 6) {
+          setTVLoginFocusIndex(5);
+          return;
+        }
         if (tvLoginFocusIndex === 1 && showPassword && !isLoggingIn) {
           setShowPassword(false);
         }
@@ -143,6 +159,10 @@ function Login() {
       if (action === "ArrowRight") {
         if (tvLoginFocusIndex === 4) {
           setTVLoginFocusIndex(5);
+          return;
+        }
+        if (tvLoginFocusIndex === 5) {
+          setTVLoginFocusIndex(6);
           return;
         }
         if (tvLoginFocusIndex === 1 && !showPassword && !isLoggingIn) {
@@ -393,29 +413,68 @@ function Login() {
 
               {/* Descargar Aplicación */}
               <div className="mt-8 border-t border-white/10 pt-6">
-                <h3 className="mb-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <h3 className="mb-3 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Descargar la aplicación
                 </h3>
-                <div className="flex flex-row justify-center gap-3">
+
+                {/* Botón Principal Smart TV + Código Downloader */}
+                <div className="mb-2.5">
                   <a
                     ref={(node) => setTVLoginRef(4, node)}
-                    href="https://teamg.store/teamgplay-desktop.exe"
-                    download="teamgplay-desktop.exe"
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2.5 px-3 text-white transition-all duration-300 hover:bg-white/10 hover:border-cyan-400/30 ${getTVLoginFocusClasses(4, "")}`}
+                    href="https://teamg.store/teamgplay2TV.apk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full flex items-center justify-between rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-950/60 via-purple-950/40 to-black/80 py-2.5 px-3 text-white transition-all duration-300 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] ${getTVLoginFocusClasses(4, "")}`}
                     onFocus={() => isTVMode && setTVLoginFocusIndex(4)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Tv className="h-4 w-4 text-cyan-400 shrink-0" />
+                      <div className="text-left">
+                        <span className="font-extrabold text-[11px] uppercase tracking-wider text-white flex items-center gap-1.5">
+                          Smart TV / TV Box
+                        </span>
+                        <span className="text-[9px] text-slate-400 block -mt-0.5">Descargar APK Oficial</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 bg-black/70 border border-white/15 rounded-lg px-2 py-1">
+                      <span className="text-[8px] uppercase font-black text-orange-400">Downloader:</span>
+                      <span className="font-mono text-xs font-black text-cyan-300">3895210</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyDownloaderCode}
+                        className="text-slate-400 hover:text-white p-0.5 ml-0.5"
+                        title="Copiar código Downloader"
+                      >
+                        {copiedCode ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </a>
+                </div>
+
+                {/* Fila Secundaria: Windows & Android Móvil */}
+                <div className="flex flex-row justify-center gap-2.5">
+                  <a
+                    ref={(node) => setTVLoginRef(5, node)}
+                    href="https://play.teamg.store/downloads/TeamG%20Play%20Desktop%20Setup%201.5.8.exe"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2 px-3 text-white transition-all duration-300 hover:bg-white/10 hover:border-cyan-400/30 ${getTVLoginFocusClasses(5, "")}`}
+                    onFocus={() => isTVMode && setTVLoginFocusIndex(5)}
                   >
                     <Laptop className="h-4 w-4 text-cyan-400" />
                     <span className="font-extrabold text-[10px] uppercase tracking-wider">Windows</span>
                   </a>
                   <a
-                    ref={(node) => setTVLoginRef(5, node)}
-                    href="https://teamg.store/teamgplay.apk"
-                    download="teamgplay.apk"
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2.5 px-3 text-white transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/30 ${getTVLoginFocusClasses(5, "")}`}
-                    onFocus={() => isTVMode && setTVLoginFocusIndex(5)}
+                    ref={(node) => setTVLoginRef(6, node)}
+                    href="https://play.teamg.store/downloads/TeamG%20Play%20Mobile%201.5.8.apk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2 px-3 text-white transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/30 ${getTVLoginFocusClasses(6, "")}`}
+                    onFocus={() => isTVMode && setTVLoginFocusIndex(6)}
                   >
                     <Smartphone className="h-4 w-4 text-fuchsia-400" />
-                    <span className="font-extrabold text-[10px] uppercase tracking-wider">Android</span>
+                    <span className="font-extrabold text-[10px] uppercase tracking-wider">Android Móvil</span>
                   </a>
                 </div>
               </div>

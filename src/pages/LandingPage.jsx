@@ -366,51 +366,69 @@ function LandingPage() {
         }
 
         .capcut-glass-nav {
-          background: rgba(4, 4, 10, 0.75);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
+          background: rgba(8, 6, 18, 0.88);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          will-change: transform;
+          transform: translateZ(0);
         }
 
         .capcut-card-bg {
           background: radial-gradient(circle at 50% 0%, rgba(15, 15, 30, 0.95), rgba(6, 6, 14, 0.98));
           border: 1px solid rgba(255, 255, 255, 0.08);
+          transform: translateZ(0);
         }
         .capcut-card-bg:hover {
           border-color: rgba(0, 240, 255, 0.4);
-          box-shadow: 0 12px 40px rgba(0, 240, 255, 0.12);
         }
 
         .perspective-mockup {
-          transform: perspective(1200px) rotateY(-8deg) rotateX(4deg) scale(0.96);
-          transition: all 600ms cubic-bezier(0.16, 1, 0.3, 1);
+          transform: translateZ(0);
+          transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 400ms ease;
+          will-change: transform;
         }
         .perspective-mockup:hover {
-          transform: perspective(1200px) rotateY(0deg) rotateX(0deg) scale(1);
-          box-shadow: 0 30px 70px rgba(0, 240, 255, 0.25);
+          transform: translateY(-4px) scale(1.01);
         }
 
         @keyframes marquee-scroll {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
+          0% { transform: translate3d(0%, 0, 0); }
+          100% { transform: translate3d(-50%, 0, 0); }
         }
         .animate-marquee {
-          animation: marquee-scroll 24s linear infinite;
+          display: flex;
+          width: max-content;
+          animation: marquee-scroll 28s linear infinite;
+          will-change: transform;
+          transform: translateZ(0);
         }
         .animate-marquee:hover {
           animation-play-state: paused;
         }
 
         .ambient-glow-cyan {
-          background: radial-gradient(circle, rgba(0, 240, 255, 0.18) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(0, 240, 255, 0.12) 0%, transparent 70%);
         }
         .ambient-glow-fuchsia {
-          background: radial-gradient(circle, rgba(217, 70, 239, 0.15) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(217, 70, 239, 0.10) 0%, transparent 70%);
         }
       `}</style>
 
-      {/* Atmospheric Ambient Lighting Glows */}
-      <div className="absolute top-[-5%] left-[-10%] w-[55vw] h-[55vw] rounded-full ambient-glow-fuchsia blur-[120px] pointer-events-none z-0" />
-      <div className="absolute top-[20%] right-[-10%] w-[60vw] h-[60vw] rounded-full ambient-glow-cyan blur-[140px] pointer-events-none z-0" />
+      {/* Atmospheric Ambient Lighting Glows (Hardware Accelerated & Zero-Lag) */}
+      <div 
+        className="absolute top-[-5%] left-[-10%] w-[50vw] h-[50vw] rounded-full pointer-events-none z-0 opacity-70"
+        style={{
+          background: 'radial-gradient(circle, rgba(217, 70, 239, 0.14) 0%, rgba(217, 70, 239, 0.03) 45%, transparent 70%)',
+          transform: 'translateZ(0)'
+        }}
+      />
+      <div 
+        className="absolute top-[20%] right-[-10%] w-[55vw] h-[55vw] rounded-full pointer-events-none z-0 opacity-80"
+        style={{
+          background: 'radial-gradient(circle, rgba(0, 240, 255, 0.14) 0%, rgba(0, 240, 255, 0.03) 45%, transparent 70%)',
+          transform: 'translateZ(0)'
+        }}
+      />
 
       {/* Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_20%,#000_70%,transparent_100%)] pointer-events-none z-0" />
