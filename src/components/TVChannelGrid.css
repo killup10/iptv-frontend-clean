@@ -168,16 +168,18 @@
   flex-direction: column;
   gap: 6px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 0;
   border: none;
   background: transparent;
   text-align: center;
   will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .channel-card.focused {
-  transform: scale(1.08) translateY(-4px);
+  transform: scale(1.08) translateY(-4px) translateZ(0);
 }
 
 .channel-thumbnail {
@@ -188,7 +190,9 @@
   overflow: hidden;
   background: #0f3460;
   border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .channel-card.focused .channel-thumbnail {

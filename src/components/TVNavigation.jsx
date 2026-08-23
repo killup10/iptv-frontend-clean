@@ -82,34 +82,26 @@ export default function TVNavigation() {
   }, [activeIndex]);
 
   useEffect(() => {
-    console.log('[TVNav] focusedIndex useEffect running. Zone:', getTVFocusZone(), 'Index:', focusedIndex);
     if (getTVFocusZone() !== TV_FOCUS_ZONE_NAV) return;
 
     const target = itemRefs.current[focusedIndex];
-    if (!target) {
-      console.warn('[TVNav] Target ref not found for index:', focusedIndex);
-      return;
-    }
+    if (!target) return;
 
     try {
-      console.log('[TVNav] Focus target index:', focusedIndex, target);
       target.focus({ preventScroll: true });
-    } catch (err) {
-      console.warn('[TVNav] focus error:', err);
+    } catch {
       target.focus();
     }
 
     try {
-      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } catch (e) {
-      console.warn('TVNav scrollIntoView error:', e);
-    }
+      target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+    } catch {}
   }, [focusedIndex]);
 
   const focusContentWithDelay = () => {
     window.setTimeout(() => {
       focusTVContent();
-    }, 80);
+    }, 50);
   };
 
   const moveFocus = (direction) => {
@@ -140,7 +132,6 @@ export default function TVNavigation() {
   };
 
   const handleKeyDown = (event) => {
-    console.log('[TVNav] keydown event. Zone:', getTVFocusZone(), 'key:', event.key, 'keyCode:', event.keyCode);
     if (getTVFocusZone() !== TV_FOCUS_ZONE_NAV) return;
 
     let key = event.key;
@@ -149,8 +140,6 @@ export default function TVNavigation() {
     else if (event.keyCode === 21) key = 'ArrowLeft';
     else if (event.keyCode === 22) key = 'ArrowRight';
     else if (event.keyCode === 23 || event.keyCode === 66) key = 'Enter';
-
-    console.log('[TVNav] Resolved key:', key);
 
     switch (key) {
       case 'ArrowUp':
@@ -181,7 +170,7 @@ export default function TVNavigation() {
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  });
 
   const renderMenuIcon = (iconType) => {
     switch (iconType) {

@@ -85,14 +85,19 @@ export default function TVChannelGrid({
 
       switch (direction) {
         case 'up':
-          if (row > 0) next = prev - columnCount;
-          else return -2; // Signal to move to category
+          if (row > 0) {
+            next = prev - columnCount;
+          } else {
+            return -2; // Signal to move to category
+          }
+          break;
         case 'down':
           if (row < totalRows - 1) next = Math.min(prev + columnCount, channels.length - 1);
           break;
         case 'left':
           if (col > 0) next = prev - 1;
           else return -3; // Signal to move to nav
+          break;
         case 'right':
           if (col < columnCount - 1 && prev < channels.length - 1) next = prev + 1;
           break;
