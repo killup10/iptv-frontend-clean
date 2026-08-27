@@ -1379,7 +1379,7 @@ function LandingPage() {
                 </div>
 
                 <a
-                  href="https://play.teamg.store/downloads/TeamG%20Play%20Mobile%201.5.8.apk"
+                  href="https://teamg.store/teamgplay.apk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all hover:scale-105 flex items-center justify-center gap-2"

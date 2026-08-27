@@ -12,7 +12,6 @@ import { getAccessLockState } from '../utils/planAccess.js';
 const SUBCATEGORIES = [
   'TODOS',
   'Cine 2026',
-  'Cine 2025',
   'Cine 4K',
   'Cine 60 FPS',
   'Acción',
@@ -29,7 +28,6 @@ const SUBCATEGORIES = [
 
 const SUBCATEGORY_SECTION_MAP = {
   'cine 2026': 'CINE_2026',
-  'cine 2025': 'CINE_2025',
   'cine 4k': 'CINE_4K',
   'cine 60 fps': 'CINE_60FPS',
 };

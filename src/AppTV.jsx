@@ -120,7 +120,6 @@ function AppTV() {
         fetchVideosByType('dorama', 1, 500),
         fetchVideosByType('novela', 1, 500),
         fetchVideosByType('documental', 1, 500),
-        fetchUserMovies(1, 500, 'CINE_2025'),
         fetchUserMovies(1, 500, 'CINE_2026'),
       ]);
 
@@ -132,7 +131,6 @@ function AppTV() {
         doramasResult,
         novelasResult,
         documentalesResult,
-        cine2025Result,
         cine2026Result,
       ] = results;
 
@@ -144,7 +142,6 @@ function AppTV() {
         ...(doramasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(doramasResult.value, 'dorama') : []),
         ...(novelasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(novelasResult.value, 'novela') : []),
         ...(documentalesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(documentalesResult.value, 'documental') : []),
-        ...(cine2025Result.status === 'fulfilled' ? normalizeGlobalSearchItems(cine2025Result.value, 'movie') : []),
         ...(cine2026Result.status === 'fulfilled' ? normalizeGlobalSearchItems(cine2026Result.value, 'movie') : []),
       ];
 

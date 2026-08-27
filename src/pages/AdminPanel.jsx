@@ -101,7 +101,6 @@ const MAIN_SECTION_VOD_OPTIONS = [
   { key: "POR_GENERO", displayName: "POR GÉNEROS"},
   { key: "ESPECIALES", displayName: "ESPECIALES (Festividades)"},
   { key: "CINE_2026", displayName: "CINE 2026 (Estrenos)"},
-  { key: "CINE_2025", displayName: "CINE 2025 (Estrenos)"},
   { key: "CINE_4K", displayName: "CINE 4K UHD"},
   { key: "CINE_60FPS", displayName: "CINE 60 FPS"},
   { key: "ZONA_KIDS", displayName: "ZONA KIDS"},
@@ -2735,7 +2734,6 @@ export default function AdminPanel() {
                   {bulkCategoria === "pelicula" && (
                     <>
                       <option value="CINE_2026">CINE 2026</option>
-                      <option value="CINE_2025">CINE 2025</option>
                       <option value="CINE_4K">CINE 4K</option>
                       <option value="CINE_60FPS">CINE 60 FPS</option>
                       <option value="POR_GENERO">POR GÉNEROS</option>

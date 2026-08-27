@@ -467,7 +467,7 @@ function Login() {
                   </a>
                   <a
                     ref={(node) => setTVLoginRef(6, node)}
-                    href="https://play.teamg.store/downloads/TeamG%20Play%20Mobile%201.5.8.apk"
+                    href="https://teamg.store/teamgplay.apk"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2 px-3 text-white transition-all duration-300 hover:bg-white/10 hover:border-fuchsia-400/30 ${getTVLoginFocusClasses(6, "")}`}

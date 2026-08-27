@@ -745,7 +745,6 @@ export function Home() {
                 fetchVideosByType('dorama', 1, 500),
                 fetchVideosByType('novela', 1, 500),
                 fetchVideosByType('documental', 1, 500),
-                fetchUserMovies(1, 500, 'CINE_2025'), // Cine 2025
                 fetchUserMovies(1, 500, 'CINE_2026'), // Cine 2026
                 fetchUserMovies(1, 500, 'CINE_4K'),   // Cine 4K
               ]);
@@ -758,7 +757,6 @@ export function Home() {
                 allDoramasResult,
                 allNovelasResult,
                 allDocumentalesResult,
-                cine2025Result,
                 cine2026Result,
                 cine4KResult,
               ] = fullIndexResults;
@@ -769,7 +767,6 @@ export function Home() {
               const allDoramas = processResult(allDoramasResult, null, 'All Doramas');
               const allNovelas = processResult(allNovelasResult, null, 'All Novelas');
               const allDocumentales = processResult(allDocumentalesResult, null, 'All Documentales');
-              const cine2025 = processResult(cine2025Result, null, 'Cine 2025');
               const cine2026 = processResult(cine2026Result, null, 'Cine 2026');
               const cine4K = processResult(cine4KResult, null, 'Cine 4K');
 
@@ -781,7 +778,6 @@ export function Home() {
                 ...allDoramas.map(item => ({ ...item, type: 'dorama', itemType: 'dorama' })),
                 ...allNovelas.map(item => ({ ...item, type: 'novela', itemType: 'novela' })),
                 ...allDocumentales.map(item => ({ ...item, type: 'documental', itemType: 'documental' })),
-                ...cine2025.map(item => ({ ...item, type: 'cine-2025', itemType: 'movie' })),
                 ...cine2026.map(item => ({ ...item, type: 'cine-2026', itemType: 'movie' })),
                 ...cine4K.map(item => ({ ...item, type: 'cine-4k', itemType: 'movie' })),
               ];

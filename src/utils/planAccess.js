@@ -28,7 +28,6 @@ const SECTION_REQUIRED_PLANS = {
   CINE_4K: ['premium', 'cinefilo'],
   CINE_60FPS: ['premium', 'cinefilo'],
   CINE_2026: ['premium', 'cinefilo'],
-  CINE_2025: ['premium', 'cinefilo'],
   TV_EN_VIVO: ['premium'],
   DORAMAS: ['estandar', 'premium', 'cinefilo'],
 };

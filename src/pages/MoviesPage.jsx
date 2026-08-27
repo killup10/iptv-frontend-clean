@@ -129,7 +129,7 @@ export default function MoviesPage() {
         setError(null);
 
         try {
-            const isGenreSection = mainSection === 'por-generos';
+            const isGenreSection = mainSection === 'por-generos' || mainSection === 'POR_GENERO';
             const sectionToFetch = isGenreSection ? null : mainSection;
             const limit = window.innerWidth < 768 ? 1000 : 20;
             const data = await fetchUserMovies(currentPage, limit, sectionToFetch, genre, search);
