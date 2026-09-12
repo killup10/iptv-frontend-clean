@@ -13,6 +13,17 @@ import EpgGuide from '../components/EpgGuide.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 
 
+const formatLiveTime = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' });
+  } catch (_) {
+    return '';
+  }
+};
+
 export default function LiveTVPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -259,7 +270,7 @@ export default function LiveTVPage() {
                 tipo: channel.tipo || 'channel',
                 thumbnail: channel.customThumbnail || channel.thumbnail || channel.logo || '/img/placeholder-thumbnail.png',
                 epg: channel.epg || channel.currentProgram || '',
-                description: channel.epg ? `🔴 Ahora: ${channel.epg}${channel.nextProgram ? ` | Sig: ${channel.nextProgram}` : ''}` : channel.description,
+                description: channel.epg ? `🔴 Ahora${channel.epgStart ? ` (${formatLiveTime(channel.epgStart)})` : ''}: ${channel.epg}${channel.nextProgram ? ` | Sig: ${channel.nextProgram}` : ''}` : channel.description,
               }}
               onClick={() => handleChannelClick(channel)}
               itemType="channel"

@@ -52,10 +52,31 @@ function seededRandom(seed) {
   return x - Math.floor(x);
 }
 
+function getPeruTimeComponents(d = new Date()) {
+  const peruTime = new Date(d.getTime() - 5 * 3600 * 1000);
+  return {
+    year: peruTime.getUTCFullYear(),
+    month: peruTime.getUTCMonth(),
+    date: peruTime.getUTCDate(),
+    hours: peruTime.getUTCHours(),
+    minutes: peruTime.getUTCMinutes(),
+  };
+}
+
+function getPeruDayBounds(d = new Date()) {
+  const { year, month, date } = getPeruTimeComponents(d);
+  // 00:00:00.000 in UTC-5 corresponds to 05:00:00.000 UTC
+  const startOfDay = new Date(Date.UTC(year, month, date, 5, 0, 0, 0));
+  // 23:59:59.999 in UTC-5 corresponds to next day 04:59:59.999 UTC
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 3600 * 1000 - 1);
+  return { startOfDay, endOfDay, year, month, date };
+}
+
 function getSeed(channelName, channelId, date) {
   const cleanName = String(channelName || '').toLowerCase().trim();
   const cleanId = String(channelId || '').trim();
-  const str = `${cleanName}-${cleanId}-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  const { year, month, date: day } = getPeruTimeComponents(date);
+  const str = `${cleanName}-${cleanId}-${year}-${month}-${day}`;
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -172,68 +193,126 @@ function getRandomProgram(channelName, seed, hour) {
 }
 
 /**
- * Generates an array of programs for a full day (from 00:00 to 23:59)
+ * Generates an array of programs for a full day (from 00:00 to 23:59 Perú Time)
  * for a specific channel name/ID.
  */
 export function getEPGForChannel(channelName, channelId, date = new Date(), realNow = null, realNext = null) {
   const seed = getSeed(channelName, channelId, date);
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  const { startOfDay, endOfDay } = getPeruDayBounds(date);
+
+  const realNowStart = realNow?.start ? new Date(realNow.start) : null;
+  const realNowStop = realNow?.stop ? new Date(realNow.stop) : null;
+  const hasValidRealNow = realNowStart && realNowStop && !isNaN(realNowStart.getTime()) && !isNaN(realNowStop.getTime()) && realNowStart < realNowStop;
+
+  const realNextStart = realNext?.start ? new Date(realNext.start) : null;
+  const realNextStop = realNext?.stop ? new Date(realNext.stop) : null;
+  const hasValidRealNext = realNextStart && realNextStop && !isNaN(realNextStart.getTime()) && !isNaN(realNextStop.getTime()) && realNextStart < realNextStop;
 
   const programs = [];
-  let currentTime = new Date(startOfDay);
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setHours(23, 59, 59, 999);
-
   let programIndex = 0;
-  while (currentTime < endOfDay) {
-    const prgSeed = seed + programIndex;
-    // Possible durations: 30m, 60m, 90m, 120m
-    const durationOpts = [30, 60, 60, 90, 120];
-    const duration = durationOpts[Math.floor(seededRandom(prgSeed) * durationOpts.length)];
-    
-    const prgStart = new Date(currentTime);
-    const prgEnd = new Date(currentTime.getTime() + duration * 60 * 1000);
-    
-    // Ensure we do not overshoot the day boundary
-    if (prgEnd > endOfDay) {
-      prgEnd.setTime(endOfDay.getTime());
-    }
 
-    let { title, description } = getRandomProgram(channelName, prgSeed, prgStart.getHours());
-
-    // Si coincide con el horario actual y hay EPG real del backend, usar el real
-    const isLiveSlot = prgStart <= date && date < prgEnd;
-    if (isLiveSlot && realNow) {
-      title = typeof realNow === 'string' ? realNow : (realNow.title || title);
-      if (typeof realNow === 'object' && realNow.desc) {
-        description = realNow.desc;
+  // Helper to generate simulated programs between [fromTime, toTime]
+  const fillSimulatedPrograms = (fromTime, toTime) => {
+    let cur = new Date(fromTime);
+    while (cur < toTime) {
+      const prgSeed = seed + programIndex;
+      const durationOpts = [30, 60, 60, 90, 120];
+      const duration = durationOpts[Math.floor(seededRandom(prgSeed) * durationOpts.length)];
+      
+      const prgStart = new Date(cur);
+      let prgEnd = new Date(cur.getTime() + duration * 60 * 1000);
+      if (prgEnd > toTime) {
+        prgEnd = new Date(toTime);
       }
-    }
 
+      // If duration is too tiny (< 10 min) and we already have programs, extend previous program instead
+      if (prgEnd.getTime() - prgStart.getTime() < 10 * 60 * 1000 && programs.length > 0) {
+        programs[programs.length - 1].end = prgEnd;
+        programs[programs.length - 1].duration = Math.round((prgEnd - programs[programs.length - 1].start) / 60000);
+        break;
+      }
+
+      const peruHour = getPeruTimeComponents(prgStart).hours;
+      const { title, description } = getRandomProgram(channelName, prgSeed, peruHour);
+
+      programs.push({
+        id: `${channelId || 'chan'}-${programIndex}`,
+        title,
+        description,
+        start: prgStart,
+        end: prgEnd,
+        duration: Math.round((prgEnd - prgStart) / 60000),
+        isReal: false,
+      });
+
+      cur = prgEnd;
+      programIndex++;
+    }
+  };
+
+  if (hasValidRealNow) {
+    // Fill before realNow
+    if (realNowStart > startOfDay) {
+      fillSimulatedPrograms(startOfDay, realNowStart);
+    }
+    // Add realNow
     programs.push({
-      id: `${channelId || 'chan'}-${programIndex}`,
-      title,
-      description,
-      start: prgStart,
-      end: prgEnd,
-      duration: Math.round((prgEnd - prgStart) / 60000),
-      isReal: isLiveSlot && !!realNow,
+      id: `${channelId || 'chan'}-live`,
+      title: typeof realNow === 'string' ? realNow : (realNow.title || 'En vivo'),
+      description: (typeof realNow === 'object' && realNow.desc) ? realNow.desc : `${channelName || 'Canal'} en vivo`,
+      start: realNowStart,
+      end: realNowStop,
+      duration: Math.round((realNowStop - realNowStart) / 60000),
+      isReal: true,
     });
-
-    currentTime = prgEnd;
     programIndex++;
-  }
 
-  // Si hay programa siguiente real, inyectarlo en el slot posterior al actual
-  if (realNext && programs.length > 0) {
-    const liveIdx = programs.findIndex(p => p.start <= date && date < p.end);
-    if (liveIdx !== -1 && liveIdx + 1 < programs.length) {
-      programs[liveIdx + 1].title = typeof realNext === 'string' ? realNext : (realNext.title || programs[liveIdx + 1].title);
-      if (typeof realNext === 'object' && realNext.desc) {
-        programs[liveIdx + 1].description = realNext.desc;
+    let afterTime = realNowStop;
+    if (hasValidRealNext && realNextStart >= realNowStop && realNextStart < endOfDay) {
+      if (realNextStart > realNowStop) {
+        fillSimulatedPrograms(realNowStop, realNextStart);
       }
-      programs[liveIdx + 1].isReal = true;
+      programs.push({
+        id: `${channelId || 'chan'}-next`,
+        title: typeof realNext === 'string' ? realNext : (realNext.title || 'Próximo programa'),
+        description: (typeof realNext === 'object' && realNext.desc) ? realNext.desc : 'Próxima emisión',
+        start: realNextStart,
+        end: realNextStop,
+        duration: Math.round((realNextStop - realNextStart) / 60000),
+        isReal: true,
+      });
+      programIndex++;
+      afterTime = realNextStop;
+    }
+
+    if (afterTime < endOfDay) {
+      fillSimulatedPrograms(afterTime, endOfDay);
+    }
+  } else {
+    // Standard generation with Peru time boundaries
+    fillSimulatedPrograms(startOfDay, endOfDay);
+
+    // If realNow title exists without start/stop, inject into current slot
+    if (realNow && programs.length > 0) {
+      const liveSlot = programs.find(p => p.start <= date && date < p.end);
+      if (liveSlot) {
+        liveSlot.title = typeof realNow === 'string' ? realNow : (realNow.title || liveSlot.title);
+        if (typeof realNow === 'object' && realNow.desc) {
+          liveSlot.description = realNow.desc;
+        }
+        liveSlot.isReal = true;
+      }
+    }
+    // If realNext title exists without start/stop, inject into slot after live
+    if (realNext && programs.length > 0) {
+      const liveIdx = programs.findIndex(p => p.start <= date && date < p.end);
+      if (liveIdx !== -1 && liveIdx + 1 < programs.length) {
+        programs[liveIdx + 1].title = typeof realNext === 'string' ? realNext : (realNext.title || programs[liveIdx + 1].title);
+        if (typeof realNext === 'object' && realNext.desc) {
+          programs[liveIdx + 1].description = realNext.desc;
+        }
+        programs[liveIdx + 1].isReal = true;
+      }
     }
   }
 

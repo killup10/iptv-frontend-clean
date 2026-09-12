@@ -47,6 +47,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.Normalizer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashSet;
@@ -2007,13 +2008,24 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
     }
 
+    private String stripAccents(String s) {
+        if (s == null) return "";
+        try {
+            String normalized = Normalizer.normalize(s, Normalizer.Form.NFD);
+            return normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase(Locale.ROOT).trim();
+        } catch (Exception e) {
+            return s.toLowerCase(Locale.ROOT).trim();
+        }
+    }
+
     private void applyDrawerFilter() {
         if (channelNames == null || channelUrls == null) return;
         int channelCount = Math.min(channelNames.size(), channelUrls.size());
         visibleChannelIndices.clear();
 
-        String query = (drawerSearchInput != null && drawerSearchInput.getText() != null)
-                ? drawerSearchInput.getText().toString().trim().toLowerCase() : "";
+        String rawQuery = (drawerSearchInput != null && drawerSearchInput.getText() != null)
+                ? drawerSearchInput.getText().toString() : "";
+        String query = stripAccents(rawQuery);
 
         for (int i = 0; i < channelCount; i++) {
             String name = channelNames.get(i);
@@ -2024,9 +2036,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             if ("history".equals(currentRailTab) && !recentChannelNames.contains(name)) {
                 continue;
             }
-            if (!query.isEmpty() && !name.toLowerCase().contains(query)) {
-                String epg = (channelEpgs != null && i < channelEpgs.size()) ? channelEpgs.get(i).toLowerCase() : "";
-                if (!epg.contains(query)) {
+            if (!query.isEmpty()) {
+                String normName = stripAccents(name);
+                String epg = (channelEpgs != null && i < channelEpgs.size()) ? channelEpgs.get(i) : "";
+                String normEpg = stripAccents(epg);
+                if (!normName.contains(query) && !normEpg.contains(query)) {
                     continue;
                 }
             }
@@ -2055,7 +2069,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
 
         if (drawerHeaderTime != null) {
-            drawerHeaderTime.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
+            SimpleDateFormat df = new SimpleDateFormat("HH:mm", new Locale("es", "PE"));
+            df.setTimeZone(java.util.TimeZone.getTimeZone("America/Lima"));
+            drawerHeaderTime.setText(df.format(new Date()));
         }
 
         setDrawerRailTab("channels");

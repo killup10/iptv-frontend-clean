@@ -93,7 +93,19 @@ export default function EpgGuide({
         (c) => String(c.id || c._id) === String(currentChannelId)
       );
       if (activeChan) {
-        const programs = getEPGForChannel(activeChan.name, activeChan.id || activeChan._id, now);
+        const realNow = (activeChan.epg || activeChan.currentProgram) ? {
+          title: activeChan.epg || activeChan.currentProgram,
+          desc: activeChan.epgDesc || activeChan.description || '',
+          start: activeChan.epgStart,
+          stop: activeChan.epgStop,
+        } : null;
+        const realNext = activeChan.nextProgram ? {
+          title: activeChan.nextProgram,
+          desc: activeChan.nextProgramDesc || '',
+          start: activeChan.nextProgramStart,
+          stop: activeChan.nextProgramStop,
+        } : null;
+        const programs = getEPGForChannel(activeChan.name, activeChan.id || activeChan._id, now, realNow, realNext);
         const current = getCurrentProgram(programs, now);
         if (current) {
           setSelectedProgram(current);
@@ -104,8 +116,15 @@ export default function EpgGuide({
   }, [currentChannelId, channels, now]);
 
   // Helper to format Date to HH:MM (Hora oficial de Perú)
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' });
+  const formatTime = (value) => {
+    if (!value) return '--:--';
+    try {
+      const d = value instanceof Date ? value : new Date(value);
+      if (isNaN(d.getTime())) return '--:--';
+      return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' });
+    } catch (_) {
+      return '--:--';
+    }
   };
 
   // 1 hour = 180px, 3px per minute
@@ -216,10 +235,14 @@ export default function EpgGuide({
                   const realNow = (channel.epg || channel.currentProgram) ? {
                     title: channel.epg || channel.currentProgram,
                     desc: channel.epgDesc || channel.description || '',
+                    start: channel.epgStart,
+                    stop: channel.epgStop,
                   } : null;
                   const realNext = channel.nextProgram ? {
                     title: channel.nextProgram,
                     desc: channel.nextProgramDesc || '',
+                    start: channel.nextProgramStart,
+                    stop: channel.nextProgramStop,
                   } : null;
                   const epgPrograms = getEPGForChannel(channel.name, channel.id || channel._id, now, realNow, realNext);
 
@@ -259,21 +282,27 @@ export default function EpgGuide({
                       {/* EPG Programs Timeline Row */}
                       <div className="relative flex-grow h-full overflow-hidden">
                         {epgPrograms.map((program) => {
+                          const pStartTime = new Date(program.start).getTime();
+                          const pEndTime = new Date(program.end).getTime();
+                          const tStartTime = timelineStart.getTime();
+                          const tEndTime = timelineEnd.getTime();
+
                           // Filter out programs completely outside the 8-hour window
-                          if (program.end <= timelineStart || program.start >= timelineEnd) {
+                          if (pEndTime <= tStartTime || pStartTime >= tEndTime) {
                             return null;
                           }
 
-                          const pStart = program.start < timelineStart ? timelineStart : program.start;
-                          const pEnd = program.end > timelineEnd ? timelineEnd : program.end;
+                          const pStart = pStartTime < tStartTime ? tStartTime : pStartTime;
+                          const pEnd = pEndTime > tEndTime ? tEndTime : pEndTime;
 
-                          const diffStartMin = (pStart - timelineStart) / 60000;
+                          const diffStartMin = (pStart - tStartTime) / 60000;
                           const diffDurationMin = (pEnd - pStart) / 60000;
 
                           const left = diffStartMin * PIXELS_PER_MINUTE;
                           const width = diffDurationMin * PIXELS_PER_MINUTE;
 
-                          const isLive = program.start <= now && now < program.end;
+                          const nowMs = now.getTime();
+                          const isLive = pStartTime <= nowMs && nowMs < pEndTime;
                           const isCurrentlySelected = selectedProgram?.id === program.id;
 
                           return (
@@ -343,7 +372,7 @@ export default function EpgGuide({
                   <Clock className="w-3 h-3" />
                   {formatTime(selectedProgram.start)} - {formatTime(selectedProgram.end)} ({selectedProgram.duration} min)
                 </span>
-                {selectedProgram.start <= now && now < selectedProgram.end && (
+                {new Date(selectedProgram.start) <= now && now < new Date(selectedProgram.end) && (
                   <>
                     <span>•</span>
                     <span className="bg-red-600 text-white font-black px-1.5 py-0.5 rounded text-[9px] animate-pulse uppercase">
@@ -377,7 +406,9 @@ export default function EpgGuide({
                         description: prog.desc,
                         start: prog.start,
                         end: prog.stop || prog.end,
-                        duration: prog.start && (prog.stop || prog.end) ? Math.round(((prog.stop || prog.end) - prog.start) / 60000) : 60,
+                        duration: prog.start && (prog.stop || prog.end)
+                          ? Math.round((new Date(prog.stop || prog.end) - new Date(prog.start)) / 60000)
+                          : 60,
                       })}
                       className={`flex-shrink-0 text-left rounded-lg p-2 border transition-all text-xs max-w-[200px] ${
                         prog.isCurrent
