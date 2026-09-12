@@ -155,15 +155,31 @@ export default function MobileVodDetailModal({
 
   const itemId = item?._id || item?.id;
   const itemRef = useRef(item);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!isOpen) {
       return undefined;
     }
 
-    const closeCurrentOverlay = () => onClose?.();
-    const previousOverflow = document.body.style.overflow;
+    const closeCurrentOverlay = () => {
+      // Liberar scroll inmediatamente al solicitar cerrar
+      document.body.style.overflow = '';
+      document.body.style.removeProperty('overflow');
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.removeProperty('overflow');
+      onCloseRef.current?.();
+    };
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     window.__mobileVodDetailOpen = true;
     window.__mobileVodDetailClose = closeCurrentOverlay;
 
@@ -178,18 +194,39 @@ export default function MobileVodDetailModal({
       closeCurrentOverlay();
     };
 
+    const handlePopState = () => {
+      closeCurrentOverlay();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('backbutton', handleBackButton);
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
-      document.body.style.overflow = previousOverflow;
+      if (prevBodyOverflow && prevBodyOverflow !== 'hidden') {
+        document.body.style.overflow = prevBodyOverflow;
+      } else {
+        document.body.style.overflow = '';
+        document.body.style.removeProperty('overflow');
+      }
+
+      if (prevHtmlOverflow && prevHtmlOverflow !== 'hidden') {
+        document.documentElement.style.overflow = prevHtmlOverflow;
+      } else {
+        document.documentElement.style.overflow = '';
+        document.documentElement.style.removeProperty('overflow');
+      }
+
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('backbutton', handleBackButton);
+      window.removeEventListener('popstate', handlePopState);
+
       if (window.__mobileVodDetailClose === closeCurrentOverlay) {
         window.__mobileVodDetailClose = null;
         window.__mobileVodDetailOpen = false;
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   useEffect(() => {
     itemRef.current = item;

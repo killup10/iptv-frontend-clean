@@ -66,8 +66,19 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
     return youtubeId ? null : normalizeDirectVideoUrl(trailerUrl);
   }, [youtubeId, trailerUrl]);
 
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    const closeCurrentOverlay = () => onClose();
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const closeCurrentOverlay = () => {
+      document.body.style.overflow = '';
+      document.body.style.removeProperty('overflow');
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.removeProperty('overflow');
+      onCloseRef.current?.();
+    };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.__trailerModalOpen = true;
@@ -106,7 +117,14 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
 
     return () => {
       window.clearTimeout(focusTimer);
-      document.body.style.overflow = previousOverflow;
+      if (previousOverflow && previousOverflow !== 'hidden') {
+        document.body.style.overflow = previousOverflow;
+      } else {
+        document.body.style.overflow = '';
+        document.body.style.removeProperty('overflow');
+      }
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.removeProperty('overflow');
       window.removeEventListener('keydown', handleCloseIntent, true);
       document.removeEventListener('keydown', handleCloseIntent, true);
       window.removeEventListener('backbutton', handleBackButton);
@@ -115,7 +133,7 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
         window.__trailerModalOpen = false;
       }
     };
-  }, [onClose]);
+  }, []);
 
   const handleContentClick = (event) => {
     event.stopPropagation();

@@ -19,8 +19,8 @@ export default function LiveTVPage() {
   const location = useLocation();
 
   const [allChannels, setAllChannels] = useState([]);
-  const [filterCategories, setFilterCategories] = useState(['Todos']);
-  const [selectedCategory, setSelectedCategory] = useState(location.state?.selectedCategory || 'Todos');
+  const [filterCategories, setFilterCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(location.state?.selectedCategory || '');
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingChannels, setIsLoadingChannels] = useState(false);
   const [error, setError] = useState(null);
@@ -41,6 +41,7 @@ export default function LiveTVPage() {
       setError(null);
 
       try {
+        const categoriesData = await fetchChannelFilterSections();
         const nextCategories = (categoriesData || []).filter((c) => c && String(c).toLowerCase().trim() !== 'todos');
         setFilterCategories(nextCategories);
 

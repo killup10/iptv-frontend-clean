@@ -381,6 +381,22 @@ export function Home() {
   }, [featured4KMovies, moviesPool, backgroundItems]);
   const [mobileVodDetail, setMobileVodDetail] = useState(null);
 
+  const handleCloseMobileVodDetail = () => {
+    setMobileVodDetail(null);
+    document.body.style.overflow = '';
+    document.body.style.removeProperty('overflow');
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.removeProperty('overflow');
+  };
+
+  useEffect(() => {
+    // Garantizar que al montar o volver a Home el scroll del body nunca esté bloqueado
+    document.body.style.overflow = '';
+    document.body.style.removeProperty('overflow');
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.removeProperty('overflow');
+  }, []);
+
   // State for trailer modal
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [currentTrailerUrl, setCurrentTrailerUrl] = useState('');
@@ -1417,7 +1433,7 @@ onProceedWithTrial={proceedWithTrial}
             itemType={mobileVodDetail.itemType}
             canContinue={mobileVodDetailCanContinue}
             progressPercent={mobileVodDetailProgress}
-            onClose={() => setMobileVodDetail(null)}
+            onClose={handleCloseMobileVodDetail}
             onContinue={() => navigateToItem(mobileVodDetail.item, 'continue-watching')}
             onPlay={(selection) => {
               const hasEpisodeSelection = Number.isInteger(selection?.seasonIndex) && Number.isInteger(selection?.chapterIndex);
@@ -1845,7 +1861,7 @@ onProceedWithTrial={proceedWithTrial}
           itemType={mobileVodDetail.itemType}
           canContinue={mobileVodDetailCanContinue}
           progressPercent={mobileVodDetailProgress}
-          onClose={() => setMobileVodDetail(null)}
+          onClose={handleCloseMobileVodDetail}
           onContinue={() => navigateToItem(mobileVodDetail.item, 'continue-watching')}
           onPlay={(selection) => {
             const hasEpisodeSelection = Number.isInteger(selection?.seasonIndex) && Number.isInteger(selection?.chapterIndex);
