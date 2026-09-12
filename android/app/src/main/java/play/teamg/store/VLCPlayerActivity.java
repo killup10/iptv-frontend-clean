@@ -1955,6 +1955,33 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private String formatScheduleTime(String isoStr) {
         if (isoStr == null || isoStr.trim().isEmpty()) return "";
         try {
+            String s = isoStr.trim();
+            Date date = null;
+            String[] patterns = {
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+                "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                "yyyy-MM-dd'T'HH:mm:ss"
+            };
+            for (String pattern : patterns) {
+                try {
+                    SimpleDateFormat parser = new SimpleDateFormat(pattern, Locale.US);
+                    parser.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    date = parser.parse(s);
+                    if (date != null) break;
+                } catch (Exception ignored) {}
+            }
+            if (date != null) {
+                // Siempre guiarse por la hora oficial de Perú (America/Lima)
+                SimpleDateFormat outFormat = new SimpleDateFormat("HH:mm", new Locale("es", "PE"));
+                outFormat.setTimeZone(java.util.TimeZone.getTimeZone("America/Lima"));
+                return outFormat.format(date);
+            }
+        } catch (Exception ignored) {}
+
+        try {
             if (isoStr.contains("T")) {
                 String timePart = isoStr.substring(isoStr.indexOf("T") + 1);
                 if (timePart.length() >= 5) {

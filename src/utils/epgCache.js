@@ -68,13 +68,13 @@ export function getProgramProgress(start, stop, now = new Date()) {
   }
 }
 
-/** "20:30" local. Acepta Date o string ISO. */
+/** "20:30" hora oficial de Perú (America/Lima). Acepta Date o string ISO. */
 export function formatGuideTime(value) {
   if (!value) return '';
   try {
     const d = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' });
   } catch (_) {
     return '';
   }

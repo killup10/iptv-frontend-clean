@@ -103,9 +103,9 @@ export default function EpgGuide({
     }
   }, [currentChannelId, channels, now]);
 
-  // Helper to format Date to HH:MM
+  // Helper to format Date to HH:MM (Hora oficial de Perú)
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Lima' });
   };
 
   // 1 hour = 180px, 3px per minute
