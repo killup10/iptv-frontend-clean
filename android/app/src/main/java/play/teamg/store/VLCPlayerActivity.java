@@ -190,6 +190,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private static final long STALL_CHECK_INTERVAL_MS = 5000L;
 
     private boolean isActivityClosing = false;
+    private boolean isBackPressed = false;
     private boolean isRecoveringPlayback = false;
     private boolean forceAudioRecoveryPending = false;
     private boolean hasSentPlayerClosedEvent = false;
@@ -416,6 +417,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     protected void onStart() {
         super.onStart();
         isActivityClosing = false;
+        isBackPressed = false;
         hasSentPlayerClosedEvent = false;
         closeReason = "active";
         if (mediaPlayer == null) {
@@ -431,6 +433,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     @Override
     public void onUserLeaveHint() {
+        if (isBackPressed || isActivityClosing || isFinishing()) {
+            return;
+        }
         if (mediaPlayer != null && mediaPlayer.isPlaying()) {
             enterPictureInPictureMode();
         }
@@ -446,8 +451,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             hideLiveChannelsDrawer();
             return;
         }
+        isBackPressed = true;
+        isActivityClosing = true;
         closeReason = "user_back";
-        super.onBackPressed();
+        if (mediaPlayer != null) {
+            try {
+                mediaPlayer.stop();
+                mediaPlayer.detachViews();
+            } catch (Exception ignored) {}
+        }
+        notifyPlayerClosed("user_back");
+        releasePlayer();
+        finish();
     }
 
     @Override
@@ -491,10 +506,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             longPressHandler.removeCallbacks(longPressRunnable);
             longPressRunnable = null;
         }
-        if (isInPictureInPictureMode() && mediaPlayer != null && mediaPlayer.isPlaying()) {
-            Log.d(TAG, "Stopping playback when activity is destroyed in PiP mode");
-            mediaPlayer.stop();
-            notifyProgressUpdate(mediaPlayer.getTime());
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) {
+                    Log.d(TAG, "Stopping playback when activity is destroyed");
+                    mediaPlayer.stop();
+                    notifyProgressUpdate(mediaPlayer.getTime());
+                }
+            } catch (Exception ignored) {}
         }
         notifyPlayerClosed(closeReason);
         releasePlayer();
@@ -1218,7 +1237,17 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         ImageButton backButton = findViewById(R.id.back_button);
         if (backButton != null) {
             backButton.setOnClickListener(v -> {
-                closeReason = "user_back_button";
+                isBackPressed = true;
+                isActivityClosing = true;
+                closeReason = "user_back";
+                if (mediaPlayer != null) {
+                    try {
+                        mediaPlayer.stop();
+                        mediaPlayer.detachViews();
+                    } catch (Exception ignored) {}
+                }
+                notifyPlayerClosed("user_back");
+                releasePlayer();
                 finish();
             });
         }
@@ -2547,14 +2576,20 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                         Log.d(TAG, "Ignoring finish broadcast for a stale playback session");
                         return;
                     }
-                    Log.d(TAG, "Received finish broadcast: " + action + " - closing activity");
+                    isBackPressed = true;
                     isActivityClosing = true;
                     recoveryHandler.removeCallbacksAndMessages(null);
                     closeReason = "FORCE_FINISH_VLC_ACTIVITY".equals(action) ? "force_finish_broadcast" : "finish_broadcast";
                     // Guardar progreso antes de cerrar
                     if (mediaPlayer != null) {
                         notifyProgressUpdate(mediaPlayer.getTime(), false, true);
+                        try {
+                            mediaPlayer.stop();
+                            mediaPlayer.detachViews();
+                        } catch (Exception ignored) {}
                     }
+                    notifyPlayerClosed(closeReason);
+                    releasePlayer();
                     // Cerrar la actividad
                     finish();
                 }

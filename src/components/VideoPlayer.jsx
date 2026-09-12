@@ -126,7 +126,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
         }
 
         if (onNativePlayerClosed) {
-          onNativePlayerClosed();
+          onNativePlayerClosed({ reason: 'user_back' });
         }
       }
     };
@@ -184,7 +184,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       isPlayingRef.current = false;
       setPlayerActive(false);
       if (onNativePlayerClosed) {
-        onNativePlayerClosed();
+        onNativePlayerClosed(closeData || { reason: 'closed' });
       }
     };
 

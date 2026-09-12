@@ -129,6 +129,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     private boolean isLiveTV = false;
     private String contentType = "series";
     private boolean playerClosedNotified = false;
+    private boolean isBackPressed = false;
     private boolean isSeekBarArmed = false;
     private boolean controlsVisible = true;
     private boolean isScreenLocked = false;
@@ -2413,6 +2414,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        isBackPressed = false;
         if (Util.SDK_INT > 23) {
             initializePlayer();
         }
@@ -2438,7 +2440,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (player == null || Util.SDK_INT < 26) {
+        if (isBackPressed || isFinishing() || player == null || Util.SDK_INT < 26) {
             return;
         }
 
@@ -2497,7 +2499,14 @@ public class ExoPlayerActivity extends AppCompatActivity {
             toggleScreenLock();
             return;
         }
+        isBackPressed = true;
+        if (player != null) {
+            try {
+                player.stop();
+            } catch (Exception ignored) {}
+        }
+        notifyPlayerClosed("user_back");
         releasePlayer(isSwitchingPlayerEngine ? null : "back");
-        super.onBackPressed();
+        finish();
     }
 }

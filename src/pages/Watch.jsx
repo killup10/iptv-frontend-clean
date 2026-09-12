@@ -2823,18 +2823,24 @@ export function Watch() {
     }
 
     const reason = typeof data?.reason === 'string' ? data.reason : '';
-    if (reason !== 'user_back' && reason !== 'back') {
-      return;
-    }
+    console.log('[Watch.jsx] Player nativo cerrado para canal en vivo:', reason);
 
-    console.log('[Watch.jsx] Player nativo cerrado manualmente para canal en vivo:', reason);
+    const isUserBack = reason === 'user_back' || reason === 'user_back_button' || reason === 'back' || reason.startsWith('user_back');
+
     setChannelPlaybackDismissed(true);
     setVideoUrl('');
-    setChannelPlaybackIssue('La reproduccion se cerró. Usa "Cambiar canal" o "Recargar canal".');
     setIsChannelPickerOpen(false);
     setChannelSearch('');
-    setFocusedChannelControlIndex(0);
-  }, [itemType]);
+    stopPlaybackSafely();
+
+    if (isUserBack) {
+      console.log('[Watch.jsx] Cierre por acción de retroceder - navegando hacia atrás');
+      handleBackNavigation();
+    } else {
+      setChannelPlaybackIssue('La reproduccion se cerró. Usa "Cambiar canal" o "Recargar canal".');
+      setFocusedChannelControlIndex(0);
+    }
+  }, [itemType, handleBackNavigation, stopPlaybackSafely]);
 
   const openChannelPicker = useCallback(() => {
     const currentFilteredIndex = filteredChannelList.findIndex((channel) => (

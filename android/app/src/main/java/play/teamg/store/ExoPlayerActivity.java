@@ -46,6 +46,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     private int seasonIndex = -1;
     private int chapterIndex = -1;
     private boolean playerClosedNotified = false;
+    private boolean isBackPressed = false;
     private String sessionToken = "";
     private String deviceId = "";
     private String apiBaseUrl = "";
@@ -328,6 +329,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        isBackPressed = false;
         if (Util.SDK_INT > 23) {
             initializePlayer();
         }
@@ -354,7 +356,7 @@ public class ExoPlayerActivity extends AppCompatActivity {
     @Override
     public void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (player == null) {
+        if (isBackPressed || isFinishing() || player == null) {
             return;
         }
 
@@ -396,8 +398,14 @@ public class ExoPlayerActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        notifyPlayerClosed("back");
-        releasePlayer("");
-        super.onBackPressed();
+        isBackPressed = true;
+        if (player != null) {
+            try {
+                player.stop();
+            } catch (Exception ignored) {}
+        }
+        notifyPlayerClosed("user_back");
+        releasePlayer("back");
+        finish();
     }
 }
