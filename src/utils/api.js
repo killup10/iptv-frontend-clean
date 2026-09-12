@@ -50,7 +50,18 @@ export async function fetchUserChannels(sectionName = "Todos") {
   }
 }
 
+export async function fetchCurrentEpg() {
+  try {
+    const response = await axiosInstance.get('/api/channels/epg/now');
+    return response.data?.epg || {};
+  } catch (error) {
+    console.warn("API Warning (fetchCurrentEpg):", error.message);
+    return {};
+  }
+}
+
 const CATEGORY_ORDER = [
+  'todos',
   'nacionales',
   'nacional',
   'deportivos',
@@ -73,14 +84,19 @@ const CATEGORY_ORDER = [
   'informativos',
   'noticias',
   'noticiarios',
-  'informativo',
-  'todos'
+  'informativo'
 ];
 
 export function sortLiveTVCategories(cats) {
-  if (!Array.isArray(cats)) return [];
+  if (!Array.isArray(cats)) return ['Todos'];
 
-  const normalized = cats.map((c) => {
+  let list = cats.filter(Boolean);
+  const hasTodos = list.some((c) => String(c).toLowerCase().trim() === 'todos');
+  if (!hasTodos) {
+    list = ['Todos', ...list];
+  }
+
+  const normalized = list.map((c) => {
     const name = String(c || '');
     const lower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     return { original: name, lower };

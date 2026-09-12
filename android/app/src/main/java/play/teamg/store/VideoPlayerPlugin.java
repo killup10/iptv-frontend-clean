@@ -52,11 +52,9 @@ public class VideoPlayerPlugin extends Plugin {
             return;
         }
 
-        boolean shouldUseExoplayer =
-            "android-exoplayer".equalsIgnoreCase(requestedPlayerType) ||
-            (requestedPlayerType.isEmpty() && isAndroidTvDevice());
-        Class<?> targetActivity = shouldUseExoplayer ? ExoPlayerActivity.class : VLCPlayerActivity.class;
-        String resolvedPlayerName = shouldUseExoplayer ? "ExoPlayer" : "VLC";
+        boolean shouldUseExoplayer = false;
+        Class<?> targetActivity = VLCPlayerActivity.class;
+        String resolvedPlayerName = "VLC";
 
         Log.d(TAG, "Playing video: " + url);
         Log.d(TAG, "Content type: " + contentType + ", isLiveTV: " + isLiveTV);  // ← NUEVO LOG
@@ -129,6 +127,8 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<String> channelNames = new ArrayList<>();
                 ArrayList<String> channelLogos = new ArrayList<>();
                 ArrayList<String> channelUrls = new ArrayList<>();
+                ArrayList<String> channelNumbers = new ArrayList<>();
+                ArrayList<String> channelEpgs = new ArrayList<>();
 
                 try {
                     for (int i = 0; i < channelsArray.length(); i++) {
@@ -144,13 +144,19 @@ public class VideoPlayerPlugin extends Plugin {
                         }
 
                         String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                        String channelNumber = channel.optString("number", channel.optString("channelNumber", String.valueOf(channelNames.size() + 1)));
+                        String channelEpg = channel.optString("epg", channel.optString("currentProgram", channel.optString("section", "En vivo")));
                         channelNames.add(channelName);
                         channelLogos.add(channel.optString("logo", ""));  // Logo puede estar vacío
                         channelUrls.add(channelUrl);
+                        channelNumbers.add(channelNumber);
+                        channelEpgs.add(channelEpg);
                     }
                     intent.putStringArrayListExtra("channel_names", channelNames);
                     intent.putStringArrayListExtra("channel_logos", channelLogos);
                     intent.putStringArrayListExtra("channel_urls", channelUrls);
+                    intent.putStringArrayListExtra("channel_numbers", channelNumbers);
+                    intent.putStringArrayListExtra("channel_epgs", channelEpgs);
 
                     Log.d(TAG, "Canales procesados - Total: " + channelNames.size() + " canales");
                     Log.d(TAG, "Canales: " + channelNames.toString());
@@ -204,6 +210,8 @@ public class VideoPlayerPlugin extends Plugin {
         ArrayList<String> channelNames = new ArrayList<>();
         ArrayList<String> channelLogos = new ArrayList<>();
         ArrayList<String> channelUrls = new ArrayList<>();
+        ArrayList<String> channelNumbers = new ArrayList<>();
+        ArrayList<String> channelEpgs = new ArrayList<>();
 
         try {
             if (channelsArray != null) {
@@ -219,9 +227,13 @@ public class VideoPlayerPlugin extends Plugin {
                     }
 
                     String channelName = channel.optString("name", channel.optString("title", "Canal"));
+                    String channelNumber = channel.optString("number", channel.optString("channelNumber", String.valueOf(channelNames.size() + 1)));
+                    String channelEpg = channel.optString("epg", channel.optString("currentProgram", channel.optString("section", "En vivo")));
                     channelNames.add(channelName);
                     channelLogos.add(channel.optString("logo", ""));
                     channelUrls.add(channelUrl);
+                    channelNumbers.add(channelNumber);
+                    channelEpgs.add(channelEpg);
                 }
             }
 
@@ -230,6 +242,8 @@ public class VideoPlayerPlugin extends Plugin {
             intent.putStringArrayListExtra("channel_names", channelNames);
             intent.putStringArrayListExtra("channel_logos", channelLogos);
             intent.putStringArrayListExtra("channel_urls", channelUrls);
+            intent.putStringArrayListExtra("channel_numbers", channelNumbers);
+            intent.putStringArrayListExtra("channel_epgs", channelEpgs);
             getContext().sendBroadcast(intent);
 
             JSObject result = new JSObject();

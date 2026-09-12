@@ -9,15 +9,35 @@ import android.os.Looper;
 import android.media.AudioManager;
 import android.app.PictureInPictureParams;
 import android.content.res.Configuration;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.LruCache;
 import android.util.Rational;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.view.inputmethod.InputMethodManager;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -112,7 +132,56 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ArrayList<String> channelNames;
     private ArrayList<String> channelLogos;
     private ArrayList<String> channelUrls;
+    private ArrayList<String> channelNumbers;
+    private ArrayList<String> channelEpgs;
     private boolean isLiveTV = false;
+
+    // Drawer OSD
+    private View channelDrawerBackdrop;
+    private LinearLayout channelDrawerContainer;
+    private TextView drawerHeaderTitle, drawerHeaderTime, drawerFooterHint;
+    private EditText drawerSearchInput;
+    private ListView drawerChannelList;
+    private ImageButton railTabSearch, railTabHistory, railTabFavorites, railTabChannels;
+    private ChannelDrawerAdapter channelDrawerAdapter;
+    private final ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
+    private final ArrayList<String> recentChannelNames = new ArrayList<>();
+    private String currentRailTab = "channels";
+    private SharedPreferences favoritesPrefs;
+    private Set<String> favoriteChannelsSet = new HashSet<>();
+
+    // Sub-panel Programación EPG del Canal
+    private View drawerChannelsView, drawerScheduleView;
+    private ImageButton scheduleBtnBack;
+    private TextView scheduleChannelTitle, scheduleEmptyText;
+    private ProgressBar scheduleProgress;
+    private ListView scheduleProgramList;
+    private ScheduleProgramAdapter scheduleProgramAdapter;
+    private final ArrayList<ProgramScheduleItem> scheduleItems = new ArrayList<>();
+
+    private static class ProgramScheduleItem {
+        String title;
+        String desc;
+        String timeStr;
+        boolean isLive;
+        boolean hasReminder;
+
+        ProgramScheduleItem(String title, String desc, String timeStr, boolean isLive) {
+            this.title = title;
+            this.desc = desc;
+            this.timeStr = timeStr;
+            this.isLive = isLive;
+            this.hasReminder = false;
+        }
+    }
+
+    // High-performance Logo Cache & Background Pool (Zero-Lag)
+    private static LruCache<String, Bitmap> sLogoCache;
+    private static final ExecutorService sLogoExecutor = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "TeamG-LogoLoader");
+        t.setPriority(Thread.MIN_PRIORITY);
+        return t;
+    });
 
     private static final int MAX_AUTO_RECOVERY_ATTEMPTS = 6;
     private static final long RECOVERY_BASE_DELAY_MS = 2500L;
@@ -202,6 +271,39 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         volumeBar = findViewById(R.id.volume_bar);
         unlockProgressBar = findViewById(R.id.unlock_progress_bar);
 
+        View backButton = findViewById(R.id.back_button);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> onBackPressed());
+        }
+
+        // Drawer OSD Views
+        channelDrawerBackdrop = findViewById(R.id.channel_drawer_backdrop);
+        channelDrawerContainer = findViewById(R.id.channel_drawer_container);
+        drawerHeaderTitle = findViewById(R.id.drawer_header_title);
+        drawerHeaderTime = findViewById(R.id.drawer_header_time);
+        drawerSearchInput = findViewById(R.id.drawer_search_input);
+        drawerChannelList = findViewById(R.id.drawer_channel_list);
+        drawerFooterHint = findViewById(R.id.drawer_footer_hint);
+        railTabSearch = findViewById(R.id.rail_tab_search);
+        railTabHistory = findViewById(R.id.rail_tab_history);
+        railTabFavorites = findViewById(R.id.rail_tab_favorites);
+        railTabChannels = findViewById(R.id.rail_tab_channels);
+
+        drawerChannelsView = findViewById(R.id.drawer_channels_view);
+        drawerScheduleView = findViewById(R.id.drawer_schedule_view);
+        scheduleBtnBack = findViewById(R.id.schedule_btn_back);
+        scheduleChannelTitle = findViewById(R.id.schedule_channel_title);
+        scheduleEmptyText = findViewById(R.id.schedule_empty_text);
+        scheduleProgress = findViewById(R.id.schedule_progress);
+        scheduleProgramList = findViewById(R.id.schedule_program_list);
+        if (scheduleBtnBack != null) {
+            scheduleBtnBack.setOnClickListener(v -> closeChannelScheduleView());
+        }
+        if (scheduleProgramList != null) {
+            scheduleProgramAdapter = new ScheduleProgramAdapter();
+            scheduleProgramList.setAdapter(scheduleProgramAdapter);
+        }
+
         currentVideoUrl = getIntent().getStringExtra("video_url");
         String videoTitleText = getIntent().getStringExtra("video_title");
         playbackSessionId = getIntent().getStringExtra("playback_session_id");
@@ -247,7 +349,11 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelNames = getIntent().getStringArrayListExtra("channel_names");
         channelLogos = getIntent().getStringArrayListExtra("channel_logos");
         channelUrls = getIntent().getStringArrayListExtra("channel_urls");
+        channelNumbers = getIntent().getStringArrayListExtra("channel_numbers");
+        channelEpgs = getIntent().getStringArrayListExtra("channel_epgs");
         isLiveTV = getIntent().getBooleanExtra("is_live_tv", false);
+
+        setupDrawerControls();
 
         if (isLiveTV) {
             Log.d(TAG, "=== TV EN VIVO INICIALIZADO ===");
@@ -277,7 +383,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelNames = intent.getStringArrayListExtra("channel_names");
         channelLogos = intent.getStringArrayListExtra("channel_logos");
         channelUrls = intent.getStringArrayListExtra("channel_urls");
+        channelNumbers = intent.getStringArrayListExtra("channel_numbers");
+        channelEpgs = intent.getStringArrayListExtra("channel_epgs");
         isLiveTV = intent.getBooleanExtra("is_live_tv", false);
+        applyDrawerFilter();
         playbackSessionId = intent.getStringExtra("playback_session_id");
         if (playbackSessionId == null) playbackSessionId = "";
         sessionToken = intent.getStringExtra("session_token");
@@ -328,6 +437,14 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     @Override
     public void onBackPressed() {
+        if (channelDrawerContainer != null && channelDrawerContainer.getVisibility() == View.VISIBLE) {
+            if (drawerScheduleView != null && drawerScheduleView.getVisibility() == View.VISIBLE) {
+                closeChannelScheduleView();
+                return;
+            }
+            hideLiveChannelsDrawer();
+            return;
+        }
         closeReason = "user_back";
         super.onBackPressed();
     }
@@ -1162,7 +1279,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             channelsButton.setVisibility(View.VISIBLE);
 
             channelsButton.setOnClickListener(v -> {
-                showLiveChannelsDialog();
+                showLiveChannelsDrawer();
                 hideControls();
             });
         } else if (chapterTitles != null && !chapterTitles.isEmpty()) {
@@ -1437,58 +1554,506 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         builder.show();
     }
 
-    // ← NUEVO: Diálogo para seleccionar canales en vivo con soporte TV
+    // =========================================================================
+    // HIGH-PERFORMANCE LIVE CHANNELS DRAWER (ZERO-LAG OTT / TIVIMATE STYLE)
+    // =========================================================================
     private int currentChannelSelection = 0;
-    private AlertDialog currentChannelDialog = null;
+
+    private void initLogoCache() {
+        if (sLogoCache == null) {
+            int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
+            int cacheSize = Math.max(1024 * 8, maxMemory / 8);
+            sLogoCache = new LruCache<String, Bitmap>(cacheSize) {
+                @Override
+                protected int sizeOf(String key, Bitmap bitmap) {
+                    return bitmap.getByteCount() / 1024;
+                }
+            };
+        }
+    }
 
     private void loadImageAsync(final String urlString, final android.widget.ImageView imageView) {
         if (urlString == null || urlString.trim().isEmpty()) {
-            imageView.setImageResource(android.R.drawable.ic_menu_gallery);
+            imageView.setImageDrawable(null);
             return;
         }
-        imageView.setImageResource(android.R.drawable.ic_menu_gallery);
+
+        initLogoCache();
+
+        // 1. Instant Cache Hit (0ms - zero lag)
+        Bitmap cached = sLogoCache.get(urlString);
+        if (cached != null) {
+            imageView.setImageBitmap(cached);
+            return;
+        }
+
+        // 2. Cache Miss: prepare placeholder and tag
+        imageView.setImageDrawable(null);
         imageView.setTag(urlString);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    java.net.URL url = new java.net.URL(urlString);
-                    java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
-                    connection.setDoInput(true);
-                    connection.connect();
-                    java.io.InputStream input = connection.getInputStream();
-                    final android.graphics.Bitmap myBitmap = android.graphics.BitmapFactory.decodeStream(input);
-                    imageView.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (urlString.equals(imageView.getTag())) {
-                                imageView.setImageBitmap(myBitmap);
-                            }
+
+        // 3. Low-priority background thread with downsampled decode
+        sLogoExecutor.submit(() -> {
+            try {
+                URL url = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(2500);
+                conn.setReadTimeout(2500);
+                conn.setDoInput(true);
+                conn.connect();
+
+                InputStream input = conn.getInputStream();
+                byte[] data = readStreamFully(input);
+                input.close();
+
+                if (data == null || data.length == 0) return;
+
+                BitmapFactory.Options opt = new BitmapFactory.Options();
+                opt.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, opt);
+
+                int targetSizePx = (int) (72 * getResources().getDisplayMetrics().density);
+                int inSampleSize = 1;
+                while ((opt.outWidth / (inSampleSize * 2)) >= targetSizePx &&
+                       (opt.outHeight / (inSampleSize * 2)) >= targetSizePx) {
+                    inSampleSize *= 2;
+                }
+
+                opt.inJustDecodeBounds = false;
+                opt.inSampleSize = inSampleSize;
+                opt.inPreferredConfig = Bitmap.Config.RGB_565; // 50% memory saving
+
+                final Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length, opt);
+                if (bitmap != null) {
+                    sLogoCache.put(urlString, bitmap);
+                    imageView.post(() -> {
+                        if (urlString.equals(imageView.getTag())) {
+                            imageView.setImageBitmap(bitmap);
                         }
                     });
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    private static byte[] readStreamFully(InputStream is) throws java.io.IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[4096];
+        while ((nRead = is.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        buffer.flush();
+        return buffer.toByteArray();
+    }
+
+    private void initFavorites() {
+        if (favoritesPrefs == null) {
+            favoritesPrefs = getSharedPreferences("teamg_channel_favorites", MODE_PRIVATE);
+            favoriteChannelsSet = new HashSet<>(favoritesPrefs.getStringSet("favorites", new HashSet<>()));
+        }
+    }
+
+    private boolean isChannelFavorite(String channelName) {
+        if (channelName == null) return false;
+        initFavorites();
+        return favoriteChannelsSet.contains(channelName);
+    }
+
+    private void toggleFavorite(String channelName) {
+        if (channelName == null) return;
+        initFavorites();
+        if (favoriteChannelsSet.contains(channelName)) {
+            favoriteChannelsSet.remove(channelName);
+        } else {
+            favoriteChannelsSet.add(channelName);
+        }
+        favoritesPrefs.edit().putStringSet("favorites", new HashSet<>(favoriteChannelsSet)).apply();
+    }
+
+    private void setupDrawerControls() {
+        if (channelDrawerContainer == null) return;
+
+        initFavorites();
+
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.setOnClickListener(v -> hideLiveChannelsDrawer());
+        }
+
+        channelDrawerAdapter = new ChannelDrawerAdapter();
+        if (drawerChannelList != null) {
+            drawerChannelList.setAdapter(channelDrawerAdapter);
+            drawerChannelList.setOnItemClickListener((parent, view, position, id) -> {
+                if (position >= 0 && position < visibleChannelIndices.size()) {
+                    int channelIndex = visibleChannelIndices.get(position);
+                    String selectedName = channelNames.get(channelIndex);
+                    String selectedUrl = channelUrls.get(channelIndex);
+
+                    // Si toca el canal que YA está reproduciendo, abrir la programación EPG del canal
+                    if (channelIndex == currentChannelSelection || (currentVideoUrl != null && currentVideoUrl.equals(selectedUrl))) {
+                        showChannelScheduleView(selectedName, channelIndex);
+                        return;
+                    }
+
+                    currentChannelSelection = channelIndex;
+                    if (!recentChannelNames.contains(selectedName)) {
+                        recentChannelNames.add(0, selectedName);
+                        if (recentChannelNames.size() > 20) recentChannelNames.remove(recentChannelNames.size() - 1);
+                    }
+
+                    switchChannel(selectedUrl, selectedName);
+                    channelDrawerAdapter.notifyDataSetChanged();
+                }
+            });
+        }
+
+        if (railTabChannels != null) railTabChannels.setOnClickListener(v -> setDrawerRailTab("channels"));
+        if (railTabFavorites != null) railTabFavorites.setOnClickListener(v -> setDrawerRailTab("favorites"));
+        if (railTabHistory != null) railTabHistory.setOnClickListener(v -> setDrawerRailTab("history"));
+        if (railTabSearch != null) railTabSearch.setOnClickListener(v -> toggleDrawerSearch());
+
+        if (drawerSearchInput != null) {
+            drawerSearchInput.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    applyDrawerFilter();
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            });
+        }
+    }
+
+    private void setDrawerRailTab(String tab) {
+        currentRailTab = tab;
+        if (railTabChannels != null) {
+            railTabChannels.setBackgroundResource("channels".equals(tab) ? R.drawable.mobile_player_button_primary : R.drawable.mobile_player_button_secondary);
+        }
+        if (railTabFavorites != null) {
+            railTabFavorites.setBackgroundResource("favorites".equals(tab) ? R.drawable.mobile_player_button_primary : R.drawable.mobile_player_button_secondary);
+        }
+        if (railTabHistory != null) {
+            railTabHistory.setBackgroundResource("history".equals(tab) ? R.drawable.mobile_player_button_primary : R.drawable.mobile_player_button_secondary);
+        }
+        if (railTabSearch != null) {
+            railTabSearch.setBackgroundResource("search".equals(tab) ? R.drawable.mobile_player_button_primary : R.drawable.mobile_player_button_secondary);
+        }
+
+        if ("search".equals(tab)) {
+            if (drawerSearchInput != null) {
+                drawerSearchInput.setVisibility(View.VISIBLE);
+                drawerSearchInput.requestFocus();
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(drawerSearchInput, InputMethodManager.SHOW_IMPLICIT);
+            }
+            if (drawerHeaderTitle != null) drawerHeaderTitle.setText("Buscar Canales");
+        } else {
+            if (drawerSearchInput != null) {
+                drawerSearchInput.setVisibility(View.GONE);
+                hideKeyboard();
+            }
+            if (drawerHeaderTitle != null) {
+                if ("favorites".equals(tab)) {
+                    drawerHeaderTitle.setText("Canales Favoritos");
+                } else if ("history".equals(tab)) {
+                    drawerHeaderTitle.setText("Canales Recientes");
+                } else {
+                    drawerHeaderTitle.setText("Lista de canales");
+                }
+            }
+        }
+
+        applyDrawerFilter();
+    }
+
+    private void toggleDrawerSearch() {
+        if ("search".equals(currentRailTab)) {
+            setDrawerRailTab("channels");
+        } else {
+            setDrawerRailTab("search");
+        }
+    }
+
+    private void applyDrawerFilter() {
+        if (channelNames == null || channelUrls == null) return;
+        int channelCount = Math.min(channelNames.size(), channelUrls.size());
+        visibleChannelIndices.clear();
+
+        String query = (drawerSearchInput != null && drawerSearchInput.getText() != null)
+                ? drawerSearchInput.getText().toString().trim().toLowerCase() : "";
+
+        for (int i = 0; i < channelCount; i++) {
+            String name = channelNames.get(i);
+
+            if ("favorites".equals(currentRailTab) && !isChannelFavorite(name)) {
+                continue;
+            }
+            if ("history".equals(currentRailTab) && !recentChannelNames.contains(name)) {
+                continue;
+            }
+            if (!query.isEmpty() && !name.toLowerCase().contains(query)) {
+                String epg = (channelEpgs != null && i < channelEpgs.size()) ? channelEpgs.get(i).toLowerCase() : "";
+                if (!epg.contains(query)) {
+                    continue;
+                }
+            }
+
+            visibleChannelIndices.add(i);
+        }
+
+        if (channelDrawerAdapter != null) {
+            channelDrawerAdapter.notifyDataSetChanged();
+        }
+
+        if (drawerFooterHint != null) {
+            drawerFooterHint.setText(visibleChannelIndices.size() + " canales disponibles");
+        }
+    }
+
+    private void showLiveChannelsDrawer() {
+        if (channelNames == null || channelUrls == null || channelNames.isEmpty() || channelUrls.isEmpty()) {
+            Toast.makeText(this, "No hay canales disponibles", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (channelDrawerContainer == null) {
+            return;
+        }
+
+        int currentIndex = channelUrls.indexOf(currentVideoUrl);
+        if (currentIndex >= 0) {
+            currentChannelSelection = currentIndex;
+        }
+
+        if (drawerHeaderTime != null) {
+            drawerHeaderTime.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
+        }
+
+        setDrawerRailTab("channels");
+        applyDrawerFilter();
+
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.setVisibility(View.VISIBLE);
+            channelDrawerBackdrop.setAlpha(0f);
+            channelDrawerBackdrop.animate().alpha(1f).setDuration(200).start();
+        }
+
+        channelDrawerContainer.setVisibility(View.VISIBLE);
+        channelDrawerContainer.setTranslationX(-800f);
+        channelDrawerContainer.animate().translationX(0f).setDuration(220).start();
+
+        int targetPos = visibleChannelIndices.indexOf(currentChannelSelection);
+        if (targetPos >= 0 && drawerChannelList != null) {
+            drawerChannelList.setSelection(Math.max(0, targetPos - 1));
+        }
+    }
+
+    private void hideLiveChannelsDrawer() {
+        if (channelDrawerContainer == null || channelDrawerContainer.getVisibility() != View.VISIBLE) return;
+
+        hideKeyboard();
+
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.animate().alpha(0f).setDuration(180).start();
+        }
+
+        channelDrawerContainer.animate().translationX(-channelDrawerContainer.getWidth()).setDuration(200).withEndAction(() -> {
+            channelDrawerContainer.setVisibility(View.GONE);
+            closeChannelScheduleView();
+            if (channelDrawerBackdrop != null) {
+                channelDrawerBackdrop.setVisibility(View.GONE);
             }
         }).start();
     }
 
-    private class ChannelAdapter extends android.widget.BaseAdapter {
-        private final ArrayList<Integer> visibleIndices;
+    private void showChannelScheduleView(String channelName, int channelIndex) {
+        if (drawerChannelsView == null || drawerScheduleView == null) return;
 
-        public ChannelAdapter(ArrayList<Integer> visibleIndices) {
-            this.visibleIndices = visibleIndices;
-        }
+        drawerChannelsView.setVisibility(View.GONE);
+        drawerScheduleView.setVisibility(View.VISIBLE);
 
+        if (scheduleChannelTitle != null) scheduleChannelTitle.setText(channelName);
+        if (scheduleProgress != null) scheduleProgress.setVisibility(View.VISIBLE);
+        if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.GONE);
+        if (scheduleProgramList != null) scheduleProgramList.setVisibility(View.GONE);
+
+        scheduleItems.clear();
+        if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+
+        new Thread(() -> {
+            ArrayList<ProgramScheduleItem> fetchedList = new ArrayList<>();
+            try {
+                String base = (apiBaseUrl != null && !apiBaseUrl.isEmpty()) ? apiBaseUrl : "https://api.teamg.store";
+                String targetUrl = base + "/api/channels/epg/schedule?name=" + URLEncoder.encode(channelName, "UTF-8");
+                URL url = new URL(targetUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                if (sessionToken != null && !sessionToken.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + sessionToken);
+                }
+
+                if (conn.getResponseCode() == 200) {
+                    InputStream in = conn.getInputStream();
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    byte[] buf = new byte[2048];
+                    int len;
+                    while ((len = in.read(buf)) != -1) {
+                        out.write(buf, 0, len);
+                    }
+                    in.close();
+                    String jsonStr = out.toString("UTF-8");
+                    JSONObject root = new JSONObject(jsonStr);
+                    JSONArray arr = root.optJSONArray("schedule");
+                    if (arr != null && arr.length() > 0) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject p = arr.getJSONObject(i);
+                            String pTitle = p.optString("title", "Programa");
+                            String pDesc = p.optString("desc", "");
+                            String pStart = formatScheduleTime(p.optString("start", ""));
+                            String pStop = formatScheduleTime(p.optString("stop", ""));
+                            String timeStr = (!pStart.isEmpty() && !pStop.isEmpty()) ? (pStart + " - " + pStop) : pStart;
+                            boolean isLive = p.optBoolean("isCurrent", false);
+                            fetchedList.add(new ProgramScheduleItem(pTitle, pDesc, timeStr, isLive));
+                        }
+                    }
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                Log.w("VLCPlayer", "Error fetching EPG schedule: " + e.getMessage());
+            }
+
+            // Fallback si la API no devolvió parrilla completa: usar EPG actual si existe
+            if (fetchedList.isEmpty()) {
+                String currentEpg = (channelEpgs != null && channelIndex >= 0 && channelIndex < channelEpgs.size())
+                        ? channelEpgs.get(channelIndex) : "En emisión en vivo";
+                fetchedList.add(new ProgramScheduleItem(currentEpg, "Emisión en directo del canal", "En vivo", true));
+            }
+
+            runOnUiThread(() -> {
+                if (scheduleProgress != null) scheduleProgress.setVisibility(View.GONE);
+                scheduleItems.clear();
+                scheduleItems.addAll(fetchedList);
+                if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+
+                if (scheduleItems.isEmpty()) {
+                    if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.VISIBLE);
+                    if (scheduleProgramList != null) scheduleProgramList.setVisibility(View.GONE);
+                } else {
+                    if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.GONE);
+                    if (scheduleProgramList != null) scheduleProgramList.setVisibility(View.VISIBLE);
+                }
+            });
+        }).start();
+    }
+
+    private void closeChannelScheduleView() {
+        if (drawerScheduleView != null) drawerScheduleView.setVisibility(View.GONE);
+        if (drawerChannelsView != null) drawerChannelsView.setVisibility(View.VISIBLE);
+    }
+
+    private String formatScheduleTime(String isoStr) {
+        if (isoStr == null || isoStr.trim().isEmpty()) return "";
+        try {
+            if (isoStr.contains("T")) {
+                String timePart = isoStr.substring(isoStr.indexOf("T") + 1);
+                if (timePart.length() >= 5) {
+                    return timePart.substring(0, 5);
+                }
+            }
+        } catch (Exception ignored) {}
+        return isoStr;
+    }
+
+    private class ScheduleProgramAdapter extends android.widget.BaseAdapter {
         @Override
         public int getCount() {
-            return visibleIndices.size();
+            return scheduleItems.size();
         }
 
         @Override
         public Object getItem(int position) {
-            if (position >= 0 && position < visibleIndices.size()) {
-                return channelNames.get(visibleIndices.get(position));
+            return scheduleItems.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_drawer_schedule, parent, false);
+            }
+            ProgramScheduleItem item = scheduleItems.get(position);
+            TextView timeView = convertView.findViewById(R.id.schedule_item_time);
+            TextView badgeView = convertView.findViewById(R.id.schedule_item_badge);
+            TextView titleView = convertView.findViewById(R.id.schedule_item_title);
+            TextView descView = convertView.findViewById(R.id.schedule_item_desc);
+            TextView btnReminder = convertView.findViewById(R.id.schedule_item_btn_reminder);
+
+            if (timeView != null) timeView.setText(item.timeStr != null ? item.timeStr : "");
+            if (titleView != null) titleView.setText(item.title != null ? item.title : "");
+
+            if (descView != null) {
+                if (item.desc != null && !item.desc.trim().isEmpty() && !item.desc.equalsIgnoreCase(item.title)) {
+                    descView.setText(item.desc);
+                    descView.setVisibility(View.VISIBLE);
+                } else {
+                    descView.setVisibility(View.GONE);
+                }
+            }
+
+            if (item.isLive) {
+                if (badgeView != null) badgeView.setVisibility(View.VISIBLE);
+                if (btnReminder != null) btnReminder.setVisibility(View.GONE);
+            } else {
+                if (badgeView != null) badgeView.setVisibility(View.GONE);
+                if (btnReminder != null) {
+                    btnReminder.setVisibility(View.VISIBLE);
+                    if (item.hasReminder) {
+                        btnReminder.setText("✓ Recordatorio activo");
+                        btnReminder.setTextColor(0xFF00E676);
+                    } else {
+                        btnReminder.setText("🔔 Recordatorio");
+                        btnReminder.setTextColor(0xFF00E5FF);
+                    }
+                    btnReminder.setOnClickListener(v -> {
+                        item.hasReminder = !item.hasReminder;
+                        notifyDataSetChanged();
+                        if (item.hasReminder) {
+                            Toast.makeText(VLCPlayerActivity.this, "🔔 Recordatorio activado para:\n" + item.title + (item.timeStr.isEmpty() ? "" : " (" + item.timeStr + ")"), Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(VLCPlayerActivity.this, "Recordatorio cancelado", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            }
+
+            return convertView;
+        }
+    }
+
+    private void hideKeyboard() {
+        if (drawerSearchInput != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(drawerSearchInput.getWindowToken(), 0);
+            }
+        }
+    }
+
+    private class ChannelDrawerAdapter extends android.widget.BaseAdapter {
+        @Override
+        public int getCount() {
+            return visibleChannelIndices.size();
+        }
+
+        @Override
+        public Object getItem(int position) {
+            if (position >= 0 && position < visibleChannelIndices.size()) {
+                return channelNames.get(visibleChannelIndices.get(position));
             }
             return null;
         }
@@ -1500,260 +2065,54 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         @Override
         public View getView(int position, View convertView, android.view.ViewGroup parent) {
-            LinearLayout rowLayout;
+            ViewHolder holder;
             if (convertView == null) {
-                rowLayout = new LinearLayout(VLCPlayerActivity.this);
-                rowLayout.setOrientation(LinearLayout.HORIZONTAL);
-                rowLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                int paddingPx = (int) (10 * getResources().getDisplayMetrics().density);
-                rowLayout.setPadding(paddingPx, paddingPx, paddingPx, paddingPx);
-
-                // Logo ImageView
-                android.widget.ImageView logoView = new android.widget.ImageView(VLCPlayerActivity.this);
-                logoView.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-                int logoSize = (int) (40 * getResources().getDisplayMetrics().density);
-                LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(logoSize, logoSize);
-                logoParams.rightMargin = (int) (14 * getResources().getDisplayMetrics().density);
-                rowLayout.addView(logoView, logoParams);
-
-                // Channel Name TextView
-                TextView textView = new TextView(VLCPlayerActivity.this);
-                textView.setTextSize(14);
-                textView.setTextColor(0xFFFFFFFF);
-                textView.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
-                rowLayout.addView(textView, textParams);
-
-                // Status Indicator
-                android.widget.ImageView statusIndicator = new android.widget.ImageView(VLCPlayerActivity.this);
-                int indicatorSize = (int) (20 * getResources().getDisplayMetrics().density);
-                LinearLayout.LayoutParams indicatorParams = new LinearLayout.LayoutParams(indicatorSize, indicatorSize);
-                rowLayout.addView(statusIndicator, indicatorParams);
+                convertView = getLayoutInflater().inflate(R.layout.item_drawer_channel, parent, false);
+                holder = new ViewHolder();
+                holder.numberView = convertView.findViewById(R.id.channel_item_number);
+                holder.logoView = convertView.findViewById(R.id.channel_item_logo);
+                holder.titleView = convertView.findViewById(R.id.channel_item_title);
+                holder.epgView = convertView.findViewById(R.id.channel_item_epg);
+                holder.favoriteView = convertView.findViewById(R.id.channel_item_favorite);
+                convertView.setTag(holder);
             } else {
-                rowLayout = (LinearLayout) convertView;
+                holder = (ViewHolder) convertView.getTag();
             }
 
-            int channelIndex = visibleIndices.get(position);
-            String channelName = channelNames.get(channelIndex);
-            String logoUrl = (channelLogos != null && channelIndex < channelLogos.size()) ? channelLogos.get(channelIndex) : "";
+            int channelIndex = visibleChannelIndices.get(position);
+            String name = channelNames.get(channelIndex);
+            String logo = (channelLogos != null && channelIndex < channelLogos.size()) ? channelLogos.get(channelIndex) : "";
+            String number = (channelNumbers != null && channelIndex < channelNumbers.size()) ? channelNumbers.get(channelIndex) : String.valueOf(channelIndex + 1);
+            String epg = (channelEpgs != null && channelIndex < channelEpgs.size()) ? channelEpgs.get(channelIndex) : "En vivo";
 
-            android.widget.ImageView logoView = (android.widget.ImageView) rowLayout.getChildAt(0);
-            TextView textView = (TextView) rowLayout.getChildAt(1);
-            android.widget.ImageView statusIndicator = (android.widget.ImageView) rowLayout.getChildAt(2);
-
-            textView.setText(channelName);
+            holder.numberView.setText(number);
+            holder.titleView.setText(name);
+            holder.epgView.setText(epg != null && !epg.isEmpty() ? epg : "En vivo");
 
             boolean isCurrent = (channelIndex == currentChannelSelection);
-            
-            // Premium background card layout style
-            android.graphics.drawable.GradientDrawable itemBg = new android.graphics.drawable.GradientDrawable();
-            itemBg.setCornerRadius(10 * getResources().getDisplayMetrics().density);
-            
-            if (isCurrent) {
-                itemBg.setColor(0x2200FFFF); // translucent cyan
-                itemBg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), 0xFF00FFFF);
-                textView.setTextColor(0xFF00FFFF);
-                statusIndicator.setImageResource(android.R.drawable.presence_online);
-            } else {
-                itemBg.setColor(0xFF1E1E2C);
-                itemBg.setStroke((int) (1 * getResources().getDisplayMetrics().density), 0xFF2A2A3D);
-                textView.setTextColor(0xFFE2E2E2);
-                statusIndicator.setImageResource(android.R.drawable.presence_invisible);
-            }
-            rowLayout.setBackground(itemBg);
+            convertView.setActivated(isCurrent);
+            convertView.setSelected(isCurrent);
 
-            loadImageAsync(logoUrl, logoView);
-
-            return rowLayout;
-        }
-    }
-
-    private void showLiveChannelsDialog() {
-        if (channelNames == null || channelUrls == null || channelNames.isEmpty() || channelUrls.isEmpty()) {
-            Toast.makeText(this, "No hay canales disponibles", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Log.d(TAG, "showLiveChannelsDialog: Mostrando " + channelNames.size() + " canales");
-        int channelCount = Math.min(channelNames.size(), channelUrls.size());
-        int currentIndex = channelUrls.indexOf(currentVideoUrl);
-        currentChannelSelection = currentIndex >= 0 ? currentIndex : Math.min(currentChannelSelection, channelCount - 1);
-
-        LinearLayout contentLayout = new LinearLayout(this);
-        contentLayout.setOrientation(LinearLayout.VERTICAL);
-        int paddingPx = (int) (20 * getResources().getDisplayMetrics().density);
-        contentLayout.setPadding(paddingPx, paddingPx / 2, paddingPx, paddingPx);
-        contentLayout.setBackgroundColor(0xFF0F0B1E); // Slate dark purple background
-
-        EditText searchInput = new EditText(this);
-        searchInput.setSingleLine(true);
-        searchInput.setHint("Buscar canal...");
-        searchInput.setTextColor(getColor(android.R.color.white));
-        searchInput.setHintTextColor(0xFFB0B0B0);
-        
-        android.graphics.drawable.GradientDrawable searchBg = new android.graphics.drawable.GradientDrawable();
-        searchBg.setColor(0xFF1B1435);
-        searchBg.setCornerRadius(10 * getResources().getDisplayMetrics().density);
-        searchBg.setStroke((int) (1.5 * getResources().getDisplayMetrics().density), 0xFF3D2E70);
-        searchInput.setBackground(searchBg);
-        
-        int inputPadding = (int) (12 * getResources().getDisplayMetrics().density);
-        searchInput.setPadding(inputPadding, inputPadding, inputPadding, inputPadding);
-        
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        searchParams.bottomMargin = (int) (16 * getResources().getDisplayMetrics().density);
-        contentLayout.addView(searchInput, searchParams);
-
-        ListView listView = new ListView(this);
-        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        listView.setDivider(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
-        listView.setDividerHeight((int) (8 * getResources().getDisplayMetrics().density));
-        
-        int listHeightPx = (int) (360 * getResources().getDisplayMetrics().density);
-        contentLayout.addView(listView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                listHeightPx
-        ));
-
-        ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
-        ChannelAdapter channelAdapter = new ChannelAdapter(visibleChannelIndices);
-        listView.setAdapter(channelAdapter);
-        applyChannelFilter("", visibleChannelIndices, channelAdapter, channelCount);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Selecciona un Canal");
-        builder.setView(contentLayout);
-
-        builder.setPositiveButton("OK", (dialog, which) -> {
-            updateCurrentChannelSelectionFromVisibleList(visibleChannelIndices, listView);
-            confirmChannelSelection(dialog);
-        });
-
-        builder.setNegativeButton("Cancelar", (dialog, which) -> {
-            dialog.dismiss();
-            currentChannelDialog = null;
-        });
-
-        AlertDialog dialogInstance = builder.create();
-        dialogInstance.setOnKeyListener((dialog, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                switch (keyCode) {
-                    case KeyEvent.KEYCODE_DPAD_CENTER:
-                    case KeyEvent.KEYCODE_ENTER:
-                    case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                        updateCurrentChannelSelectionFromVisibleList(visibleChannelIndices, listView);
-                        confirmChannelSelection(dialog);
-                        return true;
-                    case KeyEvent.KEYCODE_BACK:
-                        dialog.dismiss();
-                        currentChannelDialog = null;
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-            return false;
-        });
-
-        dialogInstance.setOnShowListener(dialog -> {
-            currentChannelDialog = dialogInstance;
-            int visibleSelection = Math.max(0, visibleChannelIndices.indexOf(currentChannelSelection));
-            listView.setItemChecked(visibleSelection, true);
-            listView.setSelection(visibleSelection);
-            listView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    if (position >= 0 && position < visibleChannelIndices.size()) {
-                        currentChannelSelection = visibleChannelIndices.get(position);
-                    }
-                }
-
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {
-                }
+            boolean isFav = isChannelFavorite(name);
+            holder.favoriteView.setAlpha(isFav ? 1.0f : 0.25f);
+            holder.favoriteView.setColorFilter(isFav ? 0xFFFFD700 : 0xFFFFFFFF);
+            holder.favoriteView.setOnClickListener(v -> {
+                toggleFavorite(name);
+                notifyDataSetChanged();
             });
-            listView.setOnItemClickListener((parent, view, position, id) -> {
-                if (position >= 0 && position < visibleChannelIndices.size()) {
-                    currentChannelSelection = visibleChannelIndices.get(position);
-                    confirmChannelSelection(dialogInstance);
-                }
-            });
-            searchInput.addTextChangedListener(new TextWatcher() {
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                }
 
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    applyChannelFilter(s != null ? s.toString() : "", visibleChannelIndices, channelAdapter, channelCount);
-                    int nextSelection = visibleChannelIndices.indexOf(currentChannelSelection);
-                    if (nextSelection < 0) {
-                        nextSelection = visibleChannelIndices.isEmpty() ? -1 : 0;
-                        if (nextSelection >= 0) {
-                            currentChannelSelection = visibleChannelIndices.get(nextSelection);
-                        }
-                    }
-                    if (nextSelection >= 0) {
-                        listView.setItemChecked(nextSelection, true);
-                        listView.setSelection(nextSelection);
-                    }
-                }
+            loadImageAsync(logo, holder.logoView);
 
-                @Override
-                public void afterTextChanged(Editable s) {
-                }
-            });
-            listView.requestFocus();
-        });
-        dialogInstance.setOnDismissListener(dialog -> currentChannelDialog = null);
-
-        currentChannelDialog = dialogInstance;
-        dialogInstance.show();
-    }
-
-    private void applyChannelFilter(String query, ArrayList<Integer> visibleChannelIndices, ChannelAdapter adapter, int channelCount) {
-        visibleChannelIndices.clear();
-
-        String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
-        for (int i = 0; i < channelCount; i++) {
-            String channelName = channelNames.get(i);
-            if (!normalizedQuery.isEmpty() && !channelName.toLowerCase().contains(normalizedQuery)) {
-                continue;
-            }
-            visibleChannelIndices.add(i);
-        }
-        adapter.notifyDataSetChanged();
-    }
-
-    private void updateCurrentChannelSelectionFromVisibleList(ArrayList<Integer> visibleChannelIndices, ListView listView) {
-        if (visibleChannelIndices == null || listView == null || visibleChannelIndices.isEmpty()) {
-            return;
+            return convertView;
         }
 
-        int selectedPosition = listView.getSelectedItemPosition();
-        int checkedPosition = listView.getCheckedItemPosition();
-        int visiblePosition = selectedPosition >= 0 ? selectedPosition : checkedPosition;
-        if (visiblePosition >= 0 && visiblePosition < visibleChannelIndices.size()) {
-            currentChannelSelection = visibleChannelIndices.get(visiblePosition);
-            listView.setItemChecked(visiblePosition, true);
+        class ViewHolder {
+            TextView numberView;
+            android.widget.ImageView logoView;
+            TextView titleView;
+            TextView epgView;
+            android.widget.ImageView favoriteView;
         }
-    }
-
-    private void confirmChannelSelection(DialogInterface dialog) {
-        int channelCount = Math.min(channelNames.size(), channelUrls.size());
-        if (currentChannelSelection >= 0 && currentChannelSelection < channelCount) {
-            String selectedChannel = channelNames.get(currentChannelSelection);
-            String selectedUrl = channelUrls.get(currentChannelSelection);
-            Log.d(TAG, "Canal confirmado: " + selectedChannel + " - URL: " + selectedUrl);
-            switchChannel(selectedUrl, selectedChannel);
-        }
-
-        dialog.dismiss();
-        currentChannelDialog = null;
     }
 
     // ← NUEVO: Cambiar de canal en vivo
@@ -2180,6 +2539,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 ArrayList<String> nextNames = intent.getStringArrayListExtra("channel_names");
                 ArrayList<String> nextLogos = intent.getStringArrayListExtra("channel_logos");
                 ArrayList<String> nextUrls = intent.getStringArrayListExtra("channel_urls");
+                ArrayList<String> nextNumbers = intent.getStringArrayListExtra("channel_numbers");
+                ArrayList<String> nextEpgs = intent.getStringArrayListExtra("channel_epgs");
 
                 if (nextNames == null || nextUrls == null || nextNames.isEmpty() || nextUrls.isEmpty()) {
                     Log.w(TAG, "Ignoring live channel update without valid channels");
@@ -2189,10 +2550,13 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 channelNames = nextNames;
                 channelLogos = nextLogos != null ? nextLogos : new ArrayList<>();
                 channelUrls = nextUrls;
+                if (nextNumbers != null) channelNumbers = nextNumbers;
+                if (nextEpgs != null) channelEpgs = nextEpgs;
                 isLiveTV = true;
                 currentChannelSelection = channelUrls.indexOf(currentVideoUrl);
                 if (currentChannelSelection < 0) currentChannelSelection = 0;
                 setupControls();
+                applyDrawerFilter();
                 Log.d(TAG, "Live channels updated: " + channelNames.size());
             }
         };

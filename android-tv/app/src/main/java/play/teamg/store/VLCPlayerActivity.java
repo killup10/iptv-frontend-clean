@@ -39,6 +39,18 @@ import android.graphics.Color;
 import android.view.ViewGroup;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.LruCache;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 
 import androidx.appcompat.app.AppCompatActivity;
 import android.content.BroadcastReceiver;
@@ -65,6 +77,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     public static ArrayList<String> sChannelUrls;
     public static ArrayList<String> sChannelIds;
     public static ArrayList<String> sChannelSections;
+    public static ArrayList<String> sChannelNumbers;
+    public static ArrayList<String> sChannelEpgs;
     private static VLCPlayerActivity sActiveActivity;
 
     public static VLCPlayerActivity getActiveActivity() {
@@ -135,6 +149,26 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ArrayList<String> channelUrls;
     private ArrayList<String> channelIds;
     private ArrayList<String> channelSections;
+    private ArrayList<String> channelNumbers;
+    private ArrayList<String> channelEpgs;
+
+    // Drawer OSD Views
+    private View channelDrawerBackdrop;
+    private View channelDrawerContainer;
+    private TextView drawerHeaderTitle;
+    private TextView drawerHeaderTime;
+    private EditText drawerSearchInput;
+    private ListView drawerChannelList;
+    private ImageButton railTabSearch, railTabHistory, railTabFavorites, railTabChannels;
+    private ChannelDrawerAdapter channelDrawerAdapter;
+    private final ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
+    private final ArrayList<String> recentChannelNames = new ArrayList<>();
+    private String currentRailTab = "channels";
+    private SharedPreferences favoritesPrefs;
+    private Set<String> favoriteChannelsSet;
+    private static LruCache<String, Bitmap> sLogoCache;
+    private static final ExecutorService sLogoExecutor = Executors.newFixedThreadPool(2);
+
     private String sessionToken;
     private String deviceId;
     private String apiBaseUrl;
@@ -219,6 +253,18 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         volumeBar = findViewById(R.id.volume_bar);
         unlockProgressBar = findViewById(R.id.unlock_progress_bar);
 
+        // Drawer OSD Views
+        channelDrawerBackdrop = findViewById(R.id.channel_drawer_backdrop);
+        channelDrawerContainer = findViewById(R.id.channel_drawer_container);
+        drawerHeaderTitle = findViewById(R.id.drawer_header_title);
+        drawerHeaderTime = findViewById(R.id.drawer_header_time);
+        drawerSearchInput = findViewById(R.id.drawer_search_input);
+        drawerChannelList = findViewById(R.id.drawer_channel_list);
+        railTabSearch = findViewById(R.id.rail_tab_search);
+        railTabHistory = findViewById(R.id.rail_tab_history);
+        railTabFavorites = findViewById(R.id.rail_tab_favorites);
+        railTabChannels = findViewById(R.id.rail_tab_channels);
+
         currentVideoUrl = getIntent().getStringExtra("video_url");
         String videoTitleText = getIntent().getStringExtra("video_title");
         lastPosition = getIntent().getLongExtra("start_time", 0L);
@@ -259,6 +305,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelUrls = sChannelUrls != null ? sChannelUrls : getIntent().getStringArrayListExtra("channel_urls");
         channelIds = sChannelIds != null ? sChannelIds : getIntent().getStringArrayListExtra("channel_ids");
         channelSections = sChannelSections != null ? sChannelSections : getIntent().getStringArrayListExtra("channel_sections");
+        channelNumbers = sChannelNumbers != null ? sChannelNumbers : getIntent().getStringArrayListExtra("channel_numbers");
+        channelEpgs = sChannelEpgs != null ? sChannelEpgs : getIntent().getStringArrayListExtra("channel_epgs");
+
+        setupDrawerControls();
         sessionToken = getIntent().getStringExtra("session_token");
         deviceId = getIntent().getStringExtra("device_id");
         apiBaseUrl = getIntent().getStringExtra("api_base_url");
@@ -294,6 +344,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelUrls = sChannelUrls != null ? sChannelUrls : intent.getStringArrayListExtra("channel_urls");
         channelIds = sChannelIds != null ? sChannelIds : intent.getStringArrayListExtra("channel_ids");
         channelSections = sChannelSections != null ? sChannelSections : intent.getStringArrayListExtra("channel_sections");
+        channelNumbers = sChannelNumbers != null ? sChannelNumbers : intent.getStringArrayListExtra("channel_numbers");
+        channelEpgs = sChannelEpgs != null ? sChannelEpgs : intent.getStringArrayListExtra("channel_epgs");
         sessionToken = intent.getStringExtra("session_token");
         deviceId = intent.getStringExtra("device_id");
         apiBaseUrl = intent.getStringExtra("api_base_url");
@@ -337,6 +389,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     @Override
     public void onBackPressed() {
+        if (channelDrawerContainer != null && channelDrawerContainer.getVisibility() == View.VISIBLE) {
+            hideLiveChannelsDrawer();
+            return;
+        }
         closeReason = "user_back";
         super.onBackPressed();
     }
@@ -348,6 +404,16 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
 
         int keyCode = event.getKeyCode();
+
+        // 1. Manejo prioritario cuando el cajon lateral de canales en vivo esta visible
+        if (channelDrawerContainer != null && channelDrawerContainer.getVisibility() == View.VISIBLE) {
+            if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                hideLiveChannelsDrawer();
+                return true;
+            }
+            return super.dispatchKeyEvent(event);
+        }
+
         boolean controlsVisible = controlsContainer.getVisibility() == View.VISIBLE;
         boolean controlsFocused = isControlsFocused();
         boolean seekBarFocused = isSeekBarFocused();
@@ -403,11 +469,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 if (controlsVisible && controlsFocused) {
                     return super.dispatchKeyEvent(event);
                 }
-                if (!isLiveTV) {
-                    focusRewindButton();
-                } else {
-                    showControls();
+                if (isLiveTV) {
+                    hideControls();
+                    showLiveChannelsDrawer();
+                    return true;
                 }
+                focusRewindButton();
                 return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (seekBarFocused && !isLiveTV) {
@@ -537,6 +604,21 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         releasePlayer();
     }
 
+    private Media createConfiguredMedia(Uri uri) {
+        Media media = new Media(libVlc, uri);
+        // Usar decodificación por hardware de inicio, pero si falla y se activa la recuperación, caer a software para no bloquear el canal
+        boolean enableHw = (recoveryAttempts == 0);
+        media.setHWDecoderEnabled(enableHw, false);
+        media.addOption(":network-caching=1000");
+        media.addOption(":live-caching=1000");
+        media.addOption(":clock-jitter=0");
+        media.addOption(":clock-synchro=0");
+        media.addOption(":http-reconnect=true");
+        media.addOption(":no-check-certificate");
+        media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+        return media;
+    }
+
     private void initializePlayer() {
         if (currentVideoUrl == null) {
             Log.e(TAG, "Video URL is null, cannot initialize player.");
@@ -560,10 +642,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         setupControls();
         updateVideoTitleWithChapterInfo();
 
-        Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
-        media.setHWDecoderEnabled(true, false);
-        media.addOption(":network-caching=1000");
-        media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+        Media media = createConfiguredMedia(Uri.parse(currentVideoUrl));
 
         mediaPlayer.setMedia(media);
         media.release();
@@ -1161,10 +1240,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 isRecoveringPlayback = false;
                 forceAudioRecoveryPending = false;
 
-                Media media = new Media(libVlc, Uri.parse(currentVideoUrl));
-                media.setHWDecoderEnabled(true, false);
-                media.addOption(":network-caching=1000");
-                media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+                Media media = createConfiguredMedia(Uri.parse(currentVideoUrl));
 
                 mediaPlayer.setMedia(media);
                 media.release();
@@ -1269,7 +1345,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             channelsButton.setVisibility(View.VISIBLE);
 
             channelsButton.setOnClickListener(v -> {
-                showLiveChannelsDialog();
+                showLiveChannelsDrawer();
                 hideControls();
             });
         } else if (chapterTitles != null && !chapterTitles.isEmpty()) {
@@ -1709,41 +1785,121 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         builder.show();
     }
 
-    // ← NUEVO: Diálogo para seleccionar canales en vivo con soporte TV
+    // =========================================================================
+    // HIGH-PERFORMANCE LIVE CHANNELS DRAWER (ZERO-LAG OTT / TIVIMATE STYLE FOR TV)
+    // =========================================================================
     private int currentChannelSelection = 0;
-    private AlertDialog currentChannelDialog = null;
 
-    private static final ExecutorService imageLoadExecutor = Executors.newFixedThreadPool(4);
+    private void initLogoCache() {
+        if (sLogoCache == null) {
+            int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
+            int cacheSize = Math.max(1024 * 8, maxMemory / 8);
+            sLogoCache = new LruCache<String, Bitmap>(cacheSize) {
+                @Override
+                protected int sizeOf(String key, Bitmap bitmap) {
+                    return bitmap.getByteCount() / 1024;
+                }
+            };
+        }
+    }
 
-    private void loadImageAsync(String url, ImageView imageView) {
-        imageView.setImageResource(R.drawable.ic_channels); // placeholder por defecto siempre
-
-        if (url == null || url.isEmpty() || url.startsWith("/")) {
-            return; // Si es ruta relativa o vacía, nos quedamos con el placeholder
+    private void loadImageAsync(final String urlString, final android.widget.ImageView imageView) {
+        if (urlString == null || urlString.trim().isEmpty()) {
+            imageView.setImageDrawable(null);
+            return;
         }
 
-        Handler handler = new Handler(Looper.getMainLooper());
-        imageLoadExecutor.execute(() -> {
-            java.io.InputStream in = null;
+        initLogoCache();
+
+        // 1. Instant Cache Hit (0ms - zero lag)
+        Bitmap cached = sLogoCache.get(urlString);
+        if (cached != null) {
+            imageView.setImageBitmap(cached);
+            return;
+        }
+
+        // 2. Cache Miss: prepare placeholder and tag
+        imageView.setImageDrawable(null);
+        imageView.setTag(urlString);
+
+        // 3. Low-priority background thread with downsampled decode
+        sLogoExecutor.submit(() -> {
             try {
-                java.net.URL imageUrl = new java.net.URL(url);
-                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) imageUrl.openConnection();
-                connection.setConnectTimeout(8000);
-                connection.setReadTimeout(8000);
-                connection.setUseCaches(true);
-                in = connection.getInputStream();
-                android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(in);
+                URL url = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(2500);
+                conn.setReadTimeout(2500);
+                conn.setDoInput(true);
+                conn.connect();
+
+                InputStream input = conn.getInputStream();
+                byte[] data = readStreamFully(input);
+                input.close();
+
+                if (data == null || data.length == 0) return;
+
+                BitmapFactory.Options opt = new BitmapFactory.Options();
+                opt.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, opt);
+
+                int targetSizePx = (int) (80 * getResources().getDisplayMetrics().density);
+                int inSampleSize = 1;
+                while ((opt.outWidth / (inSampleSize * 2)) >= targetSizePx &&
+                       (opt.outHeight / (inSampleSize * 2)) >= targetSizePx) {
+                    inSampleSize *= 2;
+                }
+
+                opt.inJustDecodeBounds = false;
+                opt.inSampleSize = inSampleSize;
+                opt.inPreferredConfig = Bitmap.Config.RGB_565; // 50% memory saving
+
+                final Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length, opt);
                 if (bitmap != null) {
-                    handler.post(() -> imageView.setImageBitmap(bitmap));
+                    sLogoCache.put(urlString, bitmap);
+                    imageView.post(() -> {
+                        if (urlString.equals(imageView.getTag())) {
+                            imageView.setImageBitmap(bitmap);
+                        }
+                    });
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error loading image: " + url, e);
-            } finally {
-                if (in != null) {
-                    try { in.close(); } catch (Exception ignored) {}
-                }
+            } catch (Exception ignored) {
             }
         });
+    }
+
+    private static byte[] readStreamFully(InputStream is) throws java.io.IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[4096];
+        while ((nRead = is.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        buffer.flush();
+        return buffer.toByteArray();
+    }
+
+    private void initFavorites() {
+        if (favoritesPrefs == null) {
+            favoritesPrefs = getSharedPreferences("teamg_channel_favorites", MODE_PRIVATE);
+            favoriteChannelsSet = new HashSet<>(favoritesPrefs.getStringSet("favorites", new HashSet<>()));
+        }
+    }
+
+    private boolean isChannelFavorite(String channelName) {
+        if (channelName == null) return false;
+        initFavorites();
+        return favoriteChannelsSet.contains(channelName);
+    }
+
+    private void toggleFavorite(String channelName) {
+        if (channelName == null) return;
+        initFavorites();
+        if (favoriteChannelsSet.contains(channelName)) {
+            favoriteChannelsSet.remove(channelName);
+        } else {
+            favoriteChannelsSet.add(channelName);
+        }
+        favoritesPrefs.edit().putStringSet("favorites", new HashSet<>(favoriteChannelsSet)).apply();
     }
 
     public void updateLiveChannelsStatic(ArrayList<String> names, ArrayList<String> logos, ArrayList<String> urls, ArrayList<String> ids, ArrayList<String> sections) {
@@ -1753,499 +1909,302 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             this.channelUrls = urls;
             this.channelIds = ids != null ? ids : new ArrayList<>();
             this.channelSections = sections != null ? sections : new ArrayList<>();
+            this.channelNumbers = sChannelNumbers != null ? sChannelNumbers : new ArrayList<>();
+            this.channelEpgs = sChannelEpgs != null ? sChannelEpgs : new ArrayList<>();
             this.isLiveTV = true;
             this.currentChannelSelection = this.channelUrls.indexOf(currentVideoUrl);
             if (this.currentChannelSelection < 0) this.currentChannelSelection = 0;
-            
-            // Si el diálogo de canales está abierto, actualizarlo para reflejar los cambios
-            if (currentChannelDialog != null && currentChannelDialog.isShowing()) {
-                currentChannelDialog.dismiss();
-                showLiveChannelsDialog();
+
+            if (channelDrawerAdapter != null) {
+                applyDrawerFilter();
             }
-            
+
             setupControls();
             Log.d(TAG, "Live channels updated statically: " + this.channelNames.size());
         });
     }
 
-    private static class ChannelListItem {
-        boolean isHeader;
-        String sectionName;
-        int realChannelIndex;
-        String channelName;
-        String channelLogo;
-        String channelUrl;
-        String channelId;
+    private void setupDrawerControls() {
+        if (channelDrawerContainer == null) return;
 
-        ChannelListItem(String sectionName) {
-            this.isHeader = true;
-            this.sectionName = sectionName;
+        initFavorites();
+
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.setOnClickListener(v -> hideLiveChannelsDrawer());
         }
 
-        ChannelListItem(int realChannelIndex, String channelName, String channelLogo, String channelUrl, String channelId, String sectionName) {
-            this.isHeader = false;
-            this.realChannelIndex = realChannelIndex;
-            this.channelName = channelName;
-            this.channelLogo = channelLogo;
-            this.channelUrl = channelUrl;
-            this.channelId = channelId;
-            this.sectionName = sectionName;
+        channelDrawerAdapter = new ChannelDrawerAdapter();
+        if (drawerChannelList != null) {
+            drawerChannelList.setAdapter(channelDrawerAdapter);
+            drawerChannelList.setOnItemClickListener((parent, view, position, id) -> {
+                selectDrawerChannel(position);
+            });
+        }
+
+        if (railTabChannels != null) railTabChannels.setOnClickListener(v -> setDrawerRailTab("channels"));
+        if (railTabFavorites != null) railTabFavorites.setOnClickListener(v -> setDrawerRailTab("favorites"));
+        if (railTabHistory != null) railTabHistory.setOnClickListener(v -> setDrawerRailTab("history"));
+        if (railTabSearch != null) railTabSearch.setOnClickListener(v -> toggleDrawerSearch());
+
+        if (drawerSearchInput != null) {
+            drawerSearchInput.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    applyDrawerFilter();
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            });
         }
     }
 
-    private void showLiveChannelsDialog() {
+    private void setDrawerRailTab(String tab) {
+        currentRailTab = tab;
+        if (railTabChannels != null) {
+            railTabChannels.setBackgroundResource("channels".equals(tab) ? R.drawable.tv_exo_button_primary : R.drawable.tv_exo_button_secondary);
+        }
+        if (railTabFavorites != null) {
+            railTabFavorites.setBackgroundResource("favorites".equals(tab) ? R.drawable.tv_exo_button_primary : R.drawable.tv_exo_button_secondary);
+        }
+        if (railTabHistory != null) {
+            railTabHistory.setBackgroundResource("history".equals(tab) ? R.drawable.tv_exo_button_primary : R.drawable.tv_exo_button_secondary);
+        }
+        if (railTabSearch != null) {
+            railTabSearch.setBackgroundResource("search".equals(tab) ? R.drawable.tv_exo_button_primary : R.drawable.tv_exo_button_secondary);
+        }
+
+        if ("search".equals(tab)) {
+            if (drawerSearchInput != null) {
+                drawerSearchInput.setVisibility(View.VISIBLE);
+                drawerSearchInput.requestFocus();
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) imm.showSoftInput(drawerSearchInput, InputMethodManager.SHOW_IMPLICIT);
+            }
+            if (drawerHeaderTitle != null) drawerHeaderTitle.setText("Buscar Canales");
+        } else {
+            if (drawerSearchInput != null) {
+                drawerSearchInput.setVisibility(View.GONE);
+                hideKeyboard();
+            }
+            if (drawerHeaderTitle != null) {
+                if ("favorites".equals(tab)) {
+                    drawerHeaderTitle.setText("Canales Favoritos");
+                } else if ("history".equals(tab)) {
+                    drawerHeaderTitle.setText("Canales Recientes");
+                } else {
+                    drawerHeaderTitle.setText("Lista de canales");
+                }
+            }
+        }
+
+        applyDrawerFilter();
+    }
+
+    private void toggleDrawerSearch() {
+        if ("search".equals(currentRailTab)) {
+            setDrawerRailTab("channels");
+        } else {
+            setDrawerRailTab("search");
+        }
+    }
+
+    private void applyDrawerFilter() {
+        if (channelNames == null || channelUrls == null) return;
+        int channelCount = Math.min(channelNames.size(), channelUrls.size());
+        visibleChannelIndices.clear();
+
+        String query = (drawerSearchInput != null && drawerSearchInput.getText() != null)
+                ? drawerSearchInput.getText().toString().trim().toLowerCase() : "";
+
+        for (int i = 0; i < channelCount; i++) {
+            String name = channelNames.get(i);
+
+            if ("favorites".equals(currentRailTab) && !isChannelFavorite(name)) {
+                continue;
+            }
+            if ("history".equals(currentRailTab) && !recentChannelNames.contains(name)) {
+                continue;
+            }
+            if (!query.isEmpty() && !name.toLowerCase().contains(query)) {
+                String epg = (channelEpgs != null && i < channelEpgs.size()) ? channelEpgs.get(i).toLowerCase() : "";
+                if (!epg.contains(query)) {
+                    continue;
+                }
+            }
+
+            visibleChannelIndices.add(i);
+        }
+
+        if (channelDrawerAdapter != null) {
+            channelDrawerAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private void showLiveChannelsDrawer() {
         if (channelNames == null || channelUrls == null || channelNames.isEmpty() || channelUrls.isEmpty()) {
             Toast.makeText(this, "No hay canales disponibles", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        Log.d(TAG, "showLiveChannelsDialog: Mostrando " + channelNames.size() + " canales");
-        int channelCount = Math.min(channelNames.size(), channelUrls.size());
+        if (channelDrawerContainer == null) {
+            return;
+        }
+
         int currentIndex = channelUrls.indexOf(currentVideoUrl);
-        currentChannelSelection = currentIndex >= 0 ? currentIndex : Math.min(currentChannelSelection, channelCount - 1);
-
-        LinearLayout contentLayout = new LinearLayout(this);
-        contentLayout.setOrientation(LinearLayout.VERTICAL);
-        int paddingPx = (int) (20 * getResources().getDisplayMetrics().density);
-        contentLayout.setPadding(paddingPx, paddingPx / 2, paddingPx, 0);
-
-        EditText searchInput = new EditText(this);
-        searchInput.setSingleLine(true);
-        searchInput.setHint("Buscar canal...");
-        searchInput.setTextColor(getColor(android.R.color.white));
-        searchInput.setHintTextColor(0xFFB0B0B0);
-        searchInput.setFocusable(true);
-        searchInput.setFocusableInTouchMode(true);
-        contentLayout.addView(searchInput, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-
-        ListView listView = new ListView(this);
-        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        int listHeightPx = (int) (360 * getResources().getDisplayMetrics().density);
-        contentLayout.addView(listView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                listHeightPx
-        ));
-
-        ArrayList<ChannelListItem> visibleChannelItems = new ArrayList<>();
-        ArrayAdapter<ChannelListItem> channelAdapter = new ArrayAdapter<ChannelListItem>(
-                this,
-                0,
-                new ArrayList<>()
-        ) {
-            @Override
-            public boolean isEnabled(int position) {
-                if (position >= 0 && position < visibleChannelItems.size()) {
-                    return !visibleChannelItems.get(position).isHeader;
-                }
-                return super.isEnabled(position);
-            }
-
-            @Override
-            public int getViewTypeCount() {
-                return 2;
-            }
-
-            @Override
-            public int getItemViewType(int position) {
-                if (position >= 0 && position < visibleChannelItems.size()) {
-                    return visibleChannelItems.get(position).isHeader ? 0 : 1;
-                }
-                return 1;
-            }
-
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                if (position < 0 || position >= visibleChannelItems.size()) {
-                    return new View(getContext());
-                }
-
-                ChannelListItem item = visibleChannelItems.get(position);
-
-                if (item.isHeader) {
-                    LinearLayout headerLayout;
-                    TextView headerText;
-                    if (convertView == null) {
-                        headerLayout = new LinearLayout(getContext());
-                        headerLayout.setOrientation(LinearLayout.HORIZONTAL);
-                        headerLayout.setGravity(Gravity.CENTER_VERTICAL);
-                        headerLayout.setBackgroundColor(0x2200FFFF); // azul translúcido sutil
-                        int headerPadding = (int) (6 * getResources().getDisplayMetrics().density);
-                        int sidePadding = (int) (16 * getResources().getDisplayMetrics().density);
-                        headerLayout.setPadding(sidePadding, headerPadding, sidePadding, headerPadding);
-                        headerLayout.setFocusable(false);
-                        headerLayout.setClickable(false);
-
-                        headerText = new TextView(getContext());
-                        headerText.setTextColor(0xFF00FFFF); // texto en color cyan
-                        headerText.setTextSize(14);
-                        headerText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                        headerLayout.addView(headerText);
-                    } else {
-                        headerLayout = (LinearLayout) convertView;
-                        headerText = (TextView) headerLayout.getChildAt(0);
-                    }
-                    headerText.setText(item.sectionName);
-                    return headerLayout;
-                } else {
-                    LinearLayout rowLayout;
-                    ImageView logoView;
-                    TextView textView;
-                    RadioButton radioButton;
-
-                    if (convertView == null) {
-                        rowLayout = new LinearLayout(getContext());
-                        rowLayout.setOrientation(LinearLayout.HORIZONTAL);
-                        rowLayout.setGravity(Gravity.CENTER_VERTICAL);
-                        int itemPadding = (int) (8 * getResources().getDisplayMetrics().density);
-                        rowLayout.setPadding(itemPadding * 2, itemPadding, itemPadding * 2, itemPadding);
-                        rowLayout.setFocusable(true);
-                        rowLayout.setClickable(true);
-
-                        // Logo
-                        logoView = new ImageView(getContext());
-                        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(
-                                (int) (40 * getResources().getDisplayMetrics().density),
-                                (int) (40 * getResources().getDisplayMetrics().density)
-                        );
-                        logoParams.rightMargin = (int) (12 * getResources().getDisplayMetrics().density);
-                        logoView.setLayoutParams(logoParams);
-                        logoView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                        rowLayout.addView(logoView);
-
-                        // Texto
-                        textView = new TextView(getContext());
-                        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                                0,
-                                LinearLayout.LayoutParams.WRAP_CONTENT,
-                                1.0f
-                        );
-                        textView.setLayoutParams(textParams);
-                        textView.setTextColor(Color.WHITE);
-                        textView.setTextSize(16);
-                        rowLayout.addView(textView);
-
-                        // RadioButton
-                        radioButton = new RadioButton(getContext());
-                        radioButton.setFocusable(false);
-                        radioButton.setClickable(false);
-                        rowLayout.addView(radioButton);
-                    } else {
-                        rowLayout = (LinearLayout) convertView;
-                        logoView = (ImageView) rowLayout.getChildAt(0);
-                        textView = (TextView) rowLayout.getChildAt(1);
-                        radioButton = (RadioButton) rowLayout.getChildAt(2);
-                    }
-
-                    textView.setText(item.realChannelIndex == currentChannelSelection ? item.channelName + "  - Actual" : item.channelName);
-                    loadImageAsync(item.channelLogo, logoView);
-
-                    boolean isSelected = (item.realChannelIndex == currentChannelSelection);
-                    radioButton.setChecked(isSelected);
-
-                    // Estilo al enfocar (D-pad)
-                    rowLayout.setOnFocusChangeListener((v, hasFocus) -> {
-                        if (hasFocus) {
-                            v.setBackgroundColor(0x22FFFFFF); // fondo translúcido al enfocar
-                        } else {
-                            v.setBackgroundColor(Color.TRANSPARENT);
-                        }
-                    });
-
-                    return rowLayout;
-                }
-            }
-        };
-        listView.setAdapter(channelAdapter);
-        applyChannelFilter("", visibleChannelItems, channelAdapter, channelCount);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Selecciona un Canal");
-        builder.setView(contentLayout);
-
-        builder.setPositiveButton("OK", (dialog, which) -> {
-            updateCurrentChannelSelectionFromVisibleList(visibleChannelItems, listView);
-            confirmChannelSelection(dialog);
-        });
-
-        builder.setNegativeButton("Cancelar", (dialog, which) -> {
-            dialog.dismiss();
-            currentChannelDialog = null;
-        });
-
-        AlertDialog dialogInstance = builder.create();
-        dialogInstance.setOnKeyListener((dialog, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                View currentFocus = dialogInstance.getCurrentFocus();
-                boolean searchInputFocused = searchInput.hasFocus() || currentFocus == searchInput;
-                switch (keyCode) {
-                    case KeyEvent.KEYCODE_DPAD_CENTER:
-                    case KeyEvent.KEYCODE_ENTER:
-                    case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                        if (searchInputFocused) {
-                            showChannelSearchKeyboard(searchInput);
-                            return true;
-                        }
-                        updateCurrentChannelSelectionFromVisibleList(visibleChannelItems, listView);
-                        confirmChannelSelection(dialog);
-                        return true;
-                    case KeyEvent.KEYCODE_BACK:
-                        dialog.dismiss();
-                        currentChannelDialog = null;
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-            return false;
-        });
-
-        dialogInstance.setOnShowListener(dialog -> {
-            currentChannelDialog = dialogInstance;
-            
-            // Buscar índice visible que coincida con el canal seleccionado
-            int selectedVisiblePosition = -1;
-            for (int i = 0; i < visibleChannelItems.size(); i++) {
-                ChannelListItem item = visibleChannelItems.get(i);
-                if (!item.isHeader && item.realChannelIndex == currentChannelSelection) {
-                    selectedVisiblePosition = i;
-                    break;
-                }
-            }
-            if (selectedVisiblePosition == -1) {
-                for (int i = 0; i < visibleChannelItems.size(); i++) {
-                    if (!visibleChannelItems.get(i).isHeader) {
-                        selectedVisiblePosition = i;
-                        currentChannelSelection = visibleChannelItems.get(i).realChannelIndex;
-                        break;
-                    }
-                }
-            }
-
-            if (selectedVisiblePosition >= 0) {
-                listView.setItemChecked(selectedVisiblePosition, true);
-                listView.setSelection(selectedVisiblePosition);
-            }
-
-            listView.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    if (position >= 0 && position < visibleChannelItems.size()) {
-                        ChannelListItem item = visibleChannelItems.get(position);
-                        if (!item.isHeader) {
-                            currentChannelSelection = item.realChannelIndex;
-                        }
-                    }
-                }
-
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {
-                }
-            });
-            listView.setOnItemClickListener((parent, view, position, id) -> {
-                if (position >= 0 && position < visibleChannelItems.size()) {
-                    ChannelListItem item = visibleChannelItems.get(position);
-                    if (!item.isHeader) {
-                        currentChannelSelection = item.realChannelIndex;
-                        confirmChannelSelection(dialogInstance);
-                    }
-                }
-            });
-            searchInput.addTextChangedListener(new TextWatcher() {
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                }
-
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    applyChannelFilter(s != null ? s.toString() : "", visibleChannelItems, channelAdapter, channelCount);
-                    
-                    int nextSelection = -1;
-                    for (int i = 0; i < visibleChannelItems.size(); i++) {
-                        ChannelListItem item = visibleChannelItems.get(i);
-                        if (!item.isHeader && item.realChannelIndex == currentChannelSelection) {
-                            nextSelection = i;
-                            break;
-                        }
-                    }
-                    if (nextSelection < 0) {
-                        for (int i = 0; i < visibleChannelItems.size(); i++) {
-                            if (!visibleChannelItems.get(i).isHeader) {
-                                nextSelection = i;
-                                currentChannelSelection = visibleChannelItems.get(i).realChannelIndex;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (nextSelection >= 0) {
-                        listView.setItemChecked(nextSelection, true);
-                        listView.setSelection(nextSelection);
-                    }
-                }
-
-                @Override
-                public void afterTextChanged(Editable s) {
-                }
-            });
-            searchInput.setOnClickListener(v -> showChannelSearchKeyboard(searchInput));
-            searchInput.setOnFocusChangeListener((v, hasFocus) -> {
-                if (hasFocus) {
-                    showChannelSearchKeyboard(searchInput);
-                }
-            });
-            searchInput.setOnKeyListener((v, keyCode, event) -> {
-                if (event.getAction() != KeyEvent.ACTION_DOWN) {
-                    return false;
-                }
-
-                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    if (visibleChannelItems.isEmpty()) {
-                        return true;
-                    }
-
-                    int nextSelection = -1;
-                    for (int i = 0; i < visibleChannelItems.size(); i++) {
-                        ChannelListItem item = visibleChannelItems.get(i);
-                        if (!item.isHeader && item.realChannelIndex == currentChannelSelection) {
-                            nextSelection = i;
-                            break;
-                        }
-                    }
-                    if (nextSelection < 0) {
-                        for (int i = 0; i < visibleChannelItems.size(); i++) {
-                            if (!visibleChannelItems.get(i).isHeader) {
-                                nextSelection = i;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (nextSelection >= 0) {
-                        listView.requestFocus();
-                        listView.setItemChecked(nextSelection, true);
-                        listView.setSelection(nextSelection);
-                    }
-                    return true;
-                }
-
-                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                        || keyCode == KeyEvent.KEYCODE_ENTER
-                        || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                    showChannelSearchKeyboard(searchInput);
-                    return true;
-                }
-
-                return false;
-            });
-            listView.requestFocus();
-        });
-        dialogInstance.setOnDismissListener(dialog -> currentChannelDialog = null);
-
-        currentChannelDialog = dialogInstance;
-        dialogInstance.show();
-    }
-
-    private void showChannelSearchKeyboard(EditText searchInput) {
-        if (searchInput == null) {
-            return;
+        if (currentIndex >= 0) {
+            currentChannelSelection = currentIndex;
         }
 
-        searchInput.requestFocus();
-        searchInput.post(() -> {
-            try {
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT);
-                }
-            } catch (Exception error) {
-                Log.w(TAG, "No se pudo abrir teclado de busqueda de canales", error);
-            }
-        });
-    }
-
-    private String normalizeChannelSearchValue(String value) {
-        if (value == null) {
-            return "";
+        if (drawerHeaderTime != null) {
+            drawerHeaderTime.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
         }
 
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        setDrawerRailTab("channels");
+        applyDrawerFilter();
 
-        return normalized.toLowerCase(Locale.ROOT).trim();
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.setVisibility(View.VISIBLE);
+            channelDrawerBackdrop.setAlpha(0f);
+            channelDrawerBackdrop.animate().alpha(1f).setDuration(200).start();
+        }
+
+        channelDrawerContainer.setVisibility(View.VISIBLE);
+        channelDrawerContainer.setTranslationX(-800f);
+        channelDrawerContainer.animate().translationX(0f).setDuration(220).start();
+
+        int targetPos = visibleChannelIndices.indexOf(currentChannelSelection);
+        if (drawerChannelList != null) {
+            drawerChannelList.requestFocus();
+            if (targetPos >= 0) {
+                drawerChannelList.setSelection(Math.max(0, targetPos - 1));
+            }
+        }
     }
 
-    private void applyChannelFilter(String query, ArrayList<ChannelListItem> visibleChannelItems, ArrayAdapter<ChannelListItem> adapter, int channelCount) {
-        visibleChannelItems.clear();
-        adapter.clear();
+    private void hideLiveChannelsDrawer() {
+        if (channelDrawerContainer == null || channelDrawerContainer.getVisibility() != View.VISIBLE) return;
 
-        String normalizedQuery = normalizeChannelSearchValue(query);
+        hideKeyboard();
 
-        // Agrupación por categorías
-        ArrayList<String> uniqueSections = new ArrayList<>();
-        if (channelSections != null) {
-            for (int i = 0; i < channelCount; i++) {
-                String section = (i < channelSections.size()) ? channelSections.get(i) : "General";
-                if (section == null || section.isEmpty()) {
-                    section = "General";
-                }
-                if (!uniqueSections.contains(section)) {
-                    uniqueSections.add(section);
-                }
+        if (channelDrawerBackdrop != null) {
+            channelDrawerBackdrop.animate().alpha(0f).setDuration(180).start();
+        }
+
+        channelDrawerContainer.animate().translationX(-channelDrawerContainer.getWidth()).setDuration(200).withEndAction(() -> {
+            channelDrawerContainer.setVisibility(View.GONE);
+            if (channelDrawerBackdrop != null) {
+                channelDrawerBackdrop.setVisibility(View.GONE);
             }
+        }).start();
+    }
+
+    private void hideKeyboard() {
+        if (drawerSearchInput != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.hideSoftInputFromWindow(drawerSearchInput.getWindowToken(), 0);
+            }
+        }
+    }
+
+    private void selectDrawerChannel(int position) {
+        if (position < 0 || position >= visibleChannelIndices.size()) return;
+        int channelIndex = visibleChannelIndices.get(position);
+        currentChannelSelection = channelIndex;
+        String selectedChannel = channelNames.get(channelIndex);
+        String selectedUrl = channelUrls.get(channelIndex);
+        String selectedId = (channelIds != null && channelIndex < channelIds.size()) 
+            ? channelIds.get(channelIndex) 
+            : null;
+
+        Log.d(TAG, "Canal seleccionado en TV drawer: " + selectedChannel + " - URL: " + selectedUrl);
+
+        if (!recentChannelNames.contains(selectedChannel)) {
+            recentChannelNames.add(0, selectedChannel);
+            if (recentChannelNames.size() > 20) recentChannelNames.remove(recentChannelNames.size() - 1);
+        }
+
+        if ((selectedUrl == null || selectedUrl.isEmpty()) && selectedId != null && !selectedId.isEmpty()) {
+            fetchChannelUrlAndSwitch(selectedId, selectedChannel);
         } else {
-            uniqueSections.add("General");
+            switchChannel(selectedUrl, selectedChannel);
         }
 
-        for (String section : uniqueSections) {
-            ArrayList<ChannelListItem> sectionChannels = new ArrayList<>();
-            for (int i = 0; i < channelCount; i++) {
-                String chSection = (channelSections != null && i < channelSections.size()) ? channelSections.get(i) : "General";
-                if (chSection == null || chSection.isEmpty()) {
-                    chSection = "General";
-                }
-                if (chSection.equalsIgnoreCase(section)) {
-                    String channelName = channelNames.get(i);
-                    String normalizedChannelName = normalizeChannelSearchValue(channelName);
-                    if (normalizedQuery.isEmpty() || normalizedChannelName.contains(normalizedQuery)) {
-                        String logo = (channelLogos != null && i < channelLogos.size()) ? channelLogos.get(i) : "";
-                        String url = (channelUrls != null && i < channelUrls.size()) ? channelUrls.get(i) : "";
-                        String id = (channelIds != null && i < channelIds.size()) ? channelIds.get(i) : "";
-                        sectionChannels.add(new ChannelListItem(i, channelName, logo, url, id, section));
-                    }
-                }
-            }
-
-            if (!sectionChannels.isEmpty()) {
-                ChannelListItem headerItem = new ChannelListItem(section.toUpperCase(Locale.ROOT));
-                visibleChannelItems.add(headerItem);
-                adapter.add(headerItem);
-                for (ChannelListItem chItem : sectionChannels) {
-                    visibleChannelItems.add(chItem);
-                    adapter.add(chItem);
-                }
-            }
+        if (channelDrawerAdapter != null) {
+            channelDrawerAdapter.notifyDataSetChanged();
         }
-        adapter.notifyDataSetChanged();
+
+        hideLiveChannelsDrawer();
     }
 
-    private void updateCurrentChannelSelectionFromVisibleList(ArrayList<ChannelListItem> visibleChannelItems, ListView listView) {
-        if (visibleChannelItems == null || listView == null || visibleChannelItems.isEmpty()) {
-            return;
+    private class ChannelDrawerAdapter extends android.widget.BaseAdapter {
+        @Override
+        public int getCount() {
+            return visibleChannelIndices.size();
         }
 
-        int selectedPosition = listView.getSelectedItemPosition();
-        int checkedPosition = listView.getCheckedItemPosition();
-        int visiblePosition = selectedPosition >= 0 ? selectedPosition : checkedPosition;
-        if (visiblePosition >= 0 && visiblePosition < visibleChannelItems.size()) {
-            ChannelListItem item = visibleChannelItems.get(visiblePosition);
-            if (!item.isHeader) {
-                currentChannelSelection = item.realChannelIndex;
-                listView.setItemChecked(visiblePosition, true);
+        @Override
+        public Object getItem(int position) {
+            if (position >= 0 && position < visibleChannelIndices.size()) {
+                return channelNames.get(visibleChannelIndices.get(position));
             }
+            return null;
         }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            ViewHolder holder;
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_drawer_channel, parent, false);
+                holder = new ViewHolder();
+                holder.numberView = convertView.findViewById(R.id.channel_item_number);
+                holder.logoView = convertView.findViewById(R.id.channel_item_logo);
+                holder.titleView = convertView.findViewById(R.id.channel_item_title);
+                holder.epgView = convertView.findViewById(R.id.channel_item_epg);
+                holder.favoriteView = convertView.findViewById(R.id.channel_item_favorite);
+                convertView.setTag(holder);
+            } else {
+                holder = (ViewHolder) convertView.getTag();
+            }
+
+            int channelIndex = visibleChannelIndices.get(position);
+            String name = channelNames.get(channelIndex);
+            String logo = (channelLogos != null && channelIndex < channelLogos.size()) ? channelLogos.get(channelIndex) : "";
+            String number = (channelNumbers != null && channelIndex < channelNumbers.size()) ? channelNumbers.get(channelIndex) : String.valueOf(channelIndex + 1);
+            String epg = (channelEpgs != null && channelIndex < channelEpgs.size()) ? channelEpgs.get(channelIndex) : "En vivo";
+
+            holder.numberView.setText(number);
+            holder.titleView.setText(name);
+            holder.epgView.setText(epg != null && !epg.isEmpty() ? epg : "En vivo");
+
+            boolean isCurrent = (channelIndex == currentChannelSelection);
+            convertView.setActivated(isCurrent);
+            convertView.setSelected(isCurrent);
+
+            boolean isFav = isChannelFavorite(name);
+            holder.favoriteView.setAlpha(isFav ? 1.0f : 0.25f);
+            holder.favoriteView.setColorFilter(isFav ? 0xFFFFD700 : 0xFFFFFFFF);
+            holder.favoriteView.setOnClickListener(v -> {
+                toggleFavorite(name);
+                notifyDataSetChanged();
+            });
+
+            loadImageAsync(logo, holder.logoView);
+
+            return convertView;
+        }
+    }
+
+    private static class ViewHolder {
+        TextView numberView;
+        ImageView logoView;
+        TextView titleView;
+        TextView epgView;
+        ImageView favoriteView;
     }
 
     private void fetchChannelUrlAndSwitch(String channelId, String channelName) {
@@ -2330,28 +2289,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         });
     }
 
-    private void confirmChannelSelection(DialogInterface dialog) {
-        int channelCount = Math.min(channelNames.size(), channelUrls.size());
-        if (currentChannelSelection >= 0 && currentChannelSelection < channelCount) {
-            String selectedChannel = channelNames.get(currentChannelSelection);
-            String selectedUrl = channelUrls.get(currentChannelSelection);
-            Log.d(TAG, "Canal confirmado: " + selectedChannel + " - URL: " + selectedUrl);
-            
-            String selectedId = (channelIds != null && currentChannelSelection < channelIds.size()) 
-                ? channelIds.get(currentChannelSelection) 
-                : null;
-                
-            if ((selectedUrl == null || selectedUrl.isEmpty()) && selectedId != null && !selectedId.isEmpty()) {
-                fetchChannelUrlAndSwitch(selectedId, selectedChannel);
-            } else {
-                switchChannel(selectedUrl, selectedChannel);
-            }
-        }
-
-        dialog.dismiss();
-        currentChannelDialog = null;
-    }
-
     // ← NUEVO: Cambiar de canal en vivo
     private void switchChannel(String newChannelUrl, String newChannelName) {
         Log.d(TAG, "switchChannel: Cambiando a canal: " + newChannelName + " - URL: " + newChannelUrl);
@@ -2360,6 +2297,8 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             // Actualizar título del video
             videoTitle.setText(newChannelName);
             currentVideoUrl = newChannelUrl;
+            recoveryAttempts = 0;
+            isRecoveringPlayback = false;
 
             // Detener reproducción actual
             if (mediaPlayer != null && mediaPlayer.isPlaying()) {
@@ -2375,10 +2314,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                     }
 
                     // Crear nueva media
-                    Media media = new Media(libVlc, android.net.Uri.parse(newChannelUrl));
-                    media.setHWDecoderEnabled(true, false);
-                    media.addOption(":network-caching=1000");
-                    media.addOption(":http-user-agent=VLC/3.0.0 (Linux; Android 9)");
+                    Media media = createConfiguredMedia(android.net.Uri.parse(newChannelUrl));
 
                     mediaPlayer.setMedia(media);
                     media.release();

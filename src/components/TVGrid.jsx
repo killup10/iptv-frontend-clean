@@ -13,6 +13,10 @@ import {
   getTVItemQualityBadges,
   resolveTVItemType,
   getTVItemImage,
+  getTVItemDuration,
+  getTVItemDirector,
+  getTVItemCertification,
+  getTVItemUserScore,
 } from '../utils/tvContentUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
 
@@ -195,6 +199,10 @@ const TVGrid = ({
             const itemQualityBadges = getTVItemQualityBadges(item);
             const resolvedItemType = resolveTVItemType(item, 'movie');
             const itemType = resolvedItemType.replace('-', ' ');
+            const itemDuration = getTVItemDuration(item);
+            const itemDirector = getTVItemDirector(item);
+            const itemCert = getTVItemCertification(item);
+            const itemUserScore = getTVItemUserScore(item);
             const lockState = showPlanLock
               ? getAccessLockState(item, user?.plan)
               : { locked: false, lockMessage: '' };
@@ -282,7 +290,21 @@ const TVGrid = ({
                     <div className="item-overlay">
                       <div className="item-overlay-copy">
                         <h2>{itemTitle}</h2>
-                        {itemYear ? <p className="item-overlay-meta">{itemYear}</p> : null}
+                        <div className="item-overlay-meta flex items-center gap-1.5 flex-wrap">
+                          {itemCert ? (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-white/20 text-white border border-white/30">
+                              {itemCert}
+                            </span>
+                          ) : null}
+                          {itemYear ? <span>{itemYear}</span> : null}
+                          {itemDuration ? <span>• {itemDuration}</span> : null}
+                          {itemUserScore ? (
+                            <span className="text-emerald-400 font-bold">• {itemUserScore}% TMDB</span>
+                          ) : null}
+                        </div>
+                        {itemDirector ? (
+                          <p className="text-[11px] text-cyan-300 font-semibold mt-1">Dir: {itemDirector}</p>
+                        ) : null}
                         {lockState.locked ? (
                           <p className="item-overlay-description text-amber-400 font-bold uppercase tracking-wider mt-1 text-xs">
                             {lockState.lockMessage}

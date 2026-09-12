@@ -13,6 +13,13 @@ import {
   getTVItemTitle,
   getTVItemTrailerUrl,
   getTVItemYear,
+  getTVItemReleaseDate,
+  getTVItemDuration,
+  getTVItemDirector,
+  getTVItemCast,
+  getTVItemUserScore,
+  getTVItemCertification,
+  getTVItemTagline,
   resolveTVItemType,
 } from '../utils/tvContentUtils.js';
 import { fetchVideoById } from '../utils/api.js';
@@ -288,6 +295,13 @@ export default function MobileVodDetailModal({
   const year = getTVItemYear(modalItem);
   const genre = getTVItemGenre(modalItem);
   const genreList = getTVItemGenreList(modalItem);
+  const releaseDate = getTVItemReleaseDate(modalItem);
+  const duration = getTVItemDuration(modalItem);
+  const director = getTVItemDirector(modalItem);
+  const cast = getTVItemCast(modalItem);
+  const userScore = getTVItemUserScore(modalItem);
+  const certification = getTVItemCertification(modalItem);
+  const tagline = getTVItemTagline(modalItem);
   const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
   const trailerUrl = getTVItemTrailerUrl(modalItem);
   const hasTrailer = Boolean(trailerUrl && onTrailer);
@@ -457,8 +471,39 @@ export default function MobileVodDetailModal({
                   </div>
 
                   <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl">
-                    {title}
+                    {title} {year ? <span className="font-light text-slate-400 text-2xl sm:text-3xl">({year})</span> : null}
                   </h2>
+
+                  {/* Fila de metadatos estilo TMDB */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-300 font-medium">
+                    {certification && (
+                      <span className="rounded border border-white/30 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
+                        {certification}
+                      </span>
+                    )}
+                    {releaseDate && <span>{releaseDate}</span>}
+                    {genreList.length > 0 && <span>• {genreList.slice(0, 3).join(', ')}</span>}
+                    {duration && <span>• {duration}</span>}
+                  </div>
+
+                  {/* Puntuación de usuarios estilo TMDB */}
+                  {userScore ? (
+                    <div className="mt-4 flex items-center gap-3">
+                      <div className="relative flex h-12 w-12 items-center justify-center rounded-full border-2 border-emerald-400 bg-black/80 font-black text-sm text-white shadow-lg shadow-emerald-500/20">
+                        {userScore}%
+                      </div>
+                      <p className="text-xs font-bold leading-tight text-white">
+                        Puntuación<br />
+                        <span className="text-[11px] font-normal text-slate-400">de usuarios</span>
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {tagline && (
+                    <p className="mt-3 text-sm italic text-slate-400">
+                      "{tagline}"
+                    </p>
+                  )}
 
                   {metaBadges.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -492,9 +537,32 @@ export default function MobileVodDetailModal({
                   )}
 
                   {description && (
-                    <p className="mt-5 text-sm leading-7 text-slate-200/84 sm:text-[15px]">
-                      {description}
-                    </p>
+                    <div className="mt-5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-200/90 mb-1.5">
+                        Vista general
+                      </h4>
+                      <p className="text-sm leading-relaxed text-slate-200/84 sm:text-[15px]">
+                        {description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Director y Reparto */}
+                  {(director || cast.length > 0) && (
+                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3 border-t border-white/10 pt-4">
+                      {director && (
+                        <div>
+                          <p className="text-xs font-bold text-white truncate">{director}</p>
+                          <p className="text-[11px] text-slate-400">Director</p>
+                        </div>
+                      )}
+                      {cast.slice(0, 4).map((actor, idx) => (
+                        <div key={idx}>
+                          <p className="text-xs font-bold text-white truncate">{actor}</p>
+                          <p className="text-[11px] text-slate-400">Reparto principal</p>
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {currentEpisodeSummary && (

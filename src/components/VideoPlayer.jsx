@@ -275,11 +275,6 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
     const startPlayback = async () => {
       try {
-        if (isLiveTV) {
-          await VideoPlayerPlugin.stopVideo();
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-
         const [sessionToken, deviceId] = await Promise.all([
           storage.getItem('token'),
           storage.getItem('deviceId'),

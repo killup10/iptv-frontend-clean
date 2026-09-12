@@ -8,60 +8,42 @@
 
 const PROGRAM_POOL = {
   sports: [
-    { title: "Fútbol: Copa G-Play", desc: "El partido de la jornada en vivo y en directo con relatores oficiales." },
-    { title: "Sports Center", desc: "Resumen completo de las noticias deportivas globales y goles destacados." },
-    { title: "ESPN F360", desc: "Debate, análisis y entrevistas sobre la actualidad del fútbol continental." },
-    { title: "Fórmula 1: Clasificación", desc: "Toda la adrenalina del motor y los mejores monoplazas del circuito." },
-    { title: "Combate Estelar UFC", desc: "Lo mejor del boxeo y artes marciales mixtas en el octágono." },
-    { title: "Deportes Extremos y Aventura", desc: "Hazañas al límite, snowboard, surf y reportajes de acción." },
-    { title: "Leyendas del Deporte", desc: "Documentales e historias íntimas sobre las figuras más grandes de la historia." },
+    { title: "Transmisión en Directo", desc: "Cobertura y eventos deportivos de la jornada en vivo." },
+    { title: "Programación Deportiva", desc: "Resumen de noticias deportivas, análisis y jugadas destacadas." },
+    { title: "Fútbol en Vivo", desc: "Transmisión en directo del encuentro programado." },
+    { title: "Espacio Polideportivo", desc: "Cobertura de disciplinas, competencias y torneos internacionales." },
+    { title: "Resumen Deportivo", desc: "Lo más destacado del deporte internacional y análisis de la fecha." },
   ],
   news: [
-    { title: "Noticiario Matinal", desc: "Primeras informaciones del día, el pronóstico del tiempo y el tránsito." },
-    { title: "CHV Noticias Tarde", desc: "Cobertura completa de los hechos nacionales e internacionales más relevantes." },
-    { title: "Enfoque Político", desc: "Entrevistas en profundidad con los líderes y protagonistas de la semana." },
-    { title: "Economía y Futuro", desc: "Análisis financiero, fluctuaciones de mercados y tendencias tecnológicas." },
-    { title: "Debate Abierto", desc: "Panelistas de opinión discuten los temas candentes de la agenda nacional." },
-    { title: "Noticias Central", desc: "El resumen periodístico más completo e investigativo de la jornada." },
-    { title: "Crónica Nocturna", desc: "Investigaciones periodísticas exclusivas y debates de medianoche." },
+    { title: "Noticiero en Vivo", desc: "Información de actualidad, noticias nacionales e internacionales." },
+    { title: "Edición Central", desc: "Resumen informativo con los hechos más relevantes del día." },
+    { title: "Avance Informativo", desc: "Transmisión de noticias de último minuto y reportajes." },
+    { title: "Entrevistas y Análisis", desc: "Actualidad política, económica y debate informativo." },
   ],
   movies: [
-    { title: "Cine de Acción: Al Límite", desc: "Una espectacular historia llena de adrenalina, combates y persecuciones." },
-    { title: "Cine Familiar: El Gran Escape", desc: "Aventura, risas y emoción para disfrutar con todos los de casa." },
-    { title: "Maratón de Suspenso: Intriga", desc: "Pistas ocultas y misterios que te mantendrán al borde del asiento." },
-    { title: "Clásicos del Séptimo Arte", desc: "Las obras maestras inmortales que marcaron la historia de Hollywood." },
-    { title: "Noche de Terror y Misterio", desc: "Sucesos paranormales, leyendas oscuras y suspenso psicológico." },
-    { title: "Drama Estelar: Destinos Cruzados", desc: "Una conmovedora historia galardonada en fines de semana." },
-    { title: "Estreno Semanal: Blockbuster", desc: "La superproducción cinematográfica más taquillera y esperada del año." },
+    { title: "Cine Estelar", desc: "Película destacada en la programación." },
+    { title: "Espacio de Cine", desc: "Largometraje seleccionado para toda la familia." },
+    { title: "Cine en Casa", desc: "Producción cinematográfica destacada." },
+    { title: "Noche de Película", desc: "Función de cine en emisión regular." },
   ],
   kids: [
-    { title: "Dibujos Animados de la Mañana", desc: "Diversión y aventuras sin límites con tus personajes favoritos." },
-    { title: "El Club de la Diversión", desc: "Canciones, risas y entretenimiento educativo para los más pequeños." },
-    { title: "Aventuras Mágicas", desc: "Viajes fantásticos a reinos ocultos llenos de imaginación." },
-    { title: "Los Pequeños Héroes", desc: "Historias animadas sobre el compañerismo y el trabajo en equipo." },
-    { title: "Mundo de Juguetes", desc: "Aprende jugando con divertidos desafíos y manualidades coloridas." },
+    { title: "Espacio Infantil", desc: "Programación y series animadas para el público infantil." },
+    { title: "Animación en Directo", desc: "Aventuras animadas para toda la familia." },
+    { title: "Zona Infantil", desc: "Dibujos animados y series para los más jóvenes." },
   ],
   anime: [
-    { title: "El Club del Anime", desc: "Episodios de estreno de las series más populares y aclamadas de Japón." },
-    { title: "Batallas Legendarias Shonen", desc: "Combates épicos, superpoderes y aventuras del universo ninja." },
-    { title: "Clásicos de Animación Oriental", desc: "Revive las obras de culto que definieron una época dorada del anime." },
-    { title: "Héroes del Futuro (Cyberpunk)", desc: "Aventuras de acción y fantasía tecnológica en mundos futuristas." },
+    { title: "Animación Oriental", desc: "Episodios y series de animación japonesa en emisión." },
+    { title: "Especial de Anime", desc: "Historias y aventuras animadas." },
   ],
   series: [
-    { title: "Maratón de Comedia", desc: "Risas y diversión aseguradas con los capítulos clásicos de la serie." },
-    { title: "Noches de Intriga y Crimen", desc: "Casos policiales de homicidios resueltos por el equipo forense." },
-    { title: "Series del Recuerdo", desc: "Vuelve a disfrutar de los episodios nostálgicos y recordados por todos." },
-    { title: "Drama Médico: Código de Emergencias", desc: "Historias apasionantes dentro de la sala de urgencias de un hospital." },
-    { title: "Warner Hits: Lo Mejor", desc: "Selección de los mejores episodios de tus series de comedia favoritas." },
+    { title: "Serie en Emisión", desc: "Capítulo de la serie programada en la franja habitual." },
+    { title: "Capítulo Estelar", desc: "Episodio de estreno o repetición estelar." },
+    { title: "Maratón de Series", desc: "Emisión continua de episodios seleccionados." },
   ],
   general: [
-    { title: "Mañana Entretenida", desc: "Magacín matutino con cocina en vivo, moda y entrevistas a celebridades." },
-    { title: "Tarde de Variedades", desc: "Concursos divertidos, humor y música para amenizar tu tarde." },
-    { title: "El Gran Show de Talentos", desc: "Artistas aficionados compiten ante un exigente jurado nacional." },
-    { title: "Viajeros del Mundo", desc: "Descubre los rincones más exóticos, bellos e interesantes del planeta." },
-    { title: "Cocina con Estilo", desc: "Las mejores recetas culinarias explicadas de forma práctica paso a paso." },
-    { title: "Documental Científico", desc: "Explorando los misterios del cosmos, física cuántica y la naturaleza." },
-    { title: "Música en Vivo y Éxitos", desc: "Los videoclips más populares y conciertos en vivo de tus artistas preferidos." },
+    { title: "Transmisión en Vivo", desc: "Programación habitual en directo de la señal." },
+    { title: "Espacio de Variedades", desc: "Contenido de entretenimiento y actualidad general." },
+    { title: "Programación Habitual", desc: "Señal en directo disponible para sintonizar." },
   ],
 };
 
@@ -170,22 +152,22 @@ export function getCategoryFromChannelName(name) {
 
 function getRandomProgram(channelName, seed, hour) {
   const category = getCategoryFromChannelName(channelName);
-  const pool = PROGRAM_POOL[category];
+  const pool = PROGRAM_POOL[category] || PROGRAM_POOL.general;
   
   const index = Math.floor(seededRandom(seed) * pool.length);
   const program = pool[index];
   
   let suffix = "";
   if (category === "news") {
-    if (hour >= 6 && hour < 12) suffix = " AM";
-    else if (hour >= 12 && hour < 18) suffix = " Tarde";
+    if (hour >= 6 && hour < 12) suffix = " Matinal";
+    else if (hour >= 12 && hour < 18) suffix = " Mediodía";
     else if (hour >= 18 && hour < 23) suffix = " Central";
     else suffix = " Noche";
   }
 
   return {
     title: program.title + suffix,
-    description: program.desc,
+    description: `${program.desc} Sintoniza ${channelName || 'el canal'} para ver la emisión en vivo.`,
   };
 }
 
@@ -193,7 +175,7 @@ function getRandomProgram(channelName, seed, hour) {
  * Generates an array of programs for a full day (from 00:00 to 23:59)
  * for a specific channel name/ID.
  */
-export function getEPGForChannel(channelName, channelId, date = new Date()) {
+export function getEPGForChannel(channelName, channelId, date = new Date(), realNow = null, realNext = null) {
   const seed = getSeed(channelName, channelId, date);
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -218,8 +200,17 @@ export function getEPGForChannel(channelName, channelId, date = new Date()) {
       prgEnd.setTime(endOfDay.getTime());
     }
 
-    const { title, description } = getRandomProgram(channelName, prgSeed, prgStart.getHours());
-    
+    let { title, description } = getRandomProgram(channelName, prgSeed, prgStart.getHours());
+
+    // Si coincide con el horario actual y hay EPG real del backend, usar el real
+    const isLiveSlot = prgStart <= date && date < prgEnd;
+    if (isLiveSlot && realNow) {
+      title = typeof realNow === 'string' ? realNow : (realNow.title || title);
+      if (typeof realNow === 'object' && realNow.desc) {
+        description = realNow.desc;
+      }
+    }
+
     programs.push({
       id: `${channelId || 'chan'}-${programIndex}`,
       title,
@@ -227,10 +218,23 @@ export function getEPGForChannel(channelName, channelId, date = new Date()) {
       start: prgStart,
       end: prgEnd,
       duration: Math.round((prgEnd - prgStart) / 60000),
+      isReal: isLiveSlot && !!realNow,
     });
 
     currentTime = prgEnd;
     programIndex++;
+  }
+
+  // Si hay programa siguiente real, inyectarlo en el slot posterior al actual
+  if (realNext && programs.length > 0) {
+    const liveIdx = programs.findIndex(p => p.start <= date && date < p.end);
+    if (liveIdx !== -1 && liveIdx + 1 < programs.length) {
+      programs[liveIdx + 1].title = typeof realNext === 'string' ? realNext : (realNext.title || programs[liveIdx + 1].title);
+      if (typeof realNext === 'object' && realNext.desc) {
+        programs[liveIdx + 1].description = realNext.desc;
+      }
+      programs[liveIdx + 1].isReal = true;
+    }
   }
 
   return programs;

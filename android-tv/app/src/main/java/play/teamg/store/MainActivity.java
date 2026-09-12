@@ -2,13 +2,19 @@ package play.teamg.store;
 
 import com.getcapacitor.BridgeActivity;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.webkit.WebChromeClient;
 import android.webkit.PermissionRequest;
 import android.os.Build;
 import androidx.annotation.RequiresApi;
-import java.util.ArrayList;
 
 public class MainActivity extends BridgeActivity {
+  private View customView;
+  private WebChromeClient.CustomViewCallback customViewCallback;
+  private FrameLayout fullscreenContainer;
+
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(VideoPlayerPlugin.class);
@@ -16,7 +22,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(AppUpdatePlugin.class);
     super.onCreate(savedInstanceState);
 
-    // Configurar WebChromeClient para manejar solicitudes de permiso
+    // Configurar WebChromeClient para manejar pantalla completa y permisos
     setupWebChromeClient();
   }
 
@@ -37,13 +43,69 @@ public class MainActivity extends BridgeActivity {
                 android.util.Log.e("TeamG", "Error granting permissions", e);
               }
             }
+
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+              if (customView != null) {
+                onHideCustomView();
+                return;
+              }
+
+              customView = view;
+              customViewCallback = callback;
+
+              fullscreenContainer = new FrameLayout(MainActivity.this);
+              fullscreenContainer.setBackgroundColor(android.graphics.Color.BLACK);
+              fullscreenContainer.addView(customView, new FrameLayout.LayoutParams(
+                  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+              ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+              decorView.addView(fullscreenContainer, new ViewGroup.LayoutParams(
+                  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+              getWindow().getDecorView().setSystemUiVisibility(
+                  View.SYSTEM_UI_FLAG_FULLSCREEN |
+                  View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                  View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+              );
+            }
+
+            @Override
+            public void onHideCustomView() {
+              if (customView == null) {
+                return;
+              }
+
+              ViewGroup decorView = (ViewGroup) getWindow().getDecorView();
+              if (fullscreenContainer != null) {
+                decorView.removeView(fullscreenContainer);
+                fullscreenContainer = null;
+              }
+
+              customView = null;
+              if (customViewCallback != null) {
+                customViewCallback.onCustomViewHidden();
+                customViewCallback = null;
+              }
+
+              getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+            }
           });
-        } else {
-          android.util.Log.w("TeamG", "Bridge or WebView is null - skipping setup");
         }
       } catch (Exception e) {
         android.util.Log.e("TeamG", "Error setting WebChromeClient", e);
       }
     }
+  }
+
+  @Override
+  public void onBackPressed() {
+    if (customView != null) {
+      if (bridge != null && bridge.getWebView() != null && bridge.getWebView().getWebChromeClient() != null) {
+        bridge.getWebView().getWebChromeClient().onHideCustomView();
+        return;
+      }
+    }
+    super.onBackPressed();
   }
 }

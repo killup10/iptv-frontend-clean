@@ -1,6 +1,15 @@
 // src/main.jsx
 import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
+
+// Auto-recarga en caso de chunk obsoleto por nuevo despliegue
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    console.warn('[Vite] Dynamic import chunk obsoleto o fallido. Recargando página automáticamente...');
+    window.location.reload();
+  });
+}
+
 import AppLayout from './App.jsx';
 import './index.css';
 // Cambiamos createBrowserRouter por createHashRouter para Electron
@@ -32,6 +41,7 @@ const MyList = React.lazy(() => import('./pages/MyList.jsx'));
 const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
 const Profiles = React.lazy(() => import('./pages/Profiles.jsx'));
 const Settings = React.lazy(() => import('./pages/Settings.jsx'));
+const RecienAgregados = React.lazy(() => import('./pages/RecienAgregados.jsx'));
 
 import { isAndroidTV } from './utils/platformUtils.js';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -224,6 +234,16 @@ const router = createHashRouter([
           <ProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <Settings />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "recien-agregados",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <RecienAgregados />
             </Suspense>
           </ProtectedRoute>
         ),

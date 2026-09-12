@@ -542,10 +542,18 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     
     // Validar bounds antes de usarlos
     if (bounds && bounds.width && bounds.height && bounds.x !== undefined && bounds.y !== undefined) {
-      const w = Math.max(1, parseInt(bounds.width) || 1280);
-      const h = Math.max(1, parseInt(bounds.height) || 720);
-      const x = Math.max(0, parseInt(bounds.x) || 0);
-      const y = Math.max(0, parseInt(bounds.y) || 0);
+      let w = Math.max(1, parseInt(bounds.width) || 1280);
+      let h = Math.max(1, parseInt(bounds.height) || 720);
+      let x = parseInt(bounds.x) || 0;
+      let y = parseInt(bounds.y) || 0;
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const winBounds = mainWindow.getContentBounds();
+        x += (winBounds.x || 0);
+        y += (winBounds.y || 0);
+      }
+      x = Math.max(0, x);
+      y = Math.max(0, y);
       args.push(`--geometry=${w}x${h}+${x}+${y}`);
     }
     
@@ -557,8 +565,9 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     args.push('--hwdec=auto-safe');
     args.push('--cache=yes');
     args.push('--ytdl=no');
-    args.push('--demuxer-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2');
-    args.push('--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=2');
+    args.push('--demuxer-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5');
+    args.push('--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5');
+    args.push('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     args.push('--volume=70');
     args.push('--osc=yes');
     args.push('--input-default-bindings=yes');
@@ -679,6 +688,30 @@ ipcMain.handle('mpv-embed-stop', async () => {
   } catch (error) {
     console.error('[MPV] Error al detener el proceso:', error);
     return { success: false, error: error.message };
+  }
+});
+
+// -----------------------------------------------------------
+// IPC: Actualizar bounds de MPV en tiempo real (resize/scroll)
+// -----------------------------------------------------------
+ipcMain.on('mpv-embed-update-bounds', (_event, { bounds } = {}) => {
+  if (!mpvSocket || !mpvSocketConnected || !bounds) return;
+  try {
+    let w = Math.max(1, parseInt(bounds.width) || 1280);
+    let h = Math.max(1, parseInt(bounds.height) || 720);
+    let x = parseInt(bounds.x) || 0;
+    let y = parseInt(bounds.y) || 0;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const winBounds = mainWindow.getContentBounds();
+      x += (winBounds.x || 0);
+      y += (winBounds.y || 0);
+    }
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    const geomCmd = JSON.stringify({ command: ['set_property', 'geometry', `${w}x${h}+${x}+${y}`] }) + '\n';
+    mpvSocket.write(geomCmd);
+  } catch (err) {
+    console.warn('[MPV] Error actualizando bounds por socket:', err.message);
   }
 });
 

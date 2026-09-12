@@ -55,10 +55,10 @@ public class VideoPlayerPlugin extends Plugin {
             return;
         }
 
-        String resolvedPlayerType = resolvePlayerType(requestedPlayerType, isLiveTV, contentType);
-        boolean shouldUseExoplayer = shouldUseExoplayer(resolvedPlayerType);
-        Class<?> targetActivity = shouldUseExoplayer ? ExoPlayerActivity.class : VLCPlayerActivity.class;
-        String resolvedPlayerName = shouldUseExoplayer ? "ExoPlayer" : "VLC";
+        String resolvedPlayerType = "android-vlc";
+        boolean shouldUseExoplayer = false;
+        Class<?> targetActivity = VLCPlayerActivity.class;
+        String resolvedPlayerName = "VLC";
 
         Log.d(TAG, "Playing video: " + url);
         Log.d(
@@ -135,6 +135,8 @@ public class VideoPlayerPlugin extends Plugin {
                 ArrayList<String> channelUrls = new ArrayList<>();
                 ArrayList<String> channelIds = new ArrayList<>();
                 ArrayList<String> channelSections = new ArrayList<>();
+                ArrayList<String> channelNumbers = new ArrayList<>();
+                ArrayList<String> channelEpgs = new ArrayList<>();
 
                 try {
                     for (int i = 0; i < channelsArray.length(); i++) {
@@ -148,24 +150,32 @@ public class VideoPlayerPlugin extends Plugin {
                         String channelName = channel.optString("name", channel.optString("title", "Canal"));
                         String channelId = channel.optString("id", channel.optString("_id", ""));
                         String channelSection = channel.optString("section", channel.optString("category", "General"));
+                        String channelNumber = channel.optString("number", channel.optString("channelNumber", String.valueOf(channelNames.size() + 1)));
+                        String channelEpg = channel.optString("epg", channel.optString("currentProgram", channel.optString("section", "En vivo")));
 
                         channelNames.add(channelName);
                         channelLogos.add(channel.optString("logo", ""));
                         channelUrls.add(channelUrl);
                         channelIds.add(channelId);
                         channelSections.add(channelSection);
+                        channelNumbers.add(channelNumber);
+                        channelEpgs.add(channelEpg);
                     }
                     intent.putStringArrayListExtra("channel_names", channelNames);
                     intent.putStringArrayListExtra("channel_logos", channelLogos);
                     intent.putStringArrayListExtra("channel_urls", channelUrls);
                     intent.putStringArrayListExtra("channel_ids", channelIds);
                     intent.putStringArrayListExtra("channel_sections", channelSections);
+                    intent.putStringArrayListExtra("channel_numbers", channelNumbers);
+                    intent.putStringArrayListExtra("channel_epgs", channelEpgs);
 
                     VLCPlayerActivity.sChannelNames = channelNames;
                     VLCPlayerActivity.sChannelLogos = channelLogos;
                     VLCPlayerActivity.sChannelUrls = channelUrls;
                     VLCPlayerActivity.sChannelIds = channelIds;
                     VLCPlayerActivity.sChannelSections = channelSections;
+                    VLCPlayerActivity.sChannelNumbers = channelNumbers;
+                    VLCPlayerActivity.sChannelEpgs = channelEpgs;
 
                     Log.d(TAG, "Canales procesados - Total: " + channelNames.size() + " canales");
                 } catch (JSONException e) {
@@ -235,6 +245,8 @@ public class VideoPlayerPlugin extends Plugin {
         ArrayList<String> channelUrls = new ArrayList<>();
         ArrayList<String> channelIds = new ArrayList<>();
         ArrayList<String> channelSections = new ArrayList<>();
+        ArrayList<String> channelNumbers = new ArrayList<>();
+        ArrayList<String> channelEpgs = new ArrayList<>();
 
         try {
             if (channelsArray != null) {
@@ -249,12 +261,16 @@ public class VideoPlayerPlugin extends Plugin {
                     String channelName = channel.optString("name", channel.optString("title", "Canal"));
                     String channelId = channel.optString("id", channel.optString("_id", ""));
                     String channelSection = channel.optString("section", channel.optString("category", "General"));
+                    String channelNumber = channel.optString("number", channel.optString("channelNumber", String.valueOf(channelNames.size() + 1)));
+                    String channelEpg = channel.optString("epg", channel.optString("currentProgram", channel.optString("section", "En vivo")));
 
                     channelNames.add(channelName);
                     channelLogos.add(channel.optString("logo", ""));
                     channelUrls.add(channelUrl);
                     channelIds.add(channelId);
                     channelSections.add(channelSection);
+                    channelNumbers.add(channelNumber);
+                    channelEpgs.add(channelEpg);
                 }
             }
 
@@ -263,6 +279,8 @@ public class VideoPlayerPlugin extends Plugin {
             VLCPlayerActivity.sChannelUrls = channelUrls;
             VLCPlayerActivity.sChannelIds = channelIds;
             VLCPlayerActivity.sChannelSections = channelSections;
+            VLCPlayerActivity.sChannelNumbers = channelNumbers;
+            VLCPlayerActivity.sChannelEpgs = channelEpgs;
 
             VLCPlayerActivity activeActivity = VLCPlayerActivity.getActiveActivity();
             if (activeActivity != null) {
@@ -276,6 +294,8 @@ public class VideoPlayerPlugin extends Plugin {
             intent.putStringArrayListExtra("channel_urls", channelUrls);
             intent.putStringArrayListExtra("channel_ids", channelIds);
             intent.putStringArrayListExtra("channel_sections", channelSections);
+            intent.putStringArrayListExtra("channel_numbers", channelNumbers);
+            intent.putStringArrayListExtra("channel_epgs", channelEpgs);
             getContext().sendBroadcast(intent);
 
             JSObject result = new JSObject();
@@ -510,19 +530,10 @@ public class VideoPlayerPlugin extends Plugin {
     }
 
     private String resolvePlayerType(String requestedPlayerType, boolean isLiveTV, String contentType) {
-        if ("android-exoplayer".equalsIgnoreCase(requestedPlayerType)) {
-            return "android-exoplayer";
-        }
         return "android-vlc";
     }
 
     private boolean shouldUseExoplayer(String playerType) {
-        if ("android-vlc".equalsIgnoreCase(playerType)) {
-            return false;
-        }
-        if ("android-exoplayer".equalsIgnoreCase(playerType)) {
-            return true;
-        }
         return false;
     }
 

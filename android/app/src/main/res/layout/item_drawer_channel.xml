@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="52dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="8dp"
+    android:paddingEnd="10dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp"
+    android:background="@drawable/drawer_channel_item_bg">
+
+    <!-- Número del Canal -->
+    <TextView
+        android:id="@+id/channel_item_number"
+        android:layout_width="28dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#E0E0E0"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginEnd="6dp" />
+
+    <!-- Logo del Canal -->
+    <ImageView
+        android:id="@+id/channel_item_logo"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:scaleType="fitCenter"
+        android:layout_marginEnd="10dp"
+        android:contentDescription="Logo" />
+
+    <!-- Información: Título y EPG -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/channel_item_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/channel_item_epg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textColor="#A0A0B5"
+            android:textSize="11sp"
+            android:layout_marginTop="1dp" />
+    </LinearLayout>
+
+    <!-- Indicador de Favorito / Estado -->
+    <ImageView
+        android:id="@+id/channel_item_favorite"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:scaleType="fitCenter"
+        android:padding="2dp"
+        android:layout_marginStart="6dp"
+        android:src="@drawable/ic_star_white"
+        android:alpha="0.3"
+        android:contentDescription="Favorito" />
+
+</LinearLayout>

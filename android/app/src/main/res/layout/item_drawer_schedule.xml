@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/drawer_channel_item_bg"
+    android:padding="10dp">
+
+    <!-- Fila superior: Hora y Chip de Estado -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/schedule_item_time"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#00E5FF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/schedule_item_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="EN VIVO"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:background="#E50914"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Título del Programa (con partido/evento destacado) -->
+    <TextView
+        android:id="@+id/schedule_item_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginTop="3dp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <!-- Descripción del Programa -->
+    <TextView
+        android:id="@+id/schedule_item_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#9E9EB2"
+        android:textSize="11sp"
+        android:layout_marginTop="2dp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <!-- Botón Recordatorio para programas futuros -->
+    <TextView
+        android:id="@+id/schedule_item_btn_reminder"
+        android:layout_width="wrap_content"
+        android:layout_height="26dp"
+        android:layout_marginTop="6dp"
+        android:layout_gravity="end"
+        android:gravity="center"
+        android:text="🔔 Recordatorio"
+        android:textColor="#00E5FF"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:background="@drawable/mobile_player_button_secondary"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Play, Tv, Info, Calendar, Clock, Film } from 'lucide-react';
 import { getEPGForChannel, getCurrentProgram, getCategoryFromChannelName } from '../utils/epgGenerator.js';
+import useEpgSchedule from '../hooks/useEpgSchedule.js';
 
 const CATEGORIES = [
   { id: 'Todos', label: 'Todos' },
@@ -19,6 +20,7 @@ export default function EpgGuide({
   currentChannelId = null,
   onSelectChannel,
   isLoading = false,
+  showCategories = true,
 }) {
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [selectedProgram, setSelectedProgram] = useState(null);
@@ -26,6 +28,13 @@ export default function EpgGuide({
   const [now, setNow] = useState(new Date());
 
   const scrollContainerRef = useRef(null);
+
+  const selectedChannelSchedule = useEpgSchedule(
+    selectedProgramChannel?.name || '',
+    selectedProgramChannel?.id || selectedProgramChannel?._id,
+    !!selectedProgramChannel,
+    selectedProgramChannel?.epgSchedule
+  );
 
   // Update current time tick every 30 seconds
   useEffect(() => {
@@ -35,13 +44,13 @@ export default function EpgGuide({
     return () => clearInterval(interval);
   }, []);
 
-  // Filter channels by active category
+  // Filter channels by active category if showCategories is active
   const filteredChannels = useMemo(() => {
-    if (activeCategory === 'Todos') return channels;
+    if (!showCategories || activeCategory === 'Todos') return channels;
     return channels.filter(
       (channel) => getCategoryFromChannelName(channel.name) === activeCategory
     );
-  }, [channels, activeCategory]);
+  }, [channels, activeCategory, showCategories]);
 
   // Calculate timeline start and end
   // Start: rounded down to the nearest half hour, minus 2 hours
@@ -124,21 +133,23 @@ export default function EpgGuide({
   return (
     <div className="w-full flex flex-col gap-4 bg-zinc-950 text-white rounded-2xl border border-zinc-800/80 p-4 shadow-2xl">
       {/* Category Selection Tabs */}
-      <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-zinc-800/50">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold uppercase transition-all duration-200 ${
-              activeCategory === cat.id
-                ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(6,182,212,0.6)] border border-cyan-400/50 scale-105'
-                : 'bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800/80'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
+      {showCategories && (
+        <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-zinc-800/50">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold uppercase transition-all duration-200 ${
+                activeCategory === cat.id
+                  ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(6,182,212,0.6)] border border-cyan-400/50 scale-105'
+                  : 'bg-zinc-900/60 text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800/80'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main EPG Scrolling Grid */}
       <div className="relative overflow-hidden border border-zinc-800/60 rounded-xl bg-zinc-900/10">
@@ -201,8 +212,16 @@ export default function EpgGuide({
                 {filteredChannels.map((channel) => {
                   const isCurrentChannel = String(channel.id || channel._id) === String(currentChannelId);
                   
-                  // Generate stable EPG for the channel
-                  const epgPrograms = getEPGForChannel(channel.name, channel.id || channel._id, now);
+                  // Generate stable EPG for the channel, injecting real backend EPG if present
+                  const realNow = (channel.epg || channel.currentProgram) ? {
+                    title: channel.epg || channel.currentProgram,
+                    desc: channel.epgDesc || channel.description || '',
+                  } : null;
+                  const realNext = channel.nextProgram ? {
+                    title: channel.nextProgram,
+                    desc: channel.nextProgramDesc || '',
+                  } : null;
+                  const epgPrograms = getEPGForChannel(channel.name, channel.id || channel._id, now, realNow, realNext);
 
                   return (
                     <div 
@@ -340,6 +359,46 @@ export default function EpgGuide({
                 {selectedProgram.description || 'No hay descripción detallada disponible para este programa.'}
               </p>
             </div>
+
+            {/* Próxima programación del canal */}
+            {selectedChannelSchedule?.schedule && selectedChannelSchedule.schedule.length > 0 && (
+              <div className="mt-2 pt-2.5 border-t border-zinc-800/60">
+                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3 h-3 text-cyan-400" />
+                  Próximos programas en {selectedProgramChannel.name}:
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-zinc-800">
+                  {selectedChannelSchedule.schedule.slice(0, 8).map((prog, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedProgram({
+                        id: `sched-${idx}`,
+                        title: prog.title,
+                        description: prog.desc,
+                        start: prog.start,
+                        end: prog.stop || prog.end,
+                        duration: prog.start && (prog.stop || prog.end) ? Math.round(((prog.stop || prog.end) - prog.start) / 60000) : 60,
+                      })}
+                      className={`flex-shrink-0 text-left rounded-lg p-2 border transition-all text-xs max-w-[200px] ${
+                        prog.isCurrent
+                          ? 'bg-cyan-500/15 border-cyan-400/50 text-cyan-100'
+                          : 'bg-zinc-950/60 border-zinc-800 text-zinc-300 hover:bg-zinc-800/80 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 text-[10px] font-mono text-zinc-400 mb-0.5">
+                        <span>{prog.start ? formatTime(prog.start) : '--:--'}</span>
+                        {prog.isCurrent && (
+                          <span className="text-[8px] font-black uppercase text-cyan-400 bg-cyan-500/20 px-1 rounded">
+                            En vivo
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold truncate text-white text-[11px]">{prog.title}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tune in button */}
             {String(selectedProgramChannel.id || selectedProgramChannel._id) !== String(currentChannelId) && (

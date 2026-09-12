@@ -129,6 +129,65 @@ export function getTVItemRating(item) {
   return String(rawValue);
 }
 
+export function getTVItemUserScore(item) {
+  if (typeof item?.userScore === 'number' && item.userScore > 0) {
+    return Math.round(item.userScore);
+  }
+  const rating = Number(item?.tmdbRating || item?.rating || item?.vote_average || 0);
+  if (rating > 0) {
+    return Math.round(rating * 10);
+  }
+  return null;
+}
+
+export function getTVItemReleaseDate(item) {
+  const raw = item?.releaseDate || item?.release_date || item?.first_air_date || '';
+  if (!raw || typeof raw !== 'string') return '';
+  // Convert "2026-07-23" to "23/7/2026"
+  const parts = raw.split('-');
+  if (parts.length === 3) {
+    const day = parseInt(parts[2], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parts[0];
+    return `${day}/${month}/${year}`;
+  }
+  return raw;
+}
+
+export function getTVItemDuration(item) {
+  if (item?.duration && typeof item.duration === 'string') {
+    return item.duration;
+  }
+  const mins = Number(item?.runtime || (Array.isArray(item?.episode_run_time) ? item.episode_run_time[0] : 0));
+  if (mins > 0) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  }
+  return '';
+}
+
+export function getTVItemDirector(item) {
+  return item?.director || '';
+}
+
+export function getTVItemCast(item) {
+  if (Array.isArray(item?.cast)) {
+    return item.cast.filter(Boolean);
+  }
+  return [];
+}
+
+export function getTVItemCertification(item) {
+  return item?.certification || item?.clasificacion || '';
+}
+
+export function getTVItemTagline(item) {
+  return item?.tagline || '';
+}
+
 export function resolveTVItemType(item, fallbackType = 'movie') {
   const rawType = String(item?.itemType || item?.tipo || item?.type || fallbackType || 'movie').toLowerCase();
   return TYPE_MAP[rawType] || fallbackType;

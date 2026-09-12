@@ -100,18 +100,26 @@ const getPlatform = () => {
 // Se determina la plataforma una sola vez al cargar el módulo.
 const platform = getPlatform();
 
-export const isElectron = () => platform === 'electron';
+export const isElectron = () => {
+  if (typeof window !== 'undefined' && (window.electronAPI || window.electronMPV)) {
+    return true;
+  }
+  return platform === 'electron';
+};
 export const isAndroid = () => platform === 'android' || platform === 'android-tv';
 export const isAndroidTV = () => platform === 'android-tv';
 export const isAndroidMobile = () => platform === 'android';
 export const isIOS = () => platform === 'ios';
-export const isWeb = () => platform === 'web';
+export const isWeb = () => !isElectron() && platform === 'web';
 
 /**
  * Obtiene el tipo de reproductor que debe usarse basado en la plataforma.
  * Devuelve: 'electron', 'android-vlc', 'android-exoplayer' o 'web'.
  */
 export const getPlayerType = () => {
+  if (typeof window !== 'undefined' && (window.electronAPI || window.electronMPV)) {
+    return 'electron';
+  }
   switch (platform) {
     case 'electron':
       return 'electron';
@@ -129,6 +137,9 @@ export const getPlayerType = () => {
  * Devuelve: 'tv', 'mobile', 'desktop', o 'web'.
  */
 export const getUIType = () => {
+  if (typeof window !== 'undefined' && (window.electronAPI || window.electronMPV)) {
+    return 'desktop';
+  }
   switch (platform) {
     case 'android-tv':
       return 'tv';
@@ -146,6 +157,9 @@ export const getUIType = () => {
  * Obtiene la plataforma activa
  */
 export const getPlatformName = () => {
+  if (typeof window !== 'undefined' && (window.electronAPI || window.electronMPV)) {
+    return 'electron';
+  }
   return platform;
 };
 

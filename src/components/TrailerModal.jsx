@@ -21,6 +21,24 @@ const getYouTubeId = (url) => {
   return null;
 };
 
+/**
+ * Normaliza enlaces de video (ej. Dropbox con dl=0 lo convierte a raw=1 para streaming directo)
+ */
+const normalizeDirectVideoUrl = (url) => {
+  if (!url || typeof url !== 'string') return '';
+  let cleanUrl = url.trim();
+
+  if (cleanUrl.includes('dropbox.com')) {
+    if (cleanUrl.includes('dl=0')) {
+      cleanUrl = cleanUrl.replace('dl=0', 'raw=1');
+    } else if (!cleanUrl.includes('raw=1') && !cleanUrl.includes('dl=1')) {
+      cleanUrl += cleanUrl.includes('?') ? '&raw=1' : '?raw=1';
+    }
+  }
+
+  return cleanUrl;
+};
+
 const shouldCloseTrailer = (event) => {
   if (!event) {
     return false;
@@ -44,11 +62,8 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
       : null;
   }, [youtubeId]);
 
-  const externalUrl = useMemo(() => {
-    if (youtubeId) {
-      return `https://www.youtube.com/watch?v=${youtubeId}`;
-    }
-    return String(trailerUrl || '').startsWith('http') ? trailerUrl : null;
+  const directVideoUrl = useMemo(() => {
+    return youtubeId ? null : normalizeDirectVideoUrl(trailerUrl);
   }, [youtubeId, trailerUrl]);
 
   useEffect(() => {
@@ -120,7 +135,7 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
       aria-modal="true"
     >
       <div
-        className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-3 shadow-2xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl sm:p-4"
+        className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-zinc-950 p-3 sm:p-4 shadow-2xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl"
         onClick={handleContentClick}
       >
         <button
@@ -148,11 +163,11 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
             />
           ) : (
             <video
-              className="h-full w-full"
+              className="h-full w-full object-contain"
               controls
               autoPlay
               playsInline
-              src={trailerUrl}
+              src={directVideoUrl}
               tabIndex={-1}
             >
               Tu navegador no soporta el elemento de video.
@@ -165,9 +180,9 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
             Retroceso o tocar fuera para cerrar
           </p>
 
-          {externalUrl && (
+          {youtubeId && (
             <a
-              href={externalUrl}
+              href={`https://www.youtube.com/watch?v=${youtubeId}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-400 hover:text-cyan-300 hover:underline px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/20"
@@ -182,3 +197,5 @@ const TrailerModal = ({ trailerUrl, onClose }) => {
 };
 
 export default TrailerModal;
+
+

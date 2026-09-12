@@ -1542,7 +1542,7 @@ onProceedWithTrial={proceedWithTrial}
                 title="Recien Agregados"
                 subtitle="Disfruta lo mas reciente en series, peliculas y mas."
                 actionLabel="Ver todos"
-                onActionClick={() => navigate('/peliculas')}
+                onActionClick={() => navigate('/recien-agregados')}
                 items={recentlyAdded}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}

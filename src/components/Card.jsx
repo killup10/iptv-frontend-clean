@@ -478,11 +478,16 @@ function Card({
               <p className="pointer-events-none truncate text-sm font-semibold text-white">
                 {item.name || item.title || 'Titulo no disponible'}
               </p>
-              {item.releaseYear && (
+              {item.epg ? (
+                <p className="pointer-events-none mt-0.5 text-[11px] font-medium text-cyan-300 truncate flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  <span className="truncate">{item.epg}</span>
+                </p>
+              ) : item.releaseYear ? (
                 <p className="pointer-events-none mt-0.5 text-[11px] text-fuchsia-100/72">
                   {item.releaseYear}
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -508,11 +513,16 @@ function Card({
           <p className="line-clamp-2 text-[11px] sm:text-xs font-bold text-slate-100 leading-snug tracking-wide group-hover/card:text-[#00e5ff] transition-colors duration-200">
             {item.name || item.title || 'Título no disponible'}
           </p>
-          {item.releaseYear && (
+          {item.epg ? (
+            <p className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-cyan-400 truncate flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="truncate">{item.epg}</span>
+            </p>
+          ) : item.releaseYear ? (
             <p className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-slate-400">
               {item.releaseYear}
             </p>
-          )}
+          ) : null}
         </div>
       )}
     </div>

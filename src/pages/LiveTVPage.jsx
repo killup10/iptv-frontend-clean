@@ -9,7 +9,9 @@ import {
 import { normalizeSearchText } from '../utils/searchUtils.js';
 import Card from '../components/Card.jsx';
 import Toast from '../components/Toast.jsx';
+import EpgGuide from '../components/EpgGuide.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
+
 
 export default function LiveTVPage() {
   const { user } = useAuth();
@@ -25,6 +27,13 @@ export default function LiveTVPage() {
   const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'guide'
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const handleRetry = () => {
+    setError(null);
+    setRetryTrigger((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const loadFilterCategories = async () => {
@@ -42,8 +51,7 @@ export default function LiveTVPage() {
           setSelectedCategory(nextCategories[0] || 'Todos');
         }
       } catch (err) {
-        console.error('LiveTVPage: Error cargando categorias de filtro:', err.message);
-        setError(err.message || 'No se pudieron cargar las categorias de TV.');
+        console.warn('LiveTVPage: Categorias no disponibles, usando Todos como fallback:', err.message);
         setFilterCategories(['Todos']);
         setSelectedCategory('Todos');
       } finally {
@@ -52,7 +60,7 @@ export default function LiveTVPage() {
     };
 
     loadFilterCategories();
-  }, [location.state?.selectedCategory]);
+  }, [location.state?.selectedCategory, retryTrigger]);
 
   useEffect(() => {
     if (isLoadingCategories || !selectedCategory) {
@@ -151,9 +159,21 @@ export default function LiveTVPage() {
 
   if (showGeneralError) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="mb-6 text-3xl font-bold text-white">TV en Vivo</h1>
-        <p className="rounded-md bg-gray-800 p-4 text-red-400">{error}</p>
+      <div className="container mx-auto px-4 py-16 text-center max-w-md">
+        <div className="rounded-2xl border border-red-500/30 bg-zinc-900/90 p-8 shadow-2xl backdrop-blur-md">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-400 text-3xl">
+            📺
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-white">TV en Vivo</h2>
+          <p className="mb-6 text-sm text-zinc-400">{error || 'No se pudieron conectar los canales de TV. El servidor puede estar iniciando.'}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="w-full rounded-xl bg-red-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-red-500 active:scale-95"
+          >
+            Reintentar Conexión
+          </button>
+        </div>
       </div>
     );
   }
@@ -168,13 +188,31 @@ export default function LiveTVPage() {
         <h1 className="text-center text-3xl font-bold md:text-left sm:text-4xl">
           TV en Vivo
         </h1>
-        <input
-          type="text"
-          placeholder="Buscar canal..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 placeholder-gray-400 transition-shadow focus:border-red-500 focus:ring-2 focus:ring-red-500 md:w-2/5 lg:w-1/3"
-        />
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-2/5 lg:w-1/3">
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-700">
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              ▦ Canales
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('guide')}
+              className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'guide' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              📅 Guía
+            </button>
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar canal..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 placeholder-gray-400 transition-shadow focus:border-red-500 focus:ring-2 focus:ring-red-500"
+          />
+        </div>
       </div>
 
       {!isLoadingCategories && filterCategories.length > 0 && (
@@ -207,7 +245,7 @@ export default function LiveTVPage() {
         <p className="my-6 rounded-md bg-red-900/30 p-4 text-center text-red-400">{error}</p>
       )}
 
-      {!showChannelLoading && !error && displayedChannels.length > 0 && (
+      {!showChannelLoading && !error && displayedChannels.length > 0 && viewMode === 'grid' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-5 xs:grid-cols-3 sm:grid-cols-4 sm:gap-x-4 sm:gap-y-6 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
           {displayedChannels.map((channel) => (
             <Card
@@ -220,6 +258,8 @@ export default function LiveTVPage() {
                 itemType: 'channel',
                 tipo: channel.tipo || 'channel',
                 thumbnail: channel.customThumbnail || channel.thumbnail || channel.logo || '/img/placeholder-thumbnail.png',
+                epg: channel.epg || channel.currentProgram || '',
+                description: channel.epg ? `🔴 Ahora: ${channel.epg}${channel.nextProgram ? ` | Sig: ${channel.nextProgram}` : ''}` : channel.description,
               }}
               onClick={() => handleChannelClick(channel)}
               itemType="channel"
@@ -227,6 +267,14 @@ export default function LiveTVPage() {
             />
           ))}
         </div>
+      )}
+
+      {!showChannelLoading && !error && displayedChannels.length > 0 && viewMode === 'guide' && (
+        <EpgGuide
+          channels={displayedChannels}
+          onSelectChannel={handleChannelClick}
+          showCategories={false}
+        />
       )}
 
       {!showChannelLoading && !error && displayedChannels.length === 0 && (

@@ -4,9 +4,13 @@ import { getPlayableUrl } from "@/utils/playerUtils.js";
 import { maskUrl } from "@/utils/debugUtils.js";
 import axiosInstance from "@/utils/axiosInstance.js";
 import { getUserProgress, fetchChannelForPlayback, fetchUserChannels } from "@/utils/api.js";
+import { getEPGForChannel, getCurrentProgram } from "@/utils/epgGenerator.js";
 import SeriesChapters from "@/components/SeriesChapters.jsx";
 import VideoPlayer from "@/components/VideoPlayer.jsx";
 import TrailerModal from "@/components/TrailerModal.jsx";
+import LiveNowNextBar from "@/components/LiveNowNextBar.jsx";
+import useEpgSchedule from "@/hooks/useEpgSchedule.js";
+import { formatGuideTime, getProgramProgress } from "@/utils/epgCache.js";
 import { App as CapacitorApp } from '@capacitor/app';
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
@@ -91,12 +95,33 @@ function getChannelStreamUrl(channel) {
 
 function normalizeWatchChannel(channel, fallback = {}) {
   const merged = { ...fallback, ...channel };
+  const channelName = merged?.name || merged?.title || fallback?.name || 'Canal';
+  const channelId = merged?._id || merged?.id || fallback?.id;
+
+  let epgTitle = merged?.epg || merged?.currentProgram || merged?.epgTitle || '';
+  if (!epgTitle && channelName) {
+    try {
+      const epgData = getEPGForChannel(channelName, channelId);
+      const cur = getCurrentProgram(epgData);
+      if (cur?.title) {
+        epgTitle = cur.title;
+      }
+    } catch (_) {}
+  }
+  if (!epgTitle) {
+    epgTitle = merged?.section || fallback?.section || 'En vivo';
+  }
+
   return {
-    id: merged?._id || merged?.id || fallback?.id,
-    name: merged?.name || merged?.title || fallback?.name || 'Canal',
+    id: channelId,
+    name: channelName,
     url: getChannelStreamUrl(merged) || fallback?.url || '',
     logo: merged?.logo || merged?.customThumbnail || merged?.thumbnail || fallback?.logo || '',
-    section: merged?.section || fallback?.section || 'General'
+    section: merged?.section || fallback?.section || 'General',
+    number: merged?.number || merged?.channelNumber || fallback?.number || '',
+    epg: epgTitle,
+    nextProgram: merged?.nextProgram || fallback?.nextProgram || '',
+    hasRealEpg: merged?.hasRealEpg === true || fallback?.hasRealEpg === true
   };
 }
 
@@ -111,6 +136,17 @@ function formatSecondsLabel(totalSeconds) {
   }
 
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function formatEpgTime(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch (_) {
+    return '';
+  }
 }
 
 function getSafeSeasonNumber(season, seasonIndex = 0) {
@@ -159,22 +195,28 @@ async function hydrateChannelsForPlayback(channels, options = {}) {
     return Math.abs(leftIndex - preferredIndex) - Math.abs(rightIndex - preferredIndex);
   });
 
+  // Fluidez: por defecto se hidrata solo lo cercano al canal actual; el resto
+  // se completa en idle o al abrir el selector (ver maxCount).
+  const cappedIndexes = Number.isFinite(options?.maxCount) && options.maxCount > 0
+    ? prioritizedIndexes.slice(0, options.maxCount)
+    : prioritizedIndexes;
+
   let cursor = 0;
   let completed = 0;
-  const workerCount = Math.min(12, prioritizedIndexes.length);
+  const workerCount = Math.min(12, cappedIndexes.length);
   const emitProgress = () => {
     completed += 1;
     if (
       typeof options?.onProgress === 'function' &&
-      (completed <= 6 || completed % 12 === 0 || completed === prioritizedIndexes.length)
+      (completed <= 6 || completed % 12 === 0 || completed === cappedIndexes.length)
     ) {
       options.onProgress([...hydratedChannels]);
     }
   };
 
   await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (cursor < prioritizedIndexes.length) {
-      const targetIndex = prioritizedIndexes[cursor];
+    while (cursor < cappedIndexes.length) {
+      const targetIndex = cappedIndexes[cursor];
       cursor += 1;
 
       const baseChannel = hydratedChannels[targetIndex];
@@ -199,7 +241,7 @@ export function Watch() {
   const isTVMode = isAndroidTV();
   const playerType = getPlayerType();
   const activeNativePlayerType = isTVMode
-    ? (itemType === 'channel' ? 'android-exoplayer' : 'android-vlc')
+    ? 'android-vlc'
     : playerType;
   const isTvNativePlayerAvailable = false;
   const isBrowserPlaybackBlocked = playerType === 'web';
@@ -218,6 +260,13 @@ export function Watch() {
   const [channelPlaybackDismissed, setChannelPlaybackDismissed] = useState(false);
   const [isChannelPickerOpen, setIsChannelPickerOpen] = useState(false);
   const [channelSearch, setChannelSearch] = useState('');
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const channelsHydrationRef = useRef({ phase: 'idle', promise: null });
+  const [isMoviePickerOpen, setIsMoviePickerOpen] = useState(false);
+  const [movieSearch, setMovieSearch] = useState('');
+  const [movieSearchResults, setMovieSearchResults] = useState([]);
+  const [isSearchingMovies, setIsSearchingMovies] = useState(false);
+  const moviePickerInputRef = useRef(null);
   const [focusedChannelControlIndex, setFocusedChannelControlIndex] = useState(0);
   const [focusedChannelPickerIndex, setFocusedChannelPickerIndex] = useState(0);
   const [focusedVodActionIndex, setFocusedVodActionIndex] = useState(0);
@@ -623,6 +672,43 @@ export function Watch() {
     ));
   }, [channelList, channelSearch]);
 
+  useEffect(() => {
+    if (!isMoviePickerOpen) return;
+    let isCancelled = false;
+    const fetchMoviesForPicker = async () => {
+      setIsSearchingMovies(true);
+      try {
+        const response = await axiosInstance.get('/api/videos', {
+          params: {
+            tipo: itemData?.tipo || 'pelicula',
+            search: movieSearch ? movieSearch.trim() : undefined,
+            limit: 30
+          }
+        });
+        if (!isCancelled) {
+          const results = response.data?.videos || response.data || [];
+          setMovieSearchResults(Array.isArray(results) ? results : []);
+        }
+      } catch (err) {
+        console.warn('[Watch] Error buscando películas para selector:', err);
+      } finally {
+        if (!isCancelled) setIsSearchingMovies(false);
+      }
+    };
+    const timer = setTimeout(fetchMoviesForPicker, movieSearch ? 250 : 0);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isMoviePickerOpen, movieSearch, itemData?.tipo]);
+
+  const handleSelectMovie = (movie) => {
+    setIsMoviePickerOpen(false);
+    setMovieSearch('');
+    const targetType = movie.tipo || 'movie';
+    navigate(`/watch/${targetType}/${movie._id || movie.id}`);
+  };
+
   const cachedWatchProgress = useMemo(() => {
     if (!itemId || itemType === 'channel') {
       return null;
@@ -735,9 +821,13 @@ export function Watch() {
   const channelsForNativePlayback = useMemo(() => {
     const seen = new Set();
     const nextChannels = [];
+    let counter = 1;
 
     const appendChannel = (channel, fallback = {}) => {
-      const normalizedChannel = normalizeWatchChannel(channel, fallback);
+      const normalizedChannel = normalizeWatchChannel(channel, {
+        ...fallback,
+        number: fallback.number || channel?.number || channel?.channelNumber || String(counter)
+      });
       if (!normalizedChannel.id || !normalizedChannel.name || !normalizedChannel.url) {
         return;
       }
@@ -748,7 +838,15 @@ export function Watch() {
       }
 
       seen.add(channelKey);
-      nextChannels.push(normalizedChannel);
+      counter++;
+      // Enriquecer la línea EPG que ve el usuario DENTRO del VLC nativo
+      // (lista de zapping) con el siguiente programa, sin cambios nativos.
+      const nowEpg = normalizedChannel.epg || 'En vivo';
+      const nextEpg = normalizedChannel.nextProgram;
+      nextChannels.push({
+        ...normalizedChannel,
+        epg: nextEpg && nextEpg !== nowEpg ? `${nowEpg}  |  Sig: ${nextEpg}` : nowEpg,
+      });
     };
 
     if (itemType === 'channel' && itemData?.id && itemData?.url) {
@@ -1024,11 +1122,37 @@ export function Watch() {
           : (typeof data.genres === 'string'
             ? data.genres.split(',').map((genre) => genre.trim()).filter(Boolean)
             : []);
+        let liveEpgTitle = data.epg || data.currentProgram || '';
+        let liveEpgDesc = data.epgDesc || '';
+        let liveNextProgram = data.nextProgram || '';
+        let liveNextDesc = data.nextProgramDesc || '';
+        let liveEpgStart = data.epgStart || null;
+        let liveEpgStop = data.epgStop || null;
+        let liveNextStart = data.nextProgramStart || null;
+        let liveNextStop = data.nextProgramStop || null;
+        let liveSchedule = Array.isArray(data.epgSchedule) ? data.epgSchedule : [];
+
+        if (itemType === 'channel' && !liveEpgTitle) {
+          try {
+            const channelName = data.name || data.title || '';
+            const channelId = data._id || data.id;
+            const clientEpg = getEPGForChannel(channelName, channelId);
+            const cur = getCurrentProgram(clientEpg);
+            if (cur?.title) {
+              liveEpgTitle = cur.title;
+              liveEpgDesc = cur.desc || '';
+              liveEpgStart = cur.start ? cur.start.toISOString() : null;
+              liveEpgStop = cur.stop ? cur.stop.toISOString() : null;
+            }
+          } catch (_) {}
+        }
+
         const normalizedData = {
           id: data._id || data.id,
           name: data.name || data.title || data.titulo || "Sin título",
           url: data.url,
           thumbnail: data.customThumbnail || data.thumbnail || data.poster || data.image || data.logo || '',
+          logo: data.logo || data.customThumbnail || data.thumbnail || '',
           poster: data.poster || data.customPoster || data.portada || data.customThumbnail || data.thumbnail || data.image || '',
           backdrop:
             data.bannerImage ||
@@ -1065,7 +1189,18 @@ export function Watch() {
           chapters: (data.seasons || []).flatMap(season => season.chapters || []),
           watchProgress: data.watchProgress || null,
           webPlaybackBlocked: data.webPlaybackBlocked === true,
-          webPlaybackMessage: data.webPlaybackMessage || ''
+          webPlaybackMessage: data.webPlaybackMessage || '',
+          epg: liveEpgTitle,
+          currentProgram: liveEpgTitle,
+          epgDesc: liveEpgDesc,
+          epgStart: liveEpgStart,
+          epgStop: liveEpgStop,
+          nextProgram: liveNextProgram,
+          nextProgramDesc: liveNextDesc,
+          nextProgramStart: liveNextStart,
+          nextProgramStop: liveNextStop,
+          hasRealEpg: data.hasRealEpg === true,
+          epgSchedule: liveSchedule,
         };
 
         if (import.meta.env.DEV) {
@@ -1131,8 +1266,10 @@ export function Watch() {
         setChannelList(normalizedChannels);
         setChannelListReady(true);
 
-        const hydratedChannels = await hydrateChannelsForPlayback(normalizedChannels, {
+        // Fase 1: hidratar solo lo cercano al canal actual (arranque instantáneo)
+        const nearbyChannels = await hydrateChannelsForPlayback(normalizedChannels, {
           preferredChannelId: itemId,
+          maxCount: 30,
           onProgress: (partialChannels) => {
             if (!cancelled) {
               setChannelList(partialChannels);
@@ -1140,7 +1277,38 @@ export function Watch() {
           },
         });
         if (cancelled) return;
-        setChannelList(hydratedChannels);
+        setChannelList(nearbyChannels);
+
+        // Fase 2: completar el resto sin bloquear (idle o al abrir el selector)
+        channelsHydrationRef.current = { phase: 'nearby', base: nearbyChannels, promise: null, hydrateRest: null };
+        const hydrateRest = async () => {
+          const state = channelsHydrationRef.current;
+          if (cancelled || !state || state.phase === 'full' || state.promise) {
+            return state?.promise || null;
+          }
+          const restPromise = hydrateChannelsForPlayback(state.base, {
+            preferredChannelId: itemId,
+          }).then((fullChannels) => {
+            if (!cancelled) {
+              channelsHydrationRef.current.phase = 'full';
+              setChannelList(fullChannels);
+            }
+            return fullChannels;
+          }).catch((err) => {
+            console.warn('[Watch.jsx] Hidratación diferida incompleta:', err?.message || err);
+            return null;
+          }).finally(() => {
+            channelsHydrationRef.current.promise = null;
+          });
+          state.promise = restPromise;
+          return restPromise;
+        };
+        channelsHydrationRef.current.hydrateRest = hydrateRest;
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(() => { hydrateRest(); }, { timeout: 5000 });
+        } else {
+          setTimeout(() => { hydrateRest(); }, 3000);
+        }
       } catch (err) {
         if (!cancelled) {
           console.warn('[Watch.jsx] No se pudo cargar lista de canales para zapping:', err?.message || err);
@@ -1168,7 +1336,17 @@ export function Watch() {
 
   useEffect(() => {
     setChannelPlaybackDismissed(false);
+    setIsGuideOpen(false);
   }, [itemType, itemId, reloadKey]);
+
+  // Guía del canal actual bajo demanda (real del backend o estimada local).
+  // Solo fetchea cuando el usuario abre la guía y no hay parrilla precargada.
+  const guideSchedule = useEpgSchedule(
+    itemType === 'channel' ? (itemData?.name || '') : '',
+    itemData?.id,
+    isGuideOpen && itemType === 'channel',
+    itemData?.epgSchedule
+  );
 
   useEffect(() => {
     if (!isChannelPickerOpen) {
@@ -2021,7 +2199,8 @@ export function Watch() {
       return;
     }
 
-    if (isBrowserPlaybackBlocked || itemData.webPlaybackBlocked) {
+    const isDesktopApp = typeof window !== 'undefined' && (Boolean(window.electronMPV) || Boolean(window.electronAPI));
+    if (!isDesktopApp && (isBrowserPlaybackBlocked || itemData.webPlaybackBlocked)) {
       console.log('[Watch.jsx] CALCULO DETENIDO: reproduccion web bloqueada.');
       setVideoUrl("");
       setError(null);
@@ -2663,6 +2842,10 @@ export function Watch() {
     ));
     setFocusedChannelPickerIndex(currentFilteredIndex >= 0 ? currentFilteredIndex : 0);
     setIsChannelPickerOpen(true);
+    // Al abrir el selector, completar URLs faltantes en segundo plano
+    try {
+      channelsHydrationRef.current?.hydrateRest?.();
+    } catch (_) {}
   }, [filteredChannelList, itemId]);
 
   const closeChannelPicker = useCallback((nextControlIndex = 0) => {
@@ -3640,7 +3823,7 @@ export function Watch() {
               <div className="w-full max-w-5xl mx-auto mb-8">
                 <div
                   data-channel-controls="true"
-                  className="flex flex-wrap items-center justify-center gap-3 rounded-xl border border-cyan-400/30 bg-black/45 px-4 py-3 backdrop-blur-sm"
+                  className="mt-3 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-cyan-400/30 bg-black/45 px-4 py-3 backdrop-blur-sm"
                   onKeyDown={handleChannelControlsKeyDown}
                 >
                   <button
@@ -3682,6 +3865,153 @@ export function Watch() {
                     {channelPlaybackIssue}
                   </div>
                 )}
+
+                {/* 📺 GUÍA DE PROGRAMACIÓN EN VIVO (EPG) DEL CANAL SELECCIONADO (FICHA ÚNICA Y COMPLETA) */}
+                <div className="mt-4 rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900/95 to-black/95 p-5 sm:p-6 backdrop-blur-xl shadow-2xl">
+                  {/* Cabecera del Canal */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/10">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {itemData?.thumbnail || itemData?.logo ? (
+                        <img
+                          src={itemData.thumbnail || itemData.logo}
+                          alt={itemData.name}
+                          className="w-12 h-12 object-contain rounded-xl bg-black/60 p-1 border border-white/10 shrink-0"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-sm text-cyan-400 border border-white/10 shrink-0">
+                          TV
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                            {itemData?.name || 'Canal en Vivo'}
+                          </h2>
+                          {itemData?.section && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0">
+                              {itemData.section}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-400 flex items-center gap-1.5 mt-0.5 truncate">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block shrink-0"></span>
+                          <span>Señal HD en vivo • {channelList.length > 0 && currentChannelIndex >= 0 ? `Canal ${currentChannelIndex + 1} de ${channelList.length}` : 'Transmisión 24/7'}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-600/20 text-red-400 border border-red-500/40 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        EN VIVO AHORA
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bloque Programa Actual */}
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-2 rounded-xl bg-white/[0.04] border border-cyan-500/20 p-4 sm:p-5 flex flex-col justify-between shadow-inner">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[11px] font-black uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                            PROGRAMA EN EMISIÓN
+                          </span>
+                          {(itemData?.epgStart || itemData?.epgStop) && (
+                            <span className="text-xs font-mono font-bold text-cyan-200 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 rounded-md">
+                              ⏱️ {formatEpgTime(itemData.epgStart)} - {formatEpgTime(itemData.epgStop)}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-lg sm:text-2xl font-black text-white mb-2 leading-snug">
+                          {itemData?.currentProgram || itemData?.epg || 'Transmisión en directo'}
+                        </h3>
+                        <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                          {itemData?.epgDesc || itemData?.description || 'Disfruta de la programación en directo con la mejor calidad de transmisión y audio original en TeamG Play.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bloque Siguiente Programa */}
+                    <div className="rounded-xl bg-white/[0.02] border border-white/10 p-4 sm:p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1">
+                            <span>⏭</span> A CONTINUACIÓN
+                          </span>
+                          {(itemData?.nextProgramStart || itemData?.nextProgramStop) && (
+                            <span className="text-xs font-mono font-bold text-zinc-400 bg-white/5 px-2 py-0.5 rounded-md">
+                              {formatEpgTime(itemData.nextProgramStart)} - {formatEpgTime(itemData.nextProgramStop)}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-base sm:text-lg font-bold text-zinc-100 mb-1 leading-snug">
+                          {itemData?.nextProgram || 'Próximo programa en parrilla'}
+                        </h4>
+                        <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
+                          {itemData?.nextProgramDesc || 'Sintoniza la continuación de la transmisión sin interrupciones.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Horarios de Programación de Hoy (Timeline extendido / Guía del día) */}
+                  {((Array.isArray(itemData?.epgSchedule) && itemData.epgSchedule.length > 0) || (guideSchedule?.schedule && guideSchedule.schedule.length > 0)) && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2.5 flex items-center gap-1.5">
+                        <span>📅</span> Próximos programas y eventos de hoy:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                        {(itemData?.epgSchedule?.length > 0 ? itemData.epgSchedule : guideSchedule.schedule).slice(0, 8).map((prog, pIdx) => (
+                          <div
+                            key={pIdx}
+                            className={`rounded-lg p-2.5 border text-left transition-all ${
+                              prog.isCurrent
+                                ? 'bg-cyan-500/15 border-cyan-400/50 text-cyan-100 ring-1 ring-cyan-400/20'
+                                : 'bg-black/40 border-white/5 text-zinc-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="font-mono text-[11px] font-bold text-zinc-400">
+                                {prog.start ? formatEpgTime(prog.start) : '--:--'}
+                              </span>
+                              {prog.isCurrent && (
+                                <span className="text-[9px] font-black uppercase text-cyan-300 bg-cyan-500/30 px-1.5 py-0.5 rounded">
+                                  En vivo
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold truncate text-white" title={prog.title}>
+                              {prog.title}
+                            </p>
+                            {prog.desc && (
+                              <p className="text-[10px] text-zinc-400 line-clamp-1 mt-0.5" title={prog.desc}>
+                                {prog.desc}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sinopsis del Canal (desplegable discreto) */}
+                  {itemData?.description && itemData.description !== itemData.epgDesc && (
+                    <div className="mt-4 pt-3 border-t border-white/5">
+                      <details className="group cursor-pointer">
+                        <summary className="text-xs font-semibold text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5 outline-none select-none">
+                          <span className="transition-transform group-open:rotate-90">▶</span>
+                          <span>Acerca del canal {itemData.name}</span>
+                        </summary>
+                        <p className="mt-2 text-xs text-zinc-400 leading-relaxed pl-4 border-l-2 border-cyan-500/30">
+                          {itemData.description}
+                        </p>
+                      </details>
+                    </div>
+                  )}
+                </div>
+
                 {isChannelPickerOpen && (
                   <div
                     data-channel-picker="true"
@@ -3709,7 +4039,7 @@ export function Watch() {
                         Cerrar
                       </button>
                     </div>
-                    <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+                    <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
                       {filteredChannelList.length > 0 ? (
                         filteredChannelList.map((channel, index) => {
                           const isCurrent = String(channel.id) === String(itemId);
@@ -3722,22 +4052,158 @@ export function Watch() {
                               }}
                               onClick={() => handleSelectChannel(channel)}
                               onFocus={() => setFocusedChannelPickerIndex(index)}
-                              className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 ${
+                              className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all text-left ${
                                 isCurrent
-                                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-200'
+                                  ? 'bg-cyan-500/20 border border-cyan-400/50 text-white ring-1 ring-cyan-400/30'
                                   : isFocused
                                     ? 'bg-indigo-500/25 border border-indigo-300/70 text-white'
-                                    : 'bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100'
+                                    : 'bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 text-zinc-100'
                               }`}
                             >
-                              {channel.name}
-                              {isCurrent ? ' (actual)' : ''}
+                              <span className="w-6 text-center font-mono text-xs font-bold text-zinc-400 shrink-0">
+                                {channel.number || index + 1}
+                              </span>
+                              {channel.logo ? (
+                                <img
+                                  src={channel.logo}
+                                  alt={channel.name}
+                                  className="w-7 h-7 object-contain rounded bg-black/40 p-0.5 shrink-0"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 shrink-0">
+                                  TV
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-bold text-sm truncate text-white">
+                                    {channel.name}
+                                  </span>
+                                  {isCurrent && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-cyan-400 text-black px-1.5 py-0.5 rounded shrink-0">
+                                      Actual
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-cyan-300/90 truncate flex items-center gap-1 mt-0.5">
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                  <span className="truncate">{channel.epg || 'En vivo'}{channel.nextProgram && channel.nextProgram !== channel.epg ? `  •  Sig: ${channel.nextProgram}` : ''}</span>
+                                </p>
+                              </div>
                             </button>
                           );
                         })
                       ) : (
                         <div className="text-sm text-zinc-300 px-2 py-4 text-center">
                           No se encontraron canales.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Buscador / Selector rápido de películas para cambiar de contenido al instante */}
+            {itemType !== 'channel' && !isBrowserPlaybackBlocked && (
+              <div className="w-full max-w-5xl mx-auto mb-8">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 backdrop-blur-md shadow-xl">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setIsMoviePickerOpen((prev) => !prev);
+                        setTimeout(() => moviePickerInputRef.current?.focus(), 50);
+                      }}
+                      className="px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-black shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 active:scale-95"
+                    >
+                      <span>🎬</span>
+                      <span>Cambiar Película / Buscar</span>
+                    </button>
+                    {smartRecommendations && smartRecommendations.length > 0 && (
+                      <button
+                        onClick={() => {
+                          const el = document.getElementById('sugerencias-seccion');
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-zinc-900 border border-white/10 hover:border-cyan-400/40 text-gray-200 hover:text-white transition-all flex items-center gap-1.5"
+                      >
+                        <span>✨</span>
+                        <span>Sugerencias y Saga ({smartRecommendations.length})</span>
+                      </button>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 truncate max-w-[200px] sm:max-w-xs">
+                    Viendo: <span className="text-white font-semibold">{itemData?.name || ''}</span>
+                  </span>
+                </div>
+
+                {isMoviePickerOpen && (
+                  <div className="mt-3 rounded-2xl border border-cyan-400/30 bg-zinc-950/95 p-4 backdrop-blur-xl shadow-2xl">
+                    <div className="flex items-center gap-2 mb-3">
+                      <input
+                        ref={moviePickerInputRef}
+                        type="text"
+                        value={movieSearch}
+                        onChange={(e) => setMovieSearch(e.target.value)}
+                        placeholder="Escribe el nombre de la película o título para cambiar..."
+                        className="flex-1 rounded-xl bg-zinc-900 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+                      />
+                      <button
+                        onClick={() => setIsMoviePickerOpen(false)}
+                        className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                      {isSearchingMovies ? (
+                        <div className="py-8 text-center text-sm text-gray-400">
+                          <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent mr-2" />
+                          Buscando títulos...
+                        </div>
+                      ) : movieSearchResults.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                          {movieSearchResults.map((movie) => {
+                            const isCurrent = String(movie._id || movie.id) === String(itemId);
+                            const movieTitle = movie.title || movie.name || 'Sin título';
+                            const movieYear = movie.releaseYear ? ` (${movie.releaseYear})` : '';
+                            const movieThumb = movie.customThumbnail || movie.thumbnail || movie.poster || '/img/placeholder-default.png';
+
+                            return (
+                              <button
+                                key={String(movie._id || movie.id)}
+                                onClick={() => handleSelectMovie(movie)}
+                                className={`w-full text-left rounded-xl p-2 flex items-center gap-3 transition-all border ${
+                                  isCurrent
+                                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-md'
+                                    : 'bg-zinc-900/80 hover:bg-zinc-800 border-white/5 hover:border-cyan-400/30 text-white'
+                                }`}
+                              >
+                                <img
+                                  src={movieThumb}
+                                  alt={movieTitle}
+                                  className="w-12 h-16 rounded-lg object-cover flex-shrink-0 bg-black"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-bold truncate">{movieTitle}{movieYear}</p>
+                                  <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                                    {Array.isArray(movie.genres) ? movie.genres.slice(0, 2).join(', ') : (movie.tipo || 'pelicula')}
+                                  </p>
+                                  {isCurrent && (
+                                    <span className="inline-block text-[9px] font-black uppercase tracking-wider text-cyan-300 mt-1">
+                                      ▶ Reproduciendo ahora
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-400 py-6 text-center">
+                          No se encontraron títulos con esa búsqueda.
                         </div>
                       )}
                     </div>
@@ -3781,7 +4247,7 @@ export function Watch() {
               </DynamicCard>
             )}
 
-            {itemData.description && (
+            {itemType !== 'channel' && itemData.description && (
               <DynamicCard theme={visualTheme} className="p-6 rounded-xl" glow={true}>
                 <h3 className="text-2xl font-bold mb-4 flex items-center">
                   <span 
@@ -3793,29 +4259,80 @@ export function Watch() {
                     }}
                   ></span>
                   <DynamicText theme={visualTheme} glow={true}>
-                    Descripción
+                    Información y Sinopsis
                   </DynamicText>
                 </h3>
+
+                {/* Badges de Metadatos TMDB */}
+                <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+                  {itemData.certification && (
+                    <span className="rounded border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] font-bold text-slate-200">
+                      {itemData.certification}
+                    </span>
+                  )}
+                  {itemData.releaseDate && (
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 font-medium text-slate-300">
+                      📅 {itemData.releaseDate}
+                    </span>
+                  )}
+                  {itemData.duration && (
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 font-medium text-slate-300">
+                      ⏱️ {itemData.duration}
+                    </span>
+                  )}
+                  {itemData.userScore ? (
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-bold text-emerald-400">
+                      ⭐ {itemData.userScore}% de usuarios
+                    </span>
+                  ) : null}
+                </div>
+
+                {itemData.tagline && (
+                  <p className="text-sm italic text-gray-400 mb-3 font-serif">
+                    "{itemData.tagline}"
+                  </p>
+                )}
+
                 <div className="prose prose-invert max-w-none">
                   <p className="text-base leading-relaxed whitespace-pre-wrap" 
                      style={{ color: visualTheme?.textColor || '#ffffff' }}>
                     {itemData.description}
                   </p>
                 </div>
+
+                {/* Director y Reparto principal */}
+                {(itemData.director || (Array.isArray(itemData.cast) && itemData.cast.length > 0)) && (
+                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-4">
+                    {itemData.director && (
+                      <div>
+                        <p className="text-xs font-bold text-white truncate">{itemData.director}</p>
+                        <p className="text-[10px] text-gray-400">Director</p>
+                      </div>
+                    )}
+                    {Array.isArray(itemData.cast) && itemData.cast.slice(0, 3).map((actor, idx) => (
+                      <div key={idx}>
+                        <p className="text-xs font-bold text-white truncate">{actor}</p>
+                        <p className="text-[10px] text-gray-400">Reparto principal</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </DynamicCard>
             )}
 
-            {/* Recomendaciones inteligentes basadas en similitud */}
+            {/* Recomendaciones inteligentes y sagas completas */}
             {!isTVMode ? (
-              <SmartRecommendations
-              recommendations={smartRecommendations}
-              theme={visualTheme}
-              loading={smartRecommendationsLoading}
-              error={smartRecommendationsError}
-              onRetry={retrySmartRecommendations}
-              title="También te podría gustar"
-              maxItems={6}
-              />
+              <div id="sugerencias-seccion">
+                <SmartRecommendations
+                  recommendations={smartRecommendations}
+                  theme={visualTheme}
+                  loading={smartRecommendationsLoading}
+                  error={smartRecommendationsError}
+                  onRetry={retrySmartRecommendations}
+                  title="Quizás también te guste este título"
+                  maxItems={12}
+                />
+              </div>
             ) : null}
             </div>
           )}
