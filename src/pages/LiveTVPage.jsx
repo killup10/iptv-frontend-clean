@@ -41,19 +41,18 @@ export default function LiveTVPage() {
       setError(null);
 
       try {
-        const categoriesData = await fetchChannelFilterSections();
-        const nextCategories = categoriesData && categoriesData.length > 0 ? categoriesData : ['Todos'];
+        const nextCategories = (categoriesData || []).filter((c) => c && String(c).toLowerCase().trim() !== 'todos');
         setFilterCategories(nextCategories);
 
         if (location.state?.selectedCategory && nextCategories.includes(location.state.selectedCategory)) {
           setSelectedCategory(location.state.selectedCategory);
         } else {
-          setSelectedCategory(nextCategories[0] || 'Todos');
+          setSelectedCategory(nextCategories[0] || '');
         }
       } catch (err) {
-        console.warn('LiveTVPage: Categorias no disponibles, usando Todos como fallback:', err.message);
-        setFilterCategories(['Todos']);
-        setSelectedCategory('Todos');
+        console.warn('LiveTVPage: Error al cargar categorías:', err.message);
+        setFilterCategories([]);
+        setSelectedCategory('');
       } finally {
         setIsLoadingCategories(false);
       }

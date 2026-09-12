@@ -88,13 +88,10 @@ const CATEGORY_ORDER = [
 ];
 
 export function sortLiveTVCategories(cats) {
-  if (!Array.isArray(cats)) return ['Todos'];
+  if (!Array.isArray(cats)) return [];
 
-  let list = cats.filter(Boolean);
-  const hasTodos = list.some((c) => String(c).toLowerCase().trim() === 'todos');
-  if (!hasTodos) {
-    list = ['Todos', ...list];
-  }
+  // Filtrar 'Todos' para evitar sobrecargar el DOM con 360+ canales y asegurar máxima fluidez
+  let list = cats.filter((c) => c && String(c).toLowerCase().trim() !== 'todos');
 
   const normalized = list.map((c) => {
     const name = String(c || '');
