@@ -2,7 +2,20 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { isAndroidTV } from "../utils/platformUtils.js";
-import { Laptop, Smartphone, Tv, Copy, CheckCheck, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Laptop, Smartphone, Tv, Copy, CheckCheck, Eye, EyeOff, Loader2, Trash2, X, AlertTriangle } from "lucide-react";
+
+const getDeviceIcon = (device) => {
+  const type = (device?.deviceType || '').toLowerCase();
+  const ua = (device?.browser || device?.userAgent || '').toLowerCase();
+
+  if (type === 'tv' || ua.includes('tv') || ua.includes('smart-tv') || ua.includes('tizen')) {
+    return <Tv className="w-6 h-6 text-cyan-400 shrink-0" />;
+  }
+  if (type === 'mobile' || type === 'tablet' || ua.includes('mobi') || ua.includes('android') || ua.includes('iphone')) {
+    return <Smartphone className="w-6 h-6 text-fuchsia-400 shrink-0" />;
+  }
+  return <Laptop className="w-6 h-6 text-emerald-400 shrink-0" />;
+};
 
 const TV_LOGIN_FOCUSABLE_COUNT = 7;
 
@@ -80,6 +93,11 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [tvLoginFocusIndex, setTVLoginFocusIndex] = useState(0);
 
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [activeDevicesList, setActiveDevicesList] = useState([]);
+  const [maxDevicesAllowed, setMaxDevicesAllowed] = useState(2);
+  const [unlinkingDeviceId, setUnlinkingDeviceId] = useState(null);
+
   const [copiedCode, setCopiedCode] = useState(false);
 
   const handleCopyDownloaderCode = (e) => {
@@ -96,17 +114,39 @@ function Login() {
   const usernameInputRef = useRef(null);
   const passwordInputRef = useRef(null);
 
-  const performLogin = async () => {
+  const performLogin = async (unlinkId = null) => {
     setLoginError("");
-    setIsLoggingIn(true);
+    if (unlinkId) {
+      setUnlinkingDeviceId(unlinkId);
+    } else {
+      setIsLoggingIn(true);
+    }
     try {
-      await login({ username, password });
+      await login({ username, password, unlinkDeviceId: unlinkId });
+      setShowDeviceModal(false);
       const from = location.state?.from?.pathname || "/";
       navigate(from, { replace: true });
     } catch (err) {
+      const responseData = err.response?.data;
+      if (
+        err.response?.status === 403 &&
+        (responseData?.code === "DEVICE_LIMIT_REACHED" ||
+          responseData?.devices ||
+          responseData?.deviceList ||
+          responseData?.error?.includes("Limite de dispositivos") ||
+          responseData?.error?.includes("Límite de dispositivos"))
+      ) {
+        const list = responseData?.devices || responseData?.deviceList || [];
+        setActiveDevicesList(list);
+        setMaxDevicesAllowed(responseData?.maxDevices || 2);
+        setShowDeviceModal(true);
+        setLoginError("");
+        return;
+      }
       setLoginError(err.message || "Error al iniciar sesión");
     } finally {
       setIsLoggingIn(false);
+      setUnlinkingDeviceId(null);
     }
   };
 
@@ -484,6 +524,112 @@ function Login() {
         </div>
 
       </div>
+
+      {/* MODAL DE RESOLUCIÓN DE LÍMITE DE DISPOSITIVOS */}
+      {showDeviceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg double-bezel-outer-custom rounded-3xl p-2 sm:p-3 shadow-2xl border border-white/10">
+            <div className="double-bezel-inner-custom rounded-[calc(1.5rem-0.25rem)] p-6 sm:p-7 max-h-[85vh] flex flex-col">
+              
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                      Límite de Dispositivos
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Máximo {maxDevicesAllowed} dispositivos permitidos
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeviceModal(false)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Description */}
+              <p className="text-xs sm:text-sm text-slate-300 mt-4 leading-relaxed font-medium">
+                Has alcanzado el límite de dispositivos simultáneos en tu cuenta. Selecciona cuál de tus dispositivos activos deseas <span className="text-rose-400 font-bold">desvincular</span> para entrar desde este equipo:
+              </p>
+
+              {/* Devices List */}
+              <div className="mt-4 space-y-3 overflow-y-auto pr-1 flex-1 max-h-[45vh] custom-scrollbar">
+                {activeDevicesList.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    No se encontraron dispositivos activos para mostrar.
+                  </div>
+                ) : (
+                  activeDevicesList.map((device) => {
+                    const isThisDeviceUnlinking = unlinkingDeviceId === device.deviceId;
+                    return (
+                      <div
+                        key={device.deviceId}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-all"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                            {getDeviceIcon(device)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-white truncate">
+                              {device.browser || device.deviceType || "Dispositivo"}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                              {device.os && <span>{device.os}</span>}
+                              {device.os && <span>•</span>}
+                              <span>{device.lastSeen ? new Date(device.lastSeen).toLocaleString() : "Reciente"}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => performLogin(device.deviceId)}
+                          disabled={isLoggingIn || unlinkingDeviceId !== null}
+                          className="self-end sm:self-auto px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 hover:border-rose-600 transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(244,63,94,0.2)] disabled:opacity-50 cursor-pointer"
+                        >
+                          {isThisDeviceUnlinking ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Desvinculando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Desvincular y Entrar</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-5 pt-4 border-t border-white/10 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDeviceModal(false)}
+                  disabled={unlinkingDeviceId !== null}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

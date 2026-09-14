@@ -333,8 +333,9 @@
                 android:contentDescription="Lista de Canales" />
         </LinearLayout>
 
-        <!-- 2. CONTENIDO PRINCIPAL DEL DRAWER -->
+        <!-- 2. CONTENIDO PRINCIPAL DEL DRAWER (LISTA DE CANALES) -->
         <LinearLayout
+            android:id="@+id/drawer_channels_view"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -397,13 +398,117 @@
                 android:layout_weight="1"
                 android:divider="#00000000"
                 android:dividerHeight="6dp"
-                android:scrollbars="none"
+                android:scrollbars="vertical"
                 android:fastScrollEnabled="false"
                 android:choiceMode="singleChoice"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
-                android:descendantFocusability="afterDescendants" />
+                android:descendantFocusability="blocksDescendants"
+                android:nextFocusRight="@id/drawer_channel_list"
+                android:nextFocusLeft="@id/rail_tab_channels" />
 
+        </LinearLayout>
+
+        <!-- 3. SUB-PANEL GUIA EPG DEL CANAL (PROGRAMACION DE HOY + RECORDATORIOS) -->
+        <LinearLayout
+            android:id="@+id/drawer_schedule_view"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+
+            <!-- HEADER CON VOLVER + TITULO -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="10dp">
+
+                <Button
+                    android:id="@+id/schedule_btn_back"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:background="@drawable/tv_exo_button_secondary"
+                    android:text="‹ Volver"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingStart="18dp"
+                    android:paddingEnd="18dp"
+                    android:focusable="true"
+                    android:contentDescription="Volver a la lista" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginStart="12dp">
+
+                    <TextView
+                        android:id="@+id/schedule_channel_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Canal"
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:singleLine="true"
+                        android:ellipsize="end" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Programación de hoy"
+                        android:textColor="#00E5FF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- LOADING -->
+            <ProgressBar
+                android:id="@+id/schedule_progress"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:indeterminateTint="#00E5FF"
+                android:visibility="gone" />
+
+            <!-- LISTA DE PROGRAMAS -->
+            <ListView
+                android:id="@+id/schedule_program_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:divider="#00000000"
+                android:dividerHeight="8dp"
+                android:scrollbars="vertical"
+                android:choiceMode="singleChoice"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:descendantFocusability="blocksDescendants"
+                android:clipToPadding="false" />
+
+            <!-- EMPTY STATE -->
+            <TextView
+                android:id="@+id/schedule_empty_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Sin programación detallada para hoy."
+                android:textColor="#7A7A8E"
+                android:textSize="13sp"
+                android:gravity="center"
+                android:visibility="gone" />
         </LinearLayout>
 
     </LinearLayout>

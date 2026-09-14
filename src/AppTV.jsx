@@ -6,7 +6,8 @@ import TVSearch from "./components/TVSearch.jsx";
 import { fetchUserChannels, fetchUserMovies, fetchVideosByType } from "./utils/api.js";
 import { TV_OPEN_SEARCH_EVENT } from "./utils/tvSearchEvents.js";
 import { getTVItemId, resolveTVItemType, unwrapTVItems } from "./utils/tvContentUtils.js";
-import { focusTVContent, getTVFocusZone, TV_FOCUS_ZONE_MODAL } from "./utils/tvFocusZone.js";
+import { focusTVContent, focusTVNav, getTVFocusZone, TV_FOCUS_ZONE_MODAL, TV_FOCUS_ZONE_NAV } from "./utils/tvFocusZone.js";
+import { isTVBackKey } from "./utils/tvRemote.js";
 import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowseCache.js";
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
@@ -14,7 +15,6 @@ import axiosInstance from "./utils/axiosInstance.js";
 
 const HOME_BACK_ROUTES = new Set([
   '/live-tv',
-  '/mundial-2026',
   '/peliculas',
   '/series',
   '/animes',
@@ -228,19 +228,8 @@ function AppTV() {
         return;
       }
 
-      const activeElement = document.activeElement;
-      const isEditable =
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.isContentEditable;
-
-      const isBackNavigationKey =
-        e.key === 'Escape' ||
-        e.key === 'GoBack' ||
-        e.key === 'BrowserBack' ||
-        e.keyCode === 4 ||
-        e.keyCode === 27 ||
-        (!isEditable && e.keyCode === 8);
+      // BACK canonico: Escape/GoBack/keyCode 4/27/111, y Borrar fuera de inputs.
+      const isBackNavigationKey = isTVBackKey(e);
 
       if (!isBackNavigationKey) {
         return;
@@ -255,26 +244,26 @@ function AppTV() {
       }
 
       if (location.pathname === '/') {
-        focusTVContent();
+        if (getTVFocusZone() === TV_FOCUS_ZONE_NAV) {
+          return;
+        }
+        focusTVNav();
         return;
       }
 
-      if (HOME_BACK_ROUTES.has(location.pathname)) {
-        navigate('/');
+      // Si el foco NO está en la barra lateral en cualquier sección, BACK enfoca la barra lateral
+      if (getTVFocusZone() !== TV_FOCUS_ZONE_NAV) {
+        focusTVNav();
         return;
       }
 
-      if (location.pathname.startsWith('/peliculas/')) {
-        navigate('/peliculas');
+      // Si ya está en la barra lateral y presiona BACK, regresar a Home
+      if (HOME_BACK_ROUTES.has(location.pathname) || location.pathname.startsWith('/peliculas/')) {
+        navigate('/', { replace: true });
         return;
       }
 
-      if (window.history.length > 1 && location.pathname !== '/login') {
-        navigate(-1);
-        return;
-      }
-
-      navigate('/');
+      navigate('/', { replace: true });
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -320,8 +309,8 @@ function AppTV() {
         
         .tv-footer {
           border-top: 1px solid rgba(34, 211, 238, 0.1);
-          padding: 20px 40px;
-          font-size: 14px;
+          padding: 6px 40px;
+          font-size: 11px;
           color: #94a3b8;
           margin-left: ${isWatchPage ? '0' : '80px'};
           transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);

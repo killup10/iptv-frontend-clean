@@ -191,49 +191,8 @@ public class VideoPlayerPlugin extends Plugin {
             call.resolve(result);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error starting " + resolvedPlayerName, e);
-
-            try {
-                String fallbackPlayerType = shouldUseExoplayer ? "android-vlc" : "android-exoplayer";
-                Class<?> fallbackActivity = shouldUseExoplayer ? VLCPlayerActivity.class : ExoPlayerActivity.class;
-                String fallbackPlayerName = shouldUseExoplayer ? "VLC" : "ExoPlayer";
-                Intent fallbackIntent = new Intent(getContext(), fallbackActivity);
-                fallbackIntent.putExtra("video_url", url);
-                fallbackIntent.putExtra("video_title", title);
-                fallbackIntent.putExtra("video_meta_line", metaLine);
-                fallbackIntent.putExtra("start_time", startTime);
-                fallbackIntent.putExtra("player_type", fallbackPlayerType);
-                fallbackIntent.putExtra("season_index", seasonIndex);
-                fallbackIntent.putExtra("chapter_index", chapterIndex);
-                fallbackIntent.putExtra("is_live_tv", isLiveTV);
-                fallbackIntent.putExtra("content_type", contentType);
-
-                if (chaptersArray != null) {
-                    fallbackIntent.putStringArrayListExtra("chapter_titles", intent.getStringArrayListExtra("chapter_titles"));
-                    fallbackIntent.putStringArrayListExtra("chapter_urls", intent.getStringArrayListExtra("chapter_urls"));
-                    fallbackIntent.putIntegerArrayListExtra("chapter_season_numbers", intent.getIntegerArrayListExtra("chapter_season_numbers"));
-                    fallbackIntent.putIntegerArrayListExtra("chapter_numbers", intent.getIntegerArrayListExtra("chapter_numbers"));
-                    fallbackIntent.putIntegerArrayListExtra("chapter_season_indices", intent.getIntegerArrayListExtra("chapter_season_indices"));
-                    fallbackIntent.putIntegerArrayListExtra("chapter_indices", intent.getIntegerArrayListExtra("chapter_indices"));
-                }
-
-                if (channelsArray != null) {
-                    fallbackIntent.putStringArrayListExtra("channel_names", intent.getStringArrayListExtra("channel_names"));
-                    fallbackIntent.putStringArrayListExtra("channel_logos", intent.getStringArrayListExtra("channel_logos"));
-                    fallbackIntent.putStringArrayListExtra("channel_urls", intent.getStringArrayListExtra("channel_urls"));
-                }
-
-                getActivity().startActivity(fallbackIntent);
-
-                JSObject result = new JSObject();
-                result.put("success", true);
-                result.put("message", fallbackPlayerName + " started (fallback)");
-                call.resolve(result);
-
-            } catch (Exception fallbackError) {
-                Log.e(TAG, "Error starting fallback player", fallbackError);
-                call.reject("Error starting video player: " + fallbackError.getMessage());
-            }
+            Log.e(TAG, "Error starting VLC: " + e.getMessage(), e);
+            call.reject("Error starting VLC player: " + e.getMessage());
         }
     }
 
@@ -330,7 +289,14 @@ public class VideoPlayerPlugin extends Plugin {
 
     @PluginMethod
     public void stopVideo(PluginCall call) {
-        Log.d(TAG, "stopVideo called - sending stop command and finishing VLC activity");
+        Log.d(TAG, "stopVideo called - stopping player and finishing VLC activity");
+
+        // Detener inmediatamente la instancia activa si existe
+        try {
+            VLCPlayerActivity.stopAndFinishCurrent();
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping active VLC instance directly", e);
+        }
 
         sendPlayerControl("stop", 0);
 
@@ -352,6 +318,13 @@ public class VideoPlayerPlugin extends Plugin {
     public void forceStopVideo(PluginCall call) {
         Log.d(TAG, "forceStopVideo called - aggressively stopping VLC");
 
+        // Detener inmediatamente la instancia activa
+        try {
+            VLCPlayerActivity.stopAndFinishCurrent();
+        } catch (Exception e) {
+            Log.e(TAG, "Error force-stopping active VLC instance directly", e);
+        }
+
         sendPlayerControl("stop", 0);
 
         try {
@@ -359,14 +332,8 @@ public class VideoPlayerPlugin extends Plugin {
             finishIntent.setPackage(getContext().getPackageName());
             getContext().sendBroadcast(finishIntent);
             Log.d(TAG, "Sent FORCE_FINISH_VLC_ACTIVITY broadcast");
-
-            Intent closeIntent = new Intent(getContext(), VLCPlayerActivity.class);
-            closeIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            closeIntent.putExtra("FORCE_CLOSE", true);
-            getActivity().startActivity(closeIntent);
-
         } catch (Exception e) {
-            Log.e(TAG, "Error in forceStopVideo", e);
+            Log.e(TAG, "Error in forceStopVideo broadcast", e);
         }
 
         JSObject result = new JSObject();

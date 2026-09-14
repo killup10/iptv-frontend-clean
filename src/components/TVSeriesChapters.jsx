@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTVFocusZone, TV_FOCUS_ZONE_CONTENT, focusTVNav } from '../utils/tvFocusZone';
+import { getTVKeyName } from '../utils/tvRemote.js';
 import '../styles/TVSeriesChapters.css';
 
 /**
@@ -40,11 +41,12 @@ export default function TVSeriesChapters({
   const hasSeasons = Array.isArray(seasons) && seasons.length > 0;
   const hasChapters = Array.isArray(chaptersInSeason) && chaptersInSeason.length > 0;
 
-  // Manejo de teclas - D-Pad Navigation
+  // Manejo de teclas - D-Pad Navigation (resolutor canonico key+keyCode)
   const handleKeyDown = useCallback((e) => {
     if (!isFocused) return;
     
-    const key = e.key;
+    const key = getTVKeyName(e);
+    if (!key) return;
     
     // Si no estamos enfocados en la zona de contenido de TV, ignorar
     if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) return;

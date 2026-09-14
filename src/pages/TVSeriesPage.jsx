@@ -303,16 +303,22 @@ export default function TVSeriesPage() {
     }
   };
 
-  const handleSelectItem = (item) => {
+  const handleSelectItem = (item, index) => {
     const itemId = getTVItemId(item);
     if (!itemId) return;
+
+    // Usar el indice vivo que manda la grilla (el state puede ir un frame atras).
+    const liveIndex = Number.isInteger(index) ? index : selectedIndex;
+    if (liveIndex !== selectedIndex) {
+      setSelectedIndex(liveIndex);
+    }
 
     navigate(`/watch/serie/${itemId}`, {
       state: {
         from: '/series',
         returnState: {
           selectedSubcategory,
-          selectedIndex,
+          selectedIndex: liveIndex,
         },
       },
     });
@@ -356,6 +362,7 @@ export default function TVSeriesPage() {
         onAddToMyList={handleAddToMyList}
         columns={5}
         initialIndex={selectedIndex}
+        initialFocusMode={Number.isInteger(location.state?.selectedIndex) ? 'grid' : 'filters'}
         onActiveIndexChange={setSelectedIndex}
         onSearch={() => setShowSearch(true)}
         emptyMessage={`No hay series disponibles en ${selectedSubcategory}.`}

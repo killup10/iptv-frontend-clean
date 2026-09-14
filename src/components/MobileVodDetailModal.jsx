@@ -184,7 +184,9 @@ export default function MobileVodDetailModal({
     window.__mobileVodDetailClose = closeCurrentOverlay;
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' || event.key === 'BrowserBack' || event.key === 'Back' || event.keyCode === 4) {
+        event.preventDefault();
+        event.stopPropagation();
         closeCurrentOverlay();
       }
     };

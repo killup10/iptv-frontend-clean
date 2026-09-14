@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { isAndroidTV } from '../utils/platformUtils';
+import { getTVKeyName } from '../utils/tvRemote';
 
 /**
  * Hook para manejar navegación en Android TV con D-Pad
@@ -28,31 +29,33 @@ export const useTVNavigation = (options = {}) => {
     if (!enabled) return;
 
     const handleKeyDown = (e) => {
+      // Resolutor canonico: soporta key y keyCode (19-23/4) de WebView reales.
+      const action = getTVKeyName(e);
       // Arrow keys
-      if (e.key === 'ArrowUp') {
+      if (action === 'ArrowUp') {
         e.preventDefault();
         onUp?.();
-      } else if (e.key === 'ArrowDown') {
+      } else if (action === 'ArrowDown') {
         e.preventDefault();
         onDown?.();
-      } else if (e.key === 'ArrowLeft') {
+      } else if (action === 'ArrowLeft') {
         e.preventDefault();
         onLeft?.();
-      } else if (e.key === 'ArrowRight') {
+      } else if (action === 'ArrowRight') {
         e.preventDefault();
         onRight?.();
       }
       // Enter/OK
-      else if (e.key === 'Enter' || e.key === 'MediaPlayPause') {
+      else if (action === 'Enter') {
         e.preventDefault();
         onEnter?.();
       }
       // Back/Escape
-      else if (e.key === 'Escape' || e.key === 'MediaTrackPrevious') {
+      else if (action === 'Escape') {
         e.preventDefault();
         onBack?.();
       }
-      // Media keys
+      // Media keys (nombres legacy que el resolutor deja pasar como null)
       else if (e.key === 'MediaPlay') {
         e.preventDefault();
         onPlay?.();

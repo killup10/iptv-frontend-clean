@@ -284,12 +284,19 @@ public class VideoPlayerPlugin extends Plugin {
     @PluginMethod
     public void stopVideo(PluginCall call) {
         String targetSessionId = call.getString("sessionId", "");
-        Log.d(TAG, "stopVideo called - sending stop command and finishing VLC activity");
+        Log.d(TAG, "stopVideo called - stopping player and finishing VLC activity");
+
+        // Detener inmediatamente la instancia activa si existe
+        try {
+            VLCPlayerActivity.stopAndFinishCurrent();
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping active VLC instance directly", e);
+        }
 
         // Enviar comando de detención
         sendPlayerControl("stop", 0, targetSessionId);
 
-        // Forzar el cierre de la actividad VLC
+        // Forzar el cierre de la actividad VLC mediante broadcast
         try {
             Intent finishIntent = new Intent("FINISH_VLC_ACTIVITY");
             finishIntent.setPackage(getContext().getPackageName());
@@ -309,25 +316,24 @@ public class VideoPlayerPlugin extends Plugin {
     public void forceStopVideo(PluginCall call) {
         Log.d(TAG, "forceStopVideo called - aggressively stopping VLC");
 
-        // Primero intentar detener normalmente
+        // Detener inmediatamente la instancia activa
+        try {
+            VLCPlayerActivity.stopAndFinishCurrent();
+        } catch (Exception e) {
+            Log.e(TAG, "Error force-stopping active VLC instance directly", e);
+        }
+
+        // Enviar control de detención
         sendPlayerControl("stop", 0);
 
-        // Luego forzar el cierre de la actividad
+        // Luego broadcast de cierre forzado
         try {
-            // Enviar broadcast para cerrar la actividad
             Intent finishIntent = new Intent("FORCE_FINISH_VLC_ACTIVITY");
             finishIntent.setPackage(getContext().getPackageName());
             getContext().sendBroadcast(finishIntent);
             Log.d(TAG, "Sent FORCE_FINISH_VLC_ACTIVITY broadcast");
-
-            // También intentar cerrar cualquier actividad VLC visible
-            Intent closeIntent = new Intent(getContext(), VLCPlayerActivity.class);
-            closeIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            closeIntent.putExtra("FORCE_CLOSE", true);
-            getActivity().startActivity(closeIntent);
-
         } catch (Exception e) {
-            Log.e(TAG, "Error in forceStopVideo", e);
+            Log.e(TAG, "Error in forceStopVideo broadcast", e);
         }
 
         JSObject result = new JSObject();

@@ -3,12 +3,17 @@ import axiosInstance, { apiBaseURL } from "./axiosInstance.js";
 import { storage } from "./storage.js";
 import { getOrCreateDeviceId } from "./deviceIdentity.js";
 
-export const login = async (username, password) => {
+export const login = async (username, password, unlinkDeviceId = null) => {
   const deviceId = await getOrCreateDeviceId();
   const loginPath = "/api/auth/login";
 
   try {
-    const requestPayload = { username, password, deviceId };
+    const requestPayload = {
+      username,
+      password,
+      deviceId,
+      ...(unlinkDeviceId ? { unlinkDeviceId } : {}),
+    };
     let response;
 
     try {
@@ -48,8 +53,14 @@ export const login = async (username, password) => {
     await storage.setItem("deviceId", deviceId);
     return responseData;
   } catch (error) {
-    if (error.response?.status === 403 && error.response?.data?.error?.includes("Limite de dispositivos")) {
-      throw new Error("Has alcanzado el limite de dispositivos conectados. Cierra sesion en otro dispositivo para continuar.");
+    if (error.response?.status === 403 && (
+      error.response?.data?.code === "DEVICE_LIMIT_REACHED" ||
+      error.response?.data?.error?.includes("Limite de dispositivos") ||
+      error.response?.data?.error?.includes("Límite de dispositivos")
+    )) {
+      const deviceError = new Error(error.response?.data?.error || "Has alcanzado el límite de dispositivos conectados.");
+      deviceError.response = error.response;
+      throw deviceError;
     }
 
     const errorMessage =
@@ -58,7 +69,11 @@ export const login = async (username, password) => {
       error.message ||
       "Error desconocido en el servicio de login.";
 
-    throw new Error(errorMessage);
+    const formattedError = new Error(errorMessage);
+    if (error.response) {
+      formattedError.response = error.response;
+    }
+    throw formattedError;
   }
 };
 

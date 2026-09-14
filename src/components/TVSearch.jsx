@@ -111,6 +111,9 @@ export default function TVSearch({
   const searchInputRef = useRef(null);
   const voiceButtonRef = useRef(null);
   const recognitionRef = useRef(null);
+  // Guardia anti-doble-seleccion: el mismo item via teclado (window keydown
+  // + onKeyDown del boton) y via click/mouse llegaba dos veces y navegaba doble.
+  const lastSelectRef = useRef({ key: '', at: 0 });
 
   const handleClose = useCallback(() => {
     onClose?.();
@@ -293,6 +296,14 @@ export default function TVSearch({
   }, [focusArea, selectedIndex]);
 
   const handleSelectResult = useCallback((item) => {
+    if (!item) return;
+    // Ignorar selecciones repetidas del mismo item en <600ms (doble evento).
+    const itemKey = String(item.id || item._id || getTVItemTitle(item));
+    const now = Date.now();
+    if (lastSelectRef.current.key === itemKey && now - lastSelectRef.current.at < 600) {
+      return;
+    }
+    lastSelectRef.current = { key: itemKey, at: now };
     console.log('[TVSearch] Selecting item:', {
       title: getTVItemTitle(item),
       id: item.id || item._id,
@@ -399,13 +410,15 @@ export default function TVSearch({
 
     if (inputIsActive) {
       if (action === 'Enter') {
+        // OK en el campo: bajar a resultados (no auto-seleccionar el primero,
+        // que elegia un item que el usuario no habia enfocado).
+        event.preventDefault();
         if (filteredResults.length > 0) {
-          event.preventDefault();
-          handleSelectResult(filteredResults[0]);
+          searchInputRef.current?.blur();
+          setFocusArea('results');
+          setSelectedIndex(0);
           return;
         }
-
-        event.preventDefault();
         openKeyboardInput();
       }
 
@@ -523,25 +536,6 @@ export default function TVSearch({
     return colors[type?.toLowerCase()] || '#999';
   };
 
-  const handleInputKeyDownCapture = (event) => {
-    const action = resolveAction(event);
-
-    if (action === 'ArrowDown' && filteredResults.length > 0) {
-      event.preventDefault();
-      event.stopPropagation();
-      searchInputRef.current?.blur();
-      setFocusArea('results');
-      setSelectedIndex(0);
-      return;
-    }
-
-    if (action === 'Enter' && filteredResults.length > 0) {
-      event.preventDefault();
-      event.stopPropagation();
-      handleSelectResult(filteredResults[0]);
-    }
-  };
-
   return (
     <div className="tv-search-overlay">
       <div className="tv-search-container">
@@ -568,7 +562,6 @@ export default function TVSearch({
               onClick={() => {
                 setFocusArea('input');
               }}
-              onKeyDownCapture={handleInputKeyDownCapture}
               placeholder={placeholder}
               className="tv-search-input"
               autoComplete="off"
@@ -668,7 +661,6 @@ export default function TVSearch({
                       setFocusArea('results');
                       setSelectedIndex(index);
                     }}
-                    onMouseDown={handleResultClick}
                     tabIndex={0}
                     aria-label={`Select ${getTVItemTitle(item)}`}
                   >

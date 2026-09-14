@@ -99,12 +99,37 @@ public class MainActivity extends BridgeActivity {
   }
 
   @Override
+  public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+    if (event.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
+      if (event.getAction() == android.view.KeyEvent.ACTION_UP) {
+        android.util.Log.d("TeamG", "dispatchKeyEvent: KEYCODE_BACK UP detected");
+        onBackPressed();
+      }
+      return true;
+    }
+    return super.dispatchKeyEvent(event);
+  }
+
+  @Override
   public void onBackPressed() {
+    android.util.Log.d("TeamG", "MainActivity onBackPressed called");
     if (customView != null) {
       if (bridge != null && bridge.getWebView() != null && bridge.getWebView().getWebChromeClient() != null) {
         bridge.getWebView().getWebChromeClient().onHideCustomView();
         return;
       }
+    }
+    if (bridge != null && bridge.getWebView() != null) {
+      bridge.getWebView().post(new Runnable() {
+        @Override
+        public void run() {
+          bridge.getWebView().evaluateJavascript(
+            "(function(){ window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true })); })()",
+            null
+          );
+        }
+      });
+      return;
     }
     super.onBackPressed();
   }

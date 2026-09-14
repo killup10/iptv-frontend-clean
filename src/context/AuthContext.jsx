@@ -103,7 +103,11 @@ export function AuthProvider({ children }) {
   const login = async (credentials) => {
     try {
       const { login: loginService } = await import("../utils/AuthService.js");
-      const userDataFromBackend = await loginService(credentials.username, credentials.password);
+      const userDataFromBackend = await loginService(
+        credentials.username,
+        credentials.password,
+        credentials.unlinkDeviceId
+      );
 
       if (!userDataFromBackend?.token || !userDataFromBackend?.user?.username) {
         throw new Error("Error de autenticacion: datos de respuesta invalidos");

@@ -20,48 +20,22 @@ import {
   getTVItemUserScore,
 } from '../utils/tvContentUtils.js';
 import { getAccessLockState } from '../utils/planAccess.js';
+import { getTVKeyName } from '../utils/tvRemote.js';
 import './TVGrid.css';
 import './TVFilteredGridPage.css';
 
 function resolveGridAction(event) {
-  switch (event.key) {
+  const name = getTVKeyName(event);
+  switch (name) {
     case 'ArrowUp':
     case 'ArrowDown':
     case 'ArrowLeft':
     case 'ArrowRight':
     case 'Enter':
     case 'Escape':
-      return event.key;
-    case ' ':
-    case 'Spacebar':
-    case 'Select':
-    case 'MediaPlayPause':
-      return 'Enter';
+      return name;
     case 'Backspace':
-    case 'GoBack':
-    case 'BrowserBack':
-      return 'Escape';
-    default:
-      break;
-  }
-
-  switch (event.keyCode) {
-    case 19:
-      return 'ArrowUp';
-    case 20:
-      return 'ArrowDown';
-    case 21:
-      return 'ArrowLeft';
-    case 22:
-      return 'ArrowRight';
-    case 23:
-    case 66:
-    case 62:
-      return 'Enter';
-    case 4:
-    case 8:
-    case 27:
-    case 111:
+      // Borrar fuera de inputs = volver (lo gestiona AppTV).
       return 'Escape';
     default:
       return null;
@@ -78,6 +52,9 @@ export default function TVFilteredGridPage({
   onSelectItem,
   columns = 4,
   initialIndex = 0,
+  // Al volver con BACK desde el detalle, aterrizar directo en la grilla
+  // (no en los filtros) para quedar donde estaba.
+  initialFocusMode = 'filters',
   onActiveIndexChange,
   onSearch,
   emptyMessage = 'No hay elementos disponibles en esta seccion.',
@@ -87,7 +64,7 @@ export default function TVFilteredGridPage({
   showItemTypeBadge = false,
 }) {
   const { user } = useAuth();
-  const [focusMode, setFocusMode] = useState('filters');
+  const [focusMode, setFocusMode] = useState(initialFocusMode);
   const { currentIndex, currentItem, navigate, setCurrentIndex } = useTVGrid(items, columns, initialIndex);
   const currentRow = Math.floor(currentIndex / columns);
   const totalRows = Math.ceil(items.length / columns);
@@ -129,9 +106,15 @@ export default function TVFilteredGridPage({
       const action = resolveGridAction(event);
       if (!action) return;
 
-      // Bloquear scroll nativo
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+      // Bloquear scroll nativo (usar la accion resuelta: en mandos reales
+      // event.key es "Unidentified" y el check por event.key no bloqueaba).
+      if (action === 'ArrowUp' || action === 'ArrowDown' || action === 'ArrowLeft' || action === 'ArrowRight') {
         event.preventDefault();
+      }
+
+      // BACK/Escape lo gestiona AppTV: no consumirlo aqui.
+      if (action === 'Escape') {
+        return;
       }
 
       if (focusMode === 'search') {
@@ -203,6 +186,7 @@ export default function TVFilteredGridPage({
           break;
         case 'ArrowLeft':
           if (currentIndex % columns === 0) {
+            // Borde izquierdo de la fila: ir al sidebar.
             focusTVNav();
             return;
           }

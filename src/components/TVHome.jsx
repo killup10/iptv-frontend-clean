@@ -18,6 +18,7 @@ import {
   resolveTVItemType,
 } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
+import { getTVKeyName } from '../utils/tvRemote.js';
 
 function normalizeLabel(value) {
   return String(value || '')
@@ -316,19 +317,25 @@ export default function TVHome({
     });
   }, []);
 
-  const scrollCurrentContentIntoView = useCallback((sectionIndex = currentSectionIndex, itemIndex = currentItemIndex) => {
+  const scrollSectionVertically = useCallback((sectionIndex = currentSectionIndex) => {
     const sectionRef = sectionRefs.current[sectionIndex];
-    const itemRef = itemRefs.current[`${sectionIndex}-${itemIndex}`];
-
-    if (sectionRef) {
-      const topOffset = sectionIndex === 0 ? 18 : 24;
-      scrollContainerToElement(sectionRef, topOffset);
+    if (!sectionRef) {
+      return;
     }
 
+    // Margen amplio: el titulo de seccion queda totalmente visible con aire
+    // arriba. Antes (18/24px) quedaba pegado al borde y se cortaba.
+    scrollContainerToElement(sectionRef, 96);
+  }, [scrollContainerToElement]);
+
+  const scrollCurrentContentIntoView = useCallback((sectionIndex = currentSectionIndex, itemIndex = currentItemIndex) => {
+    scrollSectionVertically(sectionIndex);
+
+    const itemRef = itemRefs.current[`${sectionIndex}-${itemIndex}`];
     if (itemRef) {
       scrollItemHorizontally(itemRef);
     }
-  }, [currentItemIndex, currentSectionIndex, scrollContainerToElement, scrollItemHorizontally]);
+  }, [currentItemIndex, currentSectionIndex, scrollItemHorizontally, scrollSectionVertically]);
 
   const focusHero = useCallback(() => {
     if (!spotlightItem) {
@@ -343,6 +350,15 @@ export default function TVHome({
         return;
       }
 
+      // Foco DOM real: sin esto el hero no es alcanzable por lectores ni
+      // muestra foco del sistema; antes solo hacia scroll.
+      try {
+        heroRef.current.focus({ preventScroll: true });
+      } catch {
+        try {
+          heroRef.current.focus();
+        } catch {}
+      }
       scrollContainerToElement(heroRef.current, 6);
     });
   }, [scrollContainerToElement, spotlightItem]);
@@ -368,55 +384,58 @@ export default function TVHome({
   }, [currentItem, currentItemIndex, currentSectionIndex, onSelectItem]);
 
   const resolveAction = (event) => {
-    switch (event.key) {
+    const name = getTVKeyName(event);
+    switch (name) {
       case 'ArrowUp':
       case 'ArrowDown':
       case 'ArrowLeft':
       case 'ArrowRight':
       case 'Enter':
-      case 'ContextMenu':
-      case 'Info':
-      case 'KeyI':
-      case '/':
       case 'Escape':
+        return name;
       case 'Backspace':
-      case ' ':
-        return event.key;
-      case 'Select':
-      case 'MediaPlayPause':
-        return 'Enter';
-      case 'GoBack':
-      case 'BrowserBack':
+        // Borrar fuera de inputs = volver (lo gestiona AppTV).
         return 'Escape';
       default:
         break;
     }
 
-    switch (event.keyCode) {
-      case 19:
-        return 'ArrowUp';
-      case 20:
-        return 'ArrowDown';
-      case 21:
-        return 'ArrowLeft';
-      case 22:
-        return 'ArrowRight';
-      case 23:
-      case 66:
-      case 62:
-        return 'Enter';
-      case 4:
-      case 8:
-      case 27:
-      case 111:
-        return 'Escape';
-      default:
-        return null;
+    // Atajos con tecla fisica: info, "/" y Ctrl+S abren detalles/busqueda.
+    if (event.key === 'ContextMenu' || event.key === 'Info' || event.key === 'KeyI' || event.key === '/') {
+      return event.key;
     }
+    return null;
+  };
+
+  const navRef = useRef({});
+  navRef.current = {
+    showSearch,
+    focusMode,
+    currentSectionIndex,
+    currentItemIndex,
+    currentSection,
+    currentItem,
+    spotlightItem,
+    heroIndex,
+    heroItems,
+    sections,
+    onSelectItem,
   };
 
   const handleNavigation = useCallback((event) => {
-    if (showSearch || getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
+    const {
+      showSearch: curSearch,
+      focusMode: curFocusMode,
+      currentSectionIndex: curSecIdx,
+      currentItemIndex: curItemIdx,
+      currentSection: curSection,
+      currentItem: curItem,
+      spotlightItem: curSpotlight,
+      heroItems: curHeroItems,
+      sections: curSections,
+    } = navRef.current;
+
+    if (curSearch || getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
       return;
     }
 
@@ -429,12 +448,13 @@ export default function TVHome({
       return;
     }
 
-    if (!currentSection) return;
+    if (!curSection) return;
 
-    if (focusMode === 'hero') {
+    if (curFocusMode === 'hero') {
       switch (key) {
         case 'ArrowUp':
           event.preventDefault();
+          // Subir al sidebar en lugar de quedarse atrapado en el hero.
           focusTVNav();
           break;
         case 'ArrowDown':
@@ -442,26 +462,23 @@ export default function TVHome({
           focusCurrentContent();
           break;
         case 'ArrowLeft':
-          if (heroIndex === 0) {
-            event.preventDefault();
-            focusTVNav();
-          } else if (heroItems.length > 1) {
+          if (curHeroItems?.length > 1) {
             event.preventDefault();
             hasUserNavigatedRef.current = true;
-            setHeroIndex((prev) => prev - 1);
+            setHeroIndex((prev) => (prev > 0 ? prev - 1 : curHeroItems.length - 1));
           }
           break;
         case 'ArrowRight':
-          if (heroItems.length > 1) {
+          if (curHeroItems?.length > 1) {
             event.preventDefault();
             hasUserNavigatedRef.current = true;
-            setHeroIndex((prev) => (prev + 1) % heroItems.length);
+            setHeroIndex((prev) => (prev + 1) % curHeroItems.length);
           }
           break;
         case 'Enter':
         case ' ':
           event.preventDefault();
-          runItemAction('play', spotlightItem, null, null);
+          runItemAction('play', curSpotlight, null, null);
           break;
         default:
           break;
@@ -469,7 +486,7 @@ export default function TVHome({
       return;
     }
 
-    if (focusMode === 'search') {
+    if (curFocusMode === 'search') {
       switch (key) {
         case 'ArrowDown':
           event.preventDefault();
@@ -490,7 +507,7 @@ export default function TVHome({
       case 'ArrowUp':
         event.preventDefault();
         hasUserNavigatedRef.current = true;
-        if (currentSectionIndex === 0) {
+        if (curSecIdx === 0) {
           focusHero();
           return;
         }
@@ -500,51 +517,36 @@ export default function TVHome({
         event.preventDefault();
         hasUserNavigatedRef.current = true;
         setFocusMode('content');
-        setCurrentSectionIndex((prev) => Math.min(sections.length - 1, prev + 1));
+        setCurrentSectionIndex((prev) => Math.min(curSections.length - 1, prev + 1));
         break;
       case 'ArrowLeft':
         event.preventDefault();
         hasUserNavigatedRef.current = true;
-        if (currentItemIndex === 0) {
-          focusTVNav();
-        } else {
+        if (curItemIdx > 0) {
           setFocusMode('content');
           setCurrentItemIndex((prev) => Math.max(0, prev - 1));
+          return;
         }
+        // Borde izquierdo de la fila: ir al sidebar (lo pide el mando).
+        focusTVNav();
         break;
       case 'ArrowRight':
         event.preventDefault();
         hasUserNavigatedRef.current = true;
         setFocusMode('content');
-        setCurrentItemIndex((prev) => Math.min(currentSection.items.length - 1, prev + 1));
+        setCurrentItemIndex((prev) => Math.min((curSection.items?.length || 1) - 1, prev + 1));
         break;
       case 'Enter':
       case ' ':
         event.preventDefault();
-        if (currentItem && onSelectItem) {
-          runItemAction('play');
+        if (curItem) {
+          runItemAction('play', curItem, curSecIdx, curItemIdx);
         }
         break;
       default:
         break;
     }
-  }, [
-    currentItem,
-    currentItemIndex,
-    currentSection,
-    currentSectionIndex,
-    focusCurrentContent,
-    focusHero,
-    focusMode,
-    heroIndex,
-    heroItems.length,
-    onSelectItem,
-    runItemAction,
-    sections.length,
-    setCurrentItemIndex,
-    showSearch,
-    spotlightItem,
-  ]);
+  }, [focusCurrentContent, focusHero, runItemAction, setCurrentItemIndex]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleNavigation);
@@ -589,8 +591,39 @@ export default function TVHome({
       return;
     }
 
-    scrollCurrentContentIntoView();
-  }, [currentItemIndex, currentSectionIndex, focusMode, location.state?.focusedSectionIndex, scrollCurrentContentIntoView]);
+    // Solo scroll vertical al cambiar de seccion: antes cada movimiento
+    // horizontal re-disparaba el scroll vertical y todo "se descuadraba".
+    scrollSectionVertically(currentSectionIndex);
+  }, [currentSectionIndex, focusMode, location.state?.focusedSectionIndex, scrollSectionVertically]);
+
+  useEffect(() => {
+    if (focusMode !== 'content') {
+      return;
+    }
+
+    if (!hasUserNavigatedRef.current && !Number.isInteger(location.state?.focusedSectionIndex)) {
+      return;
+    }
+
+    // Movimiento dentro de la fila: scroll horizontal + correccion vertical
+    // minima si el item quedo cortado (ej. hero redimensionado tras el scroll).
+    const itemRef = itemRefs.current[`${currentSectionIndex}-${currentItemIndex}`];
+    if (!itemRef) {
+      return;
+    }
+    scrollItemHorizontally(itemRef);
+
+    const container = containerRef.current;
+    if (container) {
+      const itemRect = itemRef.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      if (itemRect.bottom > containerRect.bottom) {
+        container.scrollTop += itemRect.bottom - containerRect.bottom + 12;
+      } else if (itemRect.top < containerRect.top) {
+        container.scrollTop -= containerRect.top - itemRect.top + 12;
+      }
+    }
+  }, [currentItemIndex, currentSectionIndex, focusMode, location.state?.focusedSectionIndex, scrollItemHorizontally]);
 
   if (!sections || sections.length === 0) {
     return (
@@ -630,6 +663,8 @@ export default function TVHome({
         {spotlightItem && (
           <section
             ref={heroRef}
+            tabIndex={-1}
+            aria-label={`Destacado: ${getTVItemTitle(spotlightItem)}`}
             className={`tv-home-spotlight ${focusMode === 'hero' ? 'is-focused' : ''}`}
           >
             <div className="tv-home-spotlight-media" aria-hidden="true">

@@ -83,16 +83,22 @@ export default function TVCatalogPage({
     return `${items.length} elementos disponibles`;
   }, [error, items.length, loading]);
 
-  const handleSelectItem = (item) => {
+  const handleSelectItem = (item, index) => {
     const itemId = getTVItemId(item);
     if (!itemId) return;
+
+    // Usar el indice vivo que manda la grilla (el state puede ir un frame atras).
+    const liveIndex = Number.isInteger(index) ? index : selectedIndex;
+    if (liveIndex !== selectedIndex) {
+      setSelectedIndex(liveIndex);
+    }
 
     const itemType = resolveTVItemType(item, fallbackWatchType || contentType);
     navigate(`/watch/${itemType}/${itemId}`, {
       state: {
         from: location.pathname,
         returnState: {
-          selectedIndex,
+          selectedIndex: liveIndex,
         },
       },
     });

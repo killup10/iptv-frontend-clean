@@ -13,14 +13,9 @@ public class VLCInstance {
             ArrayList<String> options = new ArrayList<>();
             options.add("--no-sub-autodetect-file");
             options.add("--swscale-mode=0");
-            options.add("--network-caching=1000");
-            options.add("--live-caching=1000");
+            options.add("--network-caching=200");
             options.add("--clock-jitter=0");
             options.add("--clock-synchro=0");
-            options.add("--http-reconnect");
-            options.add("--no-check-certificate");
-            options.add("--no-drop-late-frames");
-            options.add("--no-skip-frames");
             options.add("--avcodec-threads=0");
             libVLC = new LibVLC(context, options);
         }

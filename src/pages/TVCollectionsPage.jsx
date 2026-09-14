@@ -184,6 +184,7 @@ export default function TVCollectionsPage() {
         onAddToMyList={handleAddToMyList}
         columns={5}
         initialIndex={selectedIndex}
+        initialFocusMode={Number.isInteger(location.state?.selectedIndex) ? 'grid' : 'filters'}
         onActiveIndexChange={setSelectedIndex}
         onSearch={() => setShowSearch(true)}
         emptyMessage={`No hay contenido disponible en ${selectedCollection}.`}

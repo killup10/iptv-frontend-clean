@@ -170,22 +170,34 @@ export function getTVItemDuration(item) {
 }
 
 export function getTVItemDirector(item) {
-  return item?.director || '';
+  return item?.director || item?.directores || item?.tmdbData?.director || '';
 }
 
 export function getTVItemCast(item) {
-  if (Array.isArray(item?.cast)) {
+  if (Array.isArray(item?.cast) && item.cast.length > 0) {
     return item.cast.filter(Boolean);
+  }
+  if (Array.isArray(item?.actors) && item.actors.length > 0) {
+    return item.actors.filter(Boolean);
+  }
+  if (Array.isArray(item?.reparto) && item.reparto.length > 0) {
+    return item.reparto.filter(Boolean);
+  }
+  if (Array.isArray(item?.tmdbData?.cast) && item.tmdbData.cast.length > 0) {
+    return item.tmdbData.cast.filter(Boolean);
+  }
+  if (typeof item?.cast === 'string' && item.cast.trim()) {
+    return item.cast.split(',').map(s => s.trim()).filter(Boolean);
   }
   return [];
 }
 
 export function getTVItemCertification(item) {
-  return item?.certification || item?.clasificacion || '';
+  return item?.certification || item?.clasificacion || item?.rated || item?.tmdbData?.certification || '';
 }
 
 export function getTVItemTagline(item) {
-  return item?.tagline || '';
+  return item?.tagline || item?.lema || item?.tmdbData?.tagline || '';
 }
 
 export function resolveTVItemType(item, fallbackType = 'movie') {
@@ -208,6 +220,35 @@ export function getTVItemImage(item) {
     '';
 
   return rewriteImageUrl(image) || '/img/placeholder-thumbnail.png';
+}
+
+/**
+ * true si el item tiene imagen HORIZONTAL real (banner/backdrop/fanart).
+ * getTVItemBackdrop() cae al poster vertical cuando no hay, y ese poster
+ * estirado como cover rompe el hero del detalle (tapa el titulo y empuja
+ * las acciones fuera de pantalla). Usar esto para decidir el layout.
+ */
+export function hasTVItemBackdrop(item) {
+  if (!item) return false;
+  const backdrop =
+    item?.bannerImage ||
+    item?.bannerUrl ||
+    item?.customBanner ||
+    item?.customBackdrop ||
+    item?.horizontalImage ||
+    item?.horizontalThumbnail ||
+    item?.heroBanner ||
+    item?.heroImage ||
+    item?.landscapeThumbnail ||
+    item?.backdropPath ||
+    item?.backdrop_path ||
+    item?.backdrop ||
+    item?.banner ||
+    item?.cover ||
+    item?.imagenHorizontal ||
+    item?.portadaHorizontal ||
+    '';
+  return Boolean(String(backdrop || '').trim());
 }
 
 export function getTVItemBackdrop(item) {
@@ -256,8 +297,14 @@ export function getTVItemTrailerUrl(item) {
     item?.trailerId ||
     item?.youtubeId ||
     item?.tmdbTrailer ||
+    item?.tmdbData?.trailerUrl ||
+    item?.tmdbData?.trailer ||
+    item?.tmdbData?.youtube ||
     (Array.isArray(item?.videos?.results)
       ? item.videos.results.find(v => v.type === 'Trailer' || v.site === 'YouTube')?.key
+      : '') ||
+    (Array.isArray(item?.tmdbData?.videos?.results)
+      ? item.tmdbData.videos.results.find(v => v.type === 'Trailer' || v.site === 'YouTube')?.key
       : '') ||
     '';
 

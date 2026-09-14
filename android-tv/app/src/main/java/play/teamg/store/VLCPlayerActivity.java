@@ -86,6 +86,30 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         return sActiveActivity;
     }
 
+    public static void stopAndFinishCurrent() {
+        if (sActiveActivity != null && !sActiveActivity.isFinishing()) {
+            sActiveActivity.runOnUiThread(() -> {
+                try {
+                    Log.d(TAG, "stopAndFinishCurrent called on sActiveActivity");
+                    sActiveActivity.isBackPressed = true;
+                    sActiveActivity.isActivityClosing = true;
+                    sActiveActivity.closeReason = "direct_stop";
+                    if (sActiveActivity.mediaPlayer != null) {
+                        try {
+                            sActiveActivity.mediaPlayer.stop();
+                            sActiveActivity.mediaPlayer.detachViews();
+                        } catch (Exception ignored) {}
+                    }
+                    sActiveActivity.notifyPlayerClosed("direct_stop");
+                    sActiveActivity.releasePlayer();
+                    sActiveActivity.finish();
+                } catch (Exception e) {
+                    Log.e(TAG, "Error stopping sActiveActivity", e);
+                }
+            });
+        }
+    }
+
     // Player components
     private LibVLC libVlc;
     private MediaPlayer mediaPlayer;
@@ -162,6 +186,34 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ListView drawerChannelList;
     private ImageButton railTabSearch, railTabHistory, railTabFavorites, railTabChannels;
     private ChannelDrawerAdapter channelDrawerAdapter;
+    private int drawerFocusedPosition = 0;
+    // Sub-panel Programacion EPG del canal (guia de hoy + recordatorios, como en movil)
+    private View drawerChannelsView;
+    private View drawerScheduleView;
+    private Button scheduleBtnBack;
+    private TextView scheduleChannelTitle;
+    private TextView scheduleEmptyText;
+    private ProgressBar scheduleProgress;
+    private ListView scheduleProgramList;
+    private ScheduleProgramAdapter scheduleProgramAdapter;
+    private int scheduleFocusedPosition = 0;
+    private final ArrayList<ProgramScheduleItem> scheduleItems = new ArrayList<>();
+
+    private static class ProgramScheduleItem {
+        String title;
+        String desc;
+        String timeStr;
+        boolean isLive;
+        boolean hasReminder;
+
+        ProgramScheduleItem(String title, String desc, String timeStr, boolean isLive) {
+            this.title = title;
+            this.desc = desc;
+            this.timeStr = timeStr;
+            this.isLive = isLive;
+            this.hasReminder = false;
+        }
+    }
     private final ArrayList<Integer> visibleChannelIndices = new ArrayList<>();
     private final ArrayList<String> recentChannelNames = new ArrayList<>();
     private String currentRailTab = "channels";
@@ -231,6 +283,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             return;
         }
 
+        registerControlReceiver();
+        registerFinishReceiver();
+        registerLiveChannelsReceiver();
+
         setContentView(R.layout.activity_vlc_player);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -266,6 +322,21 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         railTabHistory = findViewById(R.id.rail_tab_history);
         railTabFavorites = findViewById(R.id.rail_tab_favorites);
         railTabChannels = findViewById(R.id.rail_tab_channels);
+        drawerChannelsView = findViewById(R.id.drawer_channels_view);
+        drawerScheduleView = findViewById(R.id.drawer_schedule_view);
+        scheduleBtnBack = findViewById(R.id.schedule_btn_back);
+        scheduleChannelTitle = findViewById(R.id.schedule_channel_title);
+        scheduleEmptyText = findViewById(R.id.schedule_empty_text);
+        scheduleProgress = findViewById(R.id.schedule_progress);
+        scheduleProgramList = findViewById(R.id.schedule_program_list);
+        if (scheduleBtnBack != null) {
+            scheduleBtnBack.setOnClickListener(v -> closeChannelScheduleView());
+        }
+        if (scheduleProgramList != null) {
+            scheduleProgramAdapter = new ScheduleProgramAdapter();
+            scheduleProgramList.setAdapter(scheduleProgramAdapter);
+            scheduleProgramList.setOnItemClickListener((parent, view, position, id) -> toggleScheduleReminder(position));
+        }
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
         String videoTitleText = getIntent().getStringExtra("video_title");
@@ -377,9 +448,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         hasSentPlayerClosedEvent = false;
         closeReason = "active";
         initializePlayer();
-        registerControlReceiver();
-        registerFinishReceiver();
-        registerLiveChannelsReceiver();
     }
 
     @Override
@@ -396,6 +464,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     public void onBackPressed() {
         if (channelDrawerContainer != null && channelDrawerContainer.getVisibility() == View.VISIBLE) {
+            if (drawerScheduleView != null && drawerScheduleView.getVisibility() == View.VISIBLE) {
+                closeChannelScheduleView();
+                return;
+            }
             hideLiveChannelsDrawer();
             return;
         }
@@ -423,10 +495,101 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
         // 1. Manejo prioritario cuando el cajon lateral de canales en vivo esta visible
         if (channelDrawerContainer != null && channelDrawerContainer.getVisibility() == View.VISIBLE) {
-            if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                hideLiveChannelsDrawer();
+            boolean scheduleVisible = drawerScheduleView != null
+                    && drawerScheduleView.getVisibility() == View.VISIBLE;
+            if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
+                if (scheduleVisible) {
+                    closeChannelScheduleView();
+                } else {
+                    hideLiveChannelsDrawer();
+                }
                 return true;
             }
+
+            // Guia EPG abierta: D-Pad propio (UP/DOWN/OK/recordatorio, BACK o laterales para volver)
+            if (scheduleVisible) {
+                return handleScheduleKeys(keyCode);
+            }
+
+            View focused = getCurrentFocus();
+            boolean isRailFocused = (railTabSearch != null && (focused == railTabSearch || railTabSearch.hasFocus()))
+                    || (railTabHistory != null && (focused == railTabHistory || railTabHistory.hasFocus()))
+                    || (railTabFavorites != null && (focused == railTabFavorites || railTabFavorites.hasFocus()))
+                    || (railTabChannels != null && (focused == railTabChannels || railTabChannels.hasFocus()))
+                    || (drawerSearchInput != null && (focused == drawerSearchInput || drawerSearchInput.hasFocus()));
+
+            if (!isRailFocused) {
+                // El foco se mantiene exclusivamente en la lista de canales
+                int count = channelDrawerAdapter != null ? channelDrawerAdapter.getCount() : 0;
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (count > 0 && drawerFocusedPosition < count - 1) {
+                        drawerFocusedPosition++;
+                        if (drawerChannelList != null) {
+                            drawerChannelList.setSelection(drawerFocusedPosition);
+                            drawerChannelList.smoothScrollToPosition(drawerFocusedPosition);
+                        }
+                        if (channelDrawerAdapter != null) {
+                            channelDrawerAdapter.notifyDataSetChanged();
+                        }
+                    }
+                    return true; // No permitir que Android busque foco abajo y salte de la lista
+                }
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    if (drawerFocusedPosition > 0) {
+                        drawerFocusedPosition--;
+                        if (drawerChannelList != null) {
+                            drawerChannelList.setSelection(drawerFocusedPosition);
+                            drawerChannelList.smoothScrollToPosition(drawerFocusedPosition);
+                        }
+                        if (channelDrawerAdapter != null) {
+                            channelDrawerAdapter.notifyDataSetChanged();
+                        }
+                    }
+                    return true;
+                }
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                    if (drawerFocusedPosition >= 0 && drawerFocusedPosition < count) {
+                        selectDrawerChannel(drawerFocusedPosition);
+                    }
+                    return true;
+                }
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    // Derecha cierra el drawer y retorna al video
+                    hideLiveChannelsDrawer();
+                    return true;
+                }
+
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    // Izquierda mueve el foco a los botones de tabs
+                    if (railTabChannels != null) {
+                        railTabChannels.requestFocus();
+                    }
+                    return true;
+                }
+
+                return true;
+            } else {
+                // El foco está en los tabs laterales o búsqueda
+                if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    if (drawerChannelList != null) {
+                        drawerChannelList.requestFocus();
+                        int count = channelDrawerAdapter != null ? channelDrawerAdapter.getCount() : 0;
+                        if (drawerFocusedPosition < 0 || drawerFocusedPosition >= count) {
+                            drawerFocusedPosition = 0;
+                        }
+                        drawerChannelList.setSelection(drawerFocusedPosition);
+                        if (channelDrawerAdapter != null) {
+                            channelDrawerAdapter.notifyDataSetChanged();
+                        }
+                    }
+                    return true;
+                }
+            }
+
             return super.dispatchKeyEvent(event);
         }
 
@@ -584,9 +747,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onStop() {
         super.onStop();
-        unregisterControlReceiver();
-        unregisterFinishReceiver();
-        unregisterLiveChannelsReceiver();
         // Limpiar long press handler
         if (longPressRunnable != null) {
             longPressHandler.removeCallbacks(longPressRunnable);
@@ -604,6 +764,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             sActiveActivity = null;
         }
         super.onDestroy();
+        unregisterControlReceiver();
+        unregisterFinishReceiver();
+        unregisterLiveChannelsReceiver();
         isActivityClosing = true;
         recoveryHandler.removeCallbacksAndMessages(null);
         // Limpiar long press handler
@@ -613,11 +776,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
         if (mediaPlayer != null) {
             try {
-                if (mediaPlayer.isPlaying()) {
-                    Log.d(TAG, "Stopping playback when activity is destroyed");
-                    mediaPlayer.stop();
-                    notifyProgressUpdate(mediaPlayer.getTime());
-                }
+                Log.d(TAG, "Stopping playback when activity is destroyed");
+                mediaPlayer.stop();
+                mediaPlayer.detachViews();
             } catch (Exception ignored) {}
         }
         notifyPlayerClosed(closeReason);
@@ -2067,6 +2228,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             visibleChannelIndices.add(i);
         }
 
+        if (drawerFocusedPosition >= visibleChannelIndices.size()) {
+            drawerFocusedPosition = Math.max(0, visibleChannelIndices.size() - 1);
+        }
+
         if (channelDrawerAdapter != null) {
             channelDrawerAdapter.notifyDataSetChanged();
         }
@@ -2096,6 +2261,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         setDrawerRailTab("channels");
         applyDrawerFilter();
 
+        // El drawer siempre abre en la lista; la guia se cierra si quedo abierta
+        if (drawerChannelsView != null) drawerChannelsView.setVisibility(View.VISIBLE);
+        if (drawerScheduleView != null) drawerScheduleView.setVisibility(View.GONE);
+
         if (channelDrawerBackdrop != null) {
             channelDrawerBackdrop.setVisibility(View.VISIBLE);
             channelDrawerBackdrop.setAlpha(0f);
@@ -2107,11 +2276,13 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         channelDrawerContainer.animate().translationX(0f).setDuration(220).start();
 
         int targetPos = visibleChannelIndices.indexOf(currentChannelSelection);
+        drawerFocusedPosition = targetPos >= 0 ? targetPos : 0;
         if (drawerChannelList != null) {
             drawerChannelList.requestFocus();
-            if (targetPos >= 0) {
-                drawerChannelList.setSelection(Math.max(0, targetPos - 1));
-            }
+            drawerChannelList.setSelection(drawerFocusedPosition);
+        }
+        if (channelDrawerAdapter != null) {
+            channelDrawerAdapter.notifyDataSetChanged();
         }
     }
 
@@ -2119,6 +2290,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (channelDrawerContainer == null || channelDrawerContainer.getVisibility() != View.VISIBLE) return;
 
         hideKeyboard();
+        closeChannelScheduleView();
 
         if (channelDrawerBackdrop != null) {
             channelDrawerBackdrop.animate().alpha(0f).setDuration(180).start();
@@ -2130,6 +2302,270 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                 channelDrawerBackdrop.setVisibility(View.GONE);
             }
         }).start();
+    }
+
+    // ===== Guia EPG del canal (Programacion de hoy + recordatorios, como en movil) =====
+
+    private void showChannelScheduleView(String channelName, int channelIndex) {
+        if (drawerChannelsView == null || drawerScheduleView == null) return;
+
+        drawerChannelsView.setVisibility(View.GONE);
+        drawerScheduleView.setVisibility(View.VISIBLE);
+
+        if (scheduleChannelTitle != null) scheduleChannelTitle.setText(channelName);
+        if (scheduleProgress != null) scheduleProgress.setVisibility(View.VISIBLE);
+        if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.GONE);
+        if (scheduleProgramList != null) scheduleProgramList.setVisibility(View.GONE);
+
+        scheduleFocusedPosition = 0;
+        scheduleItems.clear();
+        if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+
+        new Thread(() -> {
+            ArrayList<ProgramScheduleItem> fetchedList = new ArrayList<>();
+            try {
+                String base = (apiBaseUrl != null && !apiBaseUrl.isEmpty()) ? apiBaseUrl : "https://api.teamg.store";
+                String targetUrl = base + "/api/channels/epg/schedule?name=" + java.net.URLEncoder.encode(channelName, "UTF-8");
+                java.net.URL url = new java.net.URL(targetUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                if (sessionToken != null && !sessionToken.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + sessionToken);
+                }
+
+                if (conn.getResponseCode() == 200) {
+                    java.io.InputStream in = conn.getInputStream();
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[2048];
+                    int len;
+                    while ((len = in.read(buf)) != -1) {
+                        out.write(buf, 0, len);
+                    }
+                    in.close();
+                    String jsonStr = out.toString("UTF-8");
+                    org.json.JSONObject root = new org.json.JSONObject(jsonStr);
+                    org.json.JSONArray arr = root.optJSONArray("schedule");
+                    if (arr != null && arr.length() > 0) {
+                        for (int i = 0; i < arr.length(); i++) {
+                            org.json.JSONObject p = arr.getJSONObject(i);
+                            String pTitle = p.optString("title", "Programa");
+                            String pDesc = p.optString("desc", "");
+                            String pStart = formatScheduleTime(p.optString("start", ""));
+                            String pStop = formatScheduleTime(p.optString("stop", ""));
+                            String timeStr = (!pStart.isEmpty() && !pStop.isEmpty()) ? (pStart + " - " + pStop) : pStart;
+                            boolean isLive = p.optBoolean("isCurrent", false);
+                            fetchedList.add(new ProgramScheduleItem(pTitle, pDesc, timeStr, isLive));
+                        }
+                    }
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                Log.w(TAG, "Error fetching EPG schedule: " + e.getMessage());
+            }
+
+            if (fetchedList.isEmpty()) {
+                String currentEpg = (channelEpgs != null && channelIndex >= 0 && channelIndex < channelEpgs.size())
+                        ? channelEpgs.get(channelIndex) : "Emision en vivo";
+                fetchedList.add(new ProgramScheduleItem(currentEpg, "Emision en directo del canal", "En vivo", true));
+            }
+
+            runOnUiThread(() -> {
+                if (scheduleProgress != null) scheduleProgress.setVisibility(View.GONE);
+                scheduleItems.clear();
+                scheduleItems.addAll(fetchedList);
+                int liveIndex = -1;
+                for (int i = 0; i < scheduleItems.size(); i++) {
+                    if (scheduleItems.get(i).isLive) {
+                        liveIndex = i;
+                        break;
+                    }
+                }
+                scheduleFocusedPosition = liveIndex >= 0 ? liveIndex : 0;
+                if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+
+                if (scheduleItems.isEmpty()) {
+                    if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.VISIBLE);
+                    if (scheduleProgramList != null) scheduleProgramList.setVisibility(View.GONE);
+                } else {
+                    if (scheduleEmptyText != null) scheduleEmptyText.setVisibility(View.GONE);
+                    if (scheduleProgramList != null) {
+                        scheduleProgramList.setVisibility(View.VISIBLE);
+                        scheduleProgramList.requestFocus();
+                        scheduleProgramList.setSelection(scheduleFocusedPosition);
+                    }
+                }
+            });
+        }).start();
+    }
+
+    private void closeChannelScheduleView() {
+        if (drawerScheduleView != null) drawerScheduleView.setVisibility(View.GONE);
+        if (drawerChannelsView != null) drawerChannelsView.setVisibility(View.VISIBLE);
+    }
+
+    private void toggleScheduleReminder(int position) {
+        if (position < 0 || position >= scheduleItems.size()) return;
+        ProgramScheduleItem item = scheduleItems.get(position);
+        if (item.isLive) return;
+        item.hasReminder = !item.hasReminder;
+        if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+        if (item.hasReminder) {
+            Toast.makeText(this, "Recordatorio activado para:\n" + item.title
+                    + (item.timeStr == null || item.timeStr.isEmpty() ? "" : " (" + item.timeStr + ")"),
+                    Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(this, "Recordatorio cancelado", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean handleScheduleKeys(int keyCode) {
+        int count = scheduleProgramAdapter != null ? scheduleProgramAdapter.getCount() : 0;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (count <= 0) return true;
+            if (scheduleFocusedPosition <= 0) {
+                if (scheduleBtnBack != null) scheduleBtnBack.requestFocus();
+                return true;
+            }
+            scheduleFocusedPosition--;
+            if (scheduleProgramList != null) scheduleProgramList.setSelection(scheduleFocusedPosition);
+            if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (scheduleBtnBack != null && scheduleBtnBack.hasFocus()) {
+                if (scheduleProgramList != null && count > 0) {
+                    scheduleProgramList.requestFocus();
+                    scheduleProgramList.setSelection(scheduleFocusedPosition);
+                    if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+                }
+                return true;
+            }
+            if (count <= 0) return true;
+            if (scheduleFocusedPosition < count - 1) {
+                scheduleFocusedPosition++;
+                if (scheduleProgramList != null) scheduleProgramList.setSelection(scheduleFocusedPosition);
+                if (scheduleProgramAdapter != null) scheduleProgramAdapter.notifyDataSetChanged();
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            toggleScheduleReminder(scheduleFocusedPosition);
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            closeChannelScheduleView();
+            if (drawerChannelList != null) {
+                drawerChannelList.requestFocus();
+                drawerChannelList.setSelection(Math.max(0, drawerFocusedPosition));
+            }
+            if (channelDrawerAdapter != null) channelDrawerAdapter.notifyDataSetChanged();
+            return true;
+        }
+        return true;
+    }
+
+    private String formatScheduleTime(String isoStr) {
+        if (isoStr == null || isoStr.trim().isEmpty()) return "";
+        try {
+            String s = isoStr.trim();
+            java.util.Date date = null;
+            String[] patterns = {
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+                "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                "yyyy-MM-dd'T'HH:mm:ss"
+            };
+            for (String pattern : patterns) {
+                try {
+                    SimpleDateFormat parser = new SimpleDateFormat(pattern, Locale.US);
+                    parser.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    date = parser.parse(s);
+                    if (date != null) break;
+                } catch (Exception ignored) {}
+            }
+            if (date != null) {
+                SimpleDateFormat outFormat = new SimpleDateFormat("HH:mm", new Locale("es", "PE"));
+                outFormat.setTimeZone(java.util.TimeZone.getTimeZone("America/Lima"));
+                return outFormat.format(date);
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            if (isoStr.contains("T")) {
+                String timePart = isoStr.substring(isoStr.indexOf("T") + 1);
+                if (timePart.length() >= 5) {
+                    return timePart.substring(0, 5);
+                }
+            }
+        } catch (Exception ignored) {}
+        return isoStr;
+    }
+
+    private class ScheduleProgramAdapter extends android.widget.BaseAdapter {
+        @Override
+        public int getCount() {
+            return scheduleItems.size();
+        }
+
+        @Override
+        public Object getItem(int position) {
+            return scheduleItems.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            if (convertView == null) {
+                convertView = getLayoutInflater().inflate(R.layout.item_drawer_schedule, parent, false);
+            }
+            ProgramScheduleItem item = scheduleItems.get(position);
+            TextView timeView = convertView.findViewById(R.id.schedule_item_time);
+            TextView badgeView = convertView.findViewById(R.id.schedule_item_badge);
+            TextView titleView = convertView.findViewById(R.id.schedule_item_title);
+            TextView descView = convertView.findViewById(R.id.schedule_item_desc);
+            TextView btnReminder = convertView.findViewById(R.id.schedule_item_btn_reminder);
+
+            if (timeView != null) timeView.setText(item.timeStr != null ? item.timeStr : "");
+            if (titleView != null) titleView.setText(item.title != null ? item.title : "");
+
+            if (descView != null) {
+                if (item.desc != null && !item.desc.trim().isEmpty() && !item.desc.equalsIgnoreCase(item.title)) {
+                    descView.setText(item.desc);
+                    descView.setVisibility(View.VISIBLE);
+                } else {
+                    descView.setVisibility(View.GONE);
+                }
+            }
+
+            if (item.isLive) {
+                if (badgeView != null) badgeView.setVisibility(View.VISIBLE);
+                if (btnReminder != null) btnReminder.setVisibility(View.GONE);
+            } else {
+                if (badgeView != null) badgeView.setVisibility(View.GONE);
+                if (btnReminder != null) {
+                    btnReminder.setVisibility(View.VISIBLE);
+                    if (item.hasReminder) {
+                        btnReminder.setText("Recordatorio activo");
+                        btnReminder.setTextColor(0xFF00E676);
+                    } else {
+                        btnReminder.setText("Recordatorio");
+                        btnReminder.setTextColor(0xFF00E5FF);
+                    }
+                }
+            }
+
+            convertView.setSelected(position == scheduleFocusedPosition);
+            return convertView;
+        }
     }
 
     private void hideKeyboard() {
@@ -2152,6 +2588,16 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             : null;
 
         Log.d(TAG, "Canal seleccionado en TV drawer: " + selectedChannel + " - URL: " + selectedUrl);
+
+        // Si es el canal que YA se reproduce: abrir la guia EPG (como en movil)
+        if (channelIndex == currentChannelSelection
+                || (currentVideoUrl != null && currentVideoUrl.equals(selectedUrl))) {
+            showChannelScheduleView(selectedChannel, channelIndex);
+            if (channelDrawerAdapter != null) {
+                channelDrawerAdapter.notifyDataSetChanged();
+            }
+            return;
+        }
 
         if (!recentChannelNames.contains(selectedChannel)) {
             recentChannelNames.add(0, selectedChannel);
@@ -2217,8 +2663,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             holder.epgView.setText(epg != null && !epg.isEmpty() ? epg : "En vivo");
 
             boolean isCurrent = (channelIndex == currentChannelSelection);
+            boolean isFocused = (position == drawerFocusedPosition);
             convertView.setActivated(isCurrent);
-            convertView.setSelected(isCurrent);
+            convertView.setSelected(isFocused);
 
             boolean isFav = isChannelFavorite(name);
             holder.favoriteView.setAlpha(isFav ? 1.0f : 0.25f);

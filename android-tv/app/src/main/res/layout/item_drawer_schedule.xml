@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fila de programa de la guia EPG (Android TV). El foco D-Pad lo gestiona
+     la ListView + setSelected desde VLCPlayerActivity (fondo con selector). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/drawer_channel_item_bg"
+    android:padding="12dp">
+
+    <!-- Fila superior: Hora y chip EN VIVO -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/schedule_item_time"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#00E5FF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/schedule_item_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="EN VIVO"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:background="#E50914"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Titulo del programa -->
+    <TextView
+        android:id="@+id/schedule_item_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:layout_marginTop="4dp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <!-- Descripcion del programa -->
+    <TextView
+        android:id="@+id/schedule_item_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#9E9EB2"
+        android:textSize="12sp"
+        android:layout_marginTop="3dp"
+        android:maxLines="3"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <!-- Recordatorio (solo visual en TV: OK sobre la fila lo alterna) -->
+    <TextView
+        android:id="@+id/schedule_item_btn_reminder"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginTop="8dp"
+        android:layout_gravity="end"
+        android:gravity="center"
+        android:text="Recordatorio"
+        android:textColor="#00E5FF"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:background="@drawable/tv_exo_button_secondary"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:clickable="false"
+        android:focusable="false" />
+</LinearLayout>

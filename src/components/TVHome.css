@@ -1,7 +1,7 @@
 .tv-home-container {
   width: 100%;
-  min-height: calc(100vh - 84px);
-  height: calc(100vh - 84px);
+  min-height: calc(100vh - 30px);
+  height: calc(100vh - 30px);
   background:
     radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 30%),
     radial-gradient(circle at top right, rgba(244, 63, 94, 0.08), transparent 26%),
@@ -11,7 +11,7 @@
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 10px 30px 28px;
+  padding: 10px 30px 48px;
   scroll-padding-top: 18px;
   box-sizing: border-box;
   scroll-behavior: auto;
@@ -42,7 +42,9 @@
   grid-template-columns: minmax(0, 1fr) minmax(180px, 0.2fr);
   align-items: stretch;
   gap: 16px;
-  min-height: clamp(184px, 21vw, 250px);
+  /* Altura FIJA: con min-height el hero crecia/encogia al rotar imagenes y
+     desplazaba todas las secciones (titulos cortados). */
+  height: clamp(184px, 21vw, 250px);
   padding: 16px 20px 14px;
   border-radius: 28px;
   overflow: hidden;
@@ -363,15 +365,13 @@
 }
 
 .tv-home-section {
-  opacity: 0.7;
-  transform: translateY(0) scale(0.988);
-  transition: transform 180ms ease, opacity 180ms ease;
-  scroll-margin-top: 24px;
+  opacity: 0.72;
+  transition: opacity 180ms ease;
+  scroll-margin-top: 96px;
 }
 
 .tv-home-section.active {
   opacity: 1;
-  transform: scale(1);
 }
 
 .section-title {
@@ -752,7 +752,9 @@
 
   .tv-home-spotlight {
     grid-template-columns: 1fr;
-    min-height: auto;
+    /* Fija tambien aqui: evita que el hero empuje las secciones al rotar */
+    height: 340px;
+    min-height: 340px;
   }
 
   .tv-home-spotlight-side {

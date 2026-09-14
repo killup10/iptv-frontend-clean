@@ -8,6 +8,8 @@ import axiosInstance from "./utils/axiosInstance.js";
 import { fetchVideoCounts } from "./utils/api.js";
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
+import VideoPlayerPlugin from "./plugins/VideoPlayerPlugin.js";
+import { backgroundPlaybackService } from "./services/backgroundPlayback.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -105,6 +107,22 @@ function App() {
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
   const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
   const isLiveTVPage = location.pathname === '/live-tv';
+
+  // Cortar reproducción nativa y audio en segundo plano al salir de cualquier pantalla de reproducción
+  useEffect(() => {
+    if (!isWatchPage) {
+      try {
+        if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+          VideoPlayerPlugin.stopVideo().catch(() => {});
+        }
+        if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+          backgroundPlaybackService.stopPlayback().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[App.jsx] Error al cortar reproducción fuera de watch:', e);
+      }
+    }
+  }, [isWatchPage]);
 
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -529,6 +547,15 @@ function App() {
                         ⚙️ Configuración
                       </button>
                       <button
+                        onClick={() => {
+                          closeAllMenus();
+                          navigate("/settings?tab=devices");
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-b border-gray-100"
+                      >
+                        📱 Dispositivos
+                      </button>
+                      <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
@@ -704,6 +731,15 @@ function App() {
                     className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full text-left transition border-b border-white/5 mb-2"
                   >
                     ⚙️ Configuración
+                  </button>
+                  <button 
+                    onClick={() => {
+                      closeAllMenus();
+                      navigate("/settings?tab=devices");
+                    }} 
+                    className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold w-full text-left transition border-b border-white/5 mb-2"
+                  >
+                    📱 Dispositivos
                   </button>
                   <button 
                     onClick={handleLogout} 

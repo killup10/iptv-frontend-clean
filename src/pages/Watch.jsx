@@ -12,6 +12,7 @@ import LiveNowNextBar from "@/components/LiveNowNextBar.jsx";
 import useEpgSchedule from "@/hooks/useEpgSchedule.js";
 import { formatGuideTime, getProgramProgress } from "@/utils/epgCache.js";
 import { App as CapacitorApp } from '@capacitor/app';
+import VideoPlayerPlugin from '@/plugins/VideoPlayerPlugin.js';
 
 import ContentAccessModal from '@/components/ContentAccessModal.jsx';
 import DynamicTheme, { DynamicText, DynamicCard } from '@/components/DynamicTheme.jsx';
@@ -26,11 +27,21 @@ import {
   getTVItemDescription,
   getTVItemId,
   getTVItemImage,
+  hasTVItemBackdrop,
   getTVItemRating,
   getTVItemTitle,
   getTVItemTrailerUrl,
   getTVItemYear,
   resolveTVItemType,
+  getTVItemGenreList,
+  getTVItemUserScore,
+  getTVItemReleaseDate,
+  getTVItemDuration,
+  getTVItemDirector,
+  getTVItemCast,
+  getTVItemCertification,
+  getTVItemTagline,
+  getTVItemQualityBadges,
 } from '@/utils/tvContentUtils.js';
 import {
   focusTVContent,
@@ -38,45 +49,25 @@ import {
   TV_FOCUS_ZONE_CONTENT,
 } from '@/utils/tvFocusZone.js';
 import { normalizeSearchText } from '@/utils/searchUtils.js';
+import { getTVKeyName, isEditableTVElement, moveSpatialIndex } from '@/utils/tvRemote.js';
 
 function resolveRemoteAction(event) {
-  switch (event.key) {
+  const name = getTVKeyName(event);
+  switch (name) {
     case 'ArrowUp':
     case 'ArrowDown':
     case 'ArrowLeft':
     case 'ArrowRight':
     case 'Enter':
-      return event.key;
-    case ' ':
-    case 'Spacebar':
-    case 'Select':
-    case 'MediaPlayPause':
-      return 'Enter';
+      return name;
     case 'Escape':
-    case 'GoBack':
-    case 'BrowserBack':
       return 'close';
-    default:
-      break;
-  }
-
-  switch (event.keyCode) {
-    case 19:
-      return 'ArrowUp';
-    case 20:
-      return 'ArrowDown';
-    case 21:
-      return 'ArrowLeft';
-    case 22:
-      return 'ArrowRight';
-    case 23:
-    case 62:
-    case 66:
-      return 'Enter';
-    case 4:
-    case 27:
-    case 111:
-      return 'close';
+    case 'Backspace':
+      // Borrar fuera de inputs tambien vuelve (antes solo 4/27/111).
+      if (typeof document === 'undefined' || !isEditableTVElement(document.activeElement)) {
+        return 'close';
+      }
+      return null;
     default:
       return null;
   }
@@ -271,6 +262,8 @@ export function Watch() {
   const [focusedChannelPickerIndex, setFocusedChannelPickerIndex] = useState(0);
   const [focusedVodActionIndex, setFocusedVodActionIndex] = useState(0);
   const [focusedVodDetailSection, setFocusedVodDetailSection] = useState('actions');
+  const [focusedToolbarIndex, setFocusedToolbarIndex] = useState(0);
+  const [focusedMoviePickerIndex, setFocusedMoviePickerIndex] = useState(0);
   const [selectedSeasonIndex, setSelectedSeasonIndex] = useState(0);
   const [focusedSeasonIndex, setFocusedSeasonIndex] = useState(0);
   const [focusedEpisodeIndex, setFocusedEpisodeIndex] = useState(0);
@@ -285,15 +278,20 @@ export function Watch() {
 
   const videoAreaRef = useRef(null);
   const channelControlRefs = useRef([]);
+  const guideSectionRef = useRef(null);
   const channelPickerInputRef = useRef(null);
   const channelPickerCloseButtonRef = useRef(null);
   const channelPickerItemRefs = useRef([]);
   const vodActionRefs = useRef([]);
+  const toolbarRefs = useRef([]);
+  const toolbarSectionRef = useRef(null);
+  const moviePickerItemRefs = useRef([]);
   const seasonOptionRefs = useRef([]);
   const episodeOptionRefs = useRef([]);
   const recommendationRefs = useRef([]);
   const tvHeroSectionRef = useRef(null);
   const tvHeroFocusRef = useRef(null);
+  const tvDetailsSectionRef = useRef(null);
   const vodActionsSectionRef = useRef(null);
   const tvSeasonsSectionRef = useRef(null);
   const tvSeasonsRailRef = useRef(null);
@@ -444,16 +442,33 @@ export function Watch() {
     });
   }, [focusElementWithoutScroll]);
 
+  // Guia del canal (programa en emision + a continuacion). Como en movil:
+  // elegir el MISMO canal en el selector abre la guia en vez de recargar.
+  const focusChannelGuide = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const target = guideSectionRef.current;
+      if (!target) return;
+
+      try {
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      } catch {}
+      focusElementWithoutScroll(target);
+    });
+  }, [focusElementWithoutScroll]);
+
   const focusVodHero = useCallback(() => {
-    setFocusedVodDetailSection('hero');
+    setFocusedVodDetailSection('actions');
+    setFocusedVodActionIndex(0);
 
     window.requestAnimationFrame(() => {
-      const heroElement = tvHeroFocusRef.current || tvHeroSectionRef.current;
+      const targetButton = vodActionRefs.current[0] || tvHeroFocusRef.current || tvHeroSectionRef.current;
       ensureTvElementVisible(tvHeroSectionRef.current, {
         topMargin: TV_TOP_SCROLL_OFFSET,
-        bottomMargin: 120,
+        bottomMargin: 140,
       });
-      focusElementWithoutScroll(heroElement);
+      if (targetButton) {
+        focusElementWithoutScroll(targetButton);
+      }
     });
   }, [TV_TOP_SCROLL_OFFSET, ensureTvElementVisible, focusElementWithoutScroll]);
 
@@ -467,11 +482,26 @@ export function Watch() {
       const targetButton = vodActionRefs.current[safeIndex];
       if (!targetButton) return;
 
-      ensureTvElementVisible(vodActionsSectionRef.current || tvHeroSectionRef.current, {
-        topMargin: TV_TOP_SCROLL_OFFSET + 8,
-        bottomMargin: 210,
+      ensureTvElementVisible(tvHeroSectionRef.current || targetButton, {
+        topMargin: TV_TOP_SCROLL_OFFSET,
+        bottomMargin: 160,
       });
       focusElementWithoutScroll(targetButton);
+    });
+  }, [TV_TOP_SCROLL_OFFSET, ensureTvElementVisible, focusElementWithoutScroll]);
+
+  const focusVodDetails = useCallback(() => {
+    setFocusedVodDetailSection('details');
+
+    window.requestAnimationFrame(() => {
+      const detailsElement = tvDetailsSectionRef.current;
+      if (!detailsElement) return;
+
+      ensureTvElementVisible(detailsElement, {
+        topMargin: TV_TOP_SCROLL_OFFSET + 12,
+        bottomMargin: 140,
+      });
+      focusElementWithoutScroll(detailsElement);
     });
   }, [TV_TOP_SCROLL_OFFSET, ensureTvElementVisible, focusElementWithoutScroll]);
 
@@ -544,7 +574,7 @@ export function Watch() {
       });
     });
   }, [TV_TOP_SCROLL_OFFSET, ensureTvElementVisible, ensureTvRailItemVisible, focusElementWithoutScroll]);
-  
+
   // 🔧 FIX ELECTRON: Recuperar state desde localStorage si es necesario (HashRouter puede perderlo)
   const [isContinueWatching, setIsContinueWatching] = useState(location.state?.continueWatching === true);
   const [startTimeFromState, setStartTimeFromState] = useState(location.state?.startTime || 0);
@@ -706,7 +736,21 @@ export function Watch() {
     setIsMoviePickerOpen(false);
     setMovieSearch('');
     const targetType = movie.tipo || 'movie';
-    navigate(`/watch/${targetType}/${movie._id || movie.id}`);
+    // BACK desde el nuevo detalle vuelve aqui (misma seccion del detalle).
+    navigate(`/watch/${targetType}/${movie._id || movie.id}`, {
+      state: {
+        from: location.pathname,
+        returnState: {
+          isDetailReturn: true,
+          detailSection: focusedVodDetailSection,
+          vodActionIndex: focusedVodActionIndex,
+          seasonIndex: focusedSeasonIndex,
+          episodeIndex: focusedEpisodeIndex,
+          recommendationIndex: focusedRecommendationIndex,
+          toolbarIndex: focusedToolbarIndex,
+        },
+      },
+    });
   };
 
   const cachedWatchProgress = useMemo(() => {
@@ -811,10 +855,24 @@ export function Watch() {
 
       focusElementWithoutScroll(targetButton);
 
-      targetButton.scrollIntoView({
-        behavior: 'auto',
-        block: 'nearest',
-      });
+      const container = targetButton.closest('.overflow-y-auto');
+      if (container) {
+        const itemTop = targetButton.offsetTop;
+        const itemBottom = itemTop + targetButton.offsetHeight;
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+
+        if (itemTop < containerTop) {
+          container.scrollTop = itemTop;
+        } else if (itemBottom > containerBottom) {
+          container.scrollTop = itemBottom - container.clientHeight;
+        }
+      } else {
+        targetButton.scrollIntoView({
+          behavior: 'auto',
+          block: 'nearest',
+        });
+      }
     });
   }, [filteredChannelList.length, focusElementWithoutScroll]);
 
@@ -876,9 +934,24 @@ export function Watch() {
   const tvItemTitle = getTVItemTitle(itemData);
   const tvItemDescription = getTVItemDescription(itemData);
   const tvBackdropImage = getTVItemBackdrop(itemData);
-  const tvDetailHeroImage = tvBackdropImage || itemData?.backdrop || itemData?.poster || itemData?.thumbnail || './fondo.png';
+  // Si no hay backdrop horizontal, NO usar el poster vertical como cover:
+  // estirado tapa el titulo y empuja las acciones fuera de pantalla.
+  const tvHasHeroBackdrop = hasTVItemBackdrop(itemData);
+  const tvDetailHeroImage = tvHasHeroBackdrop
+    ? (tvBackdropImage || itemData?.backdrop || './fondo.png')
+    : '';
+  const tvDetailPosterImage = getTVItemImage(itemData);
   const tvItemYear = getTVItemYear(itemData);
   const tvItemRating = getTVItemRating(itemData);
+  const tvItemUserScore = getTVItemUserScore(itemData);
+  const tvItemReleaseDate = getTVItemReleaseDate(itemData);
+  const tvItemDuration = getTVItemDuration(itemData);
+  const tvItemDirector = getTVItemDirector(itemData);
+  const tvItemCast = getTVItemCast(itemData);
+  const tvItemCertification = getTVItemCertification(itemData);
+  const tvItemTagline = getTVItemTagline(itemData);
+  const tvItemGenres = getTVItemGenreList(itemData);
+  const tvItemQualityBadges = getTVItemQualityBadges(itemData);
   const nativePlayerMetaLine = useMemo(() => {
     const rawGenres = Array.isArray(itemData?.genres)
       ? itemData.genres
@@ -1148,6 +1221,7 @@ export function Watch() {
         }
 
         const normalizedData = {
+          ...data,
           id: data._id || data.id,
           name: data.name || data.title || data.titulo || "Sin título",
           url: data.url,
@@ -1177,16 +1251,54 @@ export function Watch() {
             data.image ||
             '',
           customThumbnail: data.customThumbnail || '',
-          trailerUrl: data.trailerUrl || data.trailer_url || data.urlTrailer || data.trailer || '',
-          description: data.description || data.descripcion || "",
-          releaseYear: data.releaseYear || data.year || '',
-          genres: normalizedGenres,
+          trailerUrl:
+            data.trailerUrl ||
+            data.trailer_url ||
+            data.urlTrailer ||
+            data.trailer ||
+            data.trailerLink ||
+            data.officialTrailer ||
+            data.youtube ||
+            data.youtubeUrl ||
+            data.youtube_url ||
+            data.url_trailer ||
+            data.trailerId ||
+            data.youtubeId ||
+            data.tmdbTrailer ||
+            data.tmdbData?.trailerUrl ||
+            data.tmdbData?.trailer ||
+            data.tmdbData?.youtube ||
+            (Array.isArray(data.videos?.results)
+              ? data.videos.results.find((v) => v.type === 'Trailer' || v.site === 'YouTube')?.key
+              : '') ||
+            (Array.isArray(data.tmdbData?.videos?.results)
+              ? data.tmdbData.videos.results.find((v) => v.type === 'Trailer' || v.site === 'YouTube')?.key
+              : '') ||
+            '',
+          description: data.description || data.descripcion || data.overview || '',
+          releaseYear: data.releaseYear || data.year || data.tmdbData?.releaseYear || '',
+          genres: normalizedGenres.length > 0 ? normalizedGenres : (Array.isArray(data.tmdbData?.genres) ? data.tmdbData.genres : []),
           genre: data.genre || data.section || '',
-          rating: data.rating || data.tmdbRating || data.vote_average || '',
+          rating: data.rating || data.tmdbRating || data.vote_average || data.tmdbData?.rating || '',
+          director: data.director || data.directores || data.tmdbData?.director || '',
+          cast: Array.isArray(data.cast) && data.cast.length > 0
+            ? data.cast
+            : (typeof data.cast === 'string'
+              ? data.cast.split(',').map((s) => s.trim()).filter(Boolean)
+              : (Array.isArray(data.actors) && data.actors.length > 0
+                ? data.actors
+                : (Array.isArray(data.reparto) && data.reparto.length > 0
+                  ? data.reparto
+                  : (Array.isArray(data.tmdbData?.cast) ? data.tmdbData.cast : [])))),
+          duration: data.duration || data.duracion || (data.runtime ? `${data.runtime} min` : '') || '',
+          certification: data.certification || data.clasificacion || data.rated || data.tmdbData?.certification || '',
+          tagline: data.tagline || data.lema || data.tmdbData?.tagline || '',
+          releaseDate: data.releaseDate || data.release_date || data.first_air_date || data.tmdbData?.releaseDate || '',
+          userScore: data.userScore ?? (data.vote_average ? Math.round(Number(data.vote_average) * 10) : (data.tmdbRating ? Math.round(Number(data.tmdbRating) * 10) : null)),
           tipo: data.tipo || itemType,
           section: data.section || null,
           seasons: data.seasons || [],
-          chapters: (data.seasons || []).flatMap(season => season.chapters || []),
+          chapters: (data.seasons || []).flatMap((season) => season.chapters || []),
           watchProgress: data.watchProgress || null,
           webPlaybackBlocked: data.webPlaybackBlocked === true,
           webPlaybackMessage: data.webPlaybackMessage || '',
@@ -1520,27 +1632,37 @@ export function Watch() {
     if (canContinue) {
       actions.push({
         key: 'continue',
-        label: continueButtonLabel,
+        label: continueButtonLabel || 'Continuar viendo',
         onSelect: handleContinueVodPlayback,
-        className: 'bg-indigo-600 text-white hover:bg-indigo-500 focus:ring-indigo-300',
+        className: 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black hover:from-amber-400 hover:to-orange-400 focus:ring-amber-300',
       });
     }
 
     actions.push({
       key: 'play',
-      label: 'Reproducir',
+      label: canContinue ? 'Reproducir desde inicio' : 'Reproducir',
       onSelect: handleStartVodPlayback,
-      className: 'bg-cyan-600 text-white hover:bg-cyan-500 focus:ring-cyan-300',
+      className: 'bg-cyan-500 text-slate-950 font-black hover:bg-cyan-400 focus:ring-cyan-300',
     });
 
-    if (tvTrailerUrl) {
-      actions.push({
-        key: 'trailer',
-        label: 'Trailer',
-        onSelect: handleOpenTrailer,
-        className: 'bg-amber-600 text-white hover:bg-amber-500 focus:ring-amber-300',
-      });
-    }
+    actions.push({
+      key: 'trailer',
+      label: tvTrailerUrl ? 'Ver Tráiler' : 'Tráiler',
+      onSelect: () => {
+        if (tvTrailerUrl) {
+          handleOpenTrailer();
+        } else {
+          setMyListFeedback({
+            type: 'info',
+            message: 'Tráiler no disponible para este contenido',
+          });
+        }
+      },
+      disabled: false,
+      className: tvTrailerUrl
+        ? 'bg-amber-600 text-white hover:bg-amber-500 focus:ring-amber-300'
+        : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700/80 focus:ring-amber-300/40',
+    });
 
     actions.push({
       key: 'my-list',
@@ -1555,6 +1677,7 @@ export function Watch() {
     return actions;
   }, [
     canContinue,
+    continueButtonLabel,
     handleAddCurrentItemToMyList,
     handleContinueVodPlayback,
     handleOpenTrailer,
@@ -1562,7 +1685,6 @@ export function Watch() {
     isAddingToMyList,
     itemType,
     tvTrailerUrl,
-    continueButtonLabel,
   ]);
 
   const continueActionItem = useMemo(
@@ -1588,6 +1710,84 @@ export function Watch() {
 
   const hasTvRecommendations = tvRecommendationItems.length > 0;
 
+  // Barra inferior "Cambiar Película / Sugerencias": una sola linea con 1-2
+  // botones (el segundo solo existe si hay recomendaciones). Definido aqui
+  // (tras hasTvRecommendations/isSeriesContent/selectedSeasonEpisodes) para
+  // no referenciar consts aun no inicializadas en los deps.
+  const getToolbarButtonCount = useCallback(() => (
+    Math.max(1, toolbarRefs.current.filter(Boolean).length)
+  ), []);
+
+  const focusToolbar = useCallback((index) => {
+    const maxIndex = Math.max(0, getToolbarButtonCount() - 1);
+    const safeIndex = Math.max(0, Math.min(maxIndex, Number(index) || 0));
+    setFocusedVodDetailSection('toolbar');
+    setFocusedToolbarIndex(safeIndex);
+
+    window.requestAnimationFrame(() => {
+      const targetButton = toolbarRefs.current[safeIndex];
+      if (toolbarSectionRef.current) {
+        ensureTvElementVisible(toolbarSectionRef.current, {
+          topMargin: TV_TOP_SCROLL_OFFSET + 12,
+          bottomMargin: 120,
+        });
+      }
+      if (targetButton) {
+        focusElementWithoutScroll(targetButton);
+      }
+    });
+  }, [TV_TOP_SCROLL_OFFSET, ensureTvElementVisible, focusElementWithoutScroll, getToolbarButtonCount]);
+
+  // Subir desde la barra a la ultima seccion con contenido real.
+  const focusSectionAboveToolbar = useCallback(() => {
+    if (hasTvRecommendations) {
+      focusTvRecommendation(focusedRecommendationIndex);
+      return;
+    }
+    if (isSeriesContent && selectedSeasonEpisodes.length > 0) {
+      focusTvEpisode(focusedEpisodeIndex);
+      return;
+    }
+    if (isSeriesContent && Array.isArray(itemData?.seasons) && itemData.seasons.length > 0) {
+      focusTvSeason(focusedSeasonIndex);
+      return;
+    }
+    focusVodDetails();
+  }, [
+    focusTvEpisode,
+    focusTvRecommendation,
+    focusTvSeason,
+    focusVodDetails,
+    focusedEpisodeIndex,
+    focusedRecommendationIndex,
+    focusedSeasonIndex,
+    hasTvRecommendations,
+    isSeriesContent,
+    itemData?.seasons,
+    selectedSeasonEpisodes.length,
+  ]);
+
+  const activateToolbarButton = useCallback((index) => {
+    if (index === 1 && hasTvRecommendations) {
+      const el = document.getElementById('sugerencias-seccion');
+      if (el && typeof el.scrollIntoView === 'function') {
+        try {
+          el.scrollIntoView({ behavior: 'auto', block: 'start' });
+        } catch {}
+      }
+      focusTvRecommendation(focusedRecommendationIndex);
+      return;
+    }
+    setIsMoviePickerOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setFocusedMoviePickerIndex(0);
+        window.setTimeout(() => moviePickerInputRef.current?.focus(), 60);
+      }
+      return next;
+    });
+  }, [focusTvRecommendation, focusedRecommendationIndex, hasTvRecommendations]);
+
   const handleSelectRecommendedItem = useCallback((recommendation) => {
     const recommendationId = getTVItemId(recommendation);
     if (!recommendationId) {
@@ -1599,16 +1799,33 @@ export function Watch() {
       recommendation?.itemType || recommendation?.tipo || 'movie',
     );
 
+    // BACK desde el nuevo detalle debe volver AQUI (detalle actual), no al home.
+    const detailReturnState = {
+      isDetailReturn: true,
+      detailSection: focusedVodDetailSection,
+      vodActionIndex: focusedVodActionIndex,
+      seasonIndex: focusedSeasonIndex,
+      episodeIndex: focusedEpisodeIndex,
+      recommendationIndex: focusedRecommendationIndex,
+      toolbarIndex: focusedToolbarIndex,
+    };
+
     navigate(`/watch/${recommendationType}/${recommendationId}`, {
       state: {
-        ...(location.state?.from ? { from: location.state.from } : { from: location.pathname }),
-        ...(location.state?.returnState ? { returnState: location.state.returnState } : {}),
-        ...(location.state?.fromSection ? { fromSection: location.state.fromSection } : {}),
-        ...(location.state?.selectedCategory ? { selectedCategory: location.state.selectedCategory } : {}),
-        ...(location.state?.searchTerm ? { searchTerm: location.state.searchTerm } : {}),
+        from: location.pathname,
+        returnState: detailReturnState,
       },
     });
-  }, [location.pathname, location.state, navigate]);
+  }, [
+    focusedEpisodeIndex,
+    focusedRecommendationIndex,
+    focusedSeasonIndex,
+    focusedToolbarIndex,
+    focusedVodActionIndex,
+    focusedVodDetailSection,
+    location.pathname,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (!isTVMode || itemType === 'channel') {
@@ -1696,8 +1913,36 @@ export function Watch() {
 
     const timer = window.setTimeout(() => {
       focusTVContent();
-      if (focusedVodDetailSection === 'hero') {
-        focusVodHero();
+      // Retorno watch→watch (recomendacion, cambiar pelicula): volver a la
+      // seccion del detalle donde estaba, no siempre a acciones.
+      const restoredDetail = location.state?.returnState;
+      if (restoredDetail?.isDetailReturn) {
+        const section = restoredDetail.detailSection;
+        if (section === 'details') {
+          focusVodDetails();
+          return;
+        }
+        if (section === 'episodes' && selectedSeasonEpisodes.length > 0) {
+          focusTvEpisode(Math.max(0, Math.min(selectedSeasonEpisodes.length - 1, Number(restoredDetail.episodeIndex) || 0)));
+          return;
+        }
+        if (section === 'seasons' && isSeriesContent) {
+          focusTvSeason(Math.max(0, Math.min(Math.max(0, (itemData?.seasons?.length || 1) - 1), Number(restoredDetail.seasonIndex) || 0)));
+          return;
+        }
+        if (section === 'recommendations' && hasTvRecommendations) {
+          focusTvRecommendation(Math.max(0, Math.min(tvRecommendationItems.length - 1, Number(restoredDetail.recommendationIndex) || 0)));
+          return;
+        }
+        if (section === 'toolbar') {
+          focusToolbar(Number(restoredDetail.toolbarIndex) || 0);
+          return;
+        }
+        focusVodAction(Number(restoredDetail.vodActionIndex) || 0);
+        return;
+      }
+      if (focusedVodDetailSection === 'details') {
+        focusVodDetails();
         return;
       }
       if (focusedVodDetailSection === 'episodes' && selectedSeasonEpisodes.length > 0) {
@@ -1712,14 +1957,16 @@ export function Watch() {
         focusTvRecommendation(Math.min(focusedRecommendationIndex, tvRecommendationItems.length - 1));
         return;
       }
-      focusVodAction(Math.min(focusedVodActionIndex, vodActionItems.length - 1));
+      focusVodAction(0);
     }, 90);
 
     return () => window.clearTimeout(timer);
   }, [
     activeTrailerUrl,
+    focusToolbar,
     focusTvEpisode,
     focusTvSeason,
+    focusVodDetails,
     focusVodHero,
     focusVodAction,
     focusTvRecommendation,
@@ -1728,6 +1975,7 @@ export function Watch() {
     isTVVodDetailScreen,
     itemId,
     itemData?.seasons?.length,
+    location.state,
     selectedSeasonEpisodes.length,
     showAccessModal,
     tvRecommendationItems.length,
@@ -1739,8 +1987,8 @@ export function Watch() {
       return undefined;
     }
 
-    const handleVodActionKeyCapture = (event) => {
-      if (isChannelPickerOpen || activeTrailerUrl || getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
+      const handleVodActionKeyCapture = (event) => {
+      if (isChannelPickerOpen || isMoviePickerOpen || activeTrailerUrl || getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
         return;
       }
 
@@ -1753,18 +2001,34 @@ export function Watch() {
         return;
       }
 
-      if (focusedVodDetailSection === 'hero') {
-        if (action === 'ArrowDown') {
+      if (focusedVodDetailSection === 'details') {
+        if (action === 'ArrowUp') {
           event.preventDefault();
           event.stopPropagation();
           focusVodAction(focusedVodActionIndex);
           return;
         }
 
-        if (action === 'ArrowUp') {
+        if (action === 'ArrowDown') {
           event.preventDefault();
           event.stopPropagation();
-          focusVodHero();
+          if (isSeriesContent && Array.isArray(itemData?.seasons) && itemData.seasons.length > 0) {
+            focusTvSeason(focusedSeasonIndex);
+            return;
+          }
+          if (hasTvRecommendations) {
+            focusTvRecommendation(focusedRecommendationIndex);
+            return;
+          }
+          // Sin temporadas ni recomendaciones: bajar a la barra inferior.
+          focusToolbar(0);
+          return;
+        }
+
+        if (action === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          vodActionItems[0]?.onSelect?.();
           return;
         }
 
@@ -1800,7 +2064,8 @@ export function Watch() {
             focusTvRecommendation(focusedRecommendationIndex);
             return;
           }
-          focusTvEpisode(focusedEpisodeIndex);
+          // Ultima fila: bajar a la barra inferior.
+          focusToolbar(0);
           return;
         }
 
@@ -1832,7 +2097,7 @@ export function Watch() {
         if (action === 'ArrowUp') {
           event.preventDefault();
           event.stopPropagation();
-          focusVodHero();
+          focusVodDetails();
           return;
         }
 
@@ -1847,7 +2112,8 @@ export function Watch() {
             focusTvRecommendation(focusedRecommendationIndex);
             return;
           }
-          focusTvSeason(focusedSeasonIndex);
+          // Sin episodios ni recomendaciones: bajar a la barra inferior.
+          focusToolbar(0);
           return;
         }
 
@@ -1889,14 +2155,15 @@ export function Watch() {
             focusTvSeason(focusedSeasonIndex);
             return;
           }
-          focusVodAction(focusedVodActionIndex);
+          focusVodDetails();
           return;
         }
 
         if (action === 'ArrowDown') {
           event.preventDefault();
           event.stopPropagation();
-          focusTvRecommendation(focusedRecommendationIndex);
+          // Ultima fila de contenido: bajar a la barra inferior.
+          focusToolbar(0);
           return;
         }
 
@@ -1904,6 +2171,47 @@ export function Watch() {
           event.preventDefault();
           event.stopPropagation();
           handleSelectRecommendedItem(tvRecommendationItems[focusedRecommendationIndex]);
+          return;
+        }
+
+        return;
+      }
+
+      // Barra inferior "Cambiar Película / Sugerencias" (una sola linea).
+      if (focusedVodDetailSection === 'toolbar') {
+        const toolbarCount = getToolbarButtonCount();
+        if (action === 'ArrowLeft') {
+          event.preventDefault();
+          event.stopPropagation();
+          focusToolbar(Math.max(0, focusedToolbarIndex - 1));
+          return;
+        }
+
+        if (action === 'ArrowRight') {
+          event.preventDefault();
+          event.stopPropagation();
+          focusToolbar(Math.min(toolbarCount - 1, focusedToolbarIndex + 1));
+          return;
+        }
+
+        if (action === 'ArrowUp') {
+          event.preventDefault();
+          event.stopPropagation();
+          focusSectionAboveToolbar();
+          return;
+        }
+
+        if (action === 'ArrowDown') {
+          event.preventDefault();
+          event.stopPropagation();
+          focusToolbar(focusedToolbarIndex);
+          return;
+        }
+
+        if (action === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          activateToolbarButton(focusedToolbarIndex);
           return;
         }
 
@@ -1927,22 +2235,23 @@ export function Watch() {
       if (action === 'ArrowUp') {
         event.preventDefault();
         event.stopPropagation();
-        focusVodHero();
+        // Los botones hacen wrap en 2 filas en TV: subir al boton
+        // visualmente superior (ej. de "Agregar a Mi Lista" a "Reproducir").
+        const spatialUp = moveSpatialIndex(vodActionRefs.current, focusedVodActionIndex, 'up');
+        focusVodAction(spatialUp);
         return;
       }
 
       if (action === 'ArrowDown') {
         event.preventDefault();
         event.stopPropagation();
-        if (isSeriesContent) {
-          focusTvSeason(focusedSeasonIndex);
+        // Si hay otra fila de botones debajo, bajar a ella; si no, a detalles.
+        const spatialDown = moveSpatialIndex(vodActionRefs.current, focusedVodActionIndex, 'down');
+        if (spatialDown !== focusedVodActionIndex) {
+          focusVodAction(spatialDown);
           return;
         }
-        if (hasTvRecommendations) {
-          focusTvRecommendation(focusedRecommendationIndex);
-          return;
-        }
-        focusVodAction(focusedVodActionIndex);
+        focusVodDetails();
         return;
       }
 
@@ -1958,21 +2267,28 @@ export function Watch() {
     return () => window.removeEventListener('keydown', handleVodActionKeyCapture, true);
   }, [
     activeTrailerUrl,
+    activateToolbarButton,
     focusedEpisodeIndex,
     focusedRecommendationIndex,
     focusedSeasonIndex,
+    focusedToolbarIndex,
     focusedVodDetailSection,
+    focusSectionAboveToolbar,
+    focusToolbar,
     focusTvEpisode,
     focusTvSeason,
+    focusVodDetails,
     focusVodHero,
     focusVodAction,
     focusTvRecommendation,
     focusedVodActionIndex,
+    getToolbarButtonCount,
     handleSelectRecommendedItem,
     hasTvRecommendations,
     isChannelPickerOpen,
     isSeriesContent,
     isTVVodDetailScreen,
+    itemData?.seasons,
     selectedSeasonEpisodes.length,
     selectedSeasonIndex,
     showAccessModal,
@@ -2449,13 +2765,18 @@ export function Watch() {
         }
       }
 
-      if (window.VideoPlayerPlugin) {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
         try {
-          if (typeof window.VideoPlayerPlugin.stopVideo === 'function') {
-            window.VideoPlayerPlugin.stopVideo();
-          }
+          VideoPlayerPlugin.stopVideo().catch(() => {});
         } catch (err) {
-          console.warn('[Watch.jsx] Cleanup: Error intento 1:', err);
+          console.warn('[Watch.jsx] Cleanup: Error deteniendo VideoPlayerPlugin:', err);
+        }
+      }
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.forceStopVideo === 'function') {
+        try {
+          VideoPlayerPlugin.forceStopVideo().catch(() => {});
+        } catch (err) {
+          console.warn('[Watch.jsx] Cleanup: Error forzando detención VideoPlayerPlugin:', err);
         }
       }
 
@@ -2490,13 +2811,18 @@ export function Watch() {
     }
 
     try {
-      if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
-        window.VideoPlayerPlugin.stopVideo().catch(err => {
-          console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VLC plugin:', err);
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+        VideoPlayerPlugin.stopVideo().catch(err => {
+          console.warn('[Watch.jsx] stopPlaybackSafely: Error deteniendo VideoPlayerPlugin:', err);
+        });
+      }
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.forceStopVideo === 'function') {
+        VideoPlayerPlugin.forceStopVideo().catch(err => {
+          console.warn('[Watch.jsx] stopPlaybackSafely: Error forzando detención VideoPlayerPlugin:', err);
         });
       }
     } catch (err) {
-      console.warn('[Watch.jsx] handleBackNavigation: Error en VideoPlayerPlugin:', err);
+      console.warn('[Watch.jsx] stopPlaybackSafely: Error en VideoPlayerPlugin:', err);
     }
   }, []);
 
@@ -2565,6 +2891,11 @@ export function Watch() {
       return;
     }
 
+    if (isMoviePickerOpen) {
+      closeMoviePicker();
+      return;
+    }
+
     if (isChannelPickerOpen) {
       closeChannelPicker();
       return;
@@ -2585,9 +2916,14 @@ export function Watch() {
     }
 
     try {
-      if (window.VideoPlayerPlugin && typeof window.VideoPlayerPlugin.stopVideo === 'function') {
-        window.VideoPlayerPlugin.stopVideo().catch(err => {
-          console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VLC plugin:', err);
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+        VideoPlayerPlugin.stopVideo().catch(err => {
+          console.warn('[Watch.jsx] handleBackNavigation: Error deteniendo VideoPlayerPlugin:', err);
+        });
+      }
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.forceStopVideo === 'function') {
+        VideoPlayerPlugin.forceStopVideo().catch(err => {
+          console.warn('[Watch.jsx] handleBackNavigation: Error forzando detención VideoPlayerPlugin:', err);
         });
       }
     } catch (err) {
@@ -2616,42 +2952,68 @@ export function Watch() {
     console.log('[Watch.jsx] fromSection:', fromSection, 'fromLocation:', fromLocation, 'returnState:', returnState, 'isNavigationCacheValid:', isNavigationCacheValid);
     
     if (fromLocation) {
-      navigate(fromLocation, returnState ? { state: returnState } : undefined);
+      // Volver exactamente a donde estaba: el returnState trae los indices
+      // de foco (seccion/item de Home, selectedIndex de grillas, o seccion
+      // del detalle si venimos de otro watch). Nunca al sidebar.
+      if (String(fromLocation).startsWith('/watch/')) {
+        navigate(fromLocation, returnState ? { state: { returnState }, replace: true } : { replace: true });
+      } else {
+        navigate(fromLocation, returnState ? { state: returnState, replace: true } : { replace: true });
+      }
     } else if (fromSection === 'tv') {
-      // Regresar a TV en vivo con categoría restaurada
+      // Regresar a TV en vivo con categoría e indice restaurados
       const selectedCategory = location.state?.selectedCategory || returnState?.selectedCategory || 'Todos';
+      const selectedChannelIndex = Number.isInteger(location.state?.selectedChannelIndex)
+        ? location.state.selectedChannelIndex
+        : (Number.isInteger(returnState?.selectedChannelIndex) ? returnState.selectedChannelIndex : 0);
       const searchTerm = location.state?.searchTerm || returnState?.searchTerm || '';
-      
+
       console.log('[Watch.jsx] Navegando a /live-tv con estado:', { selectedCategory, searchTerm });
-      navigate('/live-tv', { 
+      navigate('/live-tv', {
         replace: true,
-        state: { 
+        state: {
           selectedCategory,
+          selectedChannelIndex,
           searchTerm
-        } 
+        }
       });
     } else if (fromSection === 'movies' || fromSection === 'peliculas') {
-      // Regresar a películas con filtros restaurados
+      // Regresar a películas con filtros e indice restaurados
       const sectionKey = location.state?.sectionKey || returnState?.selectedMainSectionKey;
       const genre = location.state?.genre || returnState?.selectedGenre || 'Todas';
       const searchTerm = location.state?.searchTerm || returnState?.searchTerm || '';
-      
+      const selectedSubcategory = location.state?.selectedSubcategory || returnState?.selectedSubcategory;
+      const selectedIndex = Number.isInteger(location.state?.selectedIndex)
+        ? location.state.selectedIndex
+        : (Number.isInteger(returnState?.selectedIndex) ? returnState.selectedIndex : 0);
+
       if (sectionKey) {
-        navigate('/peliculas', { 
-          state: { 
+        navigate('/peliculas', {
+          replace: true,
+          state: {
             selectedMainSectionKey: sectionKey,
             selectedGenre: genre,
             searchTerm
-          } 
+          }
         });
       } else {
-        navigate('/peliculas');
+        navigate('/peliculas', {
+          replace: true,
+          state: {
+            ...(selectedSubcategory ? { selectedSubcategory } : {}),
+            selectedIndex,
+            searchTerm,
+          },
+        });
       }
     } else if (fromSection === 'series') {
-      navigate('/series');
+      const selectedIndex = Number.isInteger(location.state?.selectedIndex)
+        ? location.state.selectedIndex
+        : (Number.isInteger(returnState?.selectedIndex) ? returnState.selectedIndex : 0);
+      navigate('/series', { replace: true, state: { selectedIndex } });
     } else {
       console.log('[Watch.jsx] No fromSection o fromLocation, navegando a home');
-      navigate('/');
+      navigate('/', { replace: true, state: returnState || undefined });
     }
   };
 
@@ -2664,10 +3026,15 @@ export function Watch() {
   // 🔥 NUEVO: Manejar el botón atrás del dispositivo en Watch.jsx
   // 🔥 IMPORTANTE: Usar ref para evitar reconfiguraciones cuando cambia location.state
   const handleBackNavigationRef = useRef(handleBackNavigation);
+  const activeTrailerUrlRef = useRef(activeTrailerUrl);
   
   useEffect(() => {
     handleBackNavigationRef.current = handleBackNavigation;
   }, [handleBackNavigation]);
+
+  useEffect(() => {
+    activeTrailerUrlRef.current = activeTrailerUrl;
+  }, [activeTrailerUrl]);
 
   useEffect(() => {
     let handleRef = null;
@@ -2678,6 +3045,10 @@ export function Watch() {
         if (CapacitorApp.addListener) {
           const handle = await CapacitorApp.addListener('backButton', () => {
             console.log('[Watch.jsx] 🔥 Back button presionado en Watch - navegando hacia atrás');
+            if (activeTrailerUrlRef.current) {
+              setActiveTrailerUrl('');
+              return;
+            }
             handleBackNavigationRef.current();
           });
           handleRef = handle;
@@ -2694,7 +3065,41 @@ export function Watch() {
 
     setupBackButton();
 
+    const handleKeyDown = (e) => {
+      const isBackKey =
+        e.key === 'Escape' ||
+        e.key === 'GoBack' ||
+        e.key === 'BrowserBack' ||
+        e.keyCode === 4 ||
+        e.keyCode === 27 ||
+        e.keyCode === 10009 ||
+        e.keyCode === 8;
+
+      if (!isBackKey) return;
+
+      const activeElement = document.activeElement;
+      const isEditable =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.isContentEditable;
+      if (isEditable && e.keyCode === 8) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('[Watch.jsx] 🔥 Keydown back/escape capturado - navegando hacia atrás');
+      if (activeTrailerUrlRef.current) {
+        setActiveTrailerUrl('');
+        return;
+      }
+      handleBackNavigationRef.current();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+
     return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
       try {
         if (typeof unsub === 'function') {
           unsub();
@@ -2956,14 +3361,9 @@ export function Watch() {
 
     switch (action) {
       case 'ArrowLeft':
-        event.preventDefault();
-        event.stopPropagation();
-        closeChannelPicker(0);
-        break;
       case 'ArrowRight':
         event.preventDefault();
         event.stopPropagation();
-        closeChannelPicker(1);
         break;
       case 'ArrowUp':
         event.preventDefault();
@@ -3010,6 +3410,108 @@ export function Watch() {
     window.addEventListener('keydown', handleChannelPickerKeyCapture, true);
     return () => window.removeEventListener('keydown', handleChannelPickerKeyCapture, true);
   }, [handleChannelPickerKeyDown, isChannelPickerOpen]);
+
+  // Movie picker (barra "Cambiar Película / Buscar"): D-Pad entre el input
+  // y la grilla de resultados. Abajo desde el input entra al primer
+  // resultado, Enter selecciona, BACK cierra y devuelve el foco a la barra.
+  const closeMoviePicker = useCallback((refocusToolbar = true) => {
+    setIsMoviePickerOpen(false);
+    if (refocusToolbar) {
+      window.setTimeout(() => focusToolbar(0), 60);
+    }
+  }, [focusToolbar]);
+
+  const focusMoviePickerItem = useCallback((index) => {
+    const maxIndex = Math.max(0, movieSearchResults.length - 1);
+    const safeIndex = Math.max(0, Math.min(maxIndex, Number(index) || 0));
+    setFocusedMoviePickerIndex(safeIndex);
+    window.requestAnimationFrame(() => {
+      const target = moviePickerItemRefs.current[safeIndex];
+      if (!target) return;
+      try {
+        target.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      } catch {}
+      focusElementWithoutScroll(target);
+    });
+  }, [focusElementWithoutScroll, movieSearchResults.length]);
+
+  useEffect(() => {
+    if (!isMoviePickerOpen) {
+      return undefined;
+    }
+
+    const handleMoviePickerKeys = (event) => {
+      if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) {
+        return;
+      }
+
+      const action = resolveRemoteAction(event);
+      if (!action) {
+        return;
+      }
+
+      const inputIsActive = document.activeElement === moviePickerInputRef.current;
+
+      if (action === 'close') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMoviePicker();
+        return;
+      }
+
+      if (inputIsActive) {
+        if ((action === 'ArrowDown' || action === 'Enter') && movieSearchResults.length > 0) {
+          event.preventDefault();
+          event.stopPropagation();
+          moviePickerInputRef.current?.blur();
+          focusMoviePickerItem(0);
+        }
+        return;
+      }
+
+      if (movieSearchResults.length === 0) {
+        return;
+      }
+
+      if (action === 'ArrowUp' || action === 'ArrowDown' || action === 'ArrowLeft' || action === 'ArrowRight') {
+        event.preventDefault();
+        event.stopPropagation();
+        const direction = action.replace('Arrow', '').toLowerCase();
+        const next = moveSpatialIndex(moviePickerItemRefs.current, focusedMoviePickerIndex, direction);
+        if (action === 'ArrowUp' && next === focusedMoviePickerIndex) {
+          moviePickerInputRef.current?.focus();
+          return;
+        }
+        focusMoviePickerItem(next);
+        return;
+      }
+
+      if (action === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        const movie = movieSearchResults[focusedMoviePickerIndex];
+        if (movie) {
+          handleSelectMovie(movie);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleMoviePickerKeys, true);
+    return () => window.removeEventListener('keydown', handleMoviePickerKeys, true);
+  }, [
+    closeMoviePicker,
+    focusMoviePickerItem,
+    focusedMoviePickerIndex,
+    handleSelectMovie,
+    isMoviePickerOpen,
+    movieSearchResults,
+  ]);
+
+  useEffect(() => {
+    if (focusedMoviePickerIndex > Math.max(0, movieSearchResults.length - 1)) {
+      setFocusedMoviePickerIndex(0);
+    }
+  }, [focusedMoviePickerIndex, movieSearchResults.length]);
 
   const handleReloadChannel = async () => {
     if (itemType !== 'channel' || isReloadingChannel) return;
@@ -3105,6 +3607,21 @@ export function Watch() {
         return;
       }
 
+      // ABAJO abre la guia (programa actual + siguiente), ARRIBA vuelve a controles.
+      if (action === 'ArrowDown') {
+        event.preventDefault();
+        event.stopPropagation();
+        focusChannelGuide();
+        return;
+      }
+
+      if (action === 'ArrowUp') {
+        event.preventDefault();
+        event.stopPropagation();
+        focusChannelControl(activeControlIndex >= 0 ? activeControlIndex : focusedChannelControlIndex);
+        return;
+      }
+
       if (action !== 'Enter') {
         return;
       }
@@ -3125,6 +3642,7 @@ export function Watch() {
   }, [
     channelList.length,
     focusChannelControl,
+    focusChannelGuide,
     focusedChannelControlIndex,
     isChannelPickerOpen,
     isReloadingChannel,
@@ -3140,7 +3658,19 @@ export function Watch() {
     }
 
     if (String(targetChannel.id) === String(itemId)) {
+      // Como en movil: elegir el canal que ya se reproduce abre la guia
+      // (que estoy viendo ahora y que sigue despues) en vez de recargar.
       closeChannelPicker();
+      window.setTimeout(() => {
+        if (guideSectionRef.current) {
+          try {
+            guideSectionRef.current.scrollIntoView({ behavior: 'auto', block: 'start' });
+          } catch {}
+        }
+        if (isTVMode) {
+          focusChannelGuide();
+        }
+      }, 60);
       return;
     }
 
@@ -3148,6 +3678,15 @@ export function Watch() {
     setTimeout(() => {
       suppressMpvClosedRef.current = false;
     }, 1200);
+
+    try {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+        VideoPlayerPlugin.stopVideo().catch(() => {});
+      }
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        backgroundPlaybackService.stopPlayback().catch(() => {});
+      }
+    } catch (e) {}
 
     setChannelPlaybackIssue(null);
     setChannelPlaybackDismissed(false);
@@ -3341,33 +3880,47 @@ export function Watch() {
           <div className="w-full max-w-screen-xl">
             {isTVVodDetailScreen ? (
               <div className="mx-auto mb-6 w-full max-w-5xl space-y-4">
+                {/* Hero Section: Banner, Badges, Title, Tagline & Action Buttons */}
                 <section
                   ref={(element) => {
                     tvHeroSectionRef.current = element;
                     tvHeroFocusRef.current = element;
                   }}
-                  tabIndex={isTVMode ? 0 : -1}
-                  onFocus={(event) => {
-                    if (event.target !== event.currentTarget) {
-                      return;
-                    }
-                    setFocusedVodDetailSection('hero');
-                  }}
-                  className={`overflow-hidden rounded-[28px] border bg-slate-950/84 shadow-[0_28px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl focus:outline-none ${
-                    focusedVodDetailSection === 'hero'
-                      ? 'border-cyan-300 ring-2 ring-cyan-300/90 ring-offset-2 ring-offset-slate-950'
-                      : 'border-white/10'
-                  }`}
+                  className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/90 shadow-[0_28px_90px_rgba(0,0,0,0.5)] backdrop-blur-xl"
                 >
-                  <div className="relative h-[290px] overflow-hidden bg-black sm:h-[340px]">
-                    <img
-                      src={tvDetailHeroImage}
-                      alt={tvItemTitle}
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.38)_45%,rgba(2,6,23,0.96)_100%)]" />
+                  <div className="relative min-h-[300px] overflow-hidden bg-black sm:min-h-[340px]">
+                    {tvHasHeroBackdrop ? (
+                      <img
+                        src={tvDetailHeroImage}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            'radial-gradient(circle at 85% 20%, rgba(34,211,238,0.22), transparent 45%), radial-gradient(circle at 10% 90%, rgba(236,72,153,0.16), transparent 40%), linear-gradient(180deg, #0b1226 0%, #050816 100%)',
+                        }}
+                      />
+                    )}
+                    {!tvHasHeroBackdrop && (
+                      <img
+                        src={tvDetailPosterImage}
+                        alt={tvItemTitle}
+                        className="absolute right-6 top-1/2 hidden w-32 -translate-y-1/2 aspect-[2/3] rounded-2xl border border-white/20 object-cover shadow-2xl sm:block lg:w-40"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.2),transparent_35%),linear-gradient(180deg,rgba(2,6,23,0.1)_0%,rgba(2,6,23,0.65)_50%,rgba(2,6,23,0.98)_100%)]" />
                     <div className="absolute inset-x-0 bottom-0 p-6 sm:p-7">
-                      <div className="mb-4 flex flex-wrap gap-2">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        {tvItemCertification ? (
+                          <span className="rounded-full border border-rose-400/40 bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-bold text-rose-200">
+                            {tvItemCertification}
+                          </span>
+                        ) : null}
                         {isSeriesContent ? (
                           <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
                             {totalSeasonCount} {totalSeasonCount === 1 ? 'Temporada' : 'Temporadas'}
@@ -3379,135 +3932,190 @@ export function Watch() {
                           </span>
                         ) : null}
                         {tvItemYear ? (
-                          <span className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-100">
+                          <span className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-100">
                             {tvItemYear}
+                          </span>
+                        ) : null}
+                        {tvItemDuration ? (
+                          <span className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[11px] font-semibold text-slate-200">
+                            {tvItemDuration}
                           </span>
                         ) : null}
                         {tvItemRating ? (
                           <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100">
-                            IMDb {tvItemRating}
+                            ★ TMDb {tvItemRating}
                           </span>
                         ) : null}
+                        {tvItemQualityBadges.map((badge) => (
+                          <span
+                            key={badge}
+                            className="rounded-full border border-cyan-400/30 bg-cyan-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-cyan-200"
+                          >
+                            {badge}
+                          </span>
+                        ))}
                       </div>
+
                       <h1 className="max-w-4xl text-2xl font-black text-white sm:text-4xl">
                         {tvItemTitle}
                       </h1>
+                      {tvItemTagline ? (
+                        <p className="mt-1.5 text-sm italic font-medium text-cyan-200/90 sm:text-base">
+                          "{tvItemTagline}"
+                        </p>
+                      ) : null}
                       {isSeriesContent && currentEpisodeMeta ? (
-                        <p className="mt-3 max-w-4xl text-sm font-medium text-slate-200/90 sm:text-[15px]">
+                        <p className="mt-1.5 max-w-4xl text-sm font-medium text-slate-200/90 sm:text-[15px]">
                           {buildSeasonEpisodeLabel(currentEpisodeMeta.seasonNumber, currentEpisodeMeta.episodeNumber)}
                           {currentEpisodeMeta.title ? ` · ${currentEpisodeMeta.title}` : ''}
                         </p>
                       ) : null}
-                    </div>
-                  </div>
 
-                  <div className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
-                    {tvItemDescription ? (
-                      <p
-                        className="max-w-4xl text-sm leading-6 text-slate-200/95 sm:text-[15px]"
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {tvItemDescription}
-                      </p>
-                    ) : null}
+                      {/* Primary Action Buttons: Always Visible and Focusable */}
+                      <div ref={vodActionsSectionRef} className="mt-5 flex flex-wrap items-center gap-3">
+                        {vodActionItems.map((action, index) => {
+                          const isActionFocused =
+                            focusedVodDetailSection === 'actions' && focusedVodActionIndex === index;
 
-                    {isSeriesContent && selectedEpisodeMeta ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/80">
-                              Episodio Seleccionado
-                            </p>
-                            <p className="mt-1 text-base font-semibold text-white">
-                              {buildSeasonEpisodeLabel(selectedEpisodeMeta.seasonNumber, selectedEpisodeMeta.episodeNumber)}
-                              {selectedEpisodeMeta.title ? ` · ${selectedEpisodeMeta.title}` : ''}
-                            </p>
-                          </div>
-                          {selectedEpisodeMeta.duration ? (
-                            <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-medium text-slate-200">
-                              {selectedEpisodeMeta.duration}
-                            </span>
-                          ) : null}
-                        </div>
-                        {continueActionItem ? (
-                          <div className="mt-4 space-y-2">
+                          return (
                             <button
+                              key={action.key}
                               ref={(element) => {
-                                vodActionRefs.current[0] = element;
+                                vodActionRefs.current[index] = element;
                               }}
                               type="button"
-                              onClick={continueActionItem.onSelect}
+                              onClick={action.onSelect}
                               onFocus={() => {
                                 setFocusedVodDetailSection('actions');
-                                setFocusedVodActionIndex(0);
+                                setFocusedVodActionIndex(index);
                               }}
-                              disabled={continueActionItem.disabled}
-                              className={`rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 ${continueActionItem.className} ${
-                                focusedVodDetailSection === 'actions' && focusedVodActionIndex === 0
-                                  ? 'scale-[1.02] ring-2 ring-white/80 ring-offset-2 ring-offset-slate-950'
-                                  : ''
+                              disabled={action.disabled}
+                              className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold shadow-lg transition-all duration-150 focus:outline-none ${action.className} ${
+                                isActionFocused
+                                  ? 'scale-[1.04] ring-2 ring-white ring-offset-2 ring-offset-slate-950 shadow-[0_0_22px_rgba(255,255,255,0.45)]'
+                                  : 'opacity-90 hover:opacity-100'
                               }`}
                             >
-                              {continueActionItem.label}
+                              {action.key === 'continue' && '▶ '}
+                              {action.key === 'play' && '▶ '}
+                              {action.key === 'trailer' && '🎬 '}
+                              {action.key === 'my-list' && '＋ '}
+                              <span>{action.label}</span>
                             </button>
-                            {continueCaption ? (
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200/85">
-                                {continueCaption}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
+                          );
+                        })}
                       </div>
-                    ) : null}
 
-                    <div ref={vodActionsSectionRef} className="flex flex-wrap gap-3">
-                      {secondaryVodActionItems.map((action, index) => {
-                        const actionIndex = continueActionItem ? index + 1 : index;
-
-                        return (
-                        <button
-                          key={action.key}
-                          ref={(element) => {
-                            vodActionRefs.current[actionIndex] = element;
-                          }}
-                          type="button"
-                          onClick={action.onSelect}
-                          onFocus={() => {
-                            setFocusedVodDetailSection('actions');
-                            setFocusedVodActionIndex(actionIndex);
-                          }}
-                          disabled={action.disabled}
-                          className={`rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 ${action.className} ${
-                            focusedVodDetailSection === 'actions' && focusedVodActionIndex === actionIndex
-                              ? 'scale-[1.02] ring-2 ring-white/80 ring-offset-2 ring-offset-slate-950'
-                              : ''
+                      {myListFeedback.message ? (
+                        <div
+                          className={`mt-3 rounded-xl px-4 py-2.5 text-xs font-semibold ${
+                            myListFeedback.type === 'error'
+                              ? 'border border-red-400/40 bg-red-500/10 text-red-200'
+                              : myListFeedback.type === 'info'
+                                ? 'border border-amber-400/40 bg-amber-500/10 text-amber-200'
+                                : 'border border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
                           }`}
                         >
-                          {action.label}
-                        </button>
-                        );
-                      })}
+                          {myListFeedback.message}
+                        </div>
+                      ) : null}
                     </div>
+                  </div>
+                </section>
 
-                    {myListFeedback.message ? (
-                      <div
-                        className={`rounded-xl px-4 py-3 text-sm ${
-                          myListFeedback.type === 'error'
-                            ? 'border border-red-400/40 bg-red-500/10 text-red-200'
-                            : myListFeedback.type === 'info'
-                              ? 'border border-amber-400/40 bg-amber-500/10 text-amber-200'
-                              : 'border border-emerald-400/40 bg-emerald-500/10 text-emerald-200'
-                        }`}
-                      >
-                        {myListFeedback.message}
+                {/* Details Section: TMDb User Score, Genres, Synopsis, Director, Reparto */}
+                <section
+                  ref={tvDetailsSectionRef}
+                  tabIndex={isTVMode ? 0 : -1}
+                  onFocus={(event) => {
+                    if (event.target !== event.currentTarget) {
+                      return;
+                    }
+                    setFocusedVodDetailSection('details');
+                  }}
+                  className={`overflow-hidden rounded-[24px] border bg-slate-950/74 px-6 py-5 shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md transition-all duration-200 focus:outline-none ${
+                    focusedVodDetailSection === 'details'
+                      ? 'border-cyan-300 ring-2 ring-cyan-300/80 ring-offset-2 ring-offset-slate-950 shadow-[0_0_24px_rgba(103,232,249,0.25)]'
+                      : 'border-white/10'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-4">
+                    {tvItemUserScore ? (
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-emerald-400 bg-black/90 text-xs font-black text-white shadow-[0_0_15px_rgba(52,211,153,0.35)]">
+                          {tvItemUserScore}%
+                        </div>
+                        <p className="text-[11px] font-bold leading-tight text-white">
+                          Puntuación<br />
+                          <span className="text-[10px] font-normal text-slate-400">TMDb</span>
+                        </p>
                       </div>
                     ) : null}
+                    {tvItemReleaseDate ? (
+                      <span className="text-xs font-medium text-slate-300">
+                        Estreno: <strong className="text-white">{tvItemReleaseDate}</strong>
+                      </span>
+                    ) : null}
+                    {tvItemGenres.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {tvItemGenres.map((genre) => (
+                          <span
+                            key={genre}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-slate-200"
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {tvItemDescription ? (
+                    <div className="mt-4 space-y-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-200/80">Sinopsis</p>
+                      <p className="max-w-4xl text-sm leading-relaxed text-slate-200/95 sm:text-[15px]">
+                        {tvItemDescription}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {(tvItemDirector || tvItemCast.length > 0) && (
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-3">
+                      {tvItemDirector ? (
+                        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-200/70">Director</p>
+                          <p className="mt-1 text-xs font-bold text-white truncate">{tvItemDirector}</p>
+                        </div>
+                      ) : null}
+                      {tvItemCast.slice(0, tvItemDirector ? 3 : 4).map((actor, idx) => (
+                        <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Reparto</p>
+                          <p className="mt-1 text-xs font-bold text-white truncate">{actor}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {isSeriesContent && selectedEpisodeMeta ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100/80">
+                            Episodio Seleccionado
+                          </p>
+                          <p className="mt-1 text-base font-semibold text-white">
+                            {buildSeasonEpisodeLabel(selectedEpisodeMeta.seasonNumber, selectedEpisodeMeta.episodeNumber)}
+                            {selectedEpisodeMeta.title ? ` · ${selectedEpisodeMeta.title}` : ''}
+                          </p>
+                        </div>
+                        {selectedEpisodeMeta.duration ? (
+                          <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-xs font-medium text-slate-200">
+                            {selectedEpisodeMeta.duration}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </section>
 
                 {isSeriesContent ? (
@@ -3916,7 +4524,12 @@ export function Watch() {
                   </div>
 
                   {/* Bloque Programa Actual */}
-                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div
+                    ref={guideSectionRef}
+                    data-channel-guide="true"
+                    tabIndex={-1}
+                    className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
+                  >
                     <div className="lg:col-span-2 rounded-xl bg-white/[0.04] border border-cyan-500/20 p-4 sm:p-5 flex flex-col justify-between shadow-inner">
                       <div>
                         <div className="flex items-center justify-between gap-2 mb-2">
@@ -4113,33 +4726,51 @@ export function Watch() {
 
             {/* Buscador / Selector rápido de películas para cambiar de contenido al instante */}
             {itemType !== 'channel' && !isBrowserPlaybackBlocked && (
-              <div className="w-full max-w-5xl mx-auto mb-8">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 backdrop-blur-md shadow-xl">
-                  <div className="flex flex-wrap items-center gap-3">
+              <div ref={toolbarSectionRef} className="w-full max-w-5xl mx-auto mb-8">
+                <div className="flex flex-nowrap items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/80 px-3 py-2.5 backdrop-blur-md shadow-xl overflow-hidden sm:gap-3 sm:px-4 sm:py-3">
+                  <div className="flex flex-nowrap items-center gap-2 min-w-0 sm:gap-3">
                     <button
-                      onClick={() => {
-                        setIsMoviePickerOpen((prev) => !prev);
-                        setTimeout(() => moviePickerInputRef.current?.focus(), 50);
+                      ref={(element) => {
+                        toolbarRefs.current[0] = element;
                       }}
-                      className="px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-black shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 active:scale-95"
+                      type="button"
+                      onClick={() => activateToolbarButton(0)}
+                      onFocus={() => {
+                        setFocusedVodDetailSection('toolbar');
+                        setFocusedToolbarIndex(0);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-[11px] sm:text-sm font-black bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-black shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 active:scale-95 shrink-0 whitespace-nowrap focus:outline-none ${
+                        focusedVodDetailSection === 'toolbar' && focusedToolbarIndex === 0
+                          ? 'scale-[1.04] ring-2 ring-white ring-offset-2 ring-offset-zinc-950'
+                          : ''
+                      }`}
                     >
                       <span>🎬</span>
                       <span>Cambiar Película / Buscar</span>
                     </button>
                     {smartRecommendations && smartRecommendations.length > 0 && (
                       <button
-                        onClick={() => {
-                          const el = document.getElementById('sugerencias-seccion');
-                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        ref={(element) => {
+                          toolbarRefs.current[1] = element;
                         }}
-                        className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-zinc-900 border border-white/10 hover:border-cyan-400/40 text-gray-200 hover:text-white transition-all flex items-center gap-1.5"
+                        type="button"
+                        onClick={() => activateToolbarButton(1)}
+                        onFocus={() => {
+                          setFocusedVodDetailSection('toolbar');
+                          setFocusedToolbarIndex(1);
+                        }}
+                        className={`px-3 py-2 rounded-xl text-[11px] sm:text-sm font-semibold bg-zinc-900 border border-white/10 hover:border-cyan-400/40 text-gray-200 hover:text-white transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap focus:outline-none ${
+                          focusedVodDetailSection === 'toolbar' && focusedToolbarIndex === 1
+                            ? 'scale-[1.04] ring-2 ring-cyan-300 ring-offset-2 ring-offset-zinc-950 border-cyan-300'
+                            : ''
+                        }`}
                       >
                         <span>✨</span>
                         <span>Sugerencias y Saga ({smartRecommendations.length})</span>
                       </button>
                     )}
                   </div>
-                  <span className="text-xs text-gray-400 truncate max-w-[200px] sm:max-w-xs">
+                  <span className="min-w-0 flex-1 truncate text-right text-[11px] sm:text-xs text-gray-400">
                     Viendo: <span className="text-white font-semibold">{itemData?.name || ''}</span>
                   </span>
                 </div>
@@ -4171,20 +4802,27 @@ export function Watch() {
                         </div>
                       ) : movieSearchResults.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                          {movieSearchResults.map((movie) => {
+                          {movieSearchResults.map((movie, resultIndex) => {
                             const isCurrent = String(movie._id || movie.id) === String(itemId);
                             const movieTitle = movie.title || movie.name || 'Sin título';
                             const movieYear = movie.releaseYear ? ` (${movie.releaseYear})` : '';
                             const movieThumb = movie.customThumbnail || movie.thumbnail || movie.poster || '/img/placeholder-default.png';
+                            const isPickerFocused = resultIndex === focusedMoviePickerIndex;
 
                             return (
                               <button
                                 key={String(movie._id || movie.id)}
+                                ref={(element) => {
+                                  moviePickerItemRefs.current[resultIndex] = element;
+                                }}
                                 onClick={() => handleSelectMovie(movie)}
-                                className={`w-full text-left rounded-xl p-2 flex items-center gap-3 transition-all border ${
-                                  isCurrent
-                                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-md'
-                                    : 'bg-zinc-900/80 hover:bg-zinc-800 border-white/5 hover:border-cyan-400/30 text-white'
+                                onFocus={() => setFocusedMoviePickerIndex(resultIndex)}
+                                className={`w-full text-left rounded-xl p-2 flex items-center gap-3 transition-all border focus:outline-none ${
+                                  isPickerFocused
+                                    ? 'bg-cyan-500/20 border-cyan-300 ring-2 ring-cyan-300/70 text-cyan-100 shadow-md'
+                                    : isCurrent
+                                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-md'
+                                      : 'bg-zinc-900/80 hover:bg-zinc-800 border-white/5 hover:border-cyan-400/30 text-white'
                                 }`}
                               >
                                 <img

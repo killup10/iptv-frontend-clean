@@ -10,6 +10,7 @@ import {
   TV_FOCUS_ZONE_NAV,
 } from '../utils/tvFocusZone.js';
 import { requestTVSearch } from '../utils/tvSearchEvents.js';
+import { getTVKeyName } from '../utils/tvRemote.js';
 
 export default function TVNavigation() {
   const navigate = useNavigate();
@@ -21,7 +22,6 @@ export default function TVNavigation() {
     { key: 'search', action: 'search', label: 'Buscar', icon: 'search' },
     { key: 'home', path: '/', label: 'Inicio', icon: 'home' },
     { key: 'live', path: '/live-tv', label: 'TV en vivo', icon: 'live' },
-    { key: 'mundial', path: '/mundial-2026', label: 'Mundial 2026', icon: 'trophy' },
     { key: 'movies', path: '/peliculas', label: 'Películas', icon: 'movies' },
     { key: 'series', path: '/series', label: 'Series', icon: 'series' },
     { key: 'animes', path: '/animes', label: 'Animes', icon: 'animes' },
@@ -104,12 +104,15 @@ export default function TVNavigation() {
     }, 50);
   };
 
+  const focusedIndexRef = useRef(focusedIndex);
+  focusedIndexRef.current = focusedIndex;
+
   const moveFocus = (direction) => {
     setFocusedIndex((prev) => {
       if (direction < 0) {
-        return prev > 0 ? prev - 1 : menuItems.length - 1;
+        return Math.max(0, prev - 1);
       }
-      return prev < menuItems.length - 1 ? prev + 1 : 0;
+      return Math.min(menuItems.length - 1, prev + 1);
     });
   };
 
@@ -134,12 +137,9 @@ export default function TVNavigation() {
   const handleKeyDown = (event) => {
     if (getTVFocusZone() !== TV_FOCUS_ZONE_NAV) return;
 
-    let key = event.key;
-    if (event.keyCode === 19) key = 'ArrowUp';
-    else if (event.keyCode === 20) key = 'ArrowDown';
-    else if (event.keyCode === 21) key = 'ArrowLeft';
-    else if (event.keyCode === 22) key = 'ArrowRight';
-    else if (event.keyCode === 23 || event.keyCode === 66) key = 'Enter';
+    // Resolutor canonico (key + keyCode 19-23/66/62 de mandos reales).
+    const key = getTVKeyName(event);
+    if (!key) return;
 
     switch (key) {
       case 'ArrowUp':
@@ -158,10 +158,10 @@ export default function TVNavigation() {
         event.preventDefault(); // Left boundary, keep focus here
         break;
       case 'Enter':
-      case ' ':
         event.preventDefault();
-        activateItem(focusedIndex);
+        activateItem(focusedIndexRef.current);
         break;
+      // Escape/BACK lo gestiona AppTV (lleva al contenido o a Home).
       default:
         break;
     }
@@ -170,7 +170,7 @@ export default function TVNavigation() {
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, []);
 
   const renderMenuIcon = (iconType) => {
     switch (iconType) {

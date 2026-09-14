@@ -338,6 +338,23 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     }
   }, [channels, isLiveTV, playerActive]);
 
+  // Detener video nativo y audio en segundo plano al desmontar el componente VideoPlayer
+  useEffect(() => {
+    return () => {
+      console.log('[VideoPlayer] Desmontando VideoPlayer - deteniendo reproductor nativo y audio');
+      try {
+        if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+          VideoPlayerPlugin.stopVideo({ sessionId: nativePlaybackSessionIdRef.current }).catch(() => {});
+        }
+        if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+          backgroundPlaybackService.stopPlayback().catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[VideoPlayer] Error en limpieza al desmontar:', e);
+      }
+    };
+  }, []);
+
   // UI Components
   const LoadingOverlay = () => (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-2xl z-50">

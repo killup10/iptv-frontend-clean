@@ -14,6 +14,13 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary capturo un error:', error, errorInfo);
+    // Version string: logcat/WebView serializan los objetos como
+    // "[object Object]"; el stack como string si llega completo.
+    try {
+      console.error(`[ErrorBoundary] message=${error?.message || error}`);
+      console.error(`[ErrorBoundary] stack=${error?.stack || 'sin-stack'}`);
+      console.error(`[ErrorBoundary] componentStack=${errorInfo?.componentStack || 'sin-componentStack'}`);
+    } catch {}
 
     try {
       const payload = {

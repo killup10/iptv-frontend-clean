@@ -233,6 +233,35 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
     };
 
+    public static java.lang.ref.WeakReference<VLCPlayerActivity> activeInstance = null;
+
+    public static void stopAndFinishCurrent() {
+        if (activeInstance != null) {
+            VLCPlayerActivity activity = activeInstance.get();
+            if (activity != null && !activity.isFinishing()) {
+                activity.runOnUiThread(() -> {
+                    try {
+                        Log.d(TAG, "stopAndFinishCurrent called on activeInstance");
+                        activity.isBackPressed = true;
+                        activity.isActivityClosing = true;
+                        activity.closeReason = "direct_stop";
+                        if (activity.mediaPlayer != null) {
+                            try {
+                                activity.mediaPlayer.stop();
+                                activity.mediaPlayer.detachViews();
+                            } catch (Exception ignored) {}
+                        }
+                        activity.notifyPlayerClosed("direct_stop");
+                        activity.releasePlayer();
+                        activity.finish();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error stopping activeInstance", e);
+                    }
+                });
+            }
+        }
+    }
+
     private BroadcastReceiver controlReceiver;
     private BroadcastReceiver finishReceiver;
     private BroadcastReceiver liveChannelsReceiver;
@@ -240,6 +269,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        activeInstance = new java.lang.ref.WeakReference<>(this);
 
         // Verificar si se debe cerrar inmediatamente
         if (getIntent().getBooleanExtra("FORCE_CLOSE", false)) {
@@ -248,6 +278,10 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             finish();
             return;
         }
+
+        registerControlReceiver();
+        registerFinishReceiver();
+        registerLiveChannelsReceiver();
 
         setContentView(R.layout.activity_vlc_player);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -416,6 +450,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onStart() {
         super.onStart();
+        activeInstance = new java.lang.ref.WeakReference<>(this);
         isActivityClosing = false;
         isBackPressed = false;
         hasSentPlayerClosedEvent = false;
@@ -425,9 +460,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         } else {
             setupControls();
         }
-        registerControlReceiver();
-        registerFinishReceiver();
-        registerLiveChannelsReceiver();
         queueSessionValidation();
     }
 
@@ -479,9 +511,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onStop() {
         super.onStop();
-        unregisterControlReceiver();
-        unregisterFinishReceiver();
-        unregisterLiveChannelsReceiver();
         // Limpiar long press handler
         if (longPressRunnable != null) {
             longPressHandler.removeCallbacks(longPressRunnable);
@@ -498,6 +527,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (activeInstance != null && activeInstance.get() == this) {
+            activeInstance = null;
+        }
+        unregisterControlReceiver();
+        unregisterFinishReceiver();
+        unregisterLiveChannelsReceiver();
         isActivityClosing = true;
         recoveryHandler.removeCallbacksAndMessages(null);
         stopSessionValidation();
@@ -508,11 +543,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
         if (mediaPlayer != null) {
             try {
-                if (mediaPlayer.isPlaying()) {
-                    Log.d(TAG, "Stopping playback when activity is destroyed");
-                    mediaPlayer.stop();
-                    notifyProgressUpdate(mediaPlayer.getTime());
-                }
+                Log.d(TAG, "Stopping playback when activity is destroyed");
+                mediaPlayer.stop();
+                mediaPlayer.detachViews();
             } catch (Exception ignored) {}
         }
         notifyPlayerClosed(closeReason);

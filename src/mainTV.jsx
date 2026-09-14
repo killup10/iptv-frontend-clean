@@ -17,7 +17,6 @@ import TVCollectionsPage from './pages/TVCollectionsPage.jsx';
 import TVMyListPage from './pages/TVMyListPage.jsx';
 import TVMoviesPage from './pages/TVMoviesPage.jsx';
 import TVKidsPage from './pages/TVKidsPage.jsx';
-import Mundial2026 from './pages/Mundial2026.jsx';
 import Profiles from './pages/Profiles.jsx';
 import Settings from './pages/Settings.jsx';
 import './index.css';
@@ -43,7 +42,6 @@ function TVApp() {
             <Route index element={<Home />} />
             <Route path="tv" element={<Navigate to="/live-tv" replace />} />
             <Route path="live-tv" element={<TVLiveTV />} />
-            <Route path="mundial-2026" element={<Mundial2026 />} />
             <Route
               path="peliculas"
               element={<TVMoviesPage />}

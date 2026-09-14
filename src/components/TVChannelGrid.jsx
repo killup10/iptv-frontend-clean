@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import './TVChannelGrid.css';
+import TVEpgGuide from './TVEpgGuide.jsx';
 import {
   focusTVNav,
   getTVFocusZone,
   TV_FOCUS_ZONE_CONTENT,
 } from '../utils/tvFocusZone.js';
 import { getAccessLockState } from '../utils/planAccess.js';
+import { getTVKeyName } from '../utils/tvRemote.js';
 
 function getChannelColumns(width) {
   if (width <= 960) return 4;
@@ -16,32 +18,18 @@ function getChannelColumns(width) {
 }
 
 function resolveGridAction(event) {
-  switch (event.key) {
-    case 'ArrowUp':
-    case 'ArrowDown':
-    case 'ArrowLeft':
-    case 'ArrowRight':
-    case 'Enter':
-      return event.key;
-    case ' ':
-    case 'Spacebar':
-    case 'Select':
-    case 'MediaPlayPause':
-      return 'Enter';
-    default:
-      break;
+  const name = getTVKeyName(event);
+  if (
+    name === 'ArrowUp' ||
+    name === 'ArrowDown' ||
+    name === 'ArrowLeft' ||
+    name === 'ArrowRight' ||
+    name === 'Enter'
+  ) {
+    return name;
   }
-
-  switch (event.keyCode) {
-    case 19: return 'ArrowUp';
-    case 20: return 'ArrowDown';
-    case 21: return 'ArrowLeft';
-    case 22: return 'ArrowRight';
-    case 23:
-    case 62:
-    case 66: return 'Enter';
-    default: return null;
-  }
+  // BACK/Escape/Borrar: los gestiona AppTV, no consumir aqui.
+  return null;
 }
 
 export default function TVChannelGrid({
@@ -55,9 +43,25 @@ export default function TVChannelGrid({
   onActiveChannelIndexChange,
 }) {
   const { user } = useAuth();
-  const [focusMode, setFocusMode] = useState('channel'); // Por defecto en los canales para mejor UX
+  // Default to horizontal guide as requested by user ("debe salir la guia horizontal")
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('tv_live_view_mode') || 'guide';
+    } catch {
+      return 'guide';
+    }
+  });
+  const [focusMode, setFocusMode] = useState('channel'); // 'controls' | 'category' | 'channel'
+  const [controlsIndex, setControlsIndex] = useState(0); // 0: Guide, 1: Grid, 2: Search
   const [columnCount, setColumnCount] = useState(() => getChannelColumns(window.innerWidth || 1920));
   const [selectedChannelIndex, setSelectedChannelIndex] = useState(initialChannelIndex);
+
+  const handleSetViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('tv_live_view_mode', mode);
+    } catch {}
+  };
 
   const currentCategory = categories[currentCategoryIndex];
   const selectedChannel = channels[selectedChannelIndex];
@@ -77,35 +81,6 @@ export default function TVChannelGrid({
   // Removed parent state sync on every keypress to optimize D-pad latency
   // onActiveChannelIndexChange?.(selectedChannelIndex) is no longer called here
 
-  const navigate = useCallback((direction) => {
-    setSelectedChannelIndex(prev => {
-      let next = prev;
-      const row = Math.floor(prev / columnCount);
-      const col = prev % columnCount;
-
-      switch (direction) {
-        case 'up':
-          if (row > 0) {
-            next = prev - columnCount;
-          } else {
-            return -2; // Signal to move to category
-          }
-          break;
-        case 'down':
-          if (row < totalRows - 1) next = Math.min(prev + columnCount, channels.length - 1);
-          break;
-        case 'left':
-          if (col > 0) next = prev - 1;
-          else return -3; // Signal to move to nav
-          break;
-        case 'right':
-          if (col < columnCount - 1 && prev < channels.length - 1) next = prev + 1;
-          break;
-      }
-      return next;
-    });
-  }, [channels.length, columnCount, totalRows]);
-
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) return;
@@ -114,24 +89,35 @@ export default function TVChannelGrid({
       if (!action) return;
 
       // Bloquear scroll nativo del navegador para que no interfiera
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
-        event.preventDefault();
-      }
+      // (accion resuelta: event.key es "Unidentified" en mandos reales).
+      event.preventDefault();
 
-      if (focusMode === 'search') {
-        if (action === 'ArrowUp' || action === 'ArrowLeft') {
-          focusTVNav();
+      if (focusMode === 'controls') {
+        if (action === 'ArrowLeft') {
+          if (controlsIndex === 0) {
+            focusTVNav();
+          } else {
+            setControlsIndex((prev) => prev - 1);
+          }
+        } else if (action === 'ArrowRight') {
+          if (controlsIndex < 2) {
+            setControlsIndex((prev) => prev + 1);
+          }
         } else if (action === 'ArrowDown') {
           setFocusMode('category');
         } else if (action === 'Enter') {
-          onSearch?.();
+          if (controlsIndex === 0) {
+            handleSetViewMode('guide');
+          } else if (controlsIndex === 2) {
+            onSearch?.();
+          }
         }
         return;
       }
 
       if (focusMode === 'category') {
         if (action === 'ArrowUp') {
-          setFocusMode('search');
+          setFocusMode('controls');
         } else if (action === 'ArrowDown') {
           if (channels.length > 0) {
             setFocusMode('channel');
@@ -171,10 +157,11 @@ export default function TVChannelGrid({
           }
           break;
         case 'ArrowLeft':
-          if (selectedChannelIndex % columnCount === 0) {
-            focusTVNav();
-          } else {
+          if (selectedChannelIndex % columnCount > 0) {
             setSelectedChannelIndex(prev => prev - 1);
+          } else {
+            // Borde izquierdo de la fila: ir al sidebar.
+            focusTVNav();
           }
           break;
         case 'ArrowRight':
@@ -200,6 +187,7 @@ export default function TVChannelGrid({
     currentCategoryIndex,
     currentRow,
     focusMode,
+    controlsIndex,
     onCategoryChange,
     onChannelSelect,
     onSearch,
@@ -216,6 +204,22 @@ export default function TVChannelGrid({
       selectedElement.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
     }
   }, [focusMode, selectedChannelIndex]);
+
+  // If viewMode is 'guide', render the dedicated horizontal EPG view
+  if (viewMode === 'guide') {
+    return (
+      <TVEpgGuide
+        channels={channels}
+        categories={categories}
+        currentCategoryIndex={currentCategoryIndex}
+        onCategoryChange={onCategoryChange}
+        onChannelSelect={onChannelSelect}
+        onSwitchToGrid={() => handleSetViewMode('grid')}
+        onSearch={onSearch}
+        initialChannelIndex={selectedChannelIndex}
+      />
+    );
+  }
 
   return (
     <div ref={containerRef} className="tv-channel-grid-container h-screen overflow-hidden flex flex-col bg-[#050510]">
@@ -253,17 +257,49 @@ export default function TVChannelGrid({
             </div>
           </div>
 
-          <button
-            type="button"
-            className={`tv-channel-search-btn transition-all duration-300 ${focusMode === 'search' ? 'bg-cyan-500 text-black scale-110 shadow-[0_0_30px_rgba(0,255,255,0.5)]' : 'bg-white/5 text-white'} px-5 py-2.5 rounded-xl flex items-center gap-2 border border-white/10`}
-            onClick={() => onSearch?.()}
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.35-4.35" />
-            </svg>
-            <span className="font-bold uppercase text-xs">Busqueda</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Guide Button */}
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('guide')}
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all duration-200 ${
+                focusMode === 'controls' && controlsIndex === 0
+                  ? 'bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,255,255,0.8)] scale-105'
+                  : 'bg-white/5 text-white/70 border border-white/10 hover:text-white'
+              }`}
+            >
+              <span>📅 Guía Horizontal</span>
+            </button>
+
+            {/* Grid Button (Active) */}
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all duration-200 ${
+                focusMode === 'controls' && controlsIndex === 1
+                  ? 'bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,255,255,0.8)] scale-105'
+                  : 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/40'
+              }`}
+            >
+              <span>▦ Cuadrícula</span>
+            </button>
+
+            {/* Search Button */}
+            <button
+              type="button"
+              className={`tv-channel-search-btn transition-all duration-300 ${
+                focusMode === 'controls' && controlsIndex === 2
+                  ? 'bg-cyan-500 text-black scale-105 shadow-[0_0_30px_rgba(0,255,255,0.5)]'
+                  : 'bg-white/5 text-white'
+              } px-4 py-2 rounded-xl flex items-center gap-2 border border-white/10`}
+              onClick={() => onSearch?.()}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+              <span className="font-bold uppercase text-xs">Búsqueda</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -320,12 +356,17 @@ export default function TVChannelGrid({
                       }}
                     />
                     
-                    <div className="absolute bottom-3 left-3 right-3 z-10 bg-black/60 backdrop-blur-md py-1.5 px-3 rounded-xl border border-white/5 shadow-lg">
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 z-10 bg-black/75 backdrop-blur-md py-1.5 px-2.5 rounded-xl border border-white/5 shadow-lg">
                       <p className={`text-center font-extrabold truncate uppercase text-[10px] tracking-wider transition-colors duration-200 ${
                         isSelected ? 'text-cyan-400' : 'text-white'
                       }`}>
                         {channel.name}
                       </p>
+                      {channel.epg ? (
+                        <p className="text-center font-semibold truncate text-[9px] text-cyan-300/90 mt-0.5">
+                          🔴 {channel.epg}
+                        </p>
+                      ) : null}
                     </div>
 
                     {isSelected && <div className="focus-indicator-ring" />}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import { storage } from '../utils/storage.js';
@@ -9,9 +9,19 @@ import { isAndroidTV } from '../utils/platformUtils.js';
 export default function Settings() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Navigation tabs: 'account' | 'security' | 'devices' | 'preferences'
   const [activeTab, setActiveTab] = useState('account');
+
+  // Support ?tab= query parameter (e.g. ?tab=devices)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['account', 'security', 'devices', 'preferences'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
 
   // Subscription details
   const subscription = useMemo(() => getUserSubscriptionSummary(user), [user]);

@@ -296,16 +296,22 @@ export default function TVMoviesPage() {
     }
   };
 
-  const handleSelectItem = (item) => {
+  const handleSelectItem = (item, index) => {
     const itemId = getTVItemId(item);
     if (!itemId) return;
+
+    // Usar el indice vivo que manda la grilla (el state puede ir un frame atras).
+    const liveIndex = Number.isInteger(index) ? index : selectedIndex;
+    if (liveIndex !== selectedIndex) {
+      setSelectedIndex(liveIndex);
+    }
 
     navigate(`/watch/movie/${itemId}`, {
       state: {
         from: '/peliculas',
         returnState: {
           selectedSubcategory,
-          selectedIndex,
+          selectedIndex: liveIndex,
         },
       },
     });
@@ -349,6 +355,7 @@ export default function TVMoviesPage() {
         onAddToMyList={handleAddToMyList}
         columns={5}
         initialIndex={selectedIndex}
+        initialFocusMode={Number.isInteger(location.state?.selectedIndex) ? 'grid' : 'filters'}
         onActiveIndexChange={setSelectedIndex}
         onSearch={() => setShowSearch(true)}
         emptyMessage={`No hay películas disponibles en ${selectedSubcategory}.`}

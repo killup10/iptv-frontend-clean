@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  getTVFocusZone, 
-  TV_FOCUS_ZONE_CONTENT, 
-  focusTVNav 
-} from '../utils/tvFocusZone';
+import { focusTVNav, getTVFocusZone, TV_FOCUS_ZONE_CONTENT } from '../utils/tvFocusZone';
+import { getTVKeyName } from '../utils/tvRemote';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   getTVItemTitle,
@@ -47,28 +44,30 @@ const TVGrid = ({
   const [focusMode, setFocusMode] = useState('grid'); // 'grid' | 'search'
   
   useEffect(() => {
-    if (autoFocus && focusedIndex === -1 && items.length > 0) {
-      setFocusedIndex(0);
+    if (autoFocus && items.length > 0) {
+      setFocusedIndex((prev) => (prev < 0 || prev >= items.length ? 0 : prev));
     }
-  }, [autoFocus, items.length, focusedIndex]);
+  }, [autoFocus, items.length]);
 
   const handleKeyDown = useCallback((e) => {
     if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) return;
     if (items.length === 0) return;
 
+    // Nombre canonico: funciona con `key` y con keyCode 19-23 de mandos reales.
+    const action = getTVKeyName(e);
+
     if (focusMode === 'search') {
-      switch (e.keyCode) {
-        case 38: // Up
-        case 37: // Left
+      switch (action) {
+        case 'ArrowUp': // Up
+        case 'ArrowLeft': // Left
           e.preventDefault();
           focusTVNav();
           break;
-        case 40: // Down
+        case 'ArrowDown': // Down
           e.preventDefault();
           setFocusMode('grid');
           break;
-        case 13: // Enter
-        case 32: // Space
+        case 'Enter': // Enter / Space / OK
           e.preventDefault();
           onSearch?.();
           break;
@@ -78,52 +77,53 @@ const TVGrid = ({
       return;
     }
 
+    if (!action || action === 'Escape' || action === 'Backspace') {
+      // BACK lo gestiona AppTV (no hacer preventDefault: lo necesita ver).
+      return;
+    }
+
     const row = Math.floor(focusedIndex / columns);
     const col = focusedIndex % columns;
     const totalRows = Math.ceil(items.length / columns);
 
     let nextIndex = focusedIndex;
 
-    switch (e.keyCode) {
-      case 37: // Left
+    switch (action) {
+      case 'ArrowLeft': // Left
+        // Borde izquierdo de la fila: ir al sidebar.
+        e.preventDefault();
         if (col > 0) {
-          e.preventDefault();
           nextIndex = focusedIndex - 1;
         } else {
-          // Borde izquierdo -> Ir al Nav
-          e.preventDefault();
           focusTVNav();
           return;
         }
         break;
-      case 39: // Right
+      case 'ArrowRight': // Right
+        e.preventDefault();
         if (col < columns - 1 && focusedIndex < items.length - 1) {
-          e.preventDefault();
           nextIndex = focusedIndex + 1;
         }
         break;
-      case 38: // Up
+      case 'ArrowUp': // Up
+        e.preventDefault();
         if (row > 0) {
-          e.preventDefault();
           nextIndex = focusedIndex - columns;
         } else {
-          // Borde superior -> Ir al search o nav
-          e.preventDefault();
+          // Borde superior
           if (onSearch) {
             setFocusMode('search');
-          } else {
-            focusTVNav();
           }
           return;
         }
         break;
-      case 40: // Down
+      case 'ArrowDown': // Down
+        e.preventDefault();
         if (row < totalRows - 1) {
-          e.preventDefault();
           nextIndex = Math.min(focusedIndex + columns, items.length - 1);
         }
         break;
-      case 13: // Enter
+      case 'Enter': // Enter
         if (focusedIndex >= 0 && items[focusedIndex]) {
           e.preventDefault();
           handleSelect?.(items[focusedIndex], focusedIndex);

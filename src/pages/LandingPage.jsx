@@ -1,5 +1,5 @@
 // src/pages/LandingPage.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
@@ -37,15 +37,22 @@ import {
   Copy,
   CheckCheck,
   ExternalLink,
+  Search,
+  Filter,
+  Image as ImageIcon,
+  Calendar,
+  Clock,
+  CreditCard,
 } from "lucide-react";
 import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
+import { LANDING_CHANNELS_DATA } from "../data/landingChannelsData.js";
 
 // Datos enriquecidos para la muestra de contenido con portadas reales y logotipos deportivos
 const CATALOG_SHOWCASE_DATA = [
   {
     id: "cine2026",
-    categoryLabel: "Cine 4K",
+    categoryLabel: "Cine 4K VOD",
     categoryTitle: "Estrenos de Cine 2026",
     badgeColor: "cyan",
     items: [
@@ -88,18 +95,18 @@ const CATALOG_SHOWCASE_DATA = [
   },
   {
     id: "deportes",
-    categoryLabel: "Deportes",
+    categoryLabel: "Deportes en Vivo",
     categoryTitle: "Liga 1 Max & DSports",
     badgeColor: "fuchsia",
     items: [
       {
-        title: "Liga 1 Max HD",
+        title: "Liga 1 Max Full HD",
         subtitle: "Fútbol Peruano • Torneo en Vivo",
         tag: "🔴 EN VIVO",
         poster: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=500&q=80",
         channelName: "LIGA 1 MAX",
         detailText: "Alianza Lima • Universitario • Cristal",
-        quality: "HD 60FPS"
+        quality: "Full HD 1080p"
       },
       {
         title: "DSports / DIRECTV",
@@ -108,7 +115,7 @@ const CATALOG_SHOWCASE_DATA = [
         poster: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=500&q=80",
         channelName: "DSPORTS",
         detailText: "Conmebol Sudamericana • LaLiga EA",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       },
       {
         title: "ESPN Premium & ESPN 1-4",
@@ -117,7 +124,7 @@ const CATALOG_SHOWCASE_DATA = [
         poster: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=500&q=80",
         channelName: "ESPN PREMIUM",
         detailText: "Champions League • F1 • UFC",
-        quality: "HD 60FPS"
+        quality: "Full HD 1080p"
       },
       {
         title: "Fox Sports 1 & 2 HD",
@@ -126,13 +133,13 @@ const CATALOG_SHOWCASE_DATA = [
         poster: "https://images.unsplash.com/photo-1518604666864-9ed5060764c6?w=500&q=80",
         channelName: "FOX SPORTS",
         detailText: "Copa Libertadores • SmackDown",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       }
     ]
   },
   {
     id: "series",
-    categoryLabel: "Series",
+    categoryLabel: "Series & Animes",
     categoryTitle: "Series, Animes & KDramas",
     badgeColor: "cyan",
     items: [
@@ -148,7 +155,7 @@ const CATALOG_SHOWCASE_DATA = [
         subtitle: "Castillo Infinito • Anime HD",
         tag: "Tendencia",
         poster: "https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       },
       {
         title: "La Casa del Dragón",
@@ -162,7 +169,7 @@ const CATALOG_SHOWCASE_DATA = [
         subtitle: "Anime Tendencia • Audio Latino",
         tag: "Imperdible",
         poster: "https://image.tmdb.org/t/p/w500/geCRueV3ElhRTr0xtJuPxJ8HGqd.jpg",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       },
       {
         title: "El Juego del Calamar 2",
@@ -175,7 +182,7 @@ const CATALOG_SHOWCASE_DATA = [
   },
   {
     id: "kids",
-    categoryLabel: "Kids",
+    categoryLabel: "Zona Kids",
     categoryTitle: "Zona Infantil Segura",
     badgeColor: "fuchsia",
     items: [
@@ -191,7 +198,7 @@ const CATALOG_SHOWCASE_DATA = [
         subtitle: "Disney Animation • Estreno",
         tag: "Estreno",
         poster: "https://image.tmdb.org/t/p/w500/yh64qw9mgXBvlaWDi7Q9tpUBAvH.jpg",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       },
       {
         title: "Super Mario Bros",
@@ -205,7 +212,7 @@ const CATALOG_SHOWCASE_DATA = [
         subtitle: "Universal Pictures • Divertido",
         tag: "Comedia",
         poster: "https://image.tmdb.org/t/p/w500/kDp1vUBnMpe8ak4rjgl3cLELqjU.jpg",
-        quality: "Full HD"
+        quality: "Full HD 1080p"
       },
       {
         title: "Mi Villano Favorito 4",
@@ -215,6 +222,50 @@ const CATALOG_SHOWCASE_DATA = [
         quality: "4K HDR"
       }
     ]
+  }
+];
+
+// Eventos deportivos destacados para el fixture interactivo
+const UPCOMING_SPORTS_EVENTS = [
+  {
+    id: "sp1",
+    tournament: "Liga 1 Te Apuesto (Perú)",
+    homeTeam: "Alianza Lima",
+    awayTeam: "Universitario de Deportes",
+    time: "Sábado • 8:00 PM",
+    channelBadge: "LIGA 1 MAX",
+    tag: "🔴 CLÁSICO EN VIVO",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp2",
+    tournament: "UEFA Champions League",
+    homeTeam: "Real Madrid",
+    awayTeam: "Manchester City",
+    time: "Miércoles • 2:00 PM",
+    channelBadge: "ESPN PREMIUM",
+    tag: "🏆 CUARTOS DE FINAL",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp3",
+    tournament: "Conmebol Libertadores",
+    homeTeam: "Sporting Cristal",
+    awayTeam: "Flamengo",
+    time: "Jueves • 7:30 PM",
+    channelBadge: "FOX SPORTS / DSPORTS",
+    tag: "🔥 FASE DE GRUPOS",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp4",
+    tournament: "Premier League (Inglaterra)",
+    homeTeam: "Liverpool",
+    awayTeam: "Arsenal",
+    time: "Domingo • 11:30 AM",
+    channelBadge: "DSPORTS / ESPN",
+    tag: "⚡ PARTIDAZO",
+    quality: "Full HD 1080p"
   }
 ];
 
@@ -275,7 +326,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
         </span>
 
         <span className="text-[9px] font-mono font-black bg-black/60 border border-white/10 px-2 py-0.5 rounded-full text-slate-300">
-          {currentItem.quality || "4K UHD"}
+          {currentItem.quality || "Full HD"}
         </span>
       </div>
 
@@ -376,7 +427,41 @@ function LandingPage() {
   const [pricingGroup, setPricingGroup] = useState("recomendados"); // "recomendados" | "iniciales"
   const [activeFaq, setActiveFaq] = useState(null);
   const [isAppsModalOpen, setIsAppsModalOpen] = useState(false);
+  const [isGrillaModalOpen, setIsGrillaModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Search & Explorer Channels State
+  const [channelSearchTerm, setChannelSearchTerm] = useState("");
+  const [selectedChannelCategory, setSelectedChannelCategory] = useState("Todos");
+  const [visibleChannelsCount, setVisibleChannelsCount] = useState(24);
+
+  const channelCategories = [
+    "Todos",
+    "Deportes Premium",
+    "Películas & Series",
+    "Perú & Noticias",
+    "Infantiles & Niños",
+    "Culturales & Documentales",
+    "Novelas & Variedad",
+    "Canales 24/7",
+    "Música & Radios",
+  ];
+
+  const filteredChannels = useMemo(() => {
+    let list = LANDING_CHANNELS_DATA || [];
+    if (selectedChannelCategory !== "Todos") {
+      list = list.filter((c) => c.category === selectedChannelCategory);
+    }
+    if (channelSearchTerm.trim() !== "") {
+      const term = channelSearchTerm.toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.name.toLowerCase().includes(term) ||
+          c.category.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [channelSearchTerm, selectedChannelCategory]);
 
   const handleCopyDownloaderCode = () => {
     navigator.clipboard.writeText("3895210");
@@ -385,7 +470,6 @@ function LandingPage() {
   };
 
   // --- PIP Player Interactive State & Drag / Resize Logic ---
-  // Helper to convert Dropbox URLs to raw direct streaming URLs
   const resolveDropboxUrl = (url) => {
     if (!url || typeof url !== "string") return url;
     let clean = url.trim();
@@ -414,23 +498,6 @@ function LandingPage() {
   const [pipPlaying, setPipPlaying] = useState(true);
   const [pipMuted, setPipMuted] = useState(true);
   const pipVideoRef = useRef(null);
-
-  const channelVideos = {
-    promo: DEFAULT_PROMO_VIDEO,
-    deportes: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-    cine: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-  };
-
-  const handleSelectChannel = (channelKey) => {
-    setPipChannel(channelKey);
-    const url = channelVideos[channelKey] || DEFAULT_PROMO_VIDEO;
-    setActiveVideoUrl(url);
-    if (pipVideoRef.current) {
-      pipVideoRef.current.src = url;
-      pipVideoRef.current.play().catch(() => {});
-      setPipPlaying(true);
-    }
-  };
 
   const togglePipFullscreen = () => {
     if (!pipVideoRef.current) return;
@@ -531,7 +598,6 @@ function LandingPage() {
   // Redireccionar si el usuario ya está autenticado
   useEffect(() => {
     if (!isLoadingAuth && user) {
-      console.log("[LandingPage] Usuario logueado detectado. Redirigiendo a /home...");
       navigate("/home", { replace: true });
     }
   }, [user, isLoadingAuth, navigate]);
@@ -539,12 +605,10 @@ function LandingPage() {
   // Redireccionar si estamos dentro de una app instalada (Electron o Capacitor nativo)
   useEffect(() => {
     if (!isLoadingAuth && !isWeb() && !user) {
-      console.log("[LandingPage] Detectada app nativa sin sesión. Redirigiendo a /login...");
       navigate("/login", { replace: true });
     }
   }, [user, isLoadingAuth, navigate]);
 
-  // Función para desplazamiento suave a anclas sin romper el HashRouter de React Router
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -552,7 +616,7 @@ function LandingPage() {
     }
   };
 
-  // Datos de los 5 planes activos
+  // Datos de los planes activos con aclaración de calidad Full HD en TV en vivo
   const plans = [
     {
       id: "gplay",
@@ -565,7 +629,7 @@ function LandingPage() {
         anual: "1 Dispositivo",
       },
       features: [
-        "Más de 90 canales en vivo",
+        "Más de 90 canales en vivo (Full HD)",
         "Acceso desde PC, Móvil o TV",
         "Soporte técnico dedicado",
         "Transmisión sin anuncios",
@@ -586,7 +650,7 @@ function LandingPage() {
         anual: "1 Dispositivo",
       },
       features: [
-        "Más de 90 canales en vivo",
+        "Más de 90 canales en vivo (Full HD)",
         "Cine y Series organizados",
         "Documentales en alta definición",
         "Acceso multisección ilimitado",
@@ -607,8 +671,8 @@ function LandingPage() {
         anual: "1 Dispositivo",
       },
       features: [
-        "Más de 90 canales en vivo",
-        "Todos los canales deportivos",
+        "Más de 90 canales en vivo (Full HD)",
+        "Todos los canales deportivos en vivo",
         "Incluye Liga 1 Max y DSports",
         "Cine, Series y Documentales",
       ],
@@ -629,9 +693,9 @@ function LandingPage() {
         anual: "1 SmartTV + 1 Celular",
       },
       features: [
-        "Más de 90 canales en vivo",
-        "Cine de estreno 2026",
-        "VODs en 4K Ultra HD",
+        "Más de 90 canales en vivo (Full HD)",
+        "Cine de estreno 2026 en VOD",
+        "Sección Especial 4K Ultra HD & 60 FPS",
         "Series, Animes, Novelas y Kids",
       ],
       badge: "Cine Completo",
@@ -650,9 +714,9 @@ function LandingPage() {
         anual: "1 SmartTV + 1 Celular",
       },
       features: [
-        "Más de 300 canales en vivo",
-        "Incluye Liga 1 Max y DSports",
-        "Cine de estreno 2026 (4K Ultra HD)",
+        "Más de 360 canales en vivo (Full HD 1080p)",
+        "Incluye Liga 1 Max y DSports completos",
+        "Cine de estreno 2026 (Especial 4K Ultra HD)",
         "Series, Animes, KDramas y Novelas",
         "Sección Zona Kids especial",
         "Colección Dragon Ball Completa",
@@ -670,6 +734,13 @@ function LandingPage() {
     const planName = plan.name;
     const price = billingCycle === "mensual" ? `S/ ${plan.priceMonthly} Mensual` : `S/ ${plan.priceYearly} Anual`;
     const message = `Hola TeamG Play, quiero adquirir el plan ${planName} ${billingCycle === "mensual" ? "Mensual" : "Anual"} por ${price}`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/51912194777?text=${encodedMessage}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
+  const handleInquireChannel = (channelName) => {
+    const message = `Hola TeamG Play, quiero consultar si tienen disponible el canal "${channelName}" y probar el servicio.`;
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/51912194777?text=${encodedMessage}`;
     window.open(whatsappUrl, "_blank");
@@ -741,7 +812,7 @@ function LandingPage() {
         }
       `}</style>
 
-      {/* Atmospheric Ambient Lighting Glows (Hardware Accelerated & Zero-Lag) */}
+      {/* Atmospheric Ambient Lighting Glows */}
       <div 
         className="absolute top-[-5%] left-[-10%] w-[50vw] h-[50vw] rounded-full pointer-events-none z-0 opacity-70"
         style={{
@@ -760,7 +831,7 @@ function LandingPage() {
       {/* Grid Pattern Overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_20%,#000_70%,transparent_100%)] pointer-events-none z-0" />
 
-      {/* CapCut Style Fixed Island Header */}
+      {/* Fixed Island Header */}
       <header className="w-full z-50 sticky top-4 max-w-6xl mx-auto px-4">
         <div className="mx-auto px-6 py-3.5 rounded-full capcut-glass-nav border border-white/10 flex items-center justify-between shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
           <div className="flex items-center gap-3">
@@ -768,15 +839,17 @@ function LandingPage() {
             <span className="font-outfit font-black text-sm tracking-wider text-white">TEAMG <span className="text-[#00F0FF]">PLAY</span></span>
           </div>
 
-          <nav className="hidden md:flex items-center gap-8 text-[12px] font-semibold text-slate-300">
+          <nav className="hidden md:flex items-center gap-7 text-[12px] font-semibold text-slate-300">
             <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-[#00F0FF] transition-colors duration-200">Características</button>
-            <button onClick={() => scrollToSection("catalogo")} className="hover:text-[#00F0FF] transition-colors duration-200">Catálogo</button>
-            <button onClick={() => scrollToSection("planes")} className="hover:text-[#00F0FF] transition-colors duration-200">Planes y Precios</button>
-            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors duration-200 flex items-center gap-1.5 font-bold">
-              <Download className="w-3.5 h-3.5" /> Descargar Apps
+            <button onClick={() => scrollToSection("buscador-canales")} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors duration-200 flex items-center gap-1 font-bold">
+              <Search className="w-3.5 h-3.5" /> Canales (+360)
             </button>
-            <button onClick={() => scrollToSection("testimonios")} className="hover:text-[#00F0FF] transition-colors duration-200">Opiniones</button>
-            <button onClick={() => scrollToSection("faq")} className="hover:text-[#00F0FF] transition-colors duration-200">FAQ</button>
+            <button onClick={() => scrollToSection("deportes-vivo")} className="hover:text-[#00F0FF] transition-colors duration-200">Deportes</button>
+            <button onClick={() => scrollToSection("catalogo")} className="hover:text-[#00F0FF] transition-colors duration-200">Catálogo VOD</button>
+            <button onClick={() => scrollToSection("planes")} className="hover:text-[#00F0FF] transition-colors duration-200">Planes y Precios</button>
+            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-cyan-300 transition-colors duration-200 flex items-center gap-1.5 font-bold">
+              <Download className="w-3.5 h-3.5" /> Apps TV
+            </button>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -797,13 +870,13 @@ function LandingPage() {
       </header>
 
       {/* HERO SECTION */}
-      <section className="relative w-full max-w-6xl mx-auto px-6 pt-16 md:pt-28 pb-28 flex flex-col lg:flex-row items-center gap-14 z-10">
+      <section className="relative w-full max-w-6xl mx-auto px-6 pt-16 md:pt-28 pb-20 flex flex-col lg:flex-row items-center gap-14 z-10">
         
         {/* Left Text Column */}
         <div className="flex-1 text-left flex flex-col items-start">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-cyan-400/30 text-[10px] font-extrabold uppercase tracking-widest text-[#00F0FF] mb-6 shadow-inner">
             <Sparkles className="w-3.5 h-3.5 text-[#00F0FF]" />
-            Streaming Ultra Fluido & HD
+            Streaming Ultra Fluido • Canales en Full HD
           </div>
 
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-outfit font-extrabold tracking-tight leading-[1.02] mb-6 text-white">
@@ -812,40 +885,40 @@ function LandingPage() {
           </h1>
 
           <p className="text-slate-300 text-sm sm:text-base max-w-lg mb-8 font-normal leading-relaxed">
-            Experimenta el futuro del IPTV sin cortes. Más de 300 canales en vivo, eventos deportivos exclusivos (Liga 1 Max, DSports) y un catálogo infinito de películas y series de estreno 2026 en 4K Ultra HD.
+            Experimenta el futuro del IPTV sin cortes. Más de 360 canales en vivo en <strong>Full HD (1080p)</strong>, eventos deportivos exclusivos (Liga 1 Max, DSports) y estrenos de cine 2026 con <strong>secciones especiales en 4K Ultra HD & 60 FPS</strong>.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto mb-10">
             <button
-              onClick={() => scrollToSection("planes")}
+              onClick={() => scrollToSection("buscador-canales")}
               className="px-8 py-4 rounded-full bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(0,240,255,0.5)] flex items-center gap-3"
             >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              Comenzar Ahora
+              <Search className="w-4 h-4 stroke-[2.5]" />
+              Ver Grilla & Canales
             </button>
 
             <button
-              onClick={() => setIsAppsModalOpen(true)}
-              className="px-7 py-4 rounded-full bg-white/5 border border-white/15 hover:bg-white/15 text-slate-200 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2 hover:border-[#00F0FF]/50 hover:text-white"
+              onClick={() => setIsGrillaModalOpen(true)}
+              className="px-7 py-4 rounded-full bg-white/5 border border-cyan-400/30 hover:bg-cyan-500/15 text-cyan-300 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2 hover:border-[#00F0FF]/50"
             >
-              <Tv className="w-4 h-4 text-cyan-400" />
-              Apps TV / PC / Móvil
+              <ImageIcon className="w-4 h-4 text-cyan-400" />
+              Grilla Completa HD
             </button>
           </div>
 
           {/* Quick Stats Badges */}
           <div className="grid grid-cols-3 gap-6 pt-6 border-t border-white/10 w-full max-w-lg">
             <div>
-              <p className="text-xl sm:text-2xl font-outfit font-black text-white">+300</p>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Canales en Vivo</p>
+              <p className="text-xl sm:text-2xl font-outfit font-black text-white">+360</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Canales en Vivo Full HD</p>
             </div>
             <div>
-              <p className="text-xl sm:text-2xl font-outfit font-black text-[#00F0FF]">4K Ultra HD</p>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Calidad VOD</p>
+              <p className="text-xl sm:text-2xl font-outfit font-black text-[#00F0FF]">4K & 60 FPS</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Especial Cine 2026 VOD</p>
             </div>
             <div>
-              <p className="text-xl sm:text-2xl font-outfit font-black text-fuchsia-400">24/7</p>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Soporte Técnico</p>
+              <p className="text-xl sm:text-2xl font-outfit font-black text-fuchsia-400">912 194 777</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">WhatsApp Soporte</p>
             </div>
           </div>
         </div>
@@ -868,7 +941,7 @@ function LandingPage() {
                     <Play className="w-4 h-4 fill-current ml-0.5" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white">Streaming 4K Sin Lag</p>
+                    <p className="text-xs font-bold text-white">Full HD 1080p Sin Lag</p>
                     <p className="text-[10px] text-slate-400">Servidores dedicados ultra estables</p>
                   </div>
                 </div>
@@ -880,33 +953,257 @@ function LandingPage() {
       </section>
 
       {/* Marquee Ticker */}
-      <section className="w-full py-8 bg-black/50 border-y border-white/10 overflow-hidden z-10">
-        <div className="text-center mb-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-slate-400">Canales y Contenido Incluido</p>
+      <section className="w-full py-6 bg-black/50 border-y border-white/10 overflow-hidden z-10">
+        <div className="text-center mb-3">
+          <p className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-slate-400">Señales Deportivas y Entretenimiento Incluido</p>
         </div>
         <div className="flex w-[200%] gap-12 items-center animate-marquee select-none whitespace-nowrap">
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">LIGA 1 MAX</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">DSPORTS</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">ESPN PREMIUM</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">HBO MAX</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">DIRECTV SPORTS</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">LIGA 1 MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DSPORTS (DIRECTV)</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">ESPN PREMIUM</span>
           <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">FOX SPORTS</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">DISNEY+</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">UNIVERSAL+</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">HBO MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DISNEY+</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">AMÉRICA TV HD</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">ATV HD</span>
 
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">LIGA 1 MAX</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">DSPORTS</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">ESPN PREMIUM</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">HBO MAX</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">DIRECTV SPORTS</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">LIGA 1 MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DSPORTS (DIRECTV)</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">ESPN PREMIUM</span>
           <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">FOX SPORTS</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-slate-400 mx-4">DISNEY+</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">UNIVERSAL+</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">HBO MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DISNEY+</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">AMÉRICA TV HD</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">ATV HD</span>
+        </div>
+      </section>
+
+      {/* EXPLORADOR Y BUSCADOR INTERACTIVO DE CANALES */}
+      <section id="buscador-canales" className="w-full max-w-6xl mx-auto px-6 py-24 z-10">
+        <div className="text-center max-w-3xl mx-auto mb-10">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[10px] font-extrabold uppercase tracking-widest text-[#00F0FF] mb-3">
+            <Tv className="w-3.5 h-3.5 text-[#00F0FF]" />
+            Catálogo Completo y Transparente
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
+            Explorador de <span className="capcut-accent-gradient">+360 Canales en Vivo</span>
+          </h2>
+          <p className="text-slate-300 text-sm leading-relaxed">
+            Busca cualquier canal en tiempo real. Todas nuestras señales en vivo son transmitidas en <strong>Full HD (1080p)</strong> con máxima estabilidad y cero cortes.
+          </p>
+        </div>
+
+        {/* Action Banner: View & Download Full HD Channel Grid Poster */}
+        <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black/80 border border-[#00F0FF]/40 shadow-[0_0_40px_rgba(0,240,255,0.15)] flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]">
+              <ImageIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-outfit font-black text-xl text-white">Grilla Oficial de Canales TeamG Play</h3>
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00F0FF] text-black">
+                  Póster HD
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                ¿Prefieres ver o descargar la imagen publicitaria con todos los logos oficiales organizados por categorías para compartir con tus amigos o clientes?
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={() => setIsGrillaModalOpen(true)}
+              className="flex-1 md:flex-none px-6 py-3.5 rounded-2xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,240,255,0.4)] flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4 stroke-[2.5]" />
+              Ver Imagen HD
+            </button>
+            <a
+              href="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+              download="TeamG_Grilla_Oficial_Canales.png"
+              className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+              title="Descargar póster en alta resolución"
+            >
+              <Download className="w-4 h-4" />
+              Descargar
+            </a>
+          </div>
+        </div>
+
+        {/* Search Input Bar */}
+        <div className="relative max-w-2xl mx-auto mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#00F0FF]" />
+          <input
+            type="text"
+            placeholder="Buscar canal en vivo (ej: Liga 1 Max, ESPN, HBO, Cartoon, América TV)..."
+            value={channelSearchTerm}
+            onChange={(e) => {
+              setChannelSearchTerm(e.target.value);
+              setVisibleChannelsCount(24);
+            }}
+            className="w-full pl-12 pr-10 py-4 rounded-2xl bg-black/60 border border-white/15 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] shadow-inner transition-all"
+          />
+          {channelSearchTerm && (
+            <button
+              onClick={() => setChannelSearchTerm("")}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Category Pills Filter */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-thin scrollbar-thumb-white/10 justify-start sm:justify-center">
+          {channelCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                setSelectedChannelCategory(cat);
+                setVisibleChannelsCount(24);
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 ${
+                selectedChannelCategory === cat
+                  ? "bg-[#00F0FF] text-black shadow-[0_0_15px_rgba(0,240,255,0.4)] scale-105"
+                  : "bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Results Counter */}
+        <div className="flex items-center justify-between mb-6 text-xs text-slate-400 font-semibold px-2">
+          <span>
+            Mostrando <strong className="text-[#00F0FF]">{Math.min(visibleChannelsCount, filteredChannels.length)}</strong> de <strong className="text-white">{filteredChannels.length}</strong> canales
+            {selectedChannelCategory !== "Todos" && ` en "${selectedChannelCategory}"`}
+          </span>
+          <span className="text-emerald-400 flex items-center gap-1 font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Todas las señales Full HD 1080p
+          </span>
+        </div>
+
+        {/* Channels Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {filteredChannels.slice(0, visibleChannelsCount).map((channel, idx) => (
+            <div
+              key={channel.name + idx}
+              onClick={() => handleInquireChannel(channel.name)}
+              className="group p-4 rounded-2xl bg-[#080816] border border-white/10 hover:border-[#00F0FF]/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.2)] transition-all duration-200 flex flex-col items-center justify-between text-center cursor-pointer relative overflow-hidden"
+            >
+              {/* Quality Label Top */}
+              <div className="w-full flex items-center justify-between mb-2">
+                <span className="text-[8px] font-black uppercase tracking-wider text-[#00F0FF] bg-[#00F0FF]/10 px-1.5 py-0.5 rounded">
+                  FHD 1080p
+                </span>
+                <span className="text-[8px] text-slate-400 font-medium truncate max-w-[80px]">
+                  {channel.category.split("&")[0].trim()}
+                </span>
+              </div>
+
+              {/* Channel Logo */}
+              <div className="w-16 h-16 my-2 rounded-xl bg-black/60 border border-white/10 p-2 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                {channel.logo ? (
+                  <img
+                    src={channel.logo}
+                    alt={channel.name}
+                    className="max-w-full max-h-full object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <Tv className="w-7 h-7 text-[#00F0FF]/80" />
+                )}
+              </div>
+
+              {/* Channel Name */}
+              <h4 className="font-outfit font-extrabold text-xs text-white group-hover:text-[#00F0FF] transition-colors truncate w-full mt-1">
+                {channel.name}
+              </h4>
+
+              {/* Ask WhatsApp Action */}
+              <div className="mt-3 w-full pt-2 border-t border-white/5 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-400 group-hover:text-emerald-300 transition-colors">
+                <MessageCircle className="w-3 h-3 text-emerald-400" />
+                <span>Pedir Demo</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Load More Button */}
+        {visibleChannelsCount < filteredChannels.length && (
+          <div className="mt-10 text-center">
+            <button
+              onClick={() => setVisibleChannelsCount((prev) => prev + 24)}
+              className="px-8 py-3 rounded-full bg-white/10 hover:bg-[#00F0FF] hover:text-black text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-95 border border-white/15"
+            >
+              Cargar Más Canales ({filteredChannels.length - visibleChannelsCount} restantes) ➔
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* SECCIÓN DEPORTES EN VIVO & FIXTURE DE EVENTOS */}
+      <section id="deportes-vivo" className="w-full max-w-6xl mx-auto px-6 py-20 border-t border-white/10 z-10">
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-pink-500/10 border border-pink-500/30 text-[10px] font-extrabold uppercase tracking-widest text-pink-400 mb-3">
+            <Flame className="w-3.5 h-3.5 text-pink-400" />
+            Fútbol en Vivo Sin Cortes
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
+            Vive los mejores <span className="capcut-accent-gradient">Eventos Deportivos</span>
+          </h2>
+          <p className="text-slate-300 text-sm">
+            Disfruta de la Liga 1 Max, Champions League, Copa Libertadores y torneos internacionales con señal nativa en Full HD.
+          </p>
+        </div>
+
+        {/* Match Fixture Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {UPCOMING_SPORTS_EVENTS.map((match) => (
+            <div
+              key={match.id}
+              className="p-6 rounded-3xl capcut-card-bg relative overflow-hidden group border border-white/10 hover:border-pink-500/40 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-pink-500/20 border border-pink-500/40 text-pink-300">
+                  {match.tag}
+                </span>
+                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                  {match.quality}
+                </span>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">{match.tournament}</p>
+                <h3 className="text-lg sm:text-xl font-outfit font-black text-white group-hover:text-pink-300 transition-colors">
+                  {match.homeTeam} <span className="text-[#00F0FF] font-normal">vs</span> {match.awayTeam}
+                </h3>
+              </div>
+
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
+                  <Clock className="w-4 h-4 text-[#00F0FF]" />
+                  <span>{match.time}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black/60 border border-white/15">
+                  <Tv className="w-3.5 h-3.5 text-pink-400" />
+                  <span className="text-xs font-black text-white tracking-wider">{match.channelBadge}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* BENTO GRID FEATURES SECTION */}
-      <section id="caracteristicas" className="w-full max-w-6xl mx-auto px-6 py-28 z-10">
+      <section id="caracteristicas" className="w-full max-w-6xl mx-auto px-6 py-24 border-t border-white/10 z-10">
         <div className="mb-16 text-center md:text-left max-w-2xl">
           <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-[#00F0FF] mb-3">Edición Potente & Interfaz Inteligente</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
@@ -942,7 +1239,7 @@ function LandingPage() {
                 <Move className="w-4 h-4" />
                 Probar Demo PiP Interactivo
               </button>
-              <span className="text-slate-400 text-xs font-medium">Video real, arrastrable, redimensionable y compatible con links de Dropbox</span>
+              <span className="text-slate-400 text-xs font-medium">Video real, arrastrable, redimensionable y compatible con links directos</span>
             </div>
           </div>
 
@@ -978,7 +1275,7 @@ function LandingPage() {
               </span>
               <h3 className="text-xl font-outfit font-bold mb-3 text-white">Fútbol & Eventos Premium</h3>
               <p className="text-slate-300 text-sm font-normal leading-relaxed">
-                Transmisiones estables de la Liga 1 Max, Champions League y torneos internacionales sin retrasos.
+                Transmisiones estables de la Liga 1 Max, Champions League y torneos internacionales en Full HD sin retrasos.
               </p>
             </div>
             <div className="mt-6 text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
@@ -998,9 +1295,9 @@ function LandingPage() {
               </div>
 
               <div className="min-h-[80px]">
-                <h3 className="text-xl font-outfit font-bold mb-2 text-white">Cine 4K, Series, Animes & Deportes</h3>
+                <h3 className="text-xl font-outfit font-bold mb-2 text-white">Cine Estreno 2026, Series, Animes & Deportes</h3>
                 <p className="text-slate-300 text-sm font-normal leading-relaxed max-w-lg">
-                  Catálogo categorizado por plataformas (Netflix, Disney, Prime, HBO). Contenido actualizado diariamente.
+                  Catálogo categorizado por plataformas (Netflix, Disney, Prime, HBO). Contenido actualizado diariamente en VOD.
                 </p>
               </div>
             </div>
@@ -1016,10 +1313,10 @@ function LandingPage() {
         <div className="mb-14 text-center">
           <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-2">Variedad Infinita</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-3 text-white">
-            Explora una muestra del contenido
+            Explora una muestra del contenido VOD
           </h2>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Disfruta de las mejores producciones, estrenos de cine y señales deportivas exclusivas en la más alta resolución.
+            Disfruta de las mejores producciones, estrenos de cine 2026 en 4K Ultra HD y señales deportivas exclusivas en Full HD.
           </p>
         </div>
 
@@ -1074,7 +1371,7 @@ function LandingPage() {
         </div>
 
         {/* Pricing Grid */}
-        <div className="flex flex-col md:flex-row justify-center items-stretch gap-6 max-w-4xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-center items-stretch gap-6 max-w-4xl mx-auto mb-16">
           {selectedPlans.map((plan) => {
             const price = billingCycle === "mensual" ? plan.priceMonthly : plan.priceYearly;
             const savings = plan.priceMonthly * 12 - plan.priceYearly;
@@ -1144,6 +1441,49 @@ function LandingPage() {
             );
           })}
         </div>
+
+        {/* PAYMENT METHODS BANNER (NUEVA SECCIÓN CON YAPE, PLIN, INTERBANK, BANCO DE LA NACIÓN) */}
+        <div className="max-w-4xl mx-auto p-6 sm:p-8 rounded-3xl bg-black/60 border border-white/15 backdrop-blur-md flex flex-col items-center text-center">
+          <div className="flex items-center gap-2 mb-2">
+            <CreditCard className="w-4 h-4 text-[#00F0FF]" />
+            <h4 className="font-outfit font-black text-base text-white uppercase tracking-wider">
+              Medios de Pago Aceptados
+            </h4>
+          </div>
+          <p className="text-xs text-slate-400 mb-6 max-w-lg">
+            Aceptamos las billeteras y bancos más rápidos del Perú. Las cuentas y confirmación se gestionan de forma segura por WhatsApp:
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-6">
+            {/* Yape Badge */}
+            <div className="px-4 py-2.5 rounded-2xl bg-[#731963]/30 border border-[#731963] flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#8A2BE2] shadow-[0_0_8px_#8A2BE2]"></span>
+              <span className="font-outfit font-black text-sm text-[#D896FF]">YAPE</span>
+            </div>
+
+            {/* Plin Badge */}
+            <div className="px-4 py-2.5 rounded-2xl bg-[#00D4FF]/20 border border-[#00D4FF]/40 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#00D4FF] shadow-[0_0_8px_#00D4FF]"></span>
+              <span className="font-outfit font-black text-sm text-[#00F0FF]">PLIN</span>
+            </div>
+
+            {/* Interbank Badge */}
+            <div className="px-4 py-2.5 rounded-2xl bg-[#009B3A]/20 border border-[#009B3A]/40 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#00E050] shadow-[0_0_8px_#00E050]"></span>
+              <span className="font-outfit font-black text-sm text-emerald-300">INTERBANK</span>
+            </div>
+
+            {/* Banco de la Nación Badge */}
+            <div className="px-4 py-2.5 rounded-2xl bg-[#D92A2A]/20 border border-[#D92A2A]/40 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#FF4D4D] shadow-[0_0_8px_#FF4D4D]"></span>
+              <span className="font-outfit font-black text-sm text-rose-300">BANCO DE LA NACIÓN</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-[11px] text-slate-300">
+            🔒 <strong className="text-white">Activación en menos de 5 minutos:</strong> Los números de cuenta o QR de transferencia se coordinan directamente en el chat oficial de WhatsApp con soporte inmediato.
+          </div>
+        </div>
       </section>
 
       {/* TESTIMONIALS SECTION */}
@@ -1189,7 +1529,7 @@ function LandingPage() {
 
           <div className="p-7 rounded-3xl capcut-card-bg relative">
             <p className="text-slate-300 text-sm leading-relaxed font-normal mb-6">
-              "Uso el reproductor PIP flotante en mi computadora mientras trabajo. Excelente resolución y la activación fue en menos de 5 minutos."
+              "Uso el reproductor PIP flotante en mi computadora mientras trabajo. Excelente resolución y la activación fue en menos de 5 minutos por WhatsApp."
             </p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center font-bold text-xs text-indigo-300">
@@ -1222,7 +1562,7 @@ function LandingPage() {
             </div>
             {activeFaq === 0 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
-                Al presionar "Adquirir Plan", se abrirá un chat directo de WhatsApp con nuestro equipo. Al confirmar el pago, te generaremos tu usuario y contraseña de inmediato para que inicies sesión.
+                Al presionar "Adquirir Plan", se abrirá un chat directo de WhatsApp con nuestro número oficial (+51 912 194 777). Al confirmar el pago por Yape, Plin o transferencia, te generaremos tu usuario y contraseña en menos de 5 minutos.
               </p>
             )}
           </div>
@@ -1234,19 +1574,19 @@ function LandingPage() {
             </div>
             {activeFaq === 1 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
-                Puedes acceder desde cualquier navegador en PC o teléfono, usar nuestra app nativa de Windows (con modo flotante PiP), app móvil Android, o en Smart TVs (Android TV, Chromecast, Xiaomi TV Box, etc.).
+                Puedes acceder desde cualquier navegador en PC o teléfono, usar nuestra app nativa de Windows (con modo flotante PiP), app móvil Android, o en Smart TVs (Android TV, Chromecast, Xiaomi TV Box, JVC, TCL mediante APK o código Downloader 3895210).
               </p>
             )}
           </div>
 
           <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 2 ? null : 2)}>
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-white">¿Qué ventaja tiene el plan Anual respecto al Mensual?</h3>
+              <h3 className="text-base font-bold text-white">¿Qué resolución y calidad tienen los canales y el cine?</h3>
               <ChevronRight className={`w-5 h-5 text-[#00F0FF] transition-transform ${activeFaq === 2 ? "rotate-90" : ""}`} />
             </div>
             {activeFaq === 2 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
-                Además de ahorrar un monto considerable al año, los planes anuales Cinéfilo y Premium permiten reproducción simultánea en 1 Smart TV y 1 Celular al mismo tiempo.
+                Todos los más de 360 canales de televisión en vivo se transmiten en <strong>Full HD (1080p)</strong> garantizando fluidez y estabilidad sin cortes. Adicionalmente, contamos con secciones especiales de Cine VOD de estreno 2026 y Series en <strong>4K Ultra HD y 60 FPS</strong>.
               </p>
             )}
           </div>
@@ -1258,20 +1598,97 @@ function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <img src="./logo-teamg.png" alt="TeamG Play Logo" className="h-8" />
-            <span className="font-semibold text-xs text-slate-400">© 2026 TeamG Play. Todos los derechos reservados.</span>
+            <span className="font-semibold text-xs text-slate-400">© 2026 TeamG Play. WhatsApp Oficial: +51 912 194 777.</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-400">
             <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-white transition-colors">Características</button>
+            <button onClick={() => scrollToSection("buscador-canales")} className="hover:text-white transition-colors">Canales</button>
             <button onClick={() => scrollToSection("planes")} className="hover:text-white transition-colors">Precios</button>
             <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors flex items-center gap-1 font-bold">
               <Download className="w-3.5 h-3.5" /> Descargar Apps
             </button>
-            <button onClick={() => scrollToSection("testimonios")} className="hover:text-white transition-colors">Opiniones</button>
             <Link to="/login" className="hover:text-white text-[#00F0FF] font-bold">Iniciar Sesión</Link>
           </div>
         </div>
       </footer>
+
+      {/* PERMANENT FLOATING WHATSAPP BUTTON (912 194 777) */}
+      <div className="fixed bottom-6 left-6 z-[9990] flex items-center gap-3">
+        <a
+          href="https://wa.me/51912194777?text=Hola%20TeamG%20Play,%20deseo%20m%C3%A1s%20informaci%C3%B3n%20sobre%20los%20canales%20y%20planes"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-3 px-4 py-3 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-black font-extrabold text-xs shadow-[0_0_25px_rgba(37,211,102,0.5)] transition-all duration-300 hover:scale-105 active:scale-95"
+        >
+          <div className="relative flex items-center justify-center">
+            <MessageCircle className="w-5 h-5 fill-current text-black" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full animate-ping"></span>
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="font-black leading-tight">WhatsApp Oficial</span>
+            <span className="text-[10px] text-black/80 font-bold">912 194 777</span>
+          </div>
+        </a>
+      </div>
+
+      {/* MODAL: FULL HD CHANNEL GRID POSTER LIGHTBOX */}
+      {isGrillaModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="relative w-full max-w-4xl bg-[#08081a] border border-cyan-500/40 rounded-3xl p-6 shadow-[0_0_60px_rgba(0,240,255,0.3)] text-white flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[#00F0FF]/15 text-[#00F0FF]">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-outfit font-black text-lg text-white">Grilla Completa de Canales Oficial</h3>
+                  <p className="text-xs text-slate-400">Todos los canales en vivo con logotipos oficiales en alta definición</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                  download="TeamG_Grilla_Oficial_Canales.png"
+                  className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+                >
+                  <Download className="w-4 h-4" />
+                  Descargar Imagen
+                </a>
+                <button
+                  onClick={() => setIsGrillaModalOpen(false)}
+                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Poster Image Viewer */}
+            <div className="flex-1 overflow-auto my-4 rounded-2xl bg-black/80 border border-white/10 p-2 flex justify-center items-start">
+              <img
+                src="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                alt="Grilla Completa TeamG Play"
+                className="max-w-full h-auto object-contain rounded-xl shadow-2xl"
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="pt-2 flex items-center justify-between text-xs text-slate-400">
+              <span>Resolución Ultra HD (2160 x 4500 px) • Formato PNG</span>
+              <button
+                onClick={() => setIsGrillaModalOpen(false)}
+                className="text-slate-300 hover:text-white font-bold"
+              >
+                Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* APPS & TV DOWNLOADS MODAL */}
       {isAppsModalOpen && (
@@ -1295,7 +1712,7 @@ function LandingPage() {
                 Instala <span className="capcut-accent-gradient">TeamG Play</span> en tu dispositivo
               </h2>
               <p className="text-slate-400 text-xs sm:text-sm mt-1.5 max-w-md mx-auto">
-                Selecciona tu equipo para descargar la aplicación oficial optimizada en 4K.
+                Selecciona tu equipo para descargar la aplicación oficial optimizada en 4K y Full HD.
               </p>
             </div>
 
@@ -1317,7 +1734,7 @@ function LandingPage() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-300 mt-0.5">
-                        Android TV, Fire TV Stick, Google TV, Xiaomi TV Box, TCL, Hisense
+                        Android TV, Fire TV Stick, Google TV, Xiaomi TV Box, TCL, Hisense, JVC
                       </p>
                     </div>
                   </div>
@@ -1397,7 +1814,7 @@ function LandingPage() {
                   </div>
                   <div>
                     <h3 className="font-outfit font-black text-base text-white">Windows PC (App de Escritorio)</h3>
-                    <p className="text-xs text-slate-400">Reproductor MPV nativo con modo flotante PiP y cero cortes</p>
+                    <p className="text-xs text-slate-400">Reproductor nativo con modo flotante PiP y cero cortes</p>
                   </div>
                 </div>
 
@@ -1425,7 +1842,7 @@ function LandingPage() {
         </div>
       )}
 
-      {/* REAL DRAGGABLE & RESIZABLE PIP PLAYER OVERLAY WITH DROPBOX VIDEO SUPPORT */}
+      {/* REAL DRAGGABLE & RESIZABLE PIP PLAYER OVERLAY WITH DIRECT VIDEO SUPPORT */}
       {simulatedPip && (
         <div
           style={{

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getTVKeyName, isEditableTVElement } from '../utils/tvRemote.js';
 
 export default function TVVideoPlayer({ 
   videoUrl, 
@@ -19,6 +20,15 @@ export default function TVVideoPlayer({
   const videoRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const navigate = useNavigate();
+  // Ref espejo del estado para el listener (se registra UNA vez y nunca lee
+  // valores stale: antes `showControls`/`focusedControl` del closure decidian
+  // mal entre navegar controles o hacer seek).
+  const playerStateRef = useRef({ showControls: true, focusedControl: 0, duration: 0, controlsCount: 5 });
+  playerStateRef.current.showControls = showControls;
+  playerStateRef.current.focusedControl = focusedControl;
+  playerStateRef.current.duration = duration;
+  playerStateRef.current.controlsCount = controls.length;
+  playerStateRef.current.controlIds = controls.map((control) => control.id);
 
   const controls = [
     { id: 'play', label: isPlaying ? '⏸️ Pausar' : '▶️ Reproducir' },
@@ -39,70 +49,86 @@ export default function TVVideoPlayer({
     return () => clearTimeout(controlsTimeoutRef.current);
   }, [showControls]);
 
-  // Keyboard navigation
+  // Keyboard navigation (D-Pad). Listener estable: usa refs, no re-registra
+  // en cada tecla y soporta keyCode 19-23/4 de mandos reales.
+  const goBackRef = useRef(null);
+  goBackRef.current = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate(-1);
+    }
+  };
+  const controlActionRef = useRef(null);
+  const togglePlayRef = useRef(null);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      setShowControls(true);
-      
-      switch (e.keyCode) {
-        case 37: // Left arrow
+      const action = getTVKeyName(e);
+      if (!action) return;
+
+      // BACK del sistema: Escape siempre; Borrar solo fuera de inputs.
+      if (
+        action === 'Escape' ||
+        (action === 'Backspace' && !isEditableTVElement(document.activeElement))
+      ) {
+        e.preventDefault();
+        goBackRef.current?.();
+        return;
+      }
+
+      const { showControls: controlsVisible, focusedControl: focused, duration: total, controlsCount } =
+        playerStateRef.current;
+
+      switch (action) {
+        case 'ArrowLeft': // Left arrow
           e.preventDefault();
-          if (showControls) {
-            setFocusedControl(prev => prev > 0 ? prev - 1 : controls.length - 1);
-          } else {
+          setShowControls(true);
+          if (controlsVisible) {
+            setFocusedControl((prev) => (prev > 0 ? prev - 1 : controlsCount - 1));
+          } else if (videoRef.current) {
             // Seek backward
-            if (videoRef.current) {
-              videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
-            }
+            videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
           }
           break;
-          
-        case 39: // Right arrow
+
+        case 'ArrowRight': // Right arrow
           e.preventDefault();
-          if (showControls) {
-            setFocusedControl(prev => prev < controls.length - 1 ? prev + 1 : 0);
-          } else {
+          setShowControls(true);
+          if (controlsVisible) {
+            setFocusedControl((prev) => (prev < controlsCount - 1 ? prev + 1 : 0));
+          } else if (videoRef.current) {
             // Seek forward
-            if (videoRef.current) {
-              videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 10);
-            }
+            videoRef.current.currentTime = Math.min(total, videoRef.current.currentTime + 10);
           }
           break;
-          
-        case 38: // Up arrow
+
+        case 'ArrowUp': // Up arrow
+        case 'ArrowDown': // Down arrow
+          // No secuestrar volumen: en TV lo maneja el sistema. Solo mostrar controles.
           e.preventDefault();
-          setVolume(prev => Math.min(1, prev + 0.1));
+          setShowControls(true);
           break;
-          
-        case 40: // Down arrow
+
+        case 'Enter': // Enter/OK/Space
           e.preventDefault();
-          setVolume(prev => Math.max(0, prev - 0.1));
-          break;
-          
-        case 13: // Enter/OK
-          e.preventDefault();
-          handleControlAction(controls[focusedControl].id);
-          break;
-          
-        case 32: // Space
-          e.preventDefault();
-          togglePlayPause();
-          break;
-          
-        case 8: // Back
-          e.preventDefault();
-          if (onBack) {
-            onBack();
+          setShowControls(true);
+          if (controlsVisible) {
+            const targetId = playerStateRef.current.controlIds?.[focused];
+            if (targetId) controlActionRef.current?.(targetId);
           } else {
-            navigate(-1);
+            togglePlayRef.current?.();
           }
+          break;
+
+        default:
           break;
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showControls, focusedControl, duration, navigate, onBack]);
+  }, []);
 
   // Video event handlers
   useEffect(() => {
@@ -172,6 +198,11 @@ export default function TVVideoPlayer({
         break;
     }
   };
+
+  // Asignaciones tardias: estas funciones estan declaradas debajo del
+  // listener; el ref las resuelve en cada render sin re-registrar.
+  controlActionRef.current = (action) => handleControlAction(action);
+  togglePlayRef.current = () => togglePlayPause();
 
   const playNextChapter = () => {
     if (chapters.length > 0 && currentChapterIndex < chapters.length - 1) {
