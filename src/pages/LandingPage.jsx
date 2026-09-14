@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import axiosInstance from "../utils/axiosInstance.js";
 import {
   Laptop,
   Smartphone,
@@ -46,9 +47,114 @@ import {
 } from "lucide-react";
 import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
+import grillaPoster from "../assets/TeamG_Grilla_Completa_TODOS_Los_Canales.png";
 import { LANDING_CHANNELS_DATA } from "../data/landingChannelsData.js";
 
-// Datos enriquecidos para la muestra de contenido con portadas reales y logotipos deportivos
+// Fallback inicial de partidos verificados en tiempo real
+const DEFAULT_LANDING_MATCHES = [
+  {
+    id: "sp1",
+    tournament: "LaLiga EA Sports (España) • Jornada 6",
+    homeTeam: "Elche",
+    homeShort: "ELC",
+    homeLogo: "https://r2.thesportsdb.com/images/media/team/badge/e4vaw51655594332.png",
+    awayTeam: "Real Madrid",
+    awayShort: "RMA",
+    awayLogo: "https://r2.thesportsdb.com/images/media/team/badge/vwvwrw1473502969.png",
+    dateISO: "2026-09-15T14:30:00-05:00",
+    dateLabel: "Martes 15 de septiembre",
+    timeLabel: "2:30 PM (Hora Perú)",
+    channelBadge: "DSPORTS / ESPN",
+    tag: "🔴 EN VIVO • LALIGA",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp2",
+    tournament: "LaLiga EA Sports (España) • Jornada 6",
+    homeTeam: "Barcelona",
+    homeShort: "BAR",
+    homeLogo: "https://r2.thesportsdb.com/images/media/team/badge/wq9sir1639406443.png",
+    awayTeam: "Racing",
+    awayShort: "RAC",
+    awayLogo: "https://r2.thesportsdb.com/images/media/team/badge/97kkiq1536575158.png",
+    dateISO: "2026-09-16T14:30:00-05:00",
+    dateLabel: "Miércoles 16 de septiembre",
+    timeLabel: "2:30 PM (Hora Perú)",
+    channelBadge: "DSPORTS / ESPN",
+    tag: "🔴 EN VIVO • LALIGA",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp3",
+    tournament: "Liga 1 Te Apuesto (Clausura - Fecha 10)",
+    homeTeam: "Alianza Lima",
+    homeShort: "AL",
+    homeColor: "#0033A0",
+    homeLogo: null,
+    awayTeam: "ADT",
+    awayShort: "ADT",
+    awayColor: "#B8860B",
+    awayLogo: null,
+    dateISO: "2026-09-18T20:00:00-05:00",
+    dateLabel: "Viernes 18 de septiembre",
+    timeLabel: "8:00 PM (Hora Perú)",
+    channelBadge: "LIGA 1 MAX",
+    tag: "🔴 EN VIVO • MATUTE",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp4",
+    tournament: "Premier League (Inglaterra)",
+    homeTeam: "Brighton",
+    homeShort: "BHA",
+    homeLogo: "https://r2.thesportsdb.com/images/media/team/badge/ywypts1448810904.png",
+    awayTeam: "Arsenal",
+    awayShort: "ARS",
+    awayLogo: "https://r2.thesportsdb.com/images/media/team/badge/uyhbfe1612467038.png",
+    dateISO: "2026-09-19T09:00:00-05:00",
+    dateLabel: "Sábado 19 de septiembre",
+    timeLabel: "9:00 AM (Hora Perú)",
+    channelBadge: "ESPN",
+    tag: "⚡ EN VIVO • PREMIER",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp5",
+    tournament: "Liga 1 Te Apuesto (Clausura - Fecha 10)",
+    homeTeam: "D. Garcilaso",
+    homeShort: "GAR",
+    homeColor: "#1E90FF",
+    homeLogo: null,
+    awayTeam: "Universitario",
+    awayShort: "U",
+    awayColor: "#7A0C0C",
+    awayLogo: null,
+    dateISO: "2026-09-19T18:00:00-05:00",
+    dateLabel: "Sábado 19 de septiembre",
+    timeLabel: "6:00 PM (Hora Perú)",
+    channelBadge: "LIGA 1 MAX",
+    tag: "🔥 PARTIDAZO EN VIVO",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp6",
+    tournament: "LaLiga EA Sports (España) • Jornada 7",
+    homeTeam: "Atlético",
+    homeShort: "ATM",
+    homeLogo: "https://r2.thesportsdb.com/images/media/team/badge/0ulh3q1719984315.png",
+    awayTeam: "Real Madrid",
+    awayShort: "RMA",
+    awayLogo: "https://r2.thesportsdb.com/images/media/team/badge/vwvwrw1473502969.png",
+    dateISO: "2026-09-20T09:15:00-05:00",
+    dateLabel: "Domingo 20 de septiembre",
+    timeLabel: "9:15 AM (Hora Perú)",
+    channelBadge: "DSPORTS / ESPN",
+    tag: "🔴 EN VIVO • DERBI MADRILEÑO",
+    quality: "Full HD 1080p"
+  }
+];
+
+// Datos enriquecidos para la muestra de contenido con portadas reales
 const CATALOG_SHOWCASE_DATA = [
   {
     id: "cine2026",
@@ -225,70 +331,6 @@ const CATALOG_SHOWCASE_DATA = [
   }
 ];
 
-// Eventos deportivos destacados para el fixture interactivo
-const UPCOMING_SPORTS_EVENTS = [
-  {
-    id: "sp1",
-    tournament: "Liga 1 Te Apuesto (Clausura - Jornada 10)",
-    homeTeam: "Alianza Lima",
-    awayTeam: "ADT de Tarma",
-    time: "Viernes 18/9 • 8:00 PM (Hora Perú)",
-    channelBadge: "LIGA 1 MAX",
-    tag: "🔴 EN VIVO • MATUTE",
-    quality: "Full HD 1080p"
-  },
-  {
-    id: "sp2",
-    tournament: "Liga 1 Te Apuesto (Clausura - Jornada 10)",
-    homeTeam: "Sporting Cristal",
-    awayTeam: "Atlético Grau",
-    time: "Sábado 19/9 • 3:30 PM (Hora Perú)",
-    channelBadge: "LIGA 1 MAX",
-    tag: "🔴 EN VIVO • L1 MAX",
-    quality: "Full HD 1080p"
-  },
-  {
-    id: "sp3",
-    tournament: "LaLiga EA Sports (España)",
-    homeTeam: "Real Madrid",
-    awayTeam: "RCD Espanyol",
-    time: "Sábado 20/9 • 2:00 PM (Hora Perú)",
-    channelBadge: "DSPORTS (DIRECTV)",
-    tag: "🔴 EN VIVO • LALIGA",
-    quality: "Full HD 1080p"
-  },
-  {
-    id: "sp4",
-    tournament: "LaLiga EA Sports (España)",
-    homeTeam: "Villarreal CF",
-    awayTeam: "FC Barcelona",
-    time: "Domingo 21/9 • 11:30 AM (Hora Perú)",
-    channelBadge: "DSPORTS / ESPN",
-    tag: "⚡ EN VIVO • DSPORTS",
-    quality: "Full HD 1080p"
-  },
-  {
-    id: "sp5",
-    tournament: "Premier League (Inglaterra)",
-    homeTeam: "Manchester City",
-    awayTeam: "Arsenal FC",
-    time: "Domingo 21/9 • 10:30 AM (Hora Perú)",
-    channelBadge: "ESPN / DSPORTS",
-    tag: "🔥 PARTIDAZO EN VIVO",
-    quality: "Full HD 1080p"
-  },
-  {
-    id: "sp6",
-    tournament: "Liga 1 Te Apuesto (Clausura - Jornada 10)",
-    homeTeam: "Universitario",
-    awayTeam: "Sport Boys",
-    time: "Domingo • 6:00 PM (Hora Perú)",
-    channelBadge: "GOLPERU / L1 MAX",
-    tag: "🔴 EN VIVO",
-    quality: "Full HD 1080p"
-  }
-];
-
 function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isHovered, setIsHovered] = useState(false);
@@ -314,7 +356,6 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
       }`}
       style={{ transform: "translateZ(0)" }}
     >
-      {/* Background Image Carousel with Smooth Fade */}
       {group.items.map((item, idx) => (
         <img
           key={item.title}
@@ -330,10 +371,8 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
         />
       ))}
 
-      {/* Dark Vignette Overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/20" />
 
-      {/* Top Header Tags */}
       <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
         <span
           className={`text-[9px] px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider backdrop-blur-md ${
@@ -350,7 +389,6 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
         </span>
       </div>
 
-      {/* Center Play Button on Hover */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
         <div
           className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl transition-transform duration-300 group-hover:scale-110 ${
@@ -363,9 +401,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
         </div>
       </div>
 
-      {/* Bottom Content Info */}
       <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end z-10 bg-gradient-to-t from-black via-black/80 to-transparent pt-12">
-        {/* Specific Sports Channel Brand Logo / Banner */}
         {currentItem.channelName && (
           <div className="inline-flex items-center gap-1.5 mb-1 bg-black/70 border border-white/15 px-2 py-0.5 rounded-lg w-max">
             <Tv className="w-3 h-3 text-[#00F0FF]" />
@@ -396,7 +432,6 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
           {currentItem.title}
         </h4>
 
-        {/* Carousel Progress Indicators */}
         <div className="flex items-center gap-1.5 mt-3 pt-2 border-t border-white/10">
           {group.items.map((_, dotIdx) => (
             <button
@@ -450,25 +485,83 @@ function LandingPage() {
   const [isGrillaModalOpen, setIsGrillaModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Channels Data (fetched from API with local fallback)
+  const [channelsData, setChannelsData] = useState(LANDING_CHANNELS_DATA || []);
+  const [sportsMatches, setSportsMatches] = useState(DEFAULT_LANDING_MATCHES);
+
   // Search & Explorer Channels State
   const [channelSearchTerm, setChannelSearchTerm] = useState("");
   const [selectedChannelCategory, setSelectedChannelCategory] = useState("Todos");
   const [visibleChannelsCount, setVisibleChannelsCount] = useState(24);
 
-  const channelCategories = [
-    "Todos",
-    "Deportes Premium",
-    "Películas & Series",
-    "Perú & Noticias",
-    "Infantiles & Niños",
-    "Culturales & Documentales",
-    "Novelas & Variedad",
-    "Canales 24/7",
-    "Música & Radios",
-  ];
+  // Fetch Channels from backend API (Admin Panel DB) without stream URLs
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLandingChannels = async () => {
+      try {
+        const resp = await axiosInstance.get("/api/channels/landing");
+        if (isMounted && Array.isArray(resp.data) && resp.data.length > 0) {
+          const mapped = resp.data.map((c) => {
+            let logo = c.logo || "";
+            if (logo && (logo.startsWith("/uploads/") || logo.startsWith("uploads/"))) {
+              const clean = logo.startsWith("/") ? logo : `/${logo}`;
+              logo = `https://api.teamg.store${clean}`;
+            }
+            return {
+              name: c.name || "",
+              category: c.section || "General",
+              logo,
+            };
+          });
+          setChannelsData(mapped);
+        }
+      } catch (err) {
+        console.warn("[LandingPage] Fallback a canales locales:", err.message);
+      }
+    };
+
+    const fetchLandingMatches = async () => {
+      try {
+        const resp = await axiosInstance.get("/api/channels/landing-matches");
+        if (isMounted && Array.isArray(resp.data) && resp.data.length > 0) {
+          setSportsMatches(resp.data);
+        }
+      } catch (err) {
+        console.warn("[LandingPage] Fallback a partidos locales:", err.message);
+      }
+    };
+
+    fetchLandingChannels();
+    fetchLandingMatches();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Filter out matches that started more than 2.5 hours ago
+  const activeMatches = useMemo(() => {
+    const now = new Date();
+    return sportsMatches.filter((m) => {
+      if (!m.dateISO) return true;
+      const matchTime = new Date(m.dateISO);
+      const diffHours = (now - matchTime) / (1000 * 60 * 60);
+      return diffHours < 2.5;
+    });
+  }, [sportsMatches]);
+
+  // Compute Categories from real database sections
+  const channelCategories = useMemo(() => {
+    const cats = new Set(["Todos"]);
+    channelsData.forEach((c) => {
+      if (c.category && c.category.trim() !== "") {
+        cats.add(c.category.trim());
+      }
+    });
+    return Array.from(cats);
+  }, [channelsData]);
 
   const filteredChannels = useMemo(() => {
-    let list = LANDING_CHANNELS_DATA || [];
+    let list = channelsData;
     if (selectedChannelCategory !== "Todos") {
       list = list.filter((c) => c.category === selectedChannelCategory);
     }
@@ -481,7 +574,7 @@ function LandingPage() {
       );
     }
     return list;
-  }, [channelSearchTerm, selectedChannelCategory]);
+  }, [channelsData, channelSearchTerm, selectedChannelCategory]);
 
   const handleCopyDownloaderCode = () => {
     navigator.clipboard.writeText("3895210");
@@ -557,7 +650,7 @@ function LandingPage() {
   const getPipDimensions = () => {
     if (pipSize === "small") return { width: 320, height: 200 };
     if (pipSize === "large") return { width: 640, height: 380 };
-    return { width: 460, height: 280 }; // medium
+    return { width: 460, height: 280 };
   };
 
   const startDrag = (clientX, clientY) => {
@@ -1041,7 +1134,7 @@ function LandingPage() {
               Ver Imagen HD
             </button>
             <a
-              href="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+              href={grillaPoster}
               download="TeamG_Grilla_Oficial_Canales.png"
               className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
               title="Descargar póster en alta resolución"
@@ -1180,46 +1273,132 @@ function LandingPage() {
             Vive los mejores <span className="capcut-accent-gradient">Eventos Deportivos</span>
           </h2>
           <p className="text-slate-300 text-sm">
-            Disfruta de la Liga 1 Max, Champions League, Copa Libertadores y torneos internacionales con señal nativa en Full HD.
+            Disfruta de la Liga 1 Max, LaLiga EA Sports y torneos internacionales con señal nativa en Full HD.
           </p>
         </div>
 
         {/* Match Fixture Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {UPCOMING_SPORTS_EVENTS.map((match) => (
-            <div
-              key={match.id}
-              className="p-6 rounded-3xl capcut-card-bg relative overflow-hidden group border border-white/10 hover:border-pink-500/40 transition-all duration-300"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-pink-500/20 border border-pink-500/40 text-pink-300">
-                  {match.tag}
-                </span>
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                  {match.quality}
-                </span>
-              </div>
+          {activeMatches.map((match) => {
+            let timeChip = "PRÓXIMO";
+            if (match.dateISO) {
+              const mDate = new Date(match.dateISO);
+              const now = new Date();
+              const isToday = mDate.toDateString() === now.toDateString();
+              const tomorrow = new Date(now);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const isTomorrow = mDate.toDateString() === tomorrow.toDateString();
+              if (isToday) timeChip = "HOY";
+              else if (isTomorrow) timeChip = "MAÑANA";
+              else {
+                const days = ["DOMINGO", "LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO"];
+                timeChip = days[mDate.getDay()];
+              }
+            }
 
-              <div className="mb-4">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">{match.tournament}</p>
-                <h3 className="text-lg sm:text-xl font-outfit font-black text-white group-hover:text-pink-300 transition-colors">
-                  {match.homeTeam} <span className="text-[#00F0FF] font-normal">vs</span> {match.awayTeam}
-                </h3>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-                  <Clock className="w-4 h-4 text-[#00F0FF]" />
-                  <span>{match.time}</span>
+            return (
+              <div
+                key={match.id}
+                className="p-6 rounded-3xl capcut-card-bg relative overflow-hidden group border border-white/10 hover:border-pink-500/40 transition-all duration-300 flex flex-col justify-between"
+              >
+                {/* Top Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md ${
+                      timeChip === "HOY" ? "bg-red-600 text-white animate-pulse" :
+                      timeChip === "MAÑANA" ? "bg-amber-500/20 text-amber-300 border border-amber-500/40" :
+                      "bg-pink-500/20 text-pink-300 border border-pink-500/40"
+                    }`}>
+                      {timeChip}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      {match.tag || match.tournament}
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    {match.quality || "Full HD 1080p"}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black/60 border border-white/15">
-                  <Tv className="w-3.5 h-3.5 text-pink-400" />
-                  <span className="text-xs font-black text-white tracking-wider">{match.channelBadge}</span>
+                {/* Teams Row with Badges */}
+                <div className="flex items-center justify-between gap-4 my-3">
+                  {/* Home Team */}
+                  <div className="flex-1 flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-black/60 border border-white/10 p-1.5 flex items-center justify-center shrink-0 shadow-md">
+                      {match.homeLogo ? (
+                        <img
+                          src={match.homeLogo}
+                          alt={match.homeTeam}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-xl flex items-center justify-center font-outfit font-black text-xs text-white"
+                          style={{ backgroundColor: match.homeColor || '#00F0FF33' }}
+                        >
+                          {match.homeShort || match.homeTeam.substring(0, 3).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-outfit font-black text-sm text-white group-hover:text-pink-300 transition-colors">
+                        {match.homeTeam}
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-semibold">Local</span>
+                    </div>
+                  </div>
+
+                  {/* VS Badge */}
+                  <div className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black text-[#00F0FF]">
+                    VS
+                  </div>
+
+                  {/* Away Team */}
+                  <div className="flex-1 flex items-center justify-end gap-3 text-right">
+                    <div className="text-right">
+                      <h4 className="font-outfit font-black text-sm text-white group-hover:text-pink-300 transition-colors">
+                        {match.awayTeam}
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-semibold">Visita</span>
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-black/60 border border-white/10 p-1.5 flex items-center justify-center shrink-0 shadow-md">
+                      {match.awayLogo ? (
+                        <img
+                          src={match.awayLogo}
+                          alt={match.awayTeam}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-xl flex items-center justify-center font-outfit font-black text-xs text-white"
+                          style={{ backgroundColor: match.awayColor || '#f43f5e33' }}
+                        >
+                          {match.awayShort || match.awayTeam.substring(0, 3).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tournament & Time Footer */}
+                <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
+                    <Clock className="w-4 h-4 text-[#00F0FF]" />
+                    <span>{match.dateLabel ? `${match.dateLabel} • ${match.timeLabel}` : (match.time || match.timeLabel)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black/60 border border-white/15">
+                    <Tv className="w-3.5 h-3.5 text-pink-400" />
+                    <span className="text-xs font-black text-white tracking-wider">{match.channelBadge}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -1463,7 +1642,7 @@ function LandingPage() {
           })}
         </div>
 
-        {/* PAYMENT METHODS BANNER (NUEVA SECCIÓN CON YAPE, PLIN, INTERBANK, BANCO DE LA NACIÓN) */}
+        {/* PAYMENT METHODS BANNER */}
         <div className="max-w-4xl mx-auto p-6 sm:p-8 rounded-3xl bg-black/60 border border-white/15 backdrop-blur-md flex flex-col items-center text-center">
           <div className="flex items-center gap-2 mb-2">
             <CreditCard className="w-4 h-4 text-[#00F0FF]" />
@@ -1476,25 +1655,21 @@ function LandingPage() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-6">
-            {/* Yape Badge */}
             <div className="px-4 py-2.5 rounded-2xl bg-[#731963]/30 border border-[#731963] flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#8A2BE2] shadow-[0_0_8px_#8A2BE2]"></span>
               <span className="font-outfit font-black text-sm text-[#D896FF]">YAPE</span>
             </div>
 
-            {/* Plin Badge */}
             <div className="px-4 py-2.5 rounded-2xl bg-[#00D4FF]/20 border border-[#00D4FF]/40 flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#00D4FF] shadow-[0_0_8px_#00D4FF]"></span>
               <span className="font-outfit font-black text-sm text-[#00F0FF]">PLIN</span>
             </div>
 
-            {/* Interbank Badge */}
             <div className="px-4 py-2.5 rounded-2xl bg-[#009B3A]/20 border border-[#009B3A]/40 flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#00E050] shadow-[0_0_8px_#00E050]"></span>
               <span className="font-outfit font-black text-sm text-emerald-300">INTERBANK</span>
             </div>
 
-            {/* Banco de la Nación Badge */}
             <div className="px-4 py-2.5 rounded-2xl bg-[#D92A2A]/20 border border-[#D92A2A]/40 flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-[#FF4D4D] shadow-[0_0_8px_#FF4D4D]"></span>
               <span className="font-outfit font-black text-sm text-rose-300">BANCO DE LA NACIÓN</span>
@@ -1672,7 +1847,7 @@ function LandingPage() {
 
               <div className="flex items-center gap-2">
                 <a
-                  href="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                  href={grillaPoster}
                   download="TeamG_Grilla_Oficial_Canales.png"
                   className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
                 >
@@ -1689,9 +1864,9 @@ function LandingPage() {
             </div>
 
             {/* Poster Image Viewer */}
-            <div className="flex-1 overflow-auto my-4 rounded-2xl bg-black/80 border border-white/10 p-2 flex justify-center items-start">
+            <div className="flex-1 overflow-auto my-4 rounded-2xl bg-black/80 border border-white/10 p-2 flex justify-center items-start max-h-[70vh]">
               <img
-                src="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                src={grillaPoster}
                 alt="Grilla Completa TeamG Play"
                 className="max-w-full h-auto object-contain rounded-xl shadow-2xl"
               />
@@ -1893,7 +2068,6 @@ function LandingPage() {
 
             {/* Controls Header Tools */}
             <div className="flex items-center gap-1.5 no-drag">
-              {/* Size Selectors */}
               <div className="flex items-center bg-black/60 rounded-lg p-0.5 border border-white/10 text-[9px] font-bold">
                 <button
                   onClick={() => setPipSize("small")}
@@ -1918,7 +2092,6 @@ function LandingPage() {
                 </button>
               </div>
 
-              {/* Fullscreen Button */}
               <button
                 onClick={togglePipFullscreen}
                 className="p-1 rounded bg-white/10 hover:bg-[#00F0FF] hover:text-black transition text-white"
@@ -1927,7 +2100,6 @@ function LandingPage() {
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
 
-              {/* Close PIP */}
               <button
                 onClick={() => setSimulatedPip(false)}
                 className="p-1 rounded bg-white/10 hover:bg-red-500 text-slate-300 hover:text-white transition"
@@ -1950,16 +2122,13 @@ function LandingPage() {
               className="w-full h-full object-cover"
             />
 
-            {/* Video Controls Bar */}
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2.5 flex items-center justify-between no-drag opacity-90 group-hover:opacity-100 transition-opacity">
-              {/* Channel Label */}
               <div className="flex items-center gap-1.5">
                 <span className="px-2.5 py-0.5 rounded bg-[#00F0FF] text-black font-extrabold text-[10px] tracking-wide">
                   Demo TeamG Play
                 </span>
               </div>
 
-              {/* Playback Controls */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={togglePipPlay}
