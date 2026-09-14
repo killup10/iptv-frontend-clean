@@ -60,8 +60,10 @@ after_*.png
 before_*.png
 clean_install_*.png
 home_*.png
-teamg_*.png
+teamg_debug_*.png
 watch_test_*.png
+!public/TeamG_Grilla_Completa_TODOS_Los_Canales.png
+!public/channel_logos/
 
 # Local generated helper files
 tmp_libvlc/

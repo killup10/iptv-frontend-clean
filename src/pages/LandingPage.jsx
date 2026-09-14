@@ -229,42 +229,62 @@ const CATALOG_SHOWCASE_DATA = [
 const UPCOMING_SPORTS_EVENTS = [
   {
     id: "sp1",
-    tournament: "Liga 1 Te Apuesto (Perú)",
-    homeTeam: "Alianza Lima",
-    awayTeam: "Universitario de Deportes",
-    time: "Sábado • 8:00 PM",
-    channelBadge: "LIGA 1 MAX",
-    tag: "🔴 CLÁSICO EN VIVO",
+    tournament: "LaLiga EA Sports",
+    homeTeam: "Real Madrid",
+    awayTeam: "RCD Espanyol",
+    time: "Sábado • 2:00 PM (Hora Perú)",
+    channelBadge: "DSPORTS / ESPN",
+    tag: "🔴 EN VIVO • LALIGA",
     quality: "Full HD 1080p"
   },
   {
     id: "sp2",
-    tournament: "UEFA Champions League",
+    tournament: "UEFA Champions League (Jornada 1)",
     homeTeam: "Real Madrid",
-    awayTeam: "Manchester City",
-    time: "Miércoles • 2:00 PM",
+    awayTeam: "VfB Stuttgart",
+    time: "Martes • 2:00 PM (Hora Perú)",
     channelBadge: "ESPN PREMIUM",
-    tag: "🏆 CUARTOS DE FINAL",
+    tag: "🏆 ESTRENO CHAMPIONS",
     quality: "Full HD 1080p"
   },
   {
     id: "sp3",
-    tournament: "Conmebol Libertadores",
-    homeTeam: "Sporting Cristal",
-    awayTeam: "Flamengo",
-    time: "Jueves • 7:30 PM",
-    channelBadge: "FOX SPORTS / DSPORTS",
-    tag: "🔥 FASE DE GRUPOS",
+    tournament: "UEFA Champions League (Partidazo)",
+    homeTeam: "Manchester City",
+    awayTeam: "Inter de Milán",
+    time: "Miércoles • 2:00 PM (Hora Perú)",
+    channelBadge: "ESPN PREMIUM / DSPORTS",
+    tag: "⚡ CHOQUE DE GIGANTES",
     quality: "Full HD 1080p"
   },
   {
     id: "sp4",
-    tournament: "Premier League (Inglaterra)",
-    homeTeam: "Liverpool",
-    awayTeam: "Arsenal",
-    time: "Domingo • 11:30 AM",
-    channelBadge: "DSPORTS / ESPN",
-    tag: "⚡ PARTIDAZO",
+    tournament: "Liga 1 Te Apuesto (Torneo Clausura)",
+    homeTeam: "Atlético Grau",
+    awayTeam: "Alianza Lima",
+    time: "Miércoles • 1:00 PM (Hora Perú)",
+    channelBadge: "LIGA 1 MAX",
+    tag: "🔥 FECHA 11 EN VIVO",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp5",
+    tournament: "Liga 1 Te Apuesto (Torneo Clausura)",
+    homeTeam: "Sporting Cristal",
+    awayTeam: "Cusco FC",
+    time: "Domingo • 8:00 PM (Hora Perú)",
+    channelBadge: "LIGA 1 MAX",
+    tag: "🔴 EN VIVO L1 MAX",
+    quality: "Full HD 1080p"
+  },
+  {
+    id: "sp6",
+    tournament: "Conmebol Libertadores (Cuartos)",
+    homeTeam: "Flamengo",
+    awayTeam: "Peñarol",
+    time: "Jueves • 5:00 PM (Hora Perú)",
+    channelBadge: "FOX SPORTS / ESPN",
+    tag: "🏆 CUARTOS DE FINAL",
     quality: "Full HD 1080p"
   }
 ];
@@ -1021,7 +1041,7 @@ function LandingPage() {
               Ver Imagen HD
             </button>
             <a
-              href="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+              href="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
               download="TeamG_Grilla_Oficial_Canales.png"
               className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
               title="Descargar póster en alta resolución"
@@ -1113,7 +1133,8 @@ function LandingPage() {
                     className="max-w-full max-h-full object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
                     loading="lazy"
                     onError={(e) => {
-                      e.target.style.display = 'none';
+                      e.target.onerror = null;
+                      e.target.src = '/logo-teamg.png';
                     }}
                   />
                 ) : (
@@ -1651,7 +1672,7 @@ function LandingPage() {
 
               <div className="flex items-center gap-2">
                 <a
-                  href="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                  href="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
                   download="TeamG_Grilla_Oficial_Canales.png"
                   className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
                 >
@@ -1670,7 +1691,7 @@ function LandingPage() {
             {/* Poster Image Viewer */}
             <div className="flex-1 overflow-auto my-4 rounded-2xl bg-black/80 border border-white/10 p-2 flex justify-center items-start">
               <img
-                src="./TeamG_Grilla_Completa_TODOS_Los_Canales.png"
+                src="/TeamG_Grilla_Completa_TODOS_Los_Canales.png"
                 alt="Grilla Completa TeamG Play"
                 className="max-w-full h-auto object-contain rounded-xl shadow-2xl"
               />
