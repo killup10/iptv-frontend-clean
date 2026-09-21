@@ -3,6 +3,9 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { storage } from './storage.js';
 import { getOrCreateDeviceId } from './deviceIdentity.js';
 import { getPlatformName } from './platformUtils.js';
+import packageJson from '../../package.json';
+
+const APP_VERSION = packageJson?.version || '1.5.11';
 
 const AXIOS_VERBOSE =
   typeof import.meta !== 'undefined' &&
@@ -11,7 +14,9 @@ const AXIOS_VERBOSE =
 const ENABLE_NATIVE_HTTP_ADAPTER =
   typeof import.meta !== 'undefined' &&
   import.meta.env &&
-  import.meta.env.VITE_USE_CAPACITOR_HTTP === 'true';
+  import.meta.env.VITE_USE_CAPACITOR_HTTP !== undefined
+    ? import.meta.env.VITE_USE_CAPACITOR_HTTP === 'true'
+    : true;
 
 let lastErrorSignature = '';
 let lastErrorLogAt = 0;
@@ -229,11 +234,13 @@ axiosInstance.interceptors.request.use(
       config.adapter = nativeHttpAdapter;
     }
 
-    const clientType = getPlatformName();
-    if (clientType && clientType !== 'web') {
+    const clientType = getPlatformName() || 'web';
+    if (config.headers?.set) {
+      config.headers.set('x-teamg-client', clientType);
+      config.headers.set('x-app-version', APP_VERSION);
+    } else {
       config.headers['x-teamg-client'] = clientType;
-    } else if (config.headers['x-teamg-client']) {
-      delete config.headers['x-teamg-client'];
+      config.headers['x-app-version'] = APP_VERSION;
     }
 
     const token = await storage.getItem('token');
@@ -291,6 +298,17 @@ axiosInstance.interceptors.response.use(
 
     if (error.response) {
       const { status: httpStatus, data } = error.response;
+
+      // 426 = versión obsoleta (<=1.5.8). No desloguear, solo avisar para modal forzado.
+      if (httpStatus === 426) {
+        if (shouldLogError(`update426:${url}`)) {
+          console.warn('axiosInstance: HTTP 426 versión obsoleta, se requiere actualizar.');
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('teamg-update-required', { detail: data || {} }));
+        } catch {}
+        return Promise.reject(error);
+      }
 
       // Logout only on 401 (invalid or expired token).
       if (httpStatus === 401) {

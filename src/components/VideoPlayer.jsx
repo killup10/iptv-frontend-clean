@@ -41,6 +41,16 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     chapterIndex: currentChapterInfo?.chapterIndex
   });
 
+  const onNativePlayerClosedRef = useRef(onNativePlayerClosed);
+  useEffect(() => {
+    onNativePlayerClosedRef.current = onNativePlayerClosed;
+  }, [onNativePlayerClosed]);
+
+  const channelsRef = useRef(channels);
+  useEffect(() => {
+    channelsRef.current = channels;
+  }, [channels]);
+
   const allChapters = useMemo(() => {
     return seasons?.flatMap((season, seasonIndex) =>
       season.chapters?.map((chapter, chapterIndex) => ({
@@ -183,8 +193,8 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
 
       isPlayingRef.current = false;
       setPlayerActive(false);
-      if (onNativePlayerClosed) {
-        onNativePlayerClosed(closeData || { reason: 'closed' });
+      if (onNativePlayerClosedRef.current) {
+        onNativePlayerClosedRef.current(closeData || { reason: 'closed' });
       }
     };
 
@@ -225,17 +235,27 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       }
     };
 
-    const stopListener = VideoPlayerPlugin.addListener('stopped', handlePlayerClosed);
-    const playerClosedListener = VideoPlayerPlugin.addListener('playerClosed', handlePlayerClosed);
-    const timeupdateListener = VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate);
+    let stopListenerHandle = null;
+    let playerClosedListenerHandle = null;
+    let timeupdateListenerHandle = null;
+
+    VideoPlayerPlugin.addListener('stopped', handlePlayerClosed).then((h) => {
+      stopListenerHandle = h;
+    });
+    VideoPlayerPlugin.addListener('playerClosed', handlePlayerClosed).then((h) => {
+      playerClosedListenerHandle = h;
+    });
+    VideoPlayerPlugin.addListener('timeupdate', handleTimeUpdate).then((h) => {
+      timeupdateListenerHandle = h;
+    });
 
     return () => {
       console.log('[VideoPlayer] Removing global native player listeners');
-      if (stopListener?.remove) stopListener.remove();
-      if (playerClosedListener?.remove) playerClosedListener.remove();
-      if (timeupdateListener?.remove) timeupdateListener.remove();
+      if (stopListenerHandle?.remove) stopListenerHandle.remove();
+      if (playerClosedListenerHandle?.remove) playerClosedListenerHandle.remove();
+      if (timeupdateListenerHandle?.remove) timeupdateListenerHandle.remove();
     };
-  }, [supportsNativeProgress, itemId, disableProgressTracking, onNativePlayerClosed, syncNativeProgressSnapshot, persistProgressCache]);
+  }, [supportsNativeProgress, itemId, disableProgressTracking, syncNativeProgressSnapshot, persistProgressCache]);
 
   // Periodic progress sync interval when native player is active
   useEffect(() => {
@@ -289,7 +309,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           sessionId: nativePlaybackSessionIdRef.current,
           startTime: Math.floor(startTime || 0),
           chapters: allChapters,
-          channels: channels,
+          channels: channelsRef.current || channels,
           isLiveTV: isLiveTV,
           contentType: contentType,
           playerType: effectivePlayerType,
@@ -320,7 +340,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     return () => {
       isStartingRef.current = false;
     };
-  }, [url, isAndroidVlc, isAndroidExoplayer, initialAutoplay, itemId, currentChapterInfo, title, metaLine, startTime, allChapters, channels, isLiveTV, contentType, effectivePlayerType, isUnmountingRef, isNavigatingAwayRef, onNativePlayerClosed]);
+  }, [url, isAndroidVlc, isAndroidExoplayer, initialAutoplay, itemId, currentChapterInfo, title, metaLine, startTime, allChapters, isLiveTV, contentType, effectivePlayerType, isUnmountingRef, isNavigatingAwayRef]);
 
   // Sincronizar canales en vivo dinámicamente si cambian durante la reproducción
   useEffect(() => {

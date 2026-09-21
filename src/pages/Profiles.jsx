@@ -41,6 +41,7 @@ export default function Profiles() {
   const [profiles, setProfiles] = useState([]);
   const [maxProfiles, setMaxProfiles] = useState(2);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Aventura");
 
@@ -70,16 +71,46 @@ export default function Profiles() {
 
   const fetchProfiles = async () => {
     setIsLoading(true);
+    setFetchError(null);
     try {
       const response = await axiosInstance.get("/api/profiles");
-      setProfiles(response.data.profiles || []);
-      setMaxProfiles(response.data.maxProfiles || 2);
+      let list = [];
+      if (Array.isArray(response.data)) {
+        list = response.data;
+      } else if (response.data && Array.isArray(response.data.profiles)) {
+        list = response.data.profiles;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        list = response.data.data;
+      }
+
+      // Si por alguna razón el usuario no tiene perfiles en backend (migración pendiente),
+      // llamar a /api/profiles/init para forzar la creación del perfil principal
+      if (list.length === 0) {
+        try {
+          const initRes = await axiosInstance.post("/api/profiles/init");
+          if (initRes.data && Array.isArray(initRes.data.profiles)) {
+            list = initRes.data.profiles;
+          }
+        } catch (initErr) {
+          console.warn("Profiles: No se pudo auto-inicializar perfil:", initErr);
+        }
+      }
+
+      setProfiles(list);
+      setMaxProfiles(response.data?.maxProfiles || 2);
     } catch (err) {
       console.error("Error al obtener perfiles:", err);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Error al conectar con el servidor.";
+      setFetchError(msg);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleSelect = async (profile) => {
     if (isEditingMode) {
@@ -258,6 +289,22 @@ export default function Profiles() {
         <h1 className="text-3xl sm:text-5xl font-black mb-10 tracking-tight drop-shadow-md">
           {isEditingMode ? "Administrar Perfiles" : "¿Quién está viendo?"}
         </h1>
+
+        {fetchError && (
+          <div className="mb-8 max-w-md mx-auto p-5 rounded-2xl bg-red-950/50 border border-red-500/30 text-red-200 text-center shadow-lg">
+            <p className="text-sm font-semibold mb-3">
+              {fetchError.includes("Network") || fetchError.includes("timeout") || fetchError.includes("CORS")
+                ? "No se pudieron cargar los perfiles. Revisa tu conexión a internet o intenta nuevamente."
+                : fetchError}
+            </p>
+            <button
+              onClick={() => fetchProfiles()}
+              className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition shadow-md active:scale-95"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex justify-center items-center py-20">

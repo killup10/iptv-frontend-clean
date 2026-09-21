@@ -38,8 +38,21 @@ export default function LiveTVPage() {
   const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'guide'
   const [retryTrigger, setRetryTrigger] = useState(0);
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return location.state?.viewMode || localStorage.getItem('livetv_view_mode') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleSetViewMode = (mode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('livetv_view_mode', mode);
+    } catch {}
+  };
 
   const handleRetry = () => {
     setError(null);
@@ -130,6 +143,7 @@ export default function LiveTVPage() {
         fromSection: 'tv',
         selectedCategory,
         searchTerm,
+        viewMode,
       },
     });
   };
@@ -203,14 +217,14 @@ export default function LiveTVPage() {
           <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-700">
             <button
               type="button"
-              onClick={() => setViewMode('grid')}
+              onClick={() => handleSetViewMode('grid')}
               className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               ▦ Canales
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('guide')}
+              onClick={() => handleSetViewMode('guide')}
               className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'guide' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               📅 Guía

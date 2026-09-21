@@ -2570,6 +2570,7 @@ export function Watch() {
       
       if (finalUrl) {
         setVideoUrl(finalUrl);
+        playbackStartTsRef.current = Date.now();
       } else {
         console.error('[Watch.jsx] ERROR: getPlayableUrl devolvió una URL vacía.');
         setError('No se pudo procesar la URL del video para la reproducción.');
@@ -2727,7 +2728,7 @@ export function Watch() {
         window.electronAPI.removeListener('mpv-closed', handleMpvClosed);
       }
     };
-  }, [videoUrl, bounds, startTime, itemType, itemId, itemData?.id]);
+  }, [videoUrl, bounds?.x, bounds?.y, bounds?.width, bounds?.height, startTime, itemType, itemId, itemData?.id]);
 
   // 5) Sincronización de bounds
   useEffect(() => {
@@ -2885,7 +2886,7 @@ export function Watch() {
     return { to: '/' };
   }, [location.state]);
 
-  const handleBackNavigation = () => {
+  const handleBackNavigation = useCallback(() => {
     if (activeTrailerUrl) {
       setActiveTrailerUrl('');
       return;
@@ -2961,20 +2962,22 @@ export function Watch() {
         navigate(fromLocation, returnState ? { state: returnState, replace: true } : { replace: true });
       }
     } else if (fromSection === 'tv') {
-      // Regresar a TV en vivo con categoría e indice restaurados
+      // Regresar a TV en vivo con categoría, indice y viewMode restaurados
       const selectedCategory = location.state?.selectedCategory || returnState?.selectedCategory || 'Todos';
       const selectedChannelIndex = Number.isInteger(location.state?.selectedChannelIndex)
         ? location.state.selectedChannelIndex
         : (Number.isInteger(returnState?.selectedChannelIndex) ? returnState.selectedChannelIndex : 0);
       const searchTerm = location.state?.searchTerm || returnState?.searchTerm || '';
+      const viewMode = location.state?.viewMode || returnState?.viewMode || localStorage.getItem('livetv_view_mode') || 'grid';
 
-      console.log('[Watch.jsx] Navegando a /live-tv con estado:', { selectedCategory, searchTerm });
+      console.log('[Watch.jsx] Navegando a /live-tv con estado:', { selectedCategory, searchTerm, viewMode });
       navigate('/live-tv', {
         replace: true,
         state: {
           selectedCategory,
           selectedChannelIndex,
-          searchTerm
+          searchTerm,
+          viewMode,
         }
       });
     } else if (fromSection === 'movies' || fromSection === 'peliculas') {
@@ -3015,7 +3018,7 @@ export function Watch() {
       console.log('[Watch.jsx] No fromSection o fromLocation, navegando a home');
       navigate('/', { replace: true, state: returnState || undefined });
     }
-  };
+  }, [activeTrailerUrl, isMoviePickerOpen, isChannelPickerOpen, location.state, navigate]);
 
   const closeAccessModal = () => {
     setShowAccessModal(false);
@@ -3231,6 +3234,15 @@ export function Watch() {
     console.log('[Watch.jsx] Player nativo cerrado para canal en vivo:', reason);
 
     const isUserBack = reason === 'user_back' || reason === 'user_back_button' || reason === 'back' || reason.startsWith('user_back');
+
+    // Período de gracia inicial: si la reproducción arrancó hace menos de 3 segundos
+    // y el motivo de cierre NO es una pulsación explícita del botón atrás del usuario,
+    // ignorar eventos transitorios (ej. detención de sesión anterior o inicialización)
+    const timeSinceStart = playbackStartTsRef.current ? Date.now() - playbackStartTsRef.current : Infinity;
+    if (timeSinceStart < 3000 && !isUserBack) {
+      console.log('[Watch.jsx] Ignorando evento playerClosed transitorio durante arranque de reproducción (<3s):', { reason, timeSinceStart });
+      return;
+    }
 
     setChannelPlaybackDismissed(true);
     setVideoUrl('');

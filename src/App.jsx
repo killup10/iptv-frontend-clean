@@ -49,32 +49,36 @@ function App() {
     console.log('[App.jsx] Ubicación actual:', location.pathname);
   }, [user, location.pathname]);
 
-  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '' });
+  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '', force: false });
 
-  // Version checker for In-App Updates
+  // Version checker for In-App Updates: <=1.5.8 forzado, 1.5.9-1.5.10 suave
   useEffect(() => {
+    const compareVer = (a, b) => {
+      const pa = String(a||'0.0.0').split('.').map(Number);
+      const pb = String(b||'0.0.0').split('.').map(Number);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        if ((pb[i]||0) > (pa[i]||0)) return -1; // a < b
+        if ((pa[i]||0) > (pb[i]||0)) return 1;
+      }
+      return 0;
+    };
     const checkUpdates = async () => {
       try {
         const response = await axiosInstance.get('/api/updates/check');
-        const { version: latestVersion, url, desktopUrl, notes } = response.data;
+        const { version: latestVersion, minVersion, force: serverForce, url, desktopUrl, notes } = response.data;
         
         const localVersion = packageJson.version || '1.5.6';
+        const min = minVersion || '1.5.9';
         
         // Helper to check if version is newer
-        const isNewerVersion = (local, server) => {
-          if (!local || !server) return false;
-          const localParts = local.split('.').map(Number);
-          const serverParts = server.split('.').map(Number);
-          for (let i = 0; i < Math.max(localParts.length, serverParts.length); i++) {
-            const localVal = localParts[i] || 0;
-            const serverVal = serverParts[i] || 0;
-            if (serverVal > localVal) return true;
-            if (localVal > serverVal) return false;
-          }
-          return false;
-        };
+        const isNewerVersion = (local, server) => compareVer(local, server) < 0;
+        const isBlocked = compareVer(localVersion, min) < 0;
 
-        if (isNewerVersion(localVersion, latestVersion)) {
+        if (isBlocked || serverForce) {
+          const isElectron = typeof window !== 'undefined' && window.electronMPV;
+          const resolvedUrl = isElectron ? (desktopUrl || url) : url;
+          setUpdateInfo({ isOpen: true, latestVersion, notes, downloadUrl: resolvedUrl, force: true });
+        } else if (isNewerVersion(localVersion, latestVersion)) {
           // Resolve correct download URL based on environment
           const isElectron = typeof window !== 'undefined' && window.electronMPV;
           const resolvedUrl = isElectron ? desktopUrl : url;
@@ -83,17 +87,31 @@ function App() {
             isOpen: true,
             latestVersion,
             notes,
-            downloadUrl: resolvedUrl
+            downloadUrl: resolvedUrl,
+            force: false
           });
         }
       } catch (err) {
         console.warn('Failed to check for updates:', err);
       }
     };
+
+    // Si el backend devuelve 426 en cualquier llamada, forzar modal bloqueante
+    const onForceUpdate = (e) => {
+      const d = e?.detail || {};
+      setUpdateInfo((prev) => ({
+        isOpen: true,
+        latestVersion: d.latestVersion || prev.latestVersion || '1.5.11',
+        notes: d.error || prev.notes || 'Tu versión ya no es compatible. Actualiza para continuar.',
+        downloadUrl: prev.downloadUrl || d.url || 'https://teamg.store/teamgplay.apk',
+        force: true,
+      }));
+    };
+    window.addEventListener('teamg-update-required', onForceUpdate);
     
     // Check update on startup (wait 3 seconds to avoid blocking main content load)
     const timer = setTimeout(checkUpdates, 3000);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); window.removeEventListener('teamg-update-required', onForceUpdate); };
   }, []);
 
   // Auto-redirect logged-in users from root to /home
@@ -802,7 +820,11 @@ function App() {
         latestVersion={updateInfo.latestVersion}
         notes={updateInfo.notes}
         downloadUrl={updateInfo.downloadUrl}
-        onClose={() => setUpdateInfo(prev => ({ ...prev, isOpen: false }))}
+        force={updateInfo.force}
+        onClose={() => {
+          if (updateInfo.force) return;
+          setUpdateInfo(prev => ({ ...prev, isOpen: false }));
+        }}
       />
     </>
   );

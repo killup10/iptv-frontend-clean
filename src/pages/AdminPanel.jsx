@@ -1048,18 +1048,14 @@ export default function AdminPanel() {
     formData.append("file", bulkVodFile);
 
     try {
-      const axiosWithExtendedTimeout = axiosInstance.create({
-        timeout: 300000
-      });
       setProcessingStatus("Subiendo archivo al servidor...");
       formData.append("categoria", bulkCategoria);
       if (bulkCategoria === "pelicula" || bulkCategoria === "serie") {
         formData.append("subcategoria", bulkSubcategoria);
       }
-      const response = await axiosWithExtendedTimeout.post("/api/videos/upload-text", formData, {
+      const response = await axiosInstance.post("/api/videos/upload-text", formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${user.token}`
+          'Content-Type': 'multipart/form-data'
         },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);

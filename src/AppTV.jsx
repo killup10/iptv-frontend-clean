@@ -44,45 +44,59 @@ function AppTV() {
   const isWatchPage = location.pathname.startsWith('/watch');
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   
-  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '' });
+  const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '', force: false });
 
-  // Version checker for TV updates (checks tvUrl)
+  // Version checker for TV updates (checks tvUrl). <=1.5.8 forzado.
   useEffect(() => {
+    const compareVer = (a, b) => {
+      const pa = String(a||'0.0.0').split('.').map(Number);
+      const pb = String(b||'0.0.0').split('.').map(Number);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        if ((pb[i]||0) > (pa[i]||0)) return -1;
+        if ((pa[i]||0) > (pb[i]||0)) return 1;
+      }
+      return 0;
+    };
     const checkUpdates = async () => {
       try {
         const response = await axiosInstance.get('/api/updates/check');
-        const { version: latestVersion, tvUrl, notes } = response.data;
+        const { version: latestVersion, minVersion, force: serverForce, tvUrl, notes } = response.data;
         
         const localVersion = packageJson.version || '1.5.6';
-        
-        const isNewerVersion = (local, server) => {
-          if (!local || !server) return false;
-          const localParts = local.split('.').map(Number);
-          const serverParts = server.split('.').map(Number);
-          for (let i = 0; i < Math.max(localParts.length, serverParts.length); i++) {
-            const localVal = localParts[i] || 0;
-            const serverVal = serverParts[i] || 0;
-            if (serverVal > localVal) return true;
-            if (localVal > serverVal) return false;
-          }
-          return false;
-        };
+        const min = minVersion || '1.5.9';
+        const isBlocked = compareVer(localVersion, min) < 0;
+        const isNewer = compareVer(localVersion, latestVersion) < 0;
 
-        if (isNewerVersion(localVersion, latestVersion)) {
+        if (isBlocked || serverForce) {
+          setUpdateInfo({ isOpen: true, latestVersion, notes, downloadUrl: tvUrl, force: true });
+        } else if (isNewer) {
           setUpdateInfo({
             isOpen: true,
             latestVersion,
             notes,
-            downloadUrl: tvUrl
+            downloadUrl: tvUrl,
+            force: false
           });
         }
       } catch (err) {
         console.warn('[AppTV] Failed to check for updates:', err);
       }
     };
+
+    const onForceUpdate = (e) => {
+      const d = e?.detail || {};
+      setUpdateInfo((prev) => ({
+        isOpen: true,
+        latestVersion: d.latestVersion || prev.latestVersion || '1.5.11',
+        notes: d.error || prev.notes || 'Tu versión ya no es compatible. Actualiza para continuar.',
+        downloadUrl: prev.downloadUrl || 'https://teamg.store/teamgplay2TV.apk',
+        force: true,
+      }));
+    };
+    window.addEventListener('teamg-update-required', onForceUpdate);
     
     const timer = setTimeout(checkUpdates, 3000);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); window.removeEventListener('teamg-update-required', onForceUpdate); };
   }, []);
   const [globalSearchItems, setGlobalSearchItems] = useState([]);
   const globalSearchLoadedRef = useRef(false);
@@ -357,7 +371,11 @@ function AppTV() {
         latestVersion={updateInfo.latestVersion}
         notes={updateInfo.notes}
         downloadUrl={updateInfo.downloadUrl}
-        onClose={() => setUpdateInfo(prev => ({ ...prev, isOpen: false }))}
+        force={updateInfo.force}
+        onClose={() => {
+          if (updateInfo.force) return;
+          setUpdateInfo(prev => ({ ...prev, isOpen: false }));
+        }}
       />
     </>
   );

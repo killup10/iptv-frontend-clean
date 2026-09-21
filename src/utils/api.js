@@ -133,6 +133,39 @@ export function sortLiveTVCategories(cats) {
   }).map((c) => c.original);
 }
 
+// Landing publico (sin login): partidos desde el backend (JSON editable).
+export async function fetchLandingMatches() {
+  const relativePath = "/api/channels/landing-matches";
+  try {
+    const response = await axiosInstance.get(relativePath);
+    const data = response.data;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data;
+  } catch (error) {
+    console.warn("API (fetchLandingMatches): usando respaldo local:", error?.message || error);
+    return [];
+  }
+}
+
+// Landing publico (sin login): nombre + logo del admin + seccion. Sin URLs.
+export async function fetchLandingChannels() {
+  const relativePath = "/api/channels/landing";
+  try {
+    const response = await axiosInstance.get(relativePath);
+    const data = response.data;
+    if (!Array.isArray(data)) {
+      console.warn("API (fetchLandingChannels): respuesta no fue array:", data);
+      return [];
+    }
+    return data;
+  } catch (error) {
+    console.warn("API (fetchLandingChannels): usando respaldo local:", error?.message || error);
+    return [];
+  }
+}
+
 export async function fetchChannelFilterSections() {
   const relativePath = "/api/channels/sections";
   console.log(`API (fetchChannelFilterSections - axios): GET ${relativePath}`);

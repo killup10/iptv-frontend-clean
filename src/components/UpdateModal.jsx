@@ -5,7 +5,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 // Register the custom native plugin
 const AppUpdate = registerPlugin('AppUpdatePlugin');
 
-export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl, onClose }) {
+export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl, onClose, force = false }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState('');
@@ -28,6 +28,11 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const safeClose = () => {
+    if (force) return; // versión <=1.5.8: no se puede cerrar
+    if (typeof onClose === 'function') onClose();
+  };
 
   const handleUpdate = async () => {
     setError('');
@@ -83,7 +88,7 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
         setStatusMessage('Descarga completada. Abriendo instalador...');
         await AppUpdate.installApk({ filePath: downloadResult.path });
         setIsDownloading(false);
-        onClose();
+        safeClose();
       } catch (err) {
         console.error('Update error:', err);
         setError('Error al procesar la actualización: ' + (err.message || err));
@@ -94,7 +99,7 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
       try {
         setStatusMessage('Abriendo enlace de descarga...');
         window.open(downloadUrl, '_blank');
-        onClose();
+        safeClose();
       } catch (err) {
         setError('No se pudo abrir el enlace de actualización.');
       }
@@ -124,9 +129,12 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
           </div>
           <div>
             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight italic bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-transparent">
-              Actualización Disponible
+              {force ? 'Actualización Obligatoria' : 'Actualización Disponible'}
             </h2>
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Nueva versión: v{latestVersion}</p>
+            {force && (
+              <p className="text-[11px] text-red-400 font-bold uppercase tracking-wider mt-1">Tu versión ya no es compatible. Debes actualizar para seguir usando TeamG Play.</p>
+            )}
           </div>
         </div>
 
@@ -190,14 +198,16 @@ export default function UpdateModal({ isOpen, latestVersion, notes, downloadUrl,
               >
                 Actualizar Ahora
               </button>
-              <button
-                ref={cancelBtnRef}
-                onClick={onClose}
-                className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 py-3 rounded-2xl font-bold uppercase tracking-wider text-xs transition duration-200 focus:scale-[1.03] focus:ring-4 focus:ring-white/10 border border-white/5 outline-none cursor-pointer"
-                tabIndex={0}
-              >
-                Recordar más tarde
-              </button>
+              {!force && (
+                <button
+                  ref={cancelBtnRef}
+                  onClick={safeClose}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-gray-300 py-3 rounded-2xl font-bold uppercase tracking-wider text-xs transition duration-200 focus:scale-[1.03] focus:ring-4 focus:ring-white/10 border border-white/5 outline-none cursor-pointer"
+                  tabIndex={0}
+                >
+                  Recordar más tarde
+                </button>
+              )}
             </>
           ) : (
             <button
