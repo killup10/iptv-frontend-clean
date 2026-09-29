@@ -22,6 +22,10 @@ export function MusicProvider({ children }) {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   // Calidad de audio actual: 'radio' | 'preview' | 'loading-full' | 'full' | 'preview-fallback'
   const [audioQuality, setAudioQuality] = useState('preview');
+  // Motor de reproducción de la versión completa:
+  // 'native'  = stream mp3/m4a directo en <audio> (progreso/seek reales, sin bloqueos de embed)
+  // 'youtube' = iframe YouTube como respaldo (videos sin stream directo disponible)
+  const [playbackMode, setPlaybackMode] = useState('native');
   const [favorites, setFavorites] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_FAVORITES_KEY);
@@ -35,6 +39,9 @@ export function MusicProvider({ children }) {
   const ytPlayerRef = useRef(null);
   const currentTrackRef = useRef(currentTrack);
   const repeatModeRef = useRef(repeatMode);
+  const playbackModeRef = useRef(playbackMode);
+  // URL del stream completo actualmente asignado al <audio> (para detectar su fallo)
+  const fullStreamRef = useRef(null);
   const handleNextRef = useRef(null);
   const handlePrevRef = useRef(null);
   const togglePlayRef = useRef(null);
@@ -46,6 +53,10 @@ export function MusicProvider({ children }) {
   useEffect(() => {
     repeatModeRef.current = repeatMode;
   }, [repeatMode]);
+
+  useEffect(() => {
+    playbackModeRef.current = playbackMode;
+  }, [playbackMode]);
 
   // Inicializar elemento de audio nativo UNA SOLA VEZ al montar
   useEffect(() => {
@@ -75,14 +86,30 @@ export function MusicProvider({ children }) {
     const onError = (e) => {
       console.warn('[MusicContext] Error en audio nativo:', e);
       setIsLoadingAudio(false);
+      // Si falló el STREAM COMPLETO (no el preview): delegar al iframe YouTube
+      const audioEl = audioRef.current;
+      if (
+        audioEl &&
+        fullStreamRef.current &&
+        audioEl.src === fullStreamRef.current &&
+        currentTrackRef.current?.youtubeId
+      ) {
+        console.warn('[MusicContext] Stream completo falló, cambiando a iframe YouTube');
+        fullStreamRef.current = null;
+        setPlaybackMode('youtube');
+      }
     };
 
     const onEnded = () => {
-      // Si la versión completa ya está activa o en camino en YouTube, NO saltar al acabarse el preview de 30s
-      if (currentTrackRef.current?.youtubeId) {
-        console.log('[MusicContext] Preview de 30s finalizado; versión completa en YouTube activa.');
+      const track = currentTrackRef.current;
+      // En modo YouTube el iframe maneja el fin (su onEnded avanza solo).
+      if (track?.youtubeId && playbackModeRef.current === 'youtube') return;
+      // Preview de 30s terminado pero la completa viene en camino: NO saltar.
+      if (track?.youtubeId && !fullStreamRef.current) {
+        console.log('[MusicContext] Preview finalizado; versión completa en camino.');
         return;
       }
+      // Fin real (radio no llega aquí; preview sin completa o stream completo):
       if (repeatModeRef.current === 'one') {
         audio.currentTime = 0;
         audio.play().catch(console.warn);
@@ -156,8 +183,61 @@ export function MusicProvider({ children }) {
     }
   }, [currentTrack]);
 
+  // Carga el stream COMPLETO (mp3/m4a directo) en el <audio> nativo.
+  // Si no hay stream disponible, delega al iframe YouTube como respaldo.
+  const loadFullAudio = useCallback(async (track, ytId) => {
+    try {
+      const url = await musicService.getFullAudioUrl(ytId);
+      // ¿Sigue vigente la misma pista? (el usuario pudo cambiar de canción)
+      if (!url || currentTrackRef.current?.id !== track.id) {
+        if (!url && currentTrackRef.current?.id === track.id) {
+          setPlaybackMode('youtube');
+        }
+        return;
+      }
+      const audio = audioRef.current;
+      if (!audio) {
+        setPlaybackMode('youtube');
+        return;
+      }
+      // Conservar la posición del preview para un cambio sin saltos
+      let pos = 0;
+      try { pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; } catch {}
+      fullStreamRef.current = url;
+      audio.src = url;
+      try {
+        if (pos > 0.5 && pos < 25) audio.currentTime = pos;
+      } catch {}
+      audio.load();
+      await audio.play().catch(() => {});
+      if (currentTrackRef.current?.id === track.id) {
+        setAudioQuality('full');
+        setPlaybackMode('native');
+      }
+    } catch {
+      if (currentTrackRef.current?.id === track.id) {
+        setPlaybackMode('youtube');
+      }
+    }
+  }, []);
+
+  // Regreso honesto al preview de 30s (cuando ni stream ni iframe funcionan)
+  const fallbackToPreview = useCallback(() => {
+    const track = currentTrackRef.current;
+    const audio = audioRef.current;
+    fullStreamRef.current = null;
+    setPlaybackMode('native');
+    setAudioQuality('preview-fallback');
+    if (track && audio && track.audioUrl) {
+      try {
+        audio.src = track.audioUrl;
+        audio.load();
+        audio.play().catch(() => {});
+      } catch {}
+    }
+  }, []);
   // Reproducir pista: arranque instantáneo con preview (30s) y cambio
-  // automático a canción COMPLETA en YouTube en cuanto se resuelve.
+  // automático a canción COMPLETA en cuanto se resuelve.
   const prefetchNextFullVersion = useCallback((currentQueue, currentIdx) => {
     if (!Array.isArray(currentQueue) || currentQueue.length === 0) return;
     const nextIdx = currentIdx + 1;
@@ -201,6 +281,8 @@ export function MusicProvider({ children }) {
     }
 
     setCurrentTime(0);
+    fullStreamRef.current = null;
+    setPlaybackMode('native');
 
     // Caso 1: Estación de Radio en Vivo (siempre completa, sin límite)
     if (track.isRadio) {
@@ -218,22 +300,20 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    // Caso 2: Pista con youtubeId ya resuelto (canción completa directa, sin preview de 30s)
+    // Caso 2: Pista con youtubeId ya resuelto -> stream COMPLETO nativo directo
     if (track.youtubeId) {
-      if (audio) {
-        try { audio.pause(); } catch {}
-        audio.removeAttribute('src');
-        audio.load();
-      }
       setCurrentTrack(track);
       setIsPlaying(true);
-      setIsLoadingAudio(false);
+      setIsLoadingAudio(true);
       setDuration(track.fullDuration || track.duration || 210);
-      setAudioQuality('full');
+      setAudioQuality('loading-full');
+      setPlaybackMode('native');
+      fullStreamRef.current = null;
       if (activeQueue) {
         const idx = activeQueue.findIndex(t => t.id === track.id);
         prefetchNextFullVersion(activeQueue, idx);
       }
+      loadFullAudio(track, track.youtubeId);
       return;
     }
 
@@ -263,6 +343,13 @@ export function MusicProvider({ children }) {
       if (ytId) {
         console.log('[MusicContext] Canción completa resuelta en YouTube:', ytId);
         const enriched = { ...track, youtubeId: ytId, isPreviewOnly: false };
+        // Si el usuario ya cambió de canción, solo propagar a la cola
+        if (currentTrackRef.current?.id !== track.id) {
+          setQueue(prev => prev.map(t => (
+            t.id === track.id && !t.youtubeId ? enriched : t
+          )));
+          return;
+        }
         setCurrentTrack(prev => {
           if (prev?.id === track.id) {
             return { ...prev, youtubeId: ytId, isPreviewOnly: false };
@@ -273,22 +360,27 @@ export function MusicProvider({ children }) {
         setQueue(prev => prev.map(t => (
           t.id === track.id && !t.youtubeId ? enriched : t
         )));
-        setAudioQuality('full');
         const currentQueue = activeQueue || [];
         const idx = currentQueue.findIndex(t => t.id === track.id);
         prefetchNextFullVersion(currentQueue, idx);
+        // Cargar el stream completo nativo (o iframe como respaldo)
+        await loadFullAudio(track, ytId);
       } else {
         // Sin versión completa: se queda el preview de 30s (se informa en UI)
         console.warn('[MusicContext] Sin versión completa, se mantiene preview 30s');
-        setAudioQuality('preview-fallback');
+        if (currentTrackRef.current?.id === track.id) {
+          setAudioQuality('preview-fallback');
+        }
       }
     } catch (err) {
       console.warn('[MusicContext] Error resolviendo canción completa:', err);
-      setAudioQuality('preview-fallback');
+      if (currentTrackRef.current?.id === track.id) {
+        setAudioQuality('preview-fallback');
+      }
     } finally {
       setIsLoadingAudio(false);
     }
-  }, [prefetchNextFullVersion]);
+  }, [prefetchNextFullVersion, loadFullAudio]);
 
   // Reproducir estación de radio
   const playRadio = useCallback((radio) => {
@@ -300,8 +392,9 @@ export function MusicProvider({ children }) {
     if (!currentTrack) return;
 
     const audio = audioRef.current;
+    const useYouTube = currentTrack.youtubeId && playbackMode === 'youtube';
 
-    if (currentTrack.youtubeId) {
+    if (useYouTube) {
       if (audio && !audio.paused) {
         audio.pause();
       }
@@ -321,7 +414,7 @@ export function MusicProvider({ children }) {
         console.warn('[MusicContext] Error reanudando audio:', err);
       });
     }
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, currentTrack, playbackMode]);
   togglePlayRef.current = togglePlay;
 
   // Siguiente pista
@@ -353,14 +446,15 @@ export function MusicProvider({ children }) {
 
   // Pista anterior
   const handlePrev = useCallback(() => {
-    if (currentTrack?.youtubeId && ytPlayerRef.current && currentTime > 3) {
+    const useYouTube = currentTrack?.youtubeId && playbackMode === 'youtube';
+    if (useYouTube && ytPlayerRef.current && currentTime > 3) {
       ytPlayerRef.current.seekTo(0, 'seconds');
       setCurrentTime(0);
       return;
     }
 
     const audio = audioRef.current;
-    if (!currentTrack?.youtubeId && audio && audio.currentTime > 3) {
+    if (!useYouTube && audio && audio.currentTime > 3) {
       audio.currentTime = 0;
       return;
     }
@@ -377,21 +471,24 @@ export function MusicProvider({ children }) {
       setQueueIndex(prevIdx);
       playTrack(prevSong, queue);
     }
-  }, [queue, queueIndex, repeatMode, playTrack, currentTrack, currentTime]);
+  }, [queue, queueIndex, repeatMode, playTrack, currentTrack, currentTime, playbackMode]);
   handlePrevRef.current = handlePrev;
 
   // Cambiar posición de la pista (Seek)
   const seekTo = useCallback((seconds) => {
     if (!Number.isFinite(seconds)) return;
 
-    if (currentTrack?.youtubeId && ytPlayerRef.current) {
+    const useYouTube = currentTrack?.youtubeId && playbackMode === 'youtube';
+    if (useYouTube && ytPlayerRef.current) {
       ytPlayerRef.current.seekTo(seconds, 'seconds');
       setCurrentTime(seconds);
     } else if (audioRef.current) {
-      audioRef.current.currentTime = seconds;
+      try {
+        audioRef.current.currentTime = seconds;
+      } catch {}
       setCurrentTime(seconds);
     }
-  }, [currentTrack]);
+  }, [currentTrack, playbackMode]);
 
   // Cambiar volumen
   const setVolume = useCallback((val) => {
@@ -443,6 +540,8 @@ export function MusicProvider({ children }) {
     isPlaying,
     isLoadingAudio,
     audioQuality,
+    playbackMode,
+    fallbackToPreview,
     queue,
     queueIndex,
     volume,

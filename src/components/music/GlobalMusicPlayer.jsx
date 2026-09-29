@@ -36,6 +36,8 @@ export default function GlobalMusicPlayer() {
     isPlaying,
     isLoadingAudio,
     audioQuality,
+    playbackMode,
+    fallbackToPreview,
     volume,
     isMuted,
     currentTime,
@@ -515,8 +517,9 @@ export default function GlobalMusicPlayer() {
         </div>
       )}
 
-      {/* REPRODUCTOR DE YOUTUBE ACTIVO (OCULTO DETRÁS DE LA BARRA INFERIOR CON TAMAÑO VÁLIDO) */}
-      {currentTrack?.youtubeId && (
+      {/* REPRODUCTOR DE YOUTUBE (SOLO RESPALDO: cuando no hay stream directo).
+          El motor principal es el <audio> nativo con mp3/m4a directo. */}
+      {currentTrack?.youtubeId && playbackMode === 'youtube' && (
         <div 
           className="fixed bottom-0 right-0 w-[300px] h-[200px] overflow-hidden pointer-events-none z-[10] opacity-5"
           aria-hidden="true"
@@ -548,13 +551,8 @@ export default function GlobalMusicPlayer() {
               if (dur && dur > 0) setDuration(dur);
             }}
             onError={(err) => {
-              console.warn('[ReactPlayer] Error en YouTube, manteniendo audio nativo:', err);
-              if (audioRef?.current && currentTrack?.audioUrl) {
-                if (audioRef.current.paused) {
-                  audioRef.current.play().catch(console.warn);
-                }
-                setIsPlaying(true);
-              }
+              console.warn('[ReactPlayer] Iframe YouTube falló, volviendo a preview 30s:', err);
+              fallbackToPreview();
             }}
             config={{
               youtube: {

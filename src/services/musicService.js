@@ -375,6 +375,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Caché de URLs de audio completo (memoria; el backend cachea 4h porque
+// las URLs de googlevideo expiran ~6h)
+// ---------------------------------------------------------------------------
+const fullAudioCache = new Map(); // youtubeId -> { ts, url }
+const FULL_AUDIO_TTL = 3 * 60 * 60 * 1000;
+
 export const musicService = {
   /**
    * Top de éxitos frescos (vía backend; sin el RSS deprecado de Apple).
@@ -601,6 +608,37 @@ export const musicService = {
       } catch {}
     }
 
+    return null;
+  },
+
+  /**
+   * Obtiene la URL de AUDIO DIRECTO (mp3/m4a) de la canción completa.
+   * Se reproduce en <audio> nativo: progreso y seek reales, sin bloqueos
+   * de embed del iframe de YouTube. Retorna null si no hay stream.
+   */
+  async getFullAudioUrl(trackOrId) {
+    const yid = typeof trackOrId === 'string' ? trackOrId : trackOrId?.youtubeId;
+    if (!yid || !/^[a-zA-Z0-9_-]{11}$/.test(yid)) return null;
+
+    const cached = fullAudioCache.get(yid);
+    if (cached && Date.now() - cached.ts < FULL_AUDIO_TTL) return cached.url;
+
+    try {
+      const res = await axiosInstance.get('/api/music/audio', {
+        params: { youtubeId: yid },
+        timeout: 20000
+      });
+      if (res.data?.url) {
+        if (fullAudioCache.size > 200) {
+          const oldest = fullAudioCache.keys().next().value;
+          fullAudioCache.delete(oldest);
+        }
+        fullAudioCache.set(yid, { ts: Date.now(), url: res.data.url });
+        return res.data.url;
+      }
+    } catch (err) {
+      console.warn('[MusicService] Sin stream directo de audio:', err?.message);
+    }
     return null;
   },
 

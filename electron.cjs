@@ -543,6 +543,7 @@ async function resolveYouTubeViaInvidious(query) {
 ipcMain.handle('music-get-youtube-id', async (_event, query) => {
   if (!query) return null;
   const cleanQuery = String(query).trim();
+  if (!cleanQuery) return null;
   const cached = ytMusicCache.get(cleanQuery);
   if (cached && (Date.now() - cached.ts) < YT_MUSIC_CACHE_TTL_MS) {
     return cached.id;
@@ -551,7 +552,29 @@ ipcMain.handle('music-get-youtube-id', async (_event, query) => {
     const oldest = ytMusicCache.keys().next().value;
     ytMusicCache.delete(oldest);
   }
-  // 1) HTML de YouTube con parseo de relevancia (sp=EgIQAQ== => solo videos)
+  // 1) Backend oficial (usa su propia caché de 7 días + múltiples fuentes)
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch('https://api.teamg.store/api/music/resolve?title=' + encodeURIComponent(cleanQuery), {
+      headers: {
+        Accept: 'application/json',
+        'x-app-version': (typeof app !== 'undefined' && app.getVersion ? app.getVersion() : '1.5.12'),
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.youtubeId) {
+        ytMusicCache.set(cleanQuery, { id: data.youtubeId, ts: Date.now() });
+        return data.youtubeId;
+      }
+    }
+  } catch (err) {
+    console.warn('[Electron Main] Backend resolve falló:', err && err.message);
+  }
+  // 2) HTML de YouTube con parseo de relevancia (sp=EgIQAQ== => solo videos)
   try {
     const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(cleanQuery + ' audio') + '&sp=EgIQAQ%253D%253D';
     const controller = new AbortController();
@@ -997,81 +1020,9 @@ ipcMain.handle('mpv-set-pip-floating', async (_, { enabled }) => {
   }
 });
 
-// -----------------------------------------------------------
-// IPC: Resolver ID de YouTube para canciones completas en TeamG Music
-// -----------------------------------------------------------
-const electronYtCache = new Map();
+// NOTA: el canal 'music-get-youtube-id' tiene UN SOLO handler registrado
+// arriba (línea ~543, backend-first + scraping + Piped/Invidious).
+// No duplicar: Electron lanza error si se registra dos veces el mismo canal.
 
-ipcMain.handle('music-get-youtube-id', async (_event, query) => {
-  if (!query || typeof query !== 'string') return null;
-  const cleanQuery = query.trim();
-  if (!cleanQuery) return null;
-
-  const cacheKey = cleanQuery.toLowerCase();
-  if (electronYtCache.has(cacheKey)) {
-    return electronYtCache.get(cacheKey);
-  }
-
-  console.log('[Electron Music] Resolviendo YouTube ID para:', cleanQuery);
-
-  // 1. Backend oficial con x-app-version: 1.5.12
-  try {
-    const res = await fetch(`https://api.teamg.store/api/music/resolve?title=${encodeURIComponent(cleanQuery)}`, {
-      headers: {
-        'Accept': 'application/json',
-        'x-app-version': '1.5.12'
-      },
-      timeout: 10000
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.youtubeId) {
-        console.log('[Electron Music] ✓ Resuelto vía backend:', data.youtubeId);
-        electronYtCache.set(cacheKey, data.youtubeId);
-        return data.youtubeId;
-      }
-    }
-  } catch (err) {
-    console.warn('[Electron Music] Falló backend resolve:', err.message);
-  }
-
-  // 2. Scraping directo de YouTube desde Node.js (sin restricciones de CORS)
-  try {
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanQuery + ' audio')}&sp=EgIQAQ%253D%253D`;
-    const res = await fetch(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-        'Accept': 'text/html'
-      },
-      timeout: 10000
-    });
-    if (res.ok) {
-      const html = await res.text();
-      const vrRegex = /"videoRenderer":\s*\{"videoId":"([a-zA-Z0-9_-]{11})"/g;
-      let m;
-      while ((m = vrRegex.exec(html)) !== null) {
-        const id = m[1];
-        const idx = m.index;
-        const snippet = html.slice(idx, idx + 2000);
-        if (snippet.includes('SHORTS') || snippet.includes('/shorts/')) continue;
-        console.log('[Electron Music] ✓ Resuelto vía scraping directo:', id);
-        electronYtCache.set(cacheKey, id);
-        return id;
-      }
-      const genericRegex = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
-      const mGen = genericRegex.exec(html);
-      if (mGen && mGen[1]) {
-        console.log('[Electron Music] ✓ Resuelto vía fallback:', mGen[1]);
-        electronYtCache.set(cacheKey, mGen[1]);
-        return mGen[1];
-      }
-    }
-  } catch (err) {
-    console.warn('[Electron Music] Falló scraping directo:', err.message);
-  }
-
-  return null;
-});
 
 
