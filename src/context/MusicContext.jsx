@@ -173,7 +173,7 @@ export function MusicProvider({ children }) {
     }
   }, [customPlaylists]);
 
-  // Actualizar MediaSession en cada cambio de canción
+  // Actualizar MediaSession y servicio nativo en cada cambio de canción
   useEffect(() => {
     if (!currentTrack) return;
 
@@ -184,7 +184,11 @@ export function MusicProvider({ children }) {
         album: currentTrack.album || 'TeamG Music',
         artwork: [
           { src: currentTrack.cover || '/logo-teamg.png', sizes: '512x512', type: 'image/png' }
-        ]
+        ],
+        coverUrl: currentTrack.cover || '',
+        isPlaying: isPlaying,
+        duration: duration,
+        position: currentTime
       });
 
       if ('mediaSession' in navigator) {
@@ -203,10 +207,13 @@ export function MusicProvider({ children }) {
     }
   }, [currentTrack]);
 
-  // Sincronizar estado play/pause con MediaSession para pantalla de bloqueo en móviles
+  // Sincronizar estado play/pause con MediaSession y servicio nativo para pantalla de bloqueo en móviles
   useEffect(() => {
     if ('mediaSession' in navigator && currentTrack) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+    if (currentTrack) {
+      backgroundPlaybackService.updatePlaybackState(isPlaying, currentTrack, currentTime, duration);
     }
   }, [isPlaying, currentTrack]);
 
@@ -225,24 +232,43 @@ export function MusicProvider({ children }) {
     }
   }, [currentTime, duration, currentTrack]);
 
-  // Escuchar eventos de BackgroundPlaybackService emitidos desde la barra de notificaciones del móvil
+  // Escuchar eventos de BackgroundPlaybackService emitidos desde la barra de notificaciones del móvil y pantalla bloqueada
   useEffect(() => {
-    const onBgPlay = () => { if (audioRef.current && audioRef.current.paused) audioRef.current.play().catch(console.warn); };
-    const onBgPause = () => { if (audioRef.current && !audioRef.current.paused) audioRef.current.pause(); };
+    const onBgPlay = () => {
+      const audio = audioRef.current;
+      if (audio && audio.paused) {
+        audio.play().catch(console.warn);
+      } else if (!isPlaying) {
+        togglePlayRef.current?.();
+      }
+    };
+
+    const onBgPause = () => {
+      const audio = audioRef.current;
+      if (audio && !audio.paused) {
+        audio.pause();
+      } else if (isPlaying) {
+        togglePlayRef.current?.();
+      }
+    };
+
+    const onBgToggle = () => togglePlayRef.current?.();
     const onBgPrev = () => handlePrevRef.current?.();
     const onBgNext = () => handleNextRef.current?.();
 
     window.addEventListener('backgroundPlayback:play', onBgPlay);
     window.addEventListener('backgroundPlayback:pause', onBgPause);
+    window.addEventListener('backgroundPlayback:toggle', onBgToggle);
     window.addEventListener('backgroundPlayback:prev', onBgPrev);
     window.addEventListener('backgroundPlayback:next', onBgNext);
     return () => {
       window.removeEventListener('backgroundPlayback:play', onBgPlay);
       window.removeEventListener('backgroundPlayback:pause', onBgPause);
+      window.removeEventListener('backgroundPlayback:toggle', onBgToggle);
       window.removeEventListener('backgroundPlayback:prev', onBgPrev);
       window.removeEventListener('backgroundPlayback:next', onBgNext);
     };
-  }, []);
+  }, [isPlaying]);
 
   // Watchdog de seguridad: si isLoadingAudio se queda atascado > 5s, liberar el control de UI
   useEffect(() => {

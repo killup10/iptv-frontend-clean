@@ -23,10 +23,38 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(VideoPlayerPlugin.class);
     registerPlugin(PermissionManager.class);
     registerPlugin(AppUpdatePlugin.class);
+    registerPlugin(MusicPlaybackPlugin.class);
     super.onCreate(savedInstanceState);
     
+    // Permitir reproducción de audio en segundo plano sin bloquear gestos
+    if (bridge != null && bridge.getWebView() != null) {
+      bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+    }
+
     // Configurar WebChromeClient para manejar pantalla completa y permisos
     setupWebChromeClient();
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+    // Si hay música reproduciéndose, reanudar WebView para que la canción no se pause al salir o minimizar
+    if (MusicPlaybackService.isPlaybackActive()) {
+      if (bridge != null && bridge.getWebView() != null) {
+        bridge.getWebView().onResume();
+      }
+    }
+  }
+
+  @Override
+  public void onStop() {
+    super.onStop();
+    // Si la música está activa, mantener el WebView activo incluso con la pantalla apagada
+    if (MusicPlaybackService.isPlaybackActive()) {
+      if (bridge != null && bridge.getWebView() != null) {
+        bridge.getWebView().onResume();
+      }
+    }
   }
   
   private void setupWebChromeClient() {

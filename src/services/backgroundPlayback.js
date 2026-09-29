@@ -1,6 +1,16 @@
 // src/services/backgroundPlayback.js
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
+
+// Registrar plugin nativo de Android/iOS para controles de barra de notificaciones y pantalla bloqueada
+let NativeMusicPlayback = null;
+if (Capacitor.isNativePlatform()) {
+  try {
+    NativeMusicPlayback = registerPlugin('MusicPlaybackPlugin');
+  } catch (e) {
+    console.warn('[BackgroundPlayback] Plugin nativo MusicPlaybackPlugin no disponible:', e);
+  }
+}
 
 class BackgroundPlaybackService {
   constructor() {
@@ -15,18 +25,41 @@ class BackgroundPlaybackService {
     if (this.isInitialized) return;
 
     try {
-      // Inicializar Media Session API para controles de reproducción
+      // 1. Inicializar Media Session API estándar para navegadores y soporte general
       if ('mediaSession' in navigator) {
         this.mediaSession = navigator.mediaSession;
         console.log('[BackgroundPlayback] Media Session API disponible');
       }
 
-      // Solicitar Wake Lock para mantener la pantalla activa durante la reproducción
+      // 2. Solicitar Wake Lock para mantener la pantalla activa mientras el usuario tiene la app abierta
       if ('wakeLock' in navigator) {
         console.log('[BackgroundPlayback] Wake Lock API disponible');
       }
 
-      // En Capacitor, configurar listeners para eventos de la app
+      // 3. Configurar listeners nativos de Android para botones de la notificación y pantalla bloqueada
+      if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+        try {
+          NativeMusicPlayback.addListener('onMediaAction', ({ action }) => {
+            console.log('[BackgroundPlayback] Acción nativa recibida desde notificación/bloqueo:', action);
+            if (action === 'play') {
+              window.dispatchEvent(new CustomEvent('backgroundPlayback:play'));
+            } else if (action === 'pause') {
+              window.dispatchEvent(new CustomEvent('backgroundPlayback:pause'));
+            } else if (action === 'toggle') {
+              window.dispatchEvent(new CustomEvent('backgroundPlayback:toggle'));
+            } else if (action === 'next') {
+              window.dispatchEvent(new CustomEvent('backgroundPlayback:next'));
+            } else if (action === 'prev') {
+              window.dispatchEvent(new CustomEvent('backgroundPlayback:prev'));
+            }
+          });
+          console.log('[BackgroundPlayback] Listeners de MusicPlaybackPlugin nativo conectados');
+        } catch (err) {
+          console.warn('[BackgroundPlayback] No se pudo añadir listener a MusicPlaybackPlugin:', err);
+        }
+      }
+
+      // 4. Configurar listeners de ciclo de vida de la app
       if (Capacitor.isNativePlatform()) {
         App.addListener('appStateChange', ({ isActive }) => {
           console.log('[BackgroundPlayback] App state changed:', isActive ? 'active' : 'background');
@@ -62,7 +95,7 @@ class BackgroundPlaybackService {
       this.currentMedia = mediaInfo;
       this.isPlaying = true;
 
-      // Configurar Media Session
+      // Configurar Media Session estándar para navegadores
       if (this.mediaSession) {
         this.mediaSession.metadata = new MediaMetadata({
           title: mediaInfo.title || 'TeamG Play',
@@ -73,37 +106,45 @@ class BackgroundPlaybackService {
           ]
         });
 
-        // Configurar controles de reproducción
+        // Configurar controles de reproducción MediaSession
         this.mediaSession.setActionHandler('play', () => {
-          console.log('[BackgroundPlayback] Media Session: Play');
           this.handlePlay();
         });
 
         this.mediaSession.setActionHandler('pause', () => {
-          console.log('[BackgroundPlayback] Media Session: Pause');
           this.handlePause();
         });
 
         this.mediaSession.setActionHandler('stop', () => {
-          console.log('[BackgroundPlayback] Media Session: Stop');
           this.handleStop();
         });
 
-        this.mediaSession.setActionHandler('seekbackward', (details) => {
-          console.log('[BackgroundPlayback] Media Session: Seek backward', details);
-          this.handleSeekBackward(details.seekOffset || 10);
+        this.mediaSession.setActionHandler('previoustrack', () => {
+          window.dispatchEvent(new CustomEvent('backgroundPlayback:prev'));
         });
 
-        this.mediaSession.setActionHandler('seekforward', (details) => {
-          console.log('[BackgroundPlayback] Media Session: Seek forward', details);
-          this.handleSeekForward(details.seekOffset || 10);
+        this.mediaSession.setActionHandler('nexttrack', () => {
+          window.dispatchEvent(new CustomEvent('backgroundPlayback:next'));
         });
 
-        // Establecer estado de reproducción
         this.mediaSession.playbackState = 'playing';
       }
 
-      // Solicitar Wake Lock para evitar que la pantalla se apague
+      // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia
+      if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+        NativeMusicPlayback.updatePlayback({
+          title: mediaInfo.title || 'TeamG Play',
+          artist: mediaInfo.artist || 'Reproduciendo',
+          coverUrl: mediaInfo.coverUrl || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
+          isPlaying: true,
+          duration: mediaInfo.duration ? Math.round(mediaInfo.duration) : 0,
+          position: mediaInfo.position ? Math.round(mediaInfo.position) : 0
+        }).catch(err => {
+          console.warn('[BackgroundPlayback] Error al llamar updatePlayback nativo:', err);
+        });
+      }
+
+      // Solicitar Wake Lock para evitar que la pantalla se apague mientras la app está abierta
       await this.requestWakeLock();
 
       console.log('[BackgroundPlayback] Reproducción iniciada:', mediaInfo.title);
@@ -112,22 +153,42 @@ class BackgroundPlaybackService {
     }
   }
 
+  updatePlaybackState(isPlaying, mediaInfo, position, duration) {
+    this.isPlaying = isPlaying;
+    if (this.mediaSession) {
+      this.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+
+    if (Capacitor.isNativePlatform() && NativeMusicPlayback && mediaInfo) {
+      NativeMusicPlayback.updatePlayback({
+        title: mediaInfo.title || 'TeamG Play',
+        artist: mediaInfo.artist || 'Reproduciendo',
+        coverUrl: mediaInfo.cover || mediaInfo.coverUrl || '',
+        isPlaying: Boolean(isPlaying),
+        duration: duration ? Math.round(duration) : 0,
+        position: position ? Math.round(position) : 0
+      }).catch(err => {
+        console.warn('[BackgroundPlayback] Error en updatePlaybackState nativo:', err);
+      });
+    }
+  }
+
   async stopPlayback() {
     try {
-      // Solo ejecutar si realmente estábamos reproduciendo
       if (this.isPlaying || this.currentMedia) {
         this.isPlaying = false;
         this.currentMedia = null;
 
-        // Limpiar Media Session
         if (this.mediaSession) {
           this.mediaSession.playbackState = 'none';
           this.mediaSession.metadata = null;
         }
 
-        // Liberar Wake Lock
-        await this.releaseWakeLock();
+        if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+          NativeMusicPlayback.stopPlayback().catch(() => {});
+        }
 
+        await this.releaseWakeLock();
         console.log('[BackgroundPlayback] Reproducción detenida');
       }
     } catch (error) {
@@ -143,8 +204,18 @@ class BackgroundPlaybackService {
         this.mediaSession.playbackState = 'paused';
       }
 
-      await this.releaseWakeLock();
+      if (Capacitor.isNativePlatform() && NativeMusicPlayback && this.currentMedia) {
+        NativeMusicPlayback.updatePlayback({
+          title: this.currentMedia.title || 'TeamG Play',
+          artist: this.currentMedia.artist || 'Reproduciendo',
+          coverUrl: this.currentMedia.cover || this.currentMedia.coverUrl || '',
+          isPlaying: false,
+          duration: 0,
+          position: 0
+        }).catch(() => {});
+      }
 
+      await this.releaseWakeLock();
       console.log('[BackgroundPlayback] Reproducción pausada');
     } catch (error) {
       console.error('[BackgroundPlayback] Error pausando reproducción:', error);
@@ -159,8 +230,18 @@ class BackgroundPlaybackService {
         this.mediaSession.playbackState = 'playing';
       }
 
-      await this.requestWakeLock();
+      if (Capacitor.isNativePlatform() && NativeMusicPlayback && this.currentMedia) {
+        NativeMusicPlayback.updatePlayback({
+          title: this.currentMedia.title || 'TeamG Play',
+          artist: this.currentMedia.artist || 'Reproduciendo',
+          coverUrl: this.currentMedia.cover || this.currentMedia.coverUrl || '',
+          isPlaying: true,
+          duration: 0,
+          position: 0
+        }).catch(() => {});
+      }
 
+      await this.requestWakeLock();
       console.log('[BackgroundPlayback] Reproducción reanudada');
     } catch (error) {
       console.error('[BackgroundPlayback] Error reanudando reproducción:', error);
@@ -185,14 +266,11 @@ class BackgroundPlaybackService {
     if ('wakeLock' in navigator && !this.wakeLock) {
       try {
         this.wakeLock = await navigator.wakeLock.request('screen');
-        console.log('[BackgroundPlayback] Wake Lock activado');
-        
         this.wakeLock.addEventListener('release', () => {
-          console.log('[BackgroundPlayback] Wake Lock liberado');
           this.wakeLock = null;
         });
       } catch (error) {
-        console.warn('[BackgroundPlayback] No se pudo activar Wake Lock:', error);
+        // En móviles algunos navegadores restringen wakeLock de pantalla
       }
     }
   }
@@ -202,38 +280,29 @@ class BackgroundPlaybackService {
       try {
         await this.wakeLock.release();
         this.wakeLock = null;
-        console.log('[BackgroundPlayback] Wake Lock liberado manualmente');
       } catch (error) {
-        console.warn('[BackgroundPlayback] Error liberando Wake Lock:', error);
+        // Ignorar error al liberar
       }
     }
   }
 
   handleAppGoingToBackground() {
-    console.log('[BackgroundPlayback] App va a segundo plano, manteniendo reproducción');
-    // Aquí puedes implementar lógica específica para cuando la app va a segundo plano
-    // Por ejemplo, cambiar a modo de solo audio si es un video
+    console.log('[BackgroundPlayback] App va a segundo plano, manteniendo reproducción continua');
   }
 
   handleAppComingToForeground() {
     console.log('[BackgroundPlayback] App vuelve a primer plano');
-    // Aquí puedes implementar lógica para cuando la app vuelve a primer plano
-    // Por ejemplo, restaurar el video si estaba en modo solo audio
   }
 
-  // Handlers para los controles de Media Session
   handlePlay() {
-    // Emitir evento personalizado para que el reproductor reanude
     window.dispatchEvent(new CustomEvent('backgroundPlayback:play'));
   }
 
   handlePause() {
-    // Emitir evento personalizado para que el reproductor pause
     window.dispatchEvent(new CustomEvent('backgroundPlayback:pause'));
   }
 
   handleStop() {
-    // Emitir evento personalizado para que el reproductor se detenga
     window.dispatchEvent(new CustomEvent('backgroundPlayback:stop'));
   }
 
@@ -249,7 +318,6 @@ class BackgroundPlaybackService {
     }));
   }
 
-  // Método para limpiar recursos al cerrar la aplicación
   cleanup() {
     this.stopPlayback();
     if (Capacitor.isNativePlatform()) {
@@ -258,6 +326,5 @@ class BackgroundPlaybackService {
   }
 }
 
-// Exportar instancia singleton
 export const backgroundPlaybackService = new BackgroundPlaybackService();
 export default backgroundPlaybackService;
