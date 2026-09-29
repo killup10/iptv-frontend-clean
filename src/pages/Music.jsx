@@ -169,8 +169,8 @@ export default function Music() {
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
       
-      {/* 1. HERO BANNER PRINCIPAL (ESTILO SPOTIFY / APPLE MUSIC) */}
-      <div className="relative pt-6 pb-8 px-4 sm:px-8 max-w-7xl mx-auto">
+      {/* 1. HERO BANNER PRINCIPAL (SOLO DESKTOP PARA MANTENER MÓVIL ÁGIL COMO SPOTIFY) */}
+      <div className="hidden md:block relative pt-6 pb-8 px-4 sm:px-8 max-w-7xl mx-auto">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-purple-900/40 to-cyan-950/60 border border-fuchsia-500/20 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
           
           {/* Luces y brillos de fondo */}
@@ -256,55 +256,55 @@ export default function Music() {
           )}
         </div>
 
-        {/* Pestañas de Navegación */}
+        {/* Pestañas de Navegación estilo Píldoras */}
         {!searchQuery && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             <button
               onClick={() => setActiveTab('top')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'top'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black shadow-lg shadow-cyan-500/20'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+                  ? 'bg-gradient-to-r from-cyan-400 to-cyan-500 text-black shadow-md shadow-cyan-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <TrendingUp className="w-4 h-4" />
+              <TrendingUp className="w-3.5 h-3.5" />
               <span>Top Éxitos</span>
             </button>
 
             <button
               onClick={() => setActiveTab('genres')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'genres'
-                  ? 'bg-gradient-to-r from-fuchsia-500 to-pink-600 text-white shadow-lg shadow-fuchsia-500/20'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+                  ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white shadow-md shadow-fuchsia-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
               <span>Explorar Géneros</span>
             </button>
 
             <button
               onClick={() => setActiveTab('radios')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'radios'
-                  ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/20'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md shadow-red-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <Radio className="w-4 h-4" />
+              <Radio className="w-3.5 h-3.5" />
               <span>Radios en Vivo</span>
             </button>
 
             <button
               onClick={() => setActiveTab('favorites')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'favorites'
-                  ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/20'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+                  ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <Heart className="w-4 h-4" />
-              <span>Mis Me Gusta ({favorites.length})</span>
+              <Heart className="w-3.5 h-3.5" />
+              <span>Tus Me Gusta ({favorites.length})</span>
             </button>
 
             <button
@@ -312,14 +312,14 @@ export default function Music() {
                 setActiveTab('playlists');
                 setSelectedPlaylistId(null);
               }}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'playlists' || activeTab === 'queue'
-                  ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white shadow-lg shadow-purple-500/20'
-                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+                  ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white shadow-md shadow-purple-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <ListMusic className="w-4 h-4" />
-              <span>Listas de Reproducción ({customPlaylists.length})</span>
+              <ListMusic className="w-3.5 h-3.5" />
+              <span>Tus Listas ({customPlaylists.length})</span>
             </button>
           </div>
         )}
@@ -926,38 +926,189 @@ export default function Music() {
 
         {/* CASO E: TOP 50 ÉXITOS (DEFAULT) */}
         {!searchQuery && activeTab === 'top' && (
-          <div className="space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-cyan-400" />
-                  <span>Lo Más Escuchado Esta Semana</span>
-                </h2>
-                <p className="text-xs text-gray-400">Tendencias musicales actualizadas minuto a minuto.</p>
+          <div className="space-y-6 sm:space-y-8 animate-in fade-in">
+            
+            {/* GRILLA DE ACCESO RÁPIDO ESTILO BENTO (2 COLUMNAS EN MÓVIL, 3 EN DESKTOP) */}
+            <div className="space-y-2.5">
+              <h3 className="text-xs uppercase tracking-widest font-bold text-gray-400">
+                Acceso Rápido
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
+                
+                {/* 1. Tus Me Gusta */}
+                <div 
+                  onClick={() => setActiveTab('favorites')}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-pink-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-pink-500 via-fuchsia-600 to-purple-700 flex items-center justify-center flex-shrink-0 shadow-md">
+                    <Heart className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-pink-300 transition">
+                      Tus Me Gusta
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {favorites.length} {favorites.length === 1 ? 'canción' : 'canciones'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Top 50 Global */}
+                <div 
+                  onClick={handlePlayAllTop}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-cyan-950">
+                    <img 
+                      src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                      alt="Top 50" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                    <div className="absolute top-1 left-1 bg-cyan-400 text-[8px] font-black text-black px-1 rounded shadow">
+                      #1
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                      Top 50 Éxitos
+                    </p>
+                    <p className="text-[10px] text-gray-400 truncate">
+                      Los más escuchados
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Radio en Vivo */}
+                <div 
+                  onClick={() => playRadio(LIVE_RADIOS[0])}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-red-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-red-600 to-orange-600 flex items-center justify-center flex-shrink-0">
+                    <Radio className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white animate-ping" />
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-orange-300 transition">
+                      {LIVE_RADIOS[0]?.title || 'Radio Moda FM'}
+                    </p>
+                    <p className="text-[10px] text-red-400 font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                      En Vivo 24/7
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. Reggaetón Hits */}
+                <div 
+                  onClick={() => {
+                    const reggaeton = GENRES.find(g => g.id === 'reggaeton');
+                    if (reggaeton) setSelectedGenre(reggaeton);
+                    setActiveTab('genres');
+                  }}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-pink-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-pink-900">
+                    <img 
+                      src={GENRES[0]?.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80'} 
+                      alt="Reggaetón" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-pink-300 transition">
+                      Reggaetón Hits
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      Urbano & Perreo
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. Pop Latino */}
+                <div 
+                  onClick={() => {
+                    const pop = GENRES.find(g => g.id === 'pop');
+                    if (pop) setSelectedGenre(pop);
+                    setActiveTab('genres');
+                  }}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-emerald-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-emerald-950">
+                    <img 
+                      src={GENRES[1]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                      alt="Pop Latino" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-emerald-300 transition">
+                      Pop Latino
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      Éxitos Mundiales
+                    </p>
+                  </div>
+                </div>
+
+                {/* 6. Listas Propias */}
+                <div 
+                  onClick={() => {
+                    setActiveTab('playlists');
+                    setSelectedPlaylistId(null);
+                  }}
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-purple-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <ListMusic className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-purple-300 transition">
+                      {customPlaylists.length > 0 ? customPlaylists[0].name : 'Tus Listas'}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {customPlaylists.length} creadas
+                    </p>
+                  </div>
+                </div>
+
               </div>
             </div>
 
-            {isLoadingTop ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+            {/* SECCIÓN PRINCIPAL: LO MÁS ESCUCHADO */}
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-cyan-400" />
+                    <span>Lo Más Escuchado Esta Semana</span>
+                  </h2>
+                  <p className="text-xs text-gray-400">Tendencias musicales actualizadas minuto a minuto.</p>
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {topTracks.map((track, idx) => (
-                  <TrackCard 
-                    key={track.id} 
-                    track={track} 
-                    queue={topTracks}
-                    index={idx + 1}
-                    isPlaying={isPlaying && currentTrack?.id === track.id}
-                    onPlay={() => playTrack(track, topTracks)}
-                    isFav={isFavorite(track.id)}
-                    onToggleFav={() => toggleFavorite(track)}
-                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                  />
-                ))}
-              </div>
-            )}
+
+              {isLoadingTop ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                  {topTracks.map((track, idx) => (
+                    <TrackCard 
+                      key={track.id} 
+                      track={track} 
+                      queue={topTracks}
+                      index={idx + 1}
+                      isPlaying={isPlaying && currentTrack?.id === track.id}
+                      onPlay={() => playTrack(track, topTracks)}
+                      isFav={isFavorite(track.id)}
+                      onToggleFav={() => toggleFavorite(track)}
+                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
@@ -986,14 +1137,14 @@ function TrackCard({
   return (
     <div 
       onClick={onPlay}
-      className={`group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border transition duration-300 flex flex-col cursor-pointer ${
+      className={`group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border transition duration-300 flex flex-col cursor-pointer active:scale-[0.98] ${
         isPlaying 
           ? 'border-cyan-400/60 shadow-lg shadow-cyan-500/10 bg-cyan-500/5' 
           : 'border-white/5 hover:border-white/20'
       }`}
     >
       {/* Carátula */}
-      <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/40 shadow-md">
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
         <img 
           src={track.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
           alt={track.title} 
@@ -1003,19 +1154,26 @@ function TrackCard({
 
         {/* Número de posición (para Top charts) */}
         {index && (
-          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/70 backdrop-blur-md text-cyan-300 text-xs font-black flex items-center justify-center border border-white/10">
+          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-cyan-300 text-xs font-black flex items-center justify-center border border-white/10 shadow">
             {index}
           </span>
         )}
 
+        {/* Género sobre la carátula (elegante y sin quitar espacio abajo) */}
+        {!track.isRadio && track.genre && (
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-[9px] font-bold text-cyan-300 tracking-wider uppercase shadow truncate max-w-[90px]">
+            {track.genre}
+          </span>
+        )}
+
         {/* Botón flotante Play */}
-        <div className={`absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl transition-all duration-300 ${
+        <div className={`absolute bottom-2 right-2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl transition-all duration-300 ${
           isPlaying ? 'opacity-100 scale-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110'
         }`}>
           {isPlaying ? (
-            <Pause className="w-5 h-5 fill-black" />
+            <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-black" />
           ) : (
-            <Play className="w-5 h-5 fill-black ml-0.5" />
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black ml-0.5" />
           )}
         </div>
       </div>
@@ -1030,19 +1188,12 @@ function TrackCard({
         </p>
       </div>
 
-      {/* Footer de la tarjeta: Género musical, Duración, Playlist y Favorito */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px]">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {track.genre && (
-            <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-semibold text-[9px] truncate max-w-[80px]">
-              {track.genre}
-            </span>
-          )}
-          <span className="flex items-center gap-1 text-gray-400 font-mono">
-            <Clock className="w-3 h-3 text-gray-500" />
-            {durationLabel}
-          </span>
-        </div>
+      {/* Footer de la tarjeta: Duración a la izquierda y Botones de acción con espaciado generoso a la derecha */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+        <span className="flex items-center gap-1 text-[11px] text-gray-400 font-mono">
+          <Clock className="w-3 h-3 text-gray-500" />
+          {durationLabel}
+        </span>
 
         <div className="flex items-center gap-1">
           {!track.isRadio && onAddToPlaylist && (
@@ -1051,10 +1202,10 @@ function TrackCard({
                 e.stopPropagation();
                 onAddToPlaylist();
               }}
-              className="p-1 rounded-full text-gray-400 hover:text-fuchsia-400 transition"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-fuchsia-400 hover:bg-white/5 active:scale-90 transition"
               title="Añadir a lista personalizada"
             >
-              <ListPlus className="w-3.5 h-3.5" />
+              <ListPlus className="w-4 h-4" />
             </button>
           )}
 
@@ -1064,10 +1215,10 @@ function TrackCard({
                 e.stopPropagation();
                 onRemoveFromPlaylist();
               }}
-              className="p-1 rounded-full text-gray-400 hover:text-red-400 transition"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-white/5 active:scale-90 transition"
               title="Quitar de esta lista"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
 
@@ -1076,12 +1227,12 @@ function TrackCard({
               e.stopPropagation();
               onToggleFav();
             }}
-            className={`p-1 rounded-full transition ${
-              isFav ? 'text-pink-500 hover:text-pink-400' : 'text-gray-500 hover:text-white'
+            className={`p-1.5 rounded-lg active:scale-90 transition ${
+              isFav ? 'text-pink-500 hover:text-pink-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
             title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
           >
-            <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500' : ''}`} />
+            <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500' : ''}`} />
           </button>
         </div>
       </div>

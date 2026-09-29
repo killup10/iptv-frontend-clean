@@ -105,55 +105,60 @@ export default function GlobalMusicPlayer() {
 
   return (
     <>
-      {/* BARRA INFERIOR FLOTANTE ESTILO SPOTIFY */}
+      {/* BARRA INFERIOR / MINI-PLAYER ADAPTATIVO */}
       <div 
-        className="fixed bottom-0 left-0 right-0 z-[99990] bg-[#0c0915]/95 backdrop-blur-xl border-t border-fuchsia-500/20 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] px-3 sm:px-6 py-2.5 transition-all duration-300"
+        className="fixed bottom-2 left-2 right-2 md:bottom-0 md:left-0 md:right-0 z-[99990] bg-[#0c0915]/95 backdrop-blur-2xl border border-white/10 md:border-b-0 md:border-x-0 md:border-t md:border-fuchsia-500/20 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl md:rounded-none px-3 sm:px-6 py-2 transition-all duration-300"
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-          
-          {/* 1. INFO DE LA CANCIÓN / ARTISTA (IZQUIERDA) */}
-          <div className="flex items-center gap-3 min-w-0 w-1/4 sm:w-1/3">
+        {/* LÍNEA DE PROGRESO DISCRETA (EN MÓVIL: en el borde inferior de la píldora) */}
+        {!currentTrack.isRadio && (
+          <div className="md:hidden absolute bottom-0 left-2 right-2 h-[2.5px] bg-white/10 rounded-b-2xl overflow-hidden pointer-events-none">
             <div 
-              onClick={() => setIsExpandedPlayer(true)}
-              className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer group shadow-lg border border-white/10"
-            >
+              className="h-full bg-gradient-to-r from-cyan-400 via-pink-400 to-fuchsia-500 transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
+
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          
+          {/* 1. INFO DE LA CANCIÓN / ARTISTA (Clic abre el reproductor completo) */}
+          <div 
+            onClick={() => setIsExpandedPlayer(true)}
+            className="flex items-center gap-3 min-w-0 flex-1 md:w-1/4 md:flex-initial cursor-pointer group"
+          >
+            <div className="relative w-11 h-11 sm:w-13 sm:h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-lg border border-white/10">
               <img 
                 src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
                 alt={currentTrack.title} 
                 className={`w-full h-full object-cover transition-transform duration-500 ${isPlaying ? 'scale-105' : 'group-hover:scale-105'}`}
               />
               <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <Maximize2 className="w-5 h-5 text-white" />
+                <Maximize2 className="w-4 h-4 text-white" />
               </div>
               {currentTrack.isRadio && (
-                <div className="absolute top-1 left-1 bg-red-600/90 text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <div className="absolute top-0.5 left-0.5 bg-red-600 text-[8px] font-black text-white px-1 py-0.2 rounded flex items-center gap-1 shadow">
+                  <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
                   FM
                 </div>
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <h4 
-                onClick={() => setIsExpandedPlayer(true)}
-                className="text-xs sm:text-sm font-bold text-white truncate cursor-pointer hover:text-cyan-400 transition"
-              >
+              <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-400 transition">
                 {currentTrack.title}
               </h4>
-              <p className="text-[11px] sm:text-xs text-gray-400 truncate">
+              <p className="text-[11px] text-gray-400 truncate">
                 {currentTrack.artist}
               </p>
-              {/* Género musical */}
-              {!currentTrack.isRadio && (currentTrack.genre || currentTrack.album) && (
-                <span className="inline-flex items-center gap-1 mt-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full border border-cyan-400/30 bg-cyan-500/10 text-cyan-300 truncate max-w-[130px]">
-                  {currentTrack.genre || currentTrack.album}
-                </span>
-              )}
             </div>
 
-            <div className="flex items-center gap-1 hidden sm:flex">
+            {/* Acciones en Desktop */}
+            <div className="hidden sm:flex items-center gap-1">
               <button
-                onClick={() => toggleFavorite(currentTrack)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(currentTrack);
+                }}
                 className={`p-1.5 rounded-full transition ${
                   isFav 
                     ? 'text-pink-500 hover:text-pink-400 scale-110' 
@@ -166,7 +171,10 @@ export default function GlobalMusicPlayer() {
 
               {!currentTrack.isRadio && (
                 <button
-                  onClick={() => openAddToPlaylistModal(currentTrack)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAddToPlaylistModal(currentTrack);
+                  }}
                   className="p-1.5 rounded-full text-gray-400 hover:text-fuchsia-400 transition"
                   title="Añadir a lista personalizada"
                 >
@@ -176,13 +184,12 @@ export default function GlobalMusicPlayer() {
             </div>
           </div>
 
-          {/* 2. CONTROLES DE REPRODUCCIÓN & LÍNEA DE TIEMPO (CENTRO) */}
-          <div className="flex flex-col items-center gap-1 flex-1 max-w-xl">
-            {/* Botones de acción */}
-            <div className="flex items-center gap-2 sm:gap-5">
+          {/* 2. CONTROLES CENTRALES (EN DESKTOP: Shuffle, Prev, Play, Next, Repeat + Barra completa) */}
+          <div className="hidden md:flex flex-col items-center gap-1 flex-1 max-w-xl">
+            <div className="flex items-center gap-5">
               <button
                 onClick={toggleShuffle}
-                className={`p-1.5 rounded-full transition hidden sm:block ${
+                className={`p-1.5 rounded-full transition ${
                   isShuffle ? 'text-cyan-400' : 'text-gray-400 hover:text-white'
                 }`}
                 title="Modo aleatorio"
@@ -193,7 +200,7 @@ export default function GlobalMusicPlayer() {
               <button
                 onClick={prevTrack}
                 disabled={currentTrack.isRadio}
-                className="p-1.5 text-gray-300 hover:text-white disabled:opacity-40 disabled:hover:text-gray-300 transition"
+                className="p-1.5 text-gray-300 hover:text-white disabled:opacity-40 transition"
                 title="Pista anterior"
               >
                 <SkipBack className="w-5 h-5" />
@@ -201,7 +208,7 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={togglePlay}
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/20 hover:scale-105 active:scale-95 transition"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/20 hover:scale-105 active:scale-95 transition"
                 title={isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {isLoadingAudio ? (
@@ -216,7 +223,7 @@ export default function GlobalMusicPlayer() {
               <button
                 onClick={nextTrack}
                 disabled={currentTrack.isRadio}
-                className="p-1.5 text-gray-300 hover:text-white disabled:opacity-40 disabled:hover:text-gray-300 transition"
+                className="p-1.5 text-gray-300 hover:text-white disabled:opacity-40 transition"
                 title="Siguiente pista"
               >
                 <SkipForward className="w-5 h-5" />
@@ -224,7 +231,7 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={toggleRepeat}
-                className={`p-1.5 rounded-full transition hidden sm:block ${
+                className={`p-1.5 rounded-full transition ${
                   repeatMode !== 'off' ? 'text-cyan-400' : 'text-gray-400 hover:text-white'
                 }`}
                 title={`Repetir: ${repeatMode === 'all' ? 'Toda la cola' : repeatMode === 'one' ? 'Canción actual' : 'Desactivado'}`}
@@ -237,11 +244,11 @@ export default function GlobalMusicPlayer() {
               </button>
             </div>
 
-            {/* Barra de progreso de tiempo o estado En Vivo */}
+            {/* Barra de progreso de tiempo o estado En Vivo en Desktop */}
             {currentTrack.isRadio ? (
               <div className="flex items-center gap-2 text-xs text-fuchsia-300 font-medium">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                <span>Transmisión en vivo y directo ({currentTrack.frequency || 'Streaming HD'})</span>
+                <span>Transmisión en vivo ({currentTrack.frequency || 'Streaming HD'})</span>
               </div>
             ) : (
               <div className="w-full flex items-center gap-2 text-[11px] text-gray-400">
@@ -269,45 +276,85 @@ export default function GlobalMusicPlayer() {
             )}
           </div>
 
-          {/* 3. VOLUMEN, COLA & EXPANDIR (DERECHA) */}
-          <div className="flex items-center justify-end gap-3 w-1/4 sm:w-1/3">
-            <button
-              onClick={() => setShowQueueDrawer(prev => !prev)}
-              className={`p-2 rounded-xl transition ${
-                showQueueDrawer ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-              title="Lista de Reproducción"
-            >
-              <ListMusic className="w-4 h-4" />
-            </button>
-
-            <div className="items-center gap-2 hidden md:flex">
+          {/* 3. DERECHA: EN MÓVIL (Favorito + Play) | EN DESKTOP (Cola + Volumen + Expandir) */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Solo Móvil: Botón Me Gusta */}
+            <div className="md:hidden flex items-center">
               <button
-                onClick={toggleMute}
-                className="text-gray-400 hover:text-white transition p-1"
-                title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFavorite(currentTrack);
+                }}
+                className={`p-2 rounded-full transition active:scale-90 ${
+                  isFav ? 'text-pink-500' : 'text-gray-400 hover:text-white'
+                }`}
+                title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
               >
-                <VolumeIcon className="w-4 h-4" />
+                <Heart className={`w-5 h-5 ${isFav ? 'fill-pink-500' : ''}`} />
               </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={isMuted ? 0 : volume}
-                onChange={handleVolumeChange}
-                className="w-20 h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-              />
             </div>
 
-            <button
-              onClick={() => setIsExpandedPlayer(true)}
-              className="text-gray-400 hover:text-white transition p-1.5 hover:bg-white/5 rounded-xl"
-              title="Expandir reproductor"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
+            {/* Solo Móvil: Botón Play/Pause grande y cómodo */}
+            <div className="md:hidden flex items-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/25 active:scale-95 transition"
+                title={isPlaying ? 'Pausar' : 'Reproducir'}
+              >
+                {isLoadingAudio ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : isPlaying ? (
+                  <Pause className="w-5 h-5 fill-black text-black" />
+                ) : (
+                  <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                )}
+              </button>
+            </div>
+
+            {/* Solo Desktop: Cola, Volumen y Botón Expandir */}
+            <div className="hidden md:flex items-center gap-3 w-48 justify-end">
+              <button
+                onClick={() => setShowQueueDrawer(prev => !prev)}
+                className={`p-2 rounded-xl transition ${
+                  showQueueDrawer ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Lista de Reproducción"
+              >
+                <ListMusic className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-2 group">
+                <button 
+                  onClick={toggleMute}
+                  className="text-gray-400 hover:text-white transition p-1"
+                  title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                >
+                  <VolumeIcon className="w-4 h-4" />
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  className="w-20 h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+              </div>
+
+              <button
+                onClick={() => setIsExpandedPlayer(true)}
+                className="text-gray-400 hover:text-white transition p-1.5 hover:bg-white/5 rounded-xl"
+                title="Expandir reproductor"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
         </div>
       </div>
 
