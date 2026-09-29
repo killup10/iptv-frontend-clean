@@ -612,25 +612,23 @@ ipcMain.handle('music-get-youtube-id', async (_event, query) => {
 });
 
 // -----------------------------------------------------------
-// IPC: Stream de AUDIO DIRECTO (m4a/mp3) para <audio> nativo
-// Resuelve en ~400ms directamente desde la PC del cliente sin pasar por Render.
 // -----------------------------------------------------------
+// IPC & Proxy: Stream de AUDIO DIRECTO (m4a/mp3) para <audio> nativo
+// Resuelve en ~400ms y sirve en 127.0.0.1 sorteando el bloqueo de Range de Google Video
+// -----------------------------------------------------------
+const http = require('http');
 const directAudioCache = new Map();
 const YT_INNER_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
-ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
-  if (!youtubeId || typeof youtubeId !== 'string') return null;
-  const cleanId = youtubeId.trim();
-  if (!/^[a-zA-Z0-9_-]{11}$/.test(cleanId)) return null;
-
+async function fetchInnerTubeAudioFormat(cleanId) {
   const cached = directAudioCache.get(cleanId);
   if (cached && (Date.now() - cached.ts) < 3 * 60 * 60 * 1000) {
-    return cached.url;
+    return cached;
   }
 
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 8000);
   try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${YT_INNER_KEY}`, {
       method: 'POST',
       headers: {
@@ -663,21 +661,112 @@ ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
     ].filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
     if (fmts.length === 0) return null;
 
-    // Preferir itag 140 (m4a, compatible 100% con HTML5 <audio> nativo)
     const m4a = fmts.find(f => Number(f.itag) === 140) || fmts.find(f => Number(f.itag) === 139) || fmts[0];
     if (m4a && m4a.url) {
+      const entry = {
+        url: m4a.url,
+        contentLength: Number(m4a.contentLength) || 3500000,
+        mimeType: m4a.mimeType.split(';')[0] || 'audio/mp4',
+        ts: Date.now()
+      };
       if (directAudioCache.size > 500) {
         const oldest = directAudioCache.keys().next().value;
         directAudioCache.delete(oldest);
       }
-      directAudioCache.set(cleanId, { url: m4a.url, ts: Date.now() });
-      console.log('[Electron Main] ✓ Stream directo de audio resuelto en ~400ms para:', cleanId);
-      return m4a.url;
+      directAudioCache.set(cleanId, entry);
+      return entry;
     }
   } catch (err) {
     console.warn('[Electron Main] Error obteniendo audio directo:', err && err.message);
   }
   return null;
+}
+
+let musicProxyPort = 0;
+const musicProxyServer = http.createServer(async (req, res) => {
+  try {
+    const reqUrl = new URL(req.url, `http://127.0.0.1:${musicProxyPort || 54000}`);
+    if (reqUrl.pathname !== '/music-stream') {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    const cleanId = reqUrl.searchParams.get('id');
+    if (!cleanId || !/^[a-zA-Z0-9_-]{11}$/.test(cleanId)) {
+      res.writeHead(400);
+      res.end();
+      return;
+    }
+
+    const streamInfo = await fetchInnerTubeAudioFormat(cleanId);
+    if (!streamInfo || !streamInfo.url) {
+      res.writeHead(502);
+      res.end();
+      return;
+    }
+
+    const videoTotalLength = streamInfo.contentLength;
+    const videoMimeType = streamInfo.mimeType;
+
+    const rangeHeader = req.headers.range || 'bytes=0-';
+    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+    const start = match ? parseInt(match[1], 10) : 0;
+    const requestedEnd = (match && match[2]) ? parseInt(match[2], 10) : (videoTotalLength - 1);
+    const totalToServe = requestedEnd - start + 1;
+
+    res.writeHead(206, {
+      'Content-Type': videoMimeType,
+      'Content-Range': `bytes ${start}-${requestedEnd}/${videoTotalLength}`,
+      'Content-Length': totalToServe,
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    const CHUNK_SIZE = 512 * 1024;
+    let currentPos = start;
+    let aborted = false;
+    req.on('close', () => { aborted = true; });
+
+    while (currentPos <= requestedEnd && !aborted) {
+      const chunkEnd = Math.min(currentPos + CHUNK_SIZE - 1, requestedEnd);
+      try {
+        const chunkRes = await fetch(streamInfo.url, {
+          headers: { 'Range': `bytes=${currentPos}-${chunkEnd}` }
+        });
+        if (!chunkRes.ok && chunkRes.status !== 206) break;
+        const buf = Buffer.from(await chunkRes.arrayBuffer());
+        if (aborted) break;
+        res.write(buf);
+        currentPos = chunkEnd + 1;
+      } catch {
+        break;
+      }
+    }
+    res.end();
+  } catch (err) {
+    try {
+      res.writeHead(500);
+      res.end();
+    } catch {}
+  }
+});
+
+musicProxyServer.listen(0, '127.0.0.1', () => {
+  musicProxyPort = musicProxyServer.address().port;
+  console.log(`[Electron Main] ✓ Proxy de audio local activo en http://127.0.0.1:${musicProxyPort}`);
+});
+
+ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
+  if (!youtubeId || typeof youtubeId !== 'string') return null;
+  const cleanId = youtubeId.trim();
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(cleanId)) return null;
+
+  const format = await fetchInnerTubeAudioFormat(cleanId);
+  if (!format) return null;
+
+  const streamUrl = `http://127.0.0.1:${musicProxyPort}/music-stream?id=${cleanId}`;
+  console.log('[Electron Main] ✓ Stream local listo para Chromium:', streamUrl);
+  return streamUrl;
 });
 
 app.on('before-quit', (event) => {
