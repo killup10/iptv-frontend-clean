@@ -14,7 +14,13 @@ import {
   Loader2,
   TrendingUp,
   LayoutGrid,
-  ListMusic
+  ListMusic,
+  ListPlus,
+  Plus,
+  Trash2,
+  Edit3,
+  ArrowLeft,
+  Check
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS } from '../services/musicService.js';
@@ -30,10 +36,22 @@ export default function Music() {
     isFavorite,
     favorites,
     queue,
-    queueIndex
+    queueIndex,
+    customPlaylists,
+    createPlaylist,
+    deletePlaylist,
+    renamePlaylist,
+    removeTrackFromPlaylist,
+    openAddToPlaylistModal
   } = useMusic();
 
-  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'queue'
+  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists'
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
+  const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'queue'
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
+  const [editingPlaylistId, setEditingPlaylistId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
   const [genreTracks, setGenreTracks] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
@@ -122,6 +140,11 @@ export default function Music() {
     }
   };
 
+  const selectedPlaylist = useMemo(() => {
+    if (!selectedPlaylistId) return null;
+    return customPlaylists.find(p => p.id === selectedPlaylistId) || null;
+  }, [selectedPlaylistId, customPlaylists]);
+
   // Determinar qué lista de canciones mostrar
   const displayTracks = useMemo(() => {
     if (searchQuery.trim().length > 0) {
@@ -136,11 +159,12 @@ export default function Music() {
     if (activeTab === 'favorites') {
       return favorites;
     }
-    if (activeTab === 'queue') {
+    if (activeTab === 'playlists' || activeTab === 'queue') {
+      if (selectedPlaylist) return selectedPlaylist.tracks;
       return queue;
     }
     return topTracks;
-  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue]);
+  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue, selectedPlaylist]);
 
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
@@ -284,15 +308,18 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => setActiveTab('queue')}
+              onClick={() => {
+                setActiveTab('playlists');
+                setSelectedPlaylistId(null);
+              }}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
-                activeTab === 'queue'
+                activeTab === 'playlists' || activeTab === 'queue'
                   ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white shadow-lg shadow-purple-500/20'
                   : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
               }`}
             >
               <ListMusic className="w-4 h-4" />
-              <span>Lista de Reproducción ({queue.length})</span>
+              <span>Listas de Reproducción ({customPlaylists.length})</span>
             </button>
           </div>
         )}
@@ -328,6 +355,7 @@ export default function Music() {
                     onPlay={() => playTrack(track, searchResults)}
                     isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
                   />
                 ))}
               </div>
@@ -394,6 +422,7 @@ export default function Music() {
                       onPlay={() => playTrack(track, genreTracks)}
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
+                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
                     />
                   ))}
                 </div>
@@ -520,6 +549,7 @@ export default function Music() {
                     onPlay={() => playTrack(track, favorites)}
                     isFav={true}
                     onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
                   />
                 ))}
               </div>
@@ -527,53 +557,368 @@ export default function Music() {
           </div>
         )}
 
-        {/* CASO: LISTA DE REPRODUCCIÓN */}
-        {!searchQuery && activeTab === 'queue' && (
-          <div className="space-y-4 animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <ListMusic className="w-5 h-5 text-fuchsia-400" />
-                  <span>Lista de Reproducción</span>
-                  <span className="text-xs text-gray-400 font-normal">({queue.length} canciones en cola)</span>
-                </h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Orden de reproducción en curso. Toca cualquier tema para saltar a él directamente.
-                </p>
-              </div>
-              {queue.length > 0 && (
+        {/* CASO: LISTAS DE REPRODUCCIÓN & PLAYLISTS PERSONALIZADAS */}
+        {!searchQuery && (activeTab === 'playlists' || activeTab === 'queue') && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Si el usuario tiene una playlist seleccionada, mostramos la vista detallada de esa playlist */}
+            {selectedPlaylist ? (
+              <div className="space-y-6">
+                {/* Botón Volver */}
                 <button
-                  onClick={() => playTrack(queue[0], queue)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-400 hover:to-pink-400 text-white font-bold text-xs shadow-md shadow-fuchsia-500/20 transition self-start sm:self-auto cursor-pointer"
+                  onClick={() => setSelectedPlaylistId(null)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
                 >
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Reproducir desde el inicio</span>
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Volver a Mis Listas</span>
                 </button>
-              )}
-            </div>
 
-            {queue.length === 0 ? (
-              <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
-                <ListMusic className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
-                <p className="text-base font-semibold text-white">La lista de reproducción está vacía</p>
-                <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                  Selecciona cualquier canción o pulsa "Reproducir Todo" en el Top para cargar tu lista de reproducción.
-                </p>
+                {/* Banner de la Playlist */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/50 via-[#160f29] to-fuchsia-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                  {/* Carátula de la Playlist */}
+                  <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                    {selectedPlaylist.cover ? (
+                      <img 
+                        src={selectedPlaylist.cover} 
+                        alt={selectedPlaylist.name} 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <ListMusic className="w-16 h-16 text-fuchsia-400 opacity-60" />
+                    )}
+                  </div>
+
+                  {/* Info y Acciones */}
+                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 block">
+                      Lista de reproducción personalizada
+                    </span>
+
+                    {editingPlaylistId === selectedPlaylist.id ? (
+                      <div className="flex items-center gap-2 max-w-md mx-auto md:mx-0">
+                        <input
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          className="flex-1 px-3 py-1.5 bg-white/10 border border-cyan-400 rounded-xl text-white text-base font-bold focus:outline-none"
+                          autoFocus
+                          maxLength={50}
+                        />
+                        <button
+                          onClick={() => {
+                            if (editingTitle.trim()) {
+                              renamePlaylist(selectedPlaylist.id, editingTitle.trim());
+                            }
+                            setEditingPlaylistId(null);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-cyan-400 text-black font-bold text-xs cursor-pointer"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setEditingPlaylistId(null)}
+                          className="px-3 py-1.5 rounded-xl bg-white/10 text-gray-300 text-xs cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center md:justify-start gap-2">
+                        <h2 className="text-2xl sm:text-4xl font-black text-white truncate">
+                          {selectedPlaylist.name}
+                        </h2>
+                        <button
+                          onClick={() => {
+                            setEditingPlaylistId(selectedPlaylist.id);
+                            setEditingTitle(selectedPlaylist.name);
+                          }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+                          title="Renombrar lista"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-gray-400">
+                      {selectedPlaylist.tracks.length} {selectedPlaylist.tracks.length === 1 ? 'canción' : 'canciones'}
+                      {selectedPlaylist.tracks.length > 0 && ` • ${Math.round(selectedPlaylist.tracks.reduce((acc, t) => acc + (t.fullDuration || t.duration || 210), 0) / 60)} min`}
+                    </p>
+
+                    {/* Botones de acción */}
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                      {selectedPlaylist.tracks.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => playTrack(selectedPlaylist.tracks[0], selectedPlaylist.tracks)}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 hover:from-cyan-300 hover:to-fuchsia-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                          >
+                            <Play className="w-4 h-4 fill-black" />
+                            <span>Reproducir Todo</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const shuffled = [...selectedPlaylist.tracks].sort(() => Math.random() - 0.5);
+                              playTrack(shuffled[0], shuffled);
+                            }}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                          >
+                            <Shuffle className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Aleatorio</span>
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`¿Seguro que deseas eliminar la lista "${selectedPlaylist.name}"?`)) {
+                            deletePlaylist(selectedPlaylist.id);
+                            setSelectedPlaylistId(null);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold text-xs border border-red-500/30 transition cursor-pointer md:ml-auto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar Lista</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Canciones de la playlist */}
+                {selectedPlaylist.tracks.length === 0 ? (
+                  <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8">
+                    <Music2 className="w-12 h-12 mx-auto mb-3 text-cyan-400/50" />
+                    <p className="text-base font-semibold text-white">Esta lista aún no tiene canciones</p>
+                    <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                      Explora el Top de Éxitos o busca tus canciones favoritas y toca el icono <strong>+</strong> para agregarlas aquí.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {selectedPlaylist.tracks.map((track, idx) => (
+                      <TrackCard 
+                        key={`${track.id}-${idx}`} 
+                        track={track} 
+                        queue={selectedPlaylist.tracks}
+                        index={idx + 1}
+                        isPlaying={isPlaying && currentTrack?.id === track.id}
+                        onPlay={() => playTrack(track, selectedPlaylist.tracks)}
+                        isFav={isFavorite(track.id)}
+                        onToggleFav={() => toggleFavorite(track)}
+                        onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                        onRemoveFromPlaylist={() => removeTrackFromPlaylist(selectedPlaylist.id, track.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {queue.map((track, idx) => (
-                  <TrackCard 
-                    key={`${track.id}-${idx}`} 
-                    track={track} 
-                    queue={queue}
-                    index={idx + 1}
-                    isPlaying={isPlaying && currentTrack?.id === track.id}
-                    onPlay={() => playTrack(track, queue)}
-                    isFav={isFavorite(track.id)}
-                    onToggleFav={() => toggleFavorite(track)}
-                  />
-                ))}
+              /* Vista Principal de Playlists */
+              <div className="space-y-6">
+                {/* Cabecera con selector de sub-pestaña */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <ListMusic className="w-5 h-5 text-fuchsia-400" />
+                      <span>Tus Listas de Reproducción</span>
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Crea y organiza tus propias colecciones de canciones personalizadas.
+                    </p>
+                  </div>
+
+                  {/* Selector Mis Playlists vs Cola en Reproducción */}
+                  <div className="flex items-center gap-1.5 p-1 bg-white/5 border border-white/10 rounded-2xl self-start sm:self-auto">
+                    <button
+                      onClick={() => setPlaylistSubTab('custom')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        playlistSubTab === 'custom'
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-md'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Mis Playlists ({customPlaylists.length})
+                    </button>
+                    <button
+                      onClick={() => setPlaylistSubTab('queue')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        playlistSubTab === 'queue'
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-extrabold shadow-md'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      Cola en Vivo ({queue.length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* SUB-PESTAÑA 1: MIS PLAYLISTS PERSONALIZADAS */}
+                {playlistSubTab === 'custom' && (
+                  <div className="space-y-6">
+                    {/* Formulario para crear nueva lista */}
+                    {isCreatingPlaylist && (
+                      <div className="p-4 rounded-2xl bg-fuchsia-950/30 border border-fuchsia-500/30 flex flex-col sm:flex-row items-center gap-3 animate-in fade-in">
+                        <input
+                          type="text"
+                          value={newPlaylistTitle}
+                          onChange={(e) => setNewPlaylistTitle(e.target.value)}
+                          placeholder="Nombre de la nueva playlist (ej. Reggaeton 2026, Gym, Relax...)"
+                          className="flex-1 px-4 py-2.5 bg-black/50 border border-white/20 focus:border-cyan-400 rounded-xl text-white text-sm focus:outline-none w-full"
+                          autoFocus
+                          maxLength={50}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (newPlaylistTitle.trim()) {
+                                createPlaylist(newPlaylistTitle.trim());
+                                setNewPlaylistTitle('');
+                                setIsCreatingPlaylist(false);
+                              }
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={() => {
+                              if (newPlaylistTitle.trim()) {
+                                createPlaylist(newPlaylistTitle.trim());
+                                setNewPlaylistTitle('');
+                                setIsCreatingPlaylist(false);
+                              }
+                            }}
+                            disabled={!newPlaylistTitle.trim()}
+                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer"
+                          >
+                            Crear Lista
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsCreatingPlaylist(false);
+                              setNewPlaylistTitle('');
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-semibold cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Grilla de Playlists */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {/* Tarjeta para "+ Crear Playlist" */}
+                      <button
+                        onClick={() => setIsCreatingPlaylist(true)}
+                        className="group flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-fuchsia-500/30 hover:border-cyan-400/60 bg-fuchsia-950/10 hover:bg-fuchsia-950/20 text-center transition duration-300 cursor-pointer min-h-[220px]"
+                      >
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-fuchsia-500/20 to-cyan-500/20 border border-fuchsia-400/30 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                          <Plus className="w-7 h-7 text-cyan-300" />
+                        </div>
+                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition">
+                          Crear Playlist
+                        </h4>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          Personaliza con tus temas
+                        </p>
+                      </button>
+
+                      {/* Tarjetas de playlists del usuario */}
+                      {customPlaylists.map((pl) => (
+                        <div
+                          key={pl.id}
+                          onClick={() => setSelectedPlaylistId(pl.id)}
+                          className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
+                        >
+                          {/* Carátula */}
+                          <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
+                            {pl.cover ? (
+                              <img 
+                                src={pl.cover} 
+                                alt={pl.name} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <ListMusic className="w-10 h-10 text-fuchsia-400/40 mb-1" />
+                                <span className="text-[10px] text-gray-500">Vacía</span>
+                              </div>
+                            )}
+
+                            {/* Botón flotante Play si tiene canciones */}
+                            {pl.tracks.length > 0 && (
+                              <div 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playTrack(pl.tracks[0], pl.tracks);
+                                }}
+                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
+                                title="Reproducir playlist"
+                              >
+                                <Play className="w-4 h-4 fill-black ml-0.5" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                              {pl.name}
+                            </h4>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              {pl.tracks.length} {pl.tracks.length === 1 ? 'canción' : 'canciones'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-PESTAÑA 2: COLA EN REPRODUCCIÓN */}
+                {playlistSubTab === 'queue' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400">
+                        {queue.length} canciones actualmente en cola de reproducción.
+                      </p>
+                      {queue.length > 0 && (
+                        <button
+                          onClick={() => playTrack(queue[0], queue)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          <span>Reiniciar Cola</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {queue.length === 0 ? (
+                      <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
+                        <ListMusic className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
+                        <p className="text-base font-semibold text-white">La cola de reproducción está vacía</p>
+                        <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                          Selecciona cualquier tema o pulsa "Reproducir Todo" en el Top para cargar canciones.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {queue.map((track, idx) => (
+                          <TrackCard 
+                            key={`${track.id}-${idx}`} 
+                            track={track} 
+                            queue={queue}
+                            index={idx + 1}
+                            isPlaying={isPlaying && currentTrack?.id === track.id}
+                            onPlay={() => playTrack(track, queue)}
+                            isFav={isFavorite(track.id)}
+                            onToggleFav={() => toggleFavorite(track)}
+                            onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -608,6 +953,7 @@ export default function Music() {
                     onPlay={() => playTrack(track, topTracks)}
                     isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
                   />
                 ))}
               </div>
@@ -621,7 +967,17 @@ export default function Music() {
 }
 
 // Subcomponente de Tarjeta de Canción / Álbum
-function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav }) {
+function TrackCard({ 
+  track, 
+  queue, 
+  index, 
+  isPlaying, 
+  onPlay, 
+  isFav, 
+  onToggleFav, 
+  onAddToPlaylist, 
+  onRemoveFromPlaylist 
+}) {
   const rawSecs = track.fullDuration || track.duration || 210;
   const durationLabel = track.isRadio
     ? 'EN VIVO'
@@ -674,11 +1030,11 @@ function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav 
         </p>
       </div>
 
-      {/* Footer de la tarjeta: Género musical, Duración y Favorito */}
+      {/* Footer de la tarjeta: Género musical, Duración, Playlist y Favorito */}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px]">
         <div className="flex items-center gap-1.5 min-w-0">
           {track.genre && (
-            <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-semibold text-[9px] truncate max-w-[85px]">
+            <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-semibold text-[9px] truncate max-w-[80px]">
               {track.genre}
             </span>
           )}
@@ -688,18 +1044,46 @@ function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav 
           </span>
         </div>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFav();
-          }}
-          className={`p-1 rounded-full transition ${
-            isFav ? 'text-pink-500 hover:text-pink-400' : 'text-gray-500 hover:text-white'
-          }`}
-          title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
-        >
-          <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500' : ''}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          {!track.isRadio && onAddToPlaylist && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToPlaylist();
+              }}
+              className="p-1 rounded-full text-gray-400 hover:text-fuchsia-400 transition"
+              title="Añadir a lista personalizada"
+            >
+              <ListPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {onRemoveFromPlaylist && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveFromPlaylist();
+              }}
+              className="p-1 rounded-full text-gray-400 hover:text-red-400 transition"
+              title="Quitar de esta lista"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFav();
+            }}
+            className={`p-1 rounded-full transition ${
+              isFav ? 'text-pink-500 hover:text-pink-400' : 'text-gray-500 hover:text-white'
+            }`}
+            title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
+          >
+            <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500' : ''}`} />
+          </button>
+        </div>
       </div>
     </div>
   );

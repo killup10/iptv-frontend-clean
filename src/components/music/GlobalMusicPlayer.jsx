@@ -17,11 +17,13 @@ import {
   Music, 
   Radio, 
   ListMusic, 
+  ListPlus,
   X,
   Loader2
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import ReactPlayer from 'react-player/youtube';
+import AddToPlaylistModal from './AddToPlaylistModal.jsx';
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
@@ -58,6 +60,7 @@ export default function GlobalMusicPlayer() {
     toggleRepeat,
     toggleFavorite,
     isFavorite,
+    openAddToPlaylistModal,
     playTrack,
     ytPlayerRef,
     audioRef,
@@ -148,17 +151,29 @@ export default function GlobalMusicPlayer() {
               )}
             </div>
 
-            <button
-              onClick={() => toggleFavorite(currentTrack)}
-              className={`p-1.5 rounded-full transition hidden sm:block ${
-                isFav 
-                  ? 'text-pink-500 hover:text-pink-400 scale-110' 
-                  : 'text-gray-400 hover:text-white'
-              }`}
-              title={isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
-            >
-              <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500' : ''}`} />
-            </button>
+            <div className="flex items-center gap-1 hidden sm:flex">
+              <button
+                onClick={() => toggleFavorite(currentTrack)}
+                className={`p-1.5 rounded-full transition ${
+                  isFav 
+                    ? 'text-pink-500 hover:text-pink-400 scale-110' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
+              >
+                <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500' : ''}`} />
+              </button>
+
+              {!currentTrack.isRadio && (
+                <button
+                  onClick={() => openAddToPlaylistModal(currentTrack)}
+                  className="p-1.5 rounded-full text-gray-400 hover:text-fuchsia-400 transition"
+                  title="Añadir a lista personalizada"
+                >
+                  <ListPlus className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 2. CONTROLES DE REPRODUCCIÓN & LÍNEA DE TIEMPO (CENTRO) */}
@@ -415,17 +430,29 @@ export default function GlobalMusicPlayer() {
                 </div>
               )}
 
-              <button
-                onClick={() => toggleFavorite(currentTrack)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full border transition ${
-                  isFav 
-                    ? 'border-pink-500/50 bg-pink-500/20 text-pink-300' 
-                    : 'border-white/15 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500 text-pink-500' : ''}`} />
-                <span className="text-xs font-semibold">{isFav ? 'En tus favoritos' : 'Añadir a favoritos'}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleFavorite(currentTrack)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full border transition ${
+                    isFav 
+                      ? 'border-pink-500/50 bg-pink-500/20 text-pink-300' 
+                      : 'border-white/15 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500 text-pink-500' : ''}`} />
+                  <span className="text-xs font-semibold">{isFav ? 'En Mis Me Gusta' : 'Guardar'}</span>
+                </button>
+
+                {!currentTrack.isRadio && (
+                  <button
+                    onClick={() => openAddToPlaylistModal(currentTrack)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 hover:bg-fuchsia-500/20 transition cursor-pointer"
+                  >
+                    <ListPlus className="w-4 h-4" />
+                    <span className="text-xs font-semibold">Añadir a Playlist</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -553,6 +580,9 @@ export default function GlobalMusicPlayer() {
           />
         </div>
       )}
+
+      {/* Modal global para añadir canción a listas personalizadas */}
+      <AddToPlaylistModal />
     </>
   );
 }

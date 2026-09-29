@@ -6,6 +6,7 @@ import { musicService } from '../services/musicService.js';
 const MusicContext = createContext(null);
 
 const STORAGE_FAVORITES_KEY = 'teamg_music_favorites';
+const STORAGE_PLAYLISTS_KEY = 'teamg_music_custom_playlists_v1';
 
 export function MusicProvider({ children }) {
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -34,6 +35,15 @@ export function MusicProvider({ children }) {
       return [];
     }
   });
+  const [customPlaylists, setCustomPlaylists] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_PLAYLISTS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [playlistModalTrack, setPlaylistModalTrack] = useState(null);
 
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
@@ -157,6 +167,15 @@ export function MusicProvider({ children }) {
       console.warn('[MusicContext] No se pudo guardar favoritos:', e);
     }
   }, [favorites]);
+
+  // Guardar playlists personalizadas en localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(customPlaylists));
+    } catch (e) {
+      console.warn('[MusicContext] No se pudo guardar playlists:', e);
+    }
+  }, [customPlaylists]);
 
   // Actualizar MediaSession en cada cambio de canción
   useEffect(() => {
@@ -583,6 +602,93 @@ export function MusicProvider({ children }) {
     return favorites.some(t => t.id === trackId);
   }, [favorites]);
 
+  // --- PLAYLISTS PERSONALIZADAS ---
+  const createPlaylist = useCallback((name, description = '') => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return null;
+    const newPlaylist = {
+      id: `pl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: trimmed,
+      description: description.trim(),
+      createdAt: Date.now(),
+      cover: '',
+      tracks: []
+    };
+    setCustomPlaylists(prev => [newPlaylist, ...prev]);
+    return newPlaylist;
+  }, []);
+
+  const deletePlaylist = useCallback((playlistId) => {
+    setCustomPlaylists(prev => prev.filter(pl => pl.id !== playlistId));
+  }, []);
+
+  const renamePlaylist = useCallback((playlistId, newName) => {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed) return;
+    setCustomPlaylists(prev => prev.map(pl => (
+      pl.id === playlistId ? { ...pl, name: trimmed } : pl
+    )));
+  }, []);
+
+  const addTrackToPlaylist = useCallback((playlistId, track) => {
+    if (!track || !playlistId) return false;
+    let added = false;
+    setCustomPlaylists(prev => prev.map(pl => {
+      if (pl.id !== playlistId) return pl;
+      const alreadyHas = pl.tracks.some(t => t.id === track.id);
+      if (alreadyHas) return pl;
+      added = true;
+      const updatedTracks = [...pl.tracks, track];
+      return {
+        ...pl,
+        cover: pl.cover || track.cover || '',
+        tracks: updatedTracks
+      };
+    }));
+    return added;
+  }, []);
+
+  const removeTrackFromPlaylist = useCallback((playlistId, trackId) => {
+    setCustomPlaylists(prev => prev.map(pl => {
+      if (pl.id !== playlistId) return pl;
+      const updatedTracks = pl.tracks.filter(t => t.id !== trackId);
+      return {
+        ...pl,
+        cover: updatedTracks[0]?.cover || '',
+        tracks: updatedTracks
+      };
+    }));
+  }, []);
+
+  const toggleTrackInPlaylist = useCallback((playlistId, track) => {
+    if (!track || !playlistId) return;
+    setCustomPlaylists(prev => prev.map(pl => {
+      if (pl.id !== playlistId) return pl;
+      const exists = pl.tracks.some(t => t.id === track.id);
+      const updatedTracks = exists
+        ? pl.tracks.filter(t => t.id !== track.id)
+        : [...pl.tracks, track];
+      return {
+        ...pl,
+        cover: updatedTracks[0]?.cover || '',
+        tracks: updatedTracks
+      };
+    }));
+  }, []);
+
+  const isTrackInPlaylist = useCallback((playlistId, trackId) => {
+    const pl = customPlaylists.find(p => p.id === playlistId);
+    return Boolean(pl && pl.tracks.some(t => t.id === trackId));
+  }, [customPlaylists]);
+
+  const openAddToPlaylistModal = useCallback((track) => {
+    setPlaylistModalTrack(track || null);
+  }, []);
+
+  const closeAddToPlaylistModal = useCallback(() => {
+    setPlaylistModalTrack(null);
+  }, []);
+
   const value = {
     currentTrack,
     isPlaying,
@@ -599,6 +705,17 @@ export function MusicProvider({ children }) {
     isShuffle,
     repeatMode,
     favorites,
+    customPlaylists,
+    playlistModalTrack,
+    createPlaylist,
+    deletePlaylist,
+    renamePlaylist,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
+    toggleTrackInPlaylist,
+    isTrackInPlaylist,
+    openAddToPlaylistModal,
+    closeAddToPlaylistModal,
     isExpandedPlayer,
     setIsExpandedPlayer,
     setCurrentTime,
