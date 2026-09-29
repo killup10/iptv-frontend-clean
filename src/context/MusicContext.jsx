@@ -205,10 +205,12 @@ export function MusicProvider({ children }) {
       try { pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; } catch {}
       fullStreamRef.current = url;
       audio.src = url;
-      try {
-        if (pos > 0.5 && pos < 25) audio.currentTime = pos;
-      } catch {}
-      audio.load();
+      if (pos > 0.5 && pos < 28) {
+        const restorePos = () => {
+          try { audio.currentTime = pos; } catch {}
+        };
+        audio.addEventListener('loadedmetadata', restorePos, { once: true });
+      }
       await audio.play().catch(() => {});
       if (currentTrackRef.current?.id === track.id) {
         setAudioQuality('full');

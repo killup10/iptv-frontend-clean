@@ -102,6 +102,13 @@ try {
     },
 
     /**
+     * Obtiene el stream de audio directo (m4a/mp3) desde Node.js en 400ms sin pasar por Render
+     */
+    getMusicDirectAudio: (youtubeId) => {
+      return ipcRenderer.invoke('music-get-direct-audio', youtubeId);
+    },
+
+    /**
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {

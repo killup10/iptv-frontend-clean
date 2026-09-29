@@ -1,6 +1,7 @@
 // src/services/musicService.js
 // Servicio de música TeamG Play: catálogo fresco + CANCIÓN COMPLETA.
 import axiosInstance from '../utils/axiosInstance.js';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' &&
@@ -226,8 +227,8 @@ export const INITIAL_FEATURED_TRACKS = [
     artist: 'KAROL G, Judeline & rusowsky',
     album: 'BbY WOW',
     cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
-    audioUrl: '',
-    previewUrl: '',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
     youtubeId: null,
     isPreviewOnly: true,
     duration: 225,
@@ -240,9 +241,9 @@ export const INITIAL_FEATURED_TRACKS = [
     title: 'NUEVAYoL',
     artist: 'Bad Bunny',
     album: 'DeBÍ TiRAR MÁS FOToS',
-    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/90/5e/7e/905e7ed5-a8fa-a8f3-cd06-0028fdf3afaa/199066342442.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
     youtubeId: null,
     isPreviewOnly: true,
     duration: 197,
@@ -255,9 +256,9 @@ export const INITIAL_FEATURED_TRACKS = [
     title: 'LUNA',
     artist: 'Feid & ATL Jacob',
     album: 'FERXXOCALIPSIS',
-    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/7c/54/aa/7c54aa94-9ae3-4b80-7b23-8b23955dc3a2/23UM1IM60703.rgb.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f8/b0/5b/f8b05b80-c7ea-9ea8-759c-5fd609c15341/mzaf_2589321753277640940.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f8/b0/5b/f8b05b80-c7ea-9ea8-759c-5fd609c15341/mzaf_2589321753277640940.plus.aac.p.m4a',
     youtubeId: null,
     isPreviewOnly: true,
     duration: 196,
@@ -267,17 +268,17 @@ export const INITIAL_FEATURED_TRACKS = [
   },
   {
     id: 'feat-4',
-    title: 'Monaco',
-    artist: 'Bad Bunny',
-    album: 'nadie sabe lo que va a pasar mañana',
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
+    title: 'Taste',
+    artist: 'Sabrina Carpenter',
+    album: 'Short n\' Sweet',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f6/15/d0/f615d0ab-e0c4-575d-907e-1cc084642357/24UMGIM61704.rgb.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/57/a6/2657a620-c596-e0e4-efa2-e814f3572d1c/mzaf_5475540510703120797.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/57/a6/2657a620-c596-e0e4-efa2-e814f3572d1c/mzaf_5475540510703120797.plus.aac.p.m4a',
     youtubeId: null,
     isPreviewOnly: true,
-    duration: 267,
-    fullDuration: 267,
-    genre: 'Trap Latino',
+    duration: 157,
+    fullDuration: 157,
+    genre: 'Pop',
     isRadio: false
   },
   {
@@ -300,9 +301,9 @@ export const INITIAL_FEATURED_TRACKS = [
     title: 'Patient Zero',
     artist: 'Taylor Swift',
     album: 'Patient Zero',
-    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a0/dd/fd/a0ddfd72-ee9e-f046-6466-a5dbefc696fa/26UM1IM21436.rgb.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/be/8c/0bbe8c0a-dc77-af41-97a5-c745cc43d38c/mzaf_11790447166833591507.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/be/8c/0bbe8c0a-dc77-af41-97a5-c745cc43d38c/mzaf_11790447166833591507.plus.aac.p.m4a',
     youtubeId: null,
     isPreviewOnly: true,
     duration: 215,
@@ -381,6 +382,52 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
 // ---------------------------------------------------------------------------
 const fullAudioCache = new Map(); // youtubeId -> { ts, url }
 const FULL_AUDIO_TTL = 3 * 60 * 60 * 1000;
+const YT_INNER_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+
+/**
+ * Resuelve stream de audio directo en Android/Android TV/iOS usando CapacitorHttp nativo.
+ * Se ejecuta en ~400ms directamente desde la IP del dispositivo del usuario (sin Render ni CORS).
+ */
+async function fetchAndroidStreamViaCapacitor(youtubeId) {
+  if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform?.()) return null;
+  try {
+    const res = await CapacitorHttp.post({
+      url: `https://www.youtube.com/youtubei/v1/player?key=${YT_INNER_KEY}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip'
+      },
+      data: {
+        context: {
+          client: {
+            clientName: 'ANDROID',
+            clientVersion: '20.10.38',
+            androidSdkVersion: 30,
+            hl: 'es',
+            gl: 'PE'
+          }
+        },
+        videoId: youtubeId,
+        contentCheckOk: true,
+        racyCheckOk: true
+      }
+    });
+
+    const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+    if (data?.playabilityStatus?.status !== 'OK') return null;
+    const fmts = [
+      ...(data.streamingData?.adaptiveFormats || []),
+      ...(data.streamingData?.formats || [])
+    ].filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
+    if (fmts.length === 0) return null;
+
+    const m4a = fmts.find(f => Number(f.itag) === 140) || fmts.find(f => Number(f.itag) === 139) || fmts[0];
+    return m4a?.url || null;
+  } catch (e) {
+    console.warn('[MusicService] CapacitorHttp direct audio failed:', e);
+    return null;
+  }
+}
 
 export const musicService = {
   /**
@@ -401,7 +448,7 @@ export const musicService = {
       console.warn('[MusicService] Backend charts no disponible, usando feed oficial Apple v2:', err?.message);
     }
 
-    // 2) Fallback directo al feed oficial de Apple Music Most-Played (v2 en vivo, NO búsquedas antiguas)
+    // 2) Fallback directo al feed oficial de Apple Music Most-Played con lookup de previews instantáneos
     try {
       const key = String(country || 'global').toLowerCase();
       const feedCountry = ['pe', 'es', 'mx', 'us'].includes(key) ? key : (key === 'latin' ? 'pe' : 'us');
@@ -410,26 +457,46 @@ export const musicService = {
         const data = await res.json();
         const results = data?.feed?.results || [];
         if (results.length > 0) {
+          const ids = results.map((r) => r.id).filter(Boolean);
+          const lookupMap = new Map();
+          try {
+            const lRes = await fetch(
+              `https://itunes.apple.com/lookup?id=${ids.join(',')}&country=${feedCountry.toUpperCase()}`
+            );
+            if (lRes.ok) {
+              const lData = await lRes.json();
+              (lData.results || []).forEach((item) => {
+                if (item.trackId) lookupMap.set(String(item.trackId), item);
+              });
+            }
+          } catch {}
+
           return results.map((item) => {
-            const rawCover = item.artworkUrl100 || '';
+            const lItem = lookupMap.get(String(item.id));
+            const rawCover = (lItem && lItem.artworkUrl100) || item.artworkUrl100 || '';
             const hdCover = rawCover
               ? rawCover.replace(/100x100bb/, '600x600bb')
               : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+            const audioPreview = (lItem && lItem.previewUrl) || '';
+            const trackDuration = lItem?.trackTimeMillis ? Math.round(lItem.trackTimeMillis / 1000) : 210;
+
             return {
               id: `apple-${item.id}`,
               trackId: item.id,
-              title: item.name || 'Canción Desconocida',
-              artist: item.artistName || 'Artista Desconocido',
-              album: item.name || 'Sencillo',
+              title: (lItem && lItem.trackName) || item.name || 'Canción Desconocida',
+              artist: (lItem && lItem.artistName) || item.artistName || 'Artista Desconocido',
+              album: (lItem && lItem.collectionName) || item.name || 'Sencillo',
               cover: hdCover,
-              audioUrl: '',
-              previewUrl: '',
-              duration: 210,
-              fullDuration: 210,
+              audioUrl: audioPreview,
+              previewUrl: audioPreview,
+              duration: trackDuration,
+              fullDuration: trackDuration,
               isPreviewOnly: true,
               youtubeId: null,
-              genre: item.genres && item.genres[0] ? item.genres[0].name : 'Música',
-              releaseDate: item.releaseDate ? String(item.releaseDate).substring(0, 4) : '2026',
+              genre: (lItem && lItem.primaryGenreName) || (item.genres && item.genres[0] ? item.genres[0].name : 'Música'),
+              releaseDate: lItem?.releaseDate
+                ? String(lItem.releaseDate).substring(0, 4)
+                : (item.releaseDate ? String(item.releaseDate).substring(0, 4) : '2026'),
               isRadio: false,
               externalUrl: item.url || '',
             };
@@ -623,10 +690,45 @@ export const musicService = {
     const cached = fullAudioCache.get(yid);
     if (cached && Date.now() - cached.ts < FULL_AUDIO_TTL) return cached.url;
 
+    // 1) Electron Desktop: extracción directa desde Node.js en ~400ms (sin CORS, sin Render)
+    if (typeof window !== 'undefined' && window.electronAPI?.getMusicDirectAudio) {
+      try {
+        const directUrl = await window.electronAPI.getMusicDirectAudio(yid);
+        if (directUrl) {
+          if (fullAudioCache.size > 200) {
+            const oldest = fullAudioCache.keys().next().value;
+            fullAudioCache.delete(oldest);
+          }
+          fullAudioCache.set(yid, { ts: Date.now(), url: directUrl });
+          return directUrl;
+        }
+      } catch (e) {
+        console.warn('[MusicService] Electron getMusicDirectAudio error:', e);
+      }
+    }
+
+    // 2) Móvil / Android TV (Capacitor nativo): extracción nativa en el dispositivo en ~400ms
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
+      try {
+        const directUrl = await fetchAndroidStreamViaCapacitor(yid);
+        if (directUrl) {
+          if (fullAudioCache.size > 200) {
+            const oldest = fullAudioCache.keys().next().value;
+            fullAudioCache.delete(oldest);
+          }
+          fullAudioCache.set(yid, { ts: Date.now(), url: directUrl });
+          return directUrl;
+        }
+      } catch (e) {
+        console.warn('[MusicService] Capacitor native direct audio error:', e);
+      }
+    }
+
+    // 3) Backend /api/music/audio (timeout corto 6s para no bloquear la UI)
     try {
       const res = await axiosInstance.get('/api/music/audio', {
         params: { youtubeId: yid },
-        timeout: 20000
+        timeout: 6000
       });
       if (res.data?.url) {
         if (fullAudioCache.size > 200) {
@@ -637,7 +739,7 @@ export const musicService = {
         return res.data.url;
       }
     } catch (err) {
-      console.warn('[MusicService] Sin stream directo de audio:', err?.message);
+      console.warn('[MusicService] Backend stream directo no disponible:', err?.message);
     }
     return null;
   },

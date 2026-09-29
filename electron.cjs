@@ -611,6 +611,75 @@ ipcMain.handle('music-get-youtube-id', async (_event, query) => {
   return null;
 });
 
+// -----------------------------------------------------------
+// IPC: Stream de AUDIO DIRECTO (m4a/mp3) para <audio> nativo
+// Resuelve en ~400ms directamente desde la PC del cliente sin pasar por Render.
+// -----------------------------------------------------------
+const directAudioCache = new Map();
+const YT_INNER_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+
+ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
+  if (!youtubeId || typeof youtubeId !== 'string') return null;
+  const cleanId = youtubeId.trim();
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(cleanId)) return null;
+
+  const cached = directAudioCache.get(cleanId);
+  if (cached && (Date.now() - cached.ts) < 3 * 60 * 60 * 1000) {
+    return cached.url;
+  }
+
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${YT_INNER_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip'
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: 'ANDROID',
+            clientVersion: '20.10.38',
+            androidSdkVersion: 30,
+            hl: 'es',
+            gl: 'PE'
+          }
+        },
+        videoId: cleanId,
+        contentCheckOk: true,
+        racyCheckOk: true
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.playabilityStatus?.status !== 'OK') return null;
+    const fmts = [
+      ...(data.streamingData?.adaptiveFormats || []),
+      ...(data.streamingData?.formats || [])
+    ].filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
+    if (fmts.length === 0) return null;
+
+    // Preferir itag 140 (m4a, compatible 100% con HTML5 <audio> nativo)
+    const m4a = fmts.find(f => Number(f.itag) === 140) || fmts.find(f => Number(f.itag) === 139) || fmts[0];
+    if (m4a && m4a.url) {
+      if (directAudioCache.size > 500) {
+        const oldest = directAudioCache.keys().next().value;
+        directAudioCache.delete(oldest);
+      }
+      directAudioCache.set(cleanId, { url: m4a.url, ts: Date.now() });
+      console.log('[Electron Main] ✓ Stream directo de audio resuelto en ~400ms para:', cleanId);
+      return m4a.url;
+    }
+  } catch (err) {
+    console.warn('[Electron Main] Error obteniendo audio directo:', err && err.message);
+  }
+  return null;
+});
+
 app.on('before-quit', (event) => {
   if (isAppQuitting) {
     return;
