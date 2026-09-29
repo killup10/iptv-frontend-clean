@@ -34,10 +34,18 @@ export function MusicProvider({ children }) {
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const currentTrackRef = useRef(currentTrack);
+  const repeatModeRef = useRef(repeatMode);
+  const handleNextRef = useRef(null);
+  const handlePrevRef = useRef(null);
+  const togglePlayRef = useRef(null);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
   }, [currentTrack]);
+
+  useEffect(() => {
+    repeatModeRef.current = repeatMode;
+  }, [repeatMode]);
 
   // Inicializar elemento de audio nativo UNA SOLA VEZ al montar
   useEffect(() => {
@@ -69,6 +77,20 @@ export function MusicProvider({ children }) {
       setIsLoadingAudio(false);
     };
 
+    const onEnded = () => {
+      // Si la versión completa ya está activa o en camino en YouTube, NO saltar al acabarse el preview de 30s
+      if (currentTrackRef.current?.youtubeId) {
+        console.log('[MusicContext] Preview de 30s finalizado; versión completa en YouTube activa.');
+        return;
+      }
+      if (repeatModeRef.current === 'one') {
+        audio.currentTime = 0;
+        audio.play().catch(console.warn);
+      } else {
+        handleNextRef.current?.();
+      }
+    };
+
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('timeupdate', onTimeUpdate);
@@ -77,6 +99,7 @@ export function MusicProvider({ children }) {
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('error', onError);
+    audio.addEventListener('ended', onEnded);
 
     return () => {
       audio.removeEventListener('play', onPlay);
@@ -87,32 +110,10 @@ export function MusicProvider({ children }) {
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('error', onError);
+      audio.removeEventListener('ended', onEnded);
       audio.pause();
     };
   }, []);
-
-  // Manejo de final de pista (Ended) para audio nativo
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onEnded = () => {
-      // Si la versión completa ya está activa o en camino en YouTube, NO saltar al acabarse el preview de 30s
-      if (currentTrackRef.current?.youtubeId) {
-        console.log('[MusicContext] Preview de 30s finalizado; versión completa en YouTube activa.');
-        return;
-      }
-      if (repeatMode === 'one') {
-        audio.currentTime = 0;
-        audio.play().catch(console.warn);
-      } else {
-        handleNext();
-      }
-    };
-
-    audio.addEventListener('ended', onEnded);
-    return () => audio.removeEventListener('ended', onEnded);
-  }, [repeatMode, queue, queueIndex, isShuffle, handleNext]);
 
   // Actualizar volumen del elemento audio nativo
   useEffect(() => {
@@ -145,10 +146,10 @@ export function MusicProvider({ children }) {
       });
 
       if ('mediaSession' in navigator) {
-        navigator.mediaSession.setActionHandler('play', () => togglePlay());
-        navigator.mediaSession.setActionHandler('pause', () => togglePlay());
-        navigator.mediaSession.setActionHandler('previoustrack', () => handlePrev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => handleNext());
+        navigator.mediaSession.setActionHandler('play', () => togglePlayRef.current?.());
+        navigator.mediaSession.setActionHandler('pause', () => togglePlayRef.current?.());
+        navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevRef.current?.());
+        navigator.mediaSession.setActionHandler('nexttrack', () => handleNextRef.current?.());
       }
     } catch (err) {
       console.warn('[MusicContext] Error configurando MediaSession:', err);
@@ -321,6 +322,7 @@ export function MusicProvider({ children }) {
       });
     }
   }, [isPlaying, currentTrack]);
+  togglePlayRef.current = togglePlay;
 
   // Siguiente pista
   const handleNext = useCallback(() => {
@@ -347,6 +349,7 @@ export function MusicProvider({ children }) {
       playTrack(nextSong, queue);
     }
   }, [queue, queueIndex, isShuffle, repeatMode, playTrack]);
+  handleNextRef.current = handleNext;
 
   // Pista anterior
   const handlePrev = useCallback(() => {
@@ -375,6 +378,7 @@ export function MusicProvider({ children }) {
       playTrack(prevSong, queue);
     }
   }, [queue, queueIndex, repeatMode, playTrack, currentTrack, currentTime]);
+  handlePrevRef.current = handlePrev;
 
   // Cambiar posición de la pista (Seek)
   const seekTo = useCallback((seconds) => {
