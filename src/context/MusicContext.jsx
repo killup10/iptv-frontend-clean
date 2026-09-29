@@ -112,7 +112,16 @@ export function MusicProvider({ children }) {
     audioRef.current = audio;
 
     const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPause = () => {
+      // En móvil nativo, cuando la app se minimiza o se apaga la pantalla,
+      // el WebView de Android pausa automáticamente el elemento <audio> de HTML5.
+      // NO debemos pausar la app porque ExoPlayer sigue reproduciendo en segundo plano.
+      if (Capacitor.isNativePlatform() && document.hidden) {
+        console.log('[MusicContext] HTML5 <audio> pausado en background por WebView; ignorando');
+        return;
+      }
+      setIsPlaying(false);
+    };
     const onWaiting = () => setIsLoadingAudio(true);
     const onPlaying = () => setIsLoadingAudio(false);
     const onCanPlay = () => setIsLoadingAudio(false);
@@ -210,11 +219,35 @@ export function MusicProvider({ children }) {
     }
   }, [customPlaylists]);
 
+  // Sincronizar posición y estado nativo cuando la app vuelve de segundo plano
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const onNativeResume = async () => {
+      const state = await backgroundPlaybackService.getNativePosition();
+      if (state && typeof state.position === 'number') {
+        setCurrentTime(state.position);
+        if (state.duration > 0) setDuration(state.duration);
+        if (typeof state.isPlaying === 'boolean') setIsPlaying(state.isPlaying);
+        if (audioRef.current && state.isPlaying) {
+          try {
+            audioRef.current.currentTime = state.position;
+            audioRef.current.play().catch(() => {});
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener('backgroundPlayback:resume', onNativeResume);
+    return () => window.removeEventListener('backgroundPlayback:resume', onNativeResume);
+  }, []);
+
   // Actualizar MediaSession y servicio nativo en cada cambio de canción
   useEffect(() => {
     if (!currentTrack) return;
 
     try {
+      const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
+      const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
+
       backgroundPlaybackService.startPlayback({
         title: currentTrack.title,
         artist: currentTrack.artist,
@@ -223,6 +256,7 @@ export function MusicProvider({ children }) {
           { src: currentTrack.cover || '/logo-teamg.png', sizes: '512x512', type: 'image/png' }
         ],
         coverUrl: currentTrack.cover || '',
+        audioUrl: safeAudio,
         isPlaying: isPlaying,
         duration: duration,
         position: currentTime
@@ -250,7 +284,12 @@ export function MusicProvider({ children }) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
     if (currentTrack) {
-      backgroundPlaybackService.updatePlaybackState(isPlaying, currentTrack, currentTime, duration);
+      const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
+      const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
+      backgroundPlaybackService.updatePlaybackState(isPlaying, {
+        ...currentTrack,
+        audioUrl: safeAudio
+      }, currentTime, duration);
     }
   }, [isPlaying, currentTrack]);
 
@@ -336,12 +375,21 @@ export function MusicProvider({ children }) {
       fullStreamRef.current = url;
       const isNative = Capacitor.isNativePlatform();
 
-      // En Android nativo, ExoPlayer reproduce el audio en segundo plano (100% inmune a pantalla apagada)
-      backgroundPlaybackService.updatePlaybackState(true, {
+      const fullTrack = {
         ...track,
+        youtubeId: ytId,
         audioUrl: url,
-        streamUrl: url
-      }, 0, track.fullDuration || track.duration || 210);
+        streamUrl: url,
+        fullDuration: track.fullDuration || track.duration || 210,
+        isPreviewOnly: false
+      };
+
+      currentTrackRef.current = fullTrack;
+      setCurrentTrack(fullTrack);
+      setQueue(prev => prev.map(t => t.id === track.id ? { ...t, ...fullTrack } : t));
+
+      // En Android nativo, ExoPlayer reproduce el audio en segundo plano (100% inmune a pantalla apagada)
+      backgroundPlaybackService.updatePlaybackState(true, fullTrack, 0, fullTrack.fullDuration);
 
       const audio = audioRef.current;
       if (audio) {
@@ -443,6 +491,14 @@ export function MusicProvider({ children }) {
       try { audio.pause(); } catch {}
     }
 
+    // Sanitizar pista para evitar que el preview de 30s de iTunes se asigne como audioUrl a reproducir
+    const isPreview = (url) => url && (url.includes('apple-assets-us-std') || url.includes('AudioPreview'));
+    const safeTrack = {
+      ...track,
+      audioUrl: (!isPreview(track.audioUrl) ? track.audioUrl : null) || track.streamUrl || null,
+      previewUrl: track.previewUrl || track.audioUrl || null
+    };
+
     // Caso 0: Pista guardada en Modo Offline (reproducción local instantánea sin internet)
     if (musicOfflineService.isTrackOffline(track.id) || track.isOffline) {
       try {
@@ -452,7 +508,7 @@ export function MusicProvider({ children }) {
         const effectiveUrl = isNative ? urls.nativeUrl : urls.webUrl;
 
         const offlineTrack = {
-          ...track,
+          ...safeTrack,
           ...offlineRecord,
           isOffline: true,
           audioUrl: effectiveUrl,
@@ -509,22 +565,22 @@ export function MusicProvider({ children }) {
     }
 
     // Caso 2: Pista con youtubeId ya resuelto -> stream COMPLETO directo (CERO preview)
-    if (track.youtubeId) {
-      setCurrentTrack(track);
+    if (safeTrack.youtubeId) {
+      setCurrentTrack(safeTrack);
       setIsPlaying(true);
       setIsLoadingAudio(true);
-      setDuration(track.fullDuration || track.duration || 210);
+      setDuration(safeTrack.fullDuration || safeTrack.duration || 210);
       setAudioQuality('loading-full');
       setPlaybackMode('native');
       fullStreamRef.current = null;
       if (activeQueue) {
-        const idx = activeQueue.findIndex(t => t.id === track.id);
+        const idx = activeQueue.findIndex(t => t.id === safeTrack.id);
         prefetchNextFullVersion(activeQueue, idx);
       }
       try {
-        await loadFullAudio(track, track.youtubeId);
+        await loadFullAudio(safeTrack, safeTrack.youtubeId);
       } finally {
-        if (currentTrackRef.current?.id === track.id) {
+        if (currentTrackRef.current?.id === safeTrack.id) {
           setIsLoadingAudio(false);
         }
       }
@@ -533,43 +589,43 @@ export function MusicProvider({ children }) {
 
     // Caso 3: Pista sin youtubeId resuelto todavía -> RESOLVER Y REPRODUCIR DIRECTAMENTE LA COMPLETA
     // (🚫 ELIMINADO EL PREVIEW DE 30 SEGUNDOS: la canción arranca directamente completa)
-    setCurrentTrack(track);
+    setCurrentTrack(safeTrack);
     setIsPlaying(true);
-    setDuration(track.fullDuration || track.duration || 210);
+    setDuration(safeTrack.fullDuration || safeTrack.duration || 210);
     setAudioQuality('loading-full');
     setIsLoadingAudio(true);
 
     try {
-      let ytId = await musicService.getYouTubeId(track.artist, track.title);
-      if (!ytId && track.title) {
-        ytId = await musicService.getYouTubeId('', track.title);
+      let ytId = await musicService.getYouTubeId(safeTrack.artist, safeTrack.title);
+      if (!ytId && safeTrack.title) {
+        ytId = await musicService.getYouTubeId('', safeTrack.title);
       }
       if (ytId) {
         console.log('[MusicContext] Canción completa resuelta en YouTube:', ytId);
-        const enriched = { ...track, youtubeId: ytId, isPreviewOnly: false };
-        if (currentTrackRef.current?.id !== track.id) {
+        const enriched = { ...safeTrack, youtubeId: ytId, isPreviewOnly: false };
+        if (currentTrackRef.current?.id !== safeTrack.id) {
           setQueue(prev => prev.map(t => (
-            t.id === track.id && !t.youtubeId ? enriched : t
+            t.id === safeTrack.id && !t.youtubeId ? enriched : t
           )));
           return;
         }
         setCurrentTrack(prev => {
-          if (prev?.id === track.id) {
+          if (prev?.id === safeTrack.id) {
             return { ...prev, youtubeId: ytId, isPreviewOnly: false };
           }
           return prev;
         });
         setQueue(prev => prev.map(t => (
-          t.id === track.id && !t.youtubeId ? enriched : t
+          t.id === safeTrack.id && !t.youtubeId ? enriched : t
         )));
         const currentQueue = activeQueue || [];
-        const idx = currentQueue.findIndex(t => t.id === track.id);
+        const idx = currentQueue.findIndex(t => t.id === safeTrack.id);
         prefetchNextFullVersion(currentQueue, idx);
-        await loadFullAudio(track, ytId);
+        await loadFullAudio(safeTrack, ytId);
       } else {
         console.warn('[MusicContext] Sin versión completa resuelta');
-        if (currentTrackRef.current?.id === track.id) {
-          if (track.audioUrl) {
+        if (currentTrackRef.current?.id === safeTrack.id) {
+          if (safeTrack.audioUrl) {
             setAudioQuality('preview-fallback');
           } else {
             setPlaybackMode('youtube');
@@ -578,15 +634,15 @@ export function MusicProvider({ children }) {
       }
     } catch (err) {
       console.warn('[MusicContext] Error resolviendo canción completa:', err);
-      if (currentTrackRef.current?.id === track.id) {
-        if (track.audioUrl) {
+      if (currentTrackRef.current?.id === safeTrack.id) {
+        if (safeTrack.audioUrl) {
           setAudioQuality('preview-fallback');
         } else {
           setPlaybackMode('youtube');
         }
       }
     } finally {
-      if (currentTrackRef.current?.id === track.id) {
+      if (currentTrackRef.current?.id === safeTrack.id) {
         setIsLoadingAudio(false);
       }
     }
@@ -688,17 +744,17 @@ export function MusicProvider({ children }) {
   // Cambiar posición de la pista (Seek)
   const seekTo = useCallback((seconds) => {
     if (!Number.isFinite(seconds)) return;
-    backgroundPlaybackService.seekTo(seconds);
+    const cleanSeconds = Math.max(0, seconds);
+    setCurrentTime(cleanSeconds);
+    backgroundPlaybackService.seekTo(cleanSeconds);
 
     const useYouTube = currentTrack?.youtubeId && playbackMode === 'youtube';
     if (useYouTube && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(seconds, 'seconds');
-      setCurrentTime(seconds);
+      ytPlayerRef.current.seekTo(cleanSeconds, 'seconds');
     } else if (audioRef.current) {
       try {
-        audioRef.current.currentTime = seconds;
+        audioRef.current.currentTime = cleanSeconds;
       } catch {}
-      setCurrentTime(seconds);
     }
   }, [currentTrack, playbackMode]);
 

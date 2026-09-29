@@ -78,6 +78,7 @@ class BackgroundPlaybackService {
         App.addListener('resume', () => {
           console.log('[BackgroundPlayback] App resumed');
           this.handleAppComingToForeground();
+          window.dispatchEvent(new CustomEvent('backgroundPlayback:resume'));
         });
       }
 
@@ -132,11 +133,15 @@ class BackgroundPlaybackService {
 
       // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia y reproducir con ExoPlayer
       if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+        const rawAudio = mediaInfo.streamUrl || mediaInfo.audioUrl || '';
+        const isPreview = rawAudio.includes('apple-assets-us-std') || rawAudio.includes('AudioPreview');
+        const safeAudioUrl = isPreview ? '' : rawAudio;
+
         NativeMusicPlayback.updatePlayback({
           title: mediaInfo.title || 'TeamG Play',
           artist: mediaInfo.artist || 'Reproduciendo',
           coverUrl: mediaInfo.coverUrl || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
-          audioUrl: mediaInfo.audioUrl || mediaInfo.streamUrl || '',
+          audioUrl: safeAudioUrl,
           isPlaying: true,
           duration: mediaInfo.duration ? Math.round(mediaInfo.duration) : 0,
           position: mediaInfo.position ? Math.round(mediaInfo.position) : 0
@@ -161,11 +166,15 @@ class BackgroundPlaybackService {
     }
 
     if (Capacitor.isNativePlatform() && NativeMusicPlayback && mediaInfo) {
+      const rawAudio = mediaInfo.streamUrl || mediaInfo.audioUrl || '';
+      const isPreview = rawAudio.includes('apple-assets-us-std') || rawAudio.includes('AudioPreview');
+      const safeAudioUrl = isPreview ? '' : rawAudio;
+
       NativeMusicPlayback.updatePlayback({
         title: mediaInfo.title || 'TeamG Play',
         artist: mediaInfo.artist || 'Reproduciendo',
         coverUrl: mediaInfo.cover || mediaInfo.coverUrl || '',
-        audioUrl: mediaInfo.audioUrl || mediaInfo.streamUrl || '',
+        audioUrl: safeAudioUrl,
         isPlaying: Boolean(isPlaying),
         duration: duration ? Math.round(duration) : 0,
         position: position ? Math.round(position) : 0
@@ -175,9 +184,20 @@ class BackgroundPlaybackService {
     }
   }
 
+  async getNativePosition() {
+    if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+      try {
+        return await NativeMusicPlayback.getPosition();
+      } catch (err) {
+        console.warn('[BackgroundPlayback] Error obteniendo posición nativa:', err);
+      }
+    }
+    return null;
+  }
+
   seekTo(seconds) {
     if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
-      NativeMusicPlayback.seekTo({ position: Math.round(seconds) }).catch(() => {});
+      NativeMusicPlayback.seekTo({ position: Math.max(0, Math.round(seconds)) }).catch(() => {});
     }
   }
 

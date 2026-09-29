@@ -56,10 +56,13 @@ export default function Music() {
     isDownloadingPlaylistId,
     playlistDownloadProgress,
     getOfflineTotalStorage,
-    clearAllOffline
+    clearAllOffline,
+    isExpandedPlayer,
+    setIsExpandedPlayer
   } = useMusic();
 
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
+  const [tabHistory, setTabHistory] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
   const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'queue'
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
@@ -139,32 +142,54 @@ export default function Music() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
-  useEffect(() => {
-    window.__musicBackHandler = () => {
-      // 1. Si está viendo una playlist personalizada específica
-      if (selectedPlaylistId) {
-        setSelectedPlaylistId(null);
-        return true;
-      }
-      // 2. Si hay una búsqueda activa
-      if (searchQuery) {
-        setSearchQuery('');
-        return true;
-      }
-      // 3. Si está en otra pestaña que no es 'top' (por ejemplo géneros, radios, listas, favoritos)
-      if (activeTab !== 'top') {
-        setActiveTab('top');
-        return true;
-      }
-      // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente
-      return false;
-    };
+  const navigateToTab = useCallback((newTab) => {
+    if (newTab === activeTab) return;
+    setTabHistory(prev => [...prev.slice(-10), activeTab]);
+    setActiveTab(newTab);
+    if (newTab !== 'playlists') {
+      setSelectedPlaylistId(null);
+    }
+  }, [activeTab]);
 
+  // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
+  const handleMusicBack = useCallback(() => {
+    // 0. Si el reproductor expandido (pantalla completa) está abierto, cerrarlo
+    if (isExpandedPlayer) {
+      setIsExpandedPlayer(false);
+      return true;
+    }
+    // 1. Si está viendo una playlist personalizada específica
+    if (selectedPlaylistId) {
+      setSelectedPlaylistId(null);
+      return true;
+    }
+    // 2. Si hay una búsqueda activa
+    if (searchQuery) {
+      setSearchQuery('');
+      return true;
+    }
+    // 3. Si hay historial previo de pestañas dentro de Música (ej: vino de radios a listas)
+    if (tabHistory.length > 0) {
+      const prevTab = tabHistory[tabHistory.length - 1];
+      setTabHistory(prev => prev.slice(0, -1));
+      setActiveTab(prevTab);
+      return true;
+    }
+    // 4. Si está en otra pestaña que no es 'top'
+    if (activeTab !== 'top') {
+      setActiveTab('top');
+      return true;
+    }
+    // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
+    return false;
+  }, [isExpandedPlayer, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
+
+  useEffect(() => {
+    window.__musicBackHandler = handleMusicBack;
     return () => {
       window.__musicBackHandler = null;
     };
-  }, [selectedPlaylistId, searchQuery, activeTab]);
+  }, [handleMusicBack]);
 
   // Reproducir todo el Top 50
   const handlePlayAllTop = () => {
@@ -272,15 +297,11 @@ export default function Music() {
       <div className="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
 
         {/* Botón de retroceso contextual dentro de Música */}
-        {(activeTab !== 'top' || selectedPlaylistId || searchQuery) && (
+        {(activeTab !== 'top' || selectedPlaylistId || searchQuery || tabHistory.length > 0) && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                if (selectedPlaylistId) setSelectedPlaylistId(null);
-                else if (searchQuery) setSearchQuery('');
-                else setActiveTab('top');
-              }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-white text-xs font-semibold border border-cyan-400/30 active:scale-95 transition shadow-sm"
+              onClick={handleMusicBack}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-white text-xs font-semibold border border-cyan-400/30 active:scale-95 transition shadow-sm cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>
@@ -288,7 +309,7 @@ export default function Music() {
                   ? 'Volver a Mis Listas' 
                   : searchQuery 
                     ? 'Limpiar Búsqueda' 
-                    : 'Volver a Lo Más Escuchado'}
+                    : 'Atrás'}
               </span>
             </button>
           </div>
@@ -324,7 +345,7 @@ export default function Music() {
         {!searchQuery && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             <button
-              onClick={() => setActiveTab('top')}
+              onClick={() => navigateToTab('top')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'top'
                   ? 'bg-gradient-to-r from-cyan-400 to-cyan-500 text-black shadow-md shadow-cyan-500/25'
@@ -336,7 +357,7 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => setActiveTab('genres')}
+              onClick={() => navigateToTab('genres')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'genres'
                   ? 'bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white shadow-md shadow-fuchsia-500/25'
@@ -348,7 +369,7 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => setActiveTab('radios')}
+              onClick={() => navigateToTab('radios')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'radios'
                   ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md shadow-red-500/25'
@@ -360,7 +381,7 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => setActiveTab('favorites')}
+              onClick={() => navigateToTab('favorites')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'favorites'
                   ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-500/25'
@@ -372,10 +393,7 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => {
-                setActiveTab('playlists');
-                setSelectedPlaylistId(null);
-              }}
+              onClick={() => navigateToTab('playlists')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'playlists' || activeTab === 'queue'
                   ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white shadow-md shadow-purple-500/25'
@@ -387,10 +405,7 @@ export default function Music() {
             </button>
 
             <button
-              onClick={() => {
-                setActiveTab('offline');
-                setSelectedPlaylistId(null);
-              }}
+              onClick={() => navigateToTab('offline')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'offline'
                   ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-black shadow-md shadow-emerald-500/25'

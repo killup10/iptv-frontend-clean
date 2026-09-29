@@ -104,7 +104,9 @@ export default function GlobalMusicPlayer() {
   };
 
   const handleSeekMouseUp = (e) => {
-    const val = parseFloat(e.target.value);
+    const rawVal = e?.target?.value;
+    const num = parseFloat(rawVal);
+    const val = (!isNaN(num) && Number.isFinite(num)) ? num : seekVal;
     seekTo(val);
     setIsSeeking(false);
   };

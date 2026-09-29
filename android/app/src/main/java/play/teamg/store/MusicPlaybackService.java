@@ -27,6 +27,10 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
+import com.google.android.exoplayer2.upstream.DefaultDataSource;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
+import com.google.android.exoplayer2.util.MimeTypes;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -45,6 +49,7 @@ public class MusicPlaybackService extends Service {
     private static final String CHANNEL_ID = "teamg_music_playback_v1";
 
     public static final String ACTION_UPDATE = "play.teamg.store.ACTION_MUSIC_UPDATE";
+    public static final String ACTION_SEEK = "play.teamg.store.ACTION_MUSIC_SEEK";
     public static final String ACTION_PLAY = "play.teamg.store.ACTION_MUSIC_PLAY";
     public static final String ACTION_PAUSE = "play.teamg.store.ACTION_MUSIC_PAUSE";
     public static final String ACTION_TOGGLE = "play.teamg.store.ACTION_MUSIC_TOGGLE";
@@ -53,6 +58,7 @@ public class MusicPlaybackService extends Service {
     public static final String ACTION_STOP = "play.teamg.store.ACTION_MUSIC_STOP";
 
     // Variables de estado accesibles de forma estática
+    public static volatile ExoPlayer playerInstance = null;
     public static volatile boolean isServiceRunning = false;
     public static volatile boolean isPlaying = false;
     public static volatile String currentTitle = "TeamG Music";
@@ -96,7 +102,20 @@ public class MusicPlaybackService extends Service {
 
         // 2. Inicializar ExoPlayer nativo para reproducción de audio
         try {
-            player = new ExoPlayer.Builder(this).build();
+            DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
+                .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(10000)
+                .setReadTimeoutMs(10000)
+                .setUserAgent("TeamGPlay/1.5.12 (Android; ExoPlayer)");
+
+            DefaultDataSource.Factory dataSourceFactory = new DefaultDataSource.Factory(this, httpDataSourceFactory);
+            DefaultMediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(dataSourceFactory);
+
+            player = new ExoPlayer.Builder(this)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .build();
+            playerInstance = player;
+
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -110,7 +129,9 @@ public class MusicPlaybackService extends Service {
                     manageWakeLock(isPlaying);
                     updateMediaSessionState();
                     updateNotification();
-                    MusicPlaybackPlugin.sendMediaAction(isPlaying ? "play" : "pause");
+                    // IMPORTANTE: NO emitir sendMediaAction aquí. Durante buffering o seek,
+                    // isPlayingNow cambia temporalmente a false. Las acciones reales del usuario
+                    // (notificación y pantalla de bloqueo) se gestionan explícitamente en handleAction.
                 }
 
                 @Override
@@ -183,11 +204,21 @@ public class MusicPlaybackService extends Service {
         }
 
         switch (action) {
+            case ACTION_SEEK:
+                if (intent.hasExtra("seekToSeconds") && player != null) {
+                    long seekSec = intent.getLongExtra("seekToSeconds", 0L);
+                    player.seekTo(seekSec * 1000L);
+                    currentPosition = seekSec;
+                    updateMediaSessionState();
+                    updateNotification();
+                }
+                break;
+
             case ACTION_UPDATE:
                 currentTitle = intent.getStringExtra("title") != null ? intent.getStringExtra("title") : currentTitle;
                 currentArtist = intent.getStringExtra("artist") != null ? intent.getStringExtra("artist") : currentArtist;
                 String cover = intent.getStringExtra("coverUrl");
-                if (cover != null) {
+                if (cover != null && !cover.trim().isEmpty()) {
                     currentCoverUrl = cover;
                 }
                 String audioUrl = intent.getStringExtra("audioUrl");
@@ -199,6 +230,7 @@ public class MusicPlaybackService extends Service {
                 if (intent.hasExtra("seekToSeconds") && player != null) {
                     long seekSec = intent.getLongExtra("seekToSeconds", 0L);
                     player.seekTo(seekSec * 1000L);
+                    currentPosition = seekSec;
                 }
 
                 // Si se pasó un stream de audio válido, cargarlo en ExoPlayer
@@ -208,8 +240,13 @@ public class MusicPlaybackService extends Service {
                         currentAudioUrl = audioUrl;
                         if (player != null) {
                             try {
-                                MediaItem mediaItem = MediaItem.fromUri(audioUrl);
-                                player.setMediaItem(mediaItem);
+                                MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(audioUrl);
+                                if (audioUrl.contains("icecast") || audioUrl.contains(".aac")) {
+                                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_AAC);
+                                } else if (audioUrl.endsWith(".mp3") || audioUrl.contains(".mp3")) {
+                                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_MPEG);
+                                }
+                                player.setMediaItem(mediaItemBuilder.build());
                                 player.prepare();
                                 if (reqPlay) {
                                     player.play();
@@ -517,6 +554,7 @@ public class MusicPlaybackService extends Service {
             player.release();
             player = null;
         }
+        playerInstance = null;
         if (mediaSession != null) {
             mediaSession.setActive(false);
             mediaSession.release();

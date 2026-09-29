@@ -79,7 +79,7 @@ public class MusicPlaybackPlugin extends Plugin {
             long positionSeconds = call.getLong("position", 0L);
             Context context = getContext();
             Intent intent = new Intent(context, MusicPlaybackService.class);
-            intent.setAction(MusicPlaybackService.ACTION_UPDATE);
+            intent.setAction(MusicPlaybackService.ACTION_SEEK);
             intent.putExtra("seekToSeconds", positionSeconds);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent);
@@ -89,6 +89,32 @@ public class MusicPlaybackPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             Log.e(TAG, "Error en seekTo", e);
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getPosition(PluginCall call) {
+        try {
+            JSObject ret = new JSObject();
+            long posSec = 0;
+            long durSec = 0;
+            boolean playing = MusicPlaybackService.isPlaying;
+            if (MusicPlaybackService.playerInstance != null) {
+                posSec = Math.max(0, MusicPlaybackService.playerInstance.getCurrentPosition() / 1000L);
+                long d = MusicPlaybackService.playerInstance.getDuration();
+                durSec = d > 0 ? (d / 1000L) : MusicPlaybackService.currentDuration;
+                playing = MusicPlaybackService.playerInstance.isPlaying();
+            } else {
+                posSec = MusicPlaybackService.currentPosition;
+                durSec = MusicPlaybackService.currentDuration;
+            }
+            ret.put("position", posSec);
+            ret.put("duration", durSec);
+            ret.put("isPlaying", playing);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Error en getPosition", e);
             call.reject("Error: " + e.getMessage());
         }
     }
