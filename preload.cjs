@@ -95,6 +95,13 @@ try {
     },
 
     /**
+     * Resuelve el ID de YouTube para reproducir la canción completa sin límites de 30 segundos
+     */
+    getMusicYouTubeId: (query) => {
+      return ipcRenderer.invoke('music-get-youtube-id', query);
+    },
+
+    /**
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {

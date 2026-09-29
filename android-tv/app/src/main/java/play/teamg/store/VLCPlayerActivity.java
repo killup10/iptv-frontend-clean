@@ -197,6 +197,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     private ListView scheduleProgramList;
     private ScheduleProgramAdapter scheduleProgramAdapter;
     private int scheduleFocusedPosition = 0;
+    private int scheduleCurrentChannelIndex = -1;
     private final ArrayList<ProgramScheduleItem> scheduleItems = new ArrayList<>();
 
     private static class ProgramScheduleItem {
@@ -335,7 +336,15 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (scheduleProgramList != null) {
             scheduleProgramAdapter = new ScheduleProgramAdapter();
             scheduleProgramList.setAdapter(scheduleProgramAdapter);
-            scheduleProgramList.setOnItemClickListener((parent, view, position, id) -> toggleScheduleReminder(position));
+            scheduleProgramList.setOnItemClickListener((parent, view, position, id) -> {
+                if (position >= 0 && position < scheduleItems.size() && scheduleItems.get(position).isLive) {
+                    if (scheduleCurrentChannelIndex >= 0 && scheduleCurrentChannelIndex < channelNames.size()) {
+                        playChannelFromSchedule(scheduleCurrentChannelIndex);
+                        return;
+                    }
+                }
+                toggleScheduleReminder(position);
+            });
         }
 
         currentVideoUrl = getIntent().getStringExtra("video_url");
@@ -2120,6 +2129,15 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             drawerChannelList.setOnItemClickListener((parent, view, position, id) -> {
                 selectDrawerChannel(position);
             });
+            drawerChannelList.setOnItemLongClickListener((parent, view, position, id) -> {
+                if (position >= 0 && position < visibleChannelIndices.size()) {
+                    int chIdx = visibleChannelIndices.get(position);
+                    String chName = channelNames.get(chIdx);
+                    showChannelScheduleView(chName, chIdx);
+                    return true;
+                }
+                return false;
+            });
         }
 
         if (railTabChannels != null) railTabChannels.setOnClickListener(v -> setDrawerRailTab("channels"));
@@ -2308,6 +2326,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
 
     private void showChannelScheduleView(String channelName, int channelIndex) {
         if (drawerChannelsView == null || drawerScheduleView == null) return;
+        scheduleCurrentChannelIndex = channelIndex;
 
         drawerChannelsView.setVisibility(View.GONE);
         drawerScheduleView.setVisibility(View.VISIBLE);
@@ -2405,6 +2424,32 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         if (drawerChannelsView != null) drawerChannelsView.setVisibility(View.VISIBLE);
     }
 
+    private void playChannelFromSchedule(int channelIndex) {
+        if (channelIndex < 0 || channelIndex >= channelNames.size()) return;
+        currentChannelSelection = channelIndex;
+        String selectedChannel = channelNames.get(channelIndex);
+        String selectedUrl = channelUrls.get(channelIndex);
+        String selectedId = (channelIds != null && channelIndex < channelIds.size()) 
+            ? channelIds.get(channelIndex) 
+            : null;
+
+        Log.d(TAG, "Reproducir canal desde guia de programacion: " + selectedChannel + " - URL: " + selectedUrl);
+
+        if (!recentChannelNames.contains(selectedChannel)) {
+            recentChannelNames.add(0, selectedChannel);
+            if (recentChannelNames.size() > 20) recentChannelNames.remove(recentChannelNames.size() - 1);
+        }
+
+        if ((selectedUrl == null || selectedUrl.isEmpty()) && selectedId != null && !selectedId.isEmpty()) {
+            fetchChannelUrlAndSwitch(selectedId, selectedChannel);
+        } else {
+            switchChannel(selectedUrl, selectedChannel);
+        }
+
+        closeChannelScheduleView();
+        hideLiveChannelsDrawer();
+    }
+
     private void toggleScheduleReminder(int position) {
         if (position < 0 || position >= scheduleItems.size()) return;
         ProgramScheduleItem item = scheduleItems.get(position);
@@ -2452,6 +2497,17 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
                 || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            if (scheduleBtnBack != null && scheduleBtnBack.hasFocus()) {
+                closeChannelScheduleView();
+                return true;
+            }
+            if (scheduleFocusedPosition >= 0 && scheduleFocusedPosition < scheduleItems.size()) {
+                ProgramScheduleItem item = scheduleItems.get(scheduleFocusedPosition);
+                if (item.isLive && scheduleCurrentChannelIndex >= 0 && scheduleCurrentChannelIndex < channelNames.size()) {
+                    playChannelFromSchedule(scheduleCurrentChannelIndex);
+                    return true;
+                }
+            }
             toggleScheduleReminder(scheduleFocusedPosition);
             return true;
         }
@@ -2588,16 +2644,6 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             : null;
 
         Log.d(TAG, "Canal seleccionado en TV drawer: " + selectedChannel + " - URL: " + selectedUrl);
-
-        // Si es el canal que YA se reproduce: abrir la guia EPG (como en movil)
-        if (channelIndex == currentChannelSelection
-                || (currentVideoUrl != null && currentVideoUrl.equals(selectedUrl))) {
-            showChannelScheduleView(selectedChannel, channelIndex);
-            if (channelDrawerAdapter != null) {
-                channelDrawerAdapter.notifyDataSetChanged();
-            }
-            return;
-        }
 
         if (!recentChannelNames.contains(selectedChannel)) {
             recentChannelNames.add(0, selectedChannel);

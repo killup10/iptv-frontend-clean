@@ -34,11 +34,9 @@ export default function SmartRecommendations({
       onVideoClick(video);
     } else {
       // Navegar al video si no hay callback personalizado
-      if (video.tipo === 'pelicula') {
-        navigate(`/watch/pelicula/${video.id || video._id}`);
-      } else {
-        navigate(`/watch/serie/${video.id || video._id}`);
-      }
+      const rawType = String(video?.tipo || video?.type || video?.itemType || '').toLowerCase();
+      const targetType = (rawType === 'pelicula' || rawType === 'movie' || rawType === 'video') ? 'movie' : (rawType || 'movie');
+      navigate(`/watch/${targetType}/${video.id || video._id}`);
     }
   };
 
@@ -250,6 +248,19 @@ export default function SmartRecommendations({
                   </span>
                 </div>
               )}
+
+              {/* Botón Ver Ahora directo */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleVideoClick(rec, index);
+                }}
+                className="mt-3 w-full py-2 px-3 rounded-lg bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition-all shadow-md"
+              >
+                <ArrowRightIcon className="w-4 h-4" />
+                <span>Ver ahora</span>
+              </button>
             </DynamicCard>
           );
         })}

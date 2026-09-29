@@ -143,6 +143,22 @@ function Login() {
         setLoginError("");
         return;
       }
+
+      if (err.response?.status === 426 || responseData?.code === "UPDATE_REQUIRED") {
+        window.dispatchEvent(
+          new CustomEvent("teamg-update-required", {
+            detail: {
+              latestVersion: responseData?.latestVersion || "1.5.11",
+              error: responseData?.error || "Nueva versión disponible. Por favor actualiza para continuar.",
+              url: responseData?.url || (isTVMode ? "https://teamg.store/teamgplay2TV.apk" : "https://teamg.store/teamgplay.apk"),
+              force: true,
+            },
+          })
+        );
+        setLoginError("");
+        return;
+      }
+
       setLoginError(err.message || "Error al iniciar sesión");
     } finally {
       setIsLoggingIn(false);

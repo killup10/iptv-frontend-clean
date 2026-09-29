@@ -1764,6 +1764,12 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
                         if (recentChannelNames.size() > 20) recentChannelNames.remove(recentChannelNames.size() - 1);
                     }
 
+                    if (drawerSearchInput != null && drawerSearchInput.getText() != null && drawerSearchInput.getText().length() > 0) {
+                        drawerSearchInput.setText("");
+                    }
+                    setDrawerRailTab("channels");
+                    hideKeyboard();
+
                     switchChannel(selectedUrl, selectedName);
                     channelDrawerAdapter.notifyDataSetChanged();
                 }
@@ -1811,6 +1817,9 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
             if (drawerHeaderTitle != null) drawerHeaderTitle.setText("Buscar Canales");
         } else {
             if (drawerSearchInput != null) {
+                if (drawerSearchInput.getText() != null && drawerSearchInput.getText().length() > 0) {
+                    drawerSearchInput.setText("");
+                }
                 drawerSearchInput.setVisibility(View.GONE);
                 hideKeyboard();
             }

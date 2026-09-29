@@ -5,7 +5,7 @@ import { getOrCreateDeviceId } from './deviceIdentity.js';
 import { getPlatformName } from './platformUtils.js';
 import packageJson from '../../package.json';
 
-const APP_VERSION = packageJson?.version || '1.5.11';
+export const APP_VERSION = packageJson?.version || '1.5.11';
 
 const AXIOS_VERBOSE =
   typeof import.meta !== 'undefined' &&

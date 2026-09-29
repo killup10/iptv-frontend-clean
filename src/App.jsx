@@ -9,7 +9,8 @@ import { fetchVideoCounts } from "./utils/api.js";
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
 import VideoPlayerPlugin from "./plugins/VideoPlayerPlugin.js";
-import { backgroundPlaybackService } from "./services/backgroundPlayback.js";
+import { WifiOff, Music } from 'lucide-react';
+import GlobalMusicPlayer from "./components/music/GlobalMusicPlayer.jsx";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -488,6 +489,18 @@ function App() {
                     <span>❤️</span>
                     <span>Mi Lista</span>
                   </Link>
+                  <Link to="/musica" className="text-cyan-300 hover:text-white px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
+                    <Music className="w-4 h-4 text-cyan-400" />
+                    <span>Música</span>
+                  </Link>
+                  <Link to="/pedidos" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
+                    <span>📩</span>
+                    <span>Pedidos</span>
+                  </Link>
+                  <Link to="/offline" className="text-cyan-300 hover:text-white px-3 py-2 flex items-center gap-1.5 font-semibold" onClick={closeAllMenus}>
+                    <WifiOff className="w-4 h-4 text-cyan-400" />
+                    <span>Modo Offline</span>
+                  </Link>
                 </nav>
               </div>
 
@@ -713,6 +726,17 @@ function App() {
                   <Link to="/mi-lista" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span>❤️</span> Mi Lista
                   </Link>
+                  <Link to="/musica" className="flex items-center gap-3 text-cyan-300 hover:text-white px-3 py-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-base font-bold transition" onClick={closeAllMenus}>
+                    <Music className="w-5 h-5 text-cyan-400" />
+                    <span>Música</span>
+                  </Link>
+                  <Link to="/pedidos" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                    <span>📩</span> Pedidos
+                  </Link>
+                  <Link to="/offline" className="flex items-center gap-3 text-cyan-300 hover:text-white px-3 py-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-base font-bold transition" onClick={closeAllMenus}>
+                    <WifiOff className="w-5 h-5 text-cyan-400" />
+                    <span>Modo Offline</span>
+                  </Link>
                   <Link to="/test-player" className="flex items-center gap-3 text-yellow-400 hover:text-yellow-300 px-3 py-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-base font-semibold transition" onClick={closeAllMenus}>
                     <span>🧪</span> Test ExoPlayer
                   </Link>
@@ -775,6 +799,8 @@ function App() {
       <main className={`flex-grow ${shouldShowLayout ? 'pt-20' : ''}`}>
         <Outlet context={{ setAllSearchItems }} />
       </main>
+
+      {!isWatchPage && <GlobalMusicPlayer />}
 
       {shouldShowLayout && (
         <footer className="bg-black text-gray-500 py-8 border-t border-gray-800">

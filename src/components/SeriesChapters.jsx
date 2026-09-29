@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, currentSeason: initialCurrentSeason, onSelectChapter }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [progressData, setProgressData] = useState(watchProgress || {});
   // Estado para la temporada seleccionada
   const [selectedSeasonIndex, setSelectedSeasonIndex] = useState(initialCurrentSeason || 0);
@@ -82,7 +83,12 @@ const SeriesChapters = ({ seasons, serieId, currentChapter, watchProgress, curre
     // Esto evita que se redispare automaticamente cuando se retrocede
     navigate(`/watch/serie/${serieId}`, {
       replace: true,
-      state: { seasonIndex: seasonIdx, chapterIndex: chapterIdx, continueWatching: false }
+      state: {
+        ...(location.state || {}),
+        seasonIndex: seasonIdx,
+        chapterIndex: chapterIdx,
+        continueWatching: false,
+      },
     });
   };
 

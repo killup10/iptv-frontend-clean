@@ -42,6 +42,11 @@ const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
 const Profiles = React.lazy(() => import('./pages/Profiles.jsx'));
 const Settings = React.lazy(() => import('./pages/Settings.jsx'));
 const RecienAgregados = React.lazy(() => import('./pages/RecienAgregados.jsx'));
+const Pedidos = React.lazy(() => import('./pages/Pedidos.jsx'));
+const Descargas = React.lazy(() => import('./pages/Descargas.jsx'));
+const Music = React.lazy(() => import('./pages/Music.jsx'));
+import { MusicProvider } from './context/MusicContext.jsx';
+
 
 import { isAndroidTV } from './utils/platformUtils.js';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
@@ -199,6 +204,47 @@ const router = createHashRouter([
         ),
       },
       {
+        path: "pedidos",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Pedidos />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "offline",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Descargas />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "descargas",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Descargas />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "musica",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Music />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+
+      {
         path: "bulk-upload",
         element: (
           <ProtectedRoute adminOnly={true}>
@@ -261,7 +307,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <MusicProvider>
+          <RouterProvider router={router} />
+        </MusicProvider>
       </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>

@@ -214,9 +214,7 @@ function Card({
         position: 'relative',
       }}
       data-card
-      onClick={(e) => {
-        e.stopPropagation();
-      }}
+      onClick={handleCardClick}
     >
       {!isAndroidTV() && onAddToMyList && (
         <button
@@ -240,7 +238,10 @@ function Card({
         </button>
       )}
 
-      <div className={`${posterShellClasses} ${selectedCardClasses}`.trim()}>
+      <div 
+        className={`${posterShellClasses} ${selectedCardClasses} cursor-pointer`.trim()}
+        onClick={handleCardClick}
+      >
         <img
           src={displayThumbnail}
           alt={item.name || item.title || 'Poster'}
@@ -362,8 +363,8 @@ function Card({
         ) : null}
 
         <div
-          className={hoverOverlayClasses}
-          onClick={(e) => e.stopPropagation()}
+          className={`${hoverOverlayClasses} cursor-pointer`}
+          onClick={handleCardClick}
         >
           <div className="w-full p-3">
             <div className={hoverPanelClasses}>

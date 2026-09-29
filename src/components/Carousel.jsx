@@ -110,11 +110,23 @@ function Carousel({
       onMouseLeave={() => setIsHovering(false)}
     >
       {isClassicVariant ? (
-        <div className="mb-3 flex items-center px-2 sm:px-4 md:px-1">
-          <div className="w-1 h-5 rounded-full bg-gradient-to-b from-cyan-400 to-fuchsia-500 mr-2.5 shadow-[0_0_8px_rgba(34,211,238,0.6)] flex-shrink-0" />
-          <h2 className="text-base font-bold text-white sm:text-lg tracking-wide uppercase">
-            {title}
-          </h2>
+        <div className="mb-3 flex items-center justify-between px-2 sm:px-4 md:px-1">
+          <div className="flex items-center min-w-0">
+            <div className="w-1 h-5 rounded-full bg-gradient-to-b from-cyan-400 to-fuchsia-500 mr-2.5 shadow-[0_0_8px_rgba(34,211,238,0.6)] flex-shrink-0" />
+            <h2 className="text-base font-bold text-white sm:text-lg tracking-wide uppercase truncate">
+              {title}
+            </h2>
+          </div>
+          {actionLabel ? (
+            <button
+              type="button"
+              onClick={onActionClick}
+              className="inline-flex items-center gap-1 rounded-full border border-fuchsia-300/22 bg-gradient-to-r from-violet-950/92 via-fuchsia-950/76 to-slate-950/90 px-3 py-1 text-xs font-semibold text-fuchsia-50 shadow-sm transition-all duration-200 active:scale-95 hover:text-white shrink-0 ml-2"
+            >
+              <span>{actionLabel}</span>
+              <ChevronRightIcon className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="mb-4 flex flex-col gap-3 px-2 sm:px-4 md:px-1 lg:flex-row lg:items-end lg:justify-between">

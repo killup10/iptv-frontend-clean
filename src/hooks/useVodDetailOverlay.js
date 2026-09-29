@@ -198,6 +198,7 @@ export default function useVodDetailOverlay({
     }
 
     setVodDetail({
+      isOpen: true,
       item: normalizedItem,
       itemType: resolvedType,
     });

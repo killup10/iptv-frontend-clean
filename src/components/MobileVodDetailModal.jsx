@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Clock3, Film, Play, Plus, Star, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, Clock3, WifiOff, Film, Play, Plus, Star, X } from 'lucide-react';
+import { startDownload, isDownloaded, getDownloadedItem, getDownloadStatus } from '../services/offlineStorage.js';
 import {
   getTVItemBackdrop,
   getTVItemDescription,
@@ -146,6 +148,7 @@ export default function MobileVodDetailModal({
   onAddToMyList,
   onTrailer,
 }) {
+  const navigate = useNavigate();
   const [detailItem, setDetailItem] = useState(item);
   const [selectedSeasonIndex, setSelectedSeasonIndex] = useState(0);
   const [selectedEpisodeIndex, setSelectedEpisodeIndex] = useState(0);
@@ -443,6 +446,65 @@ export default function MobileVodDetailModal({
     onPlay({ item: modalItem });
   };
 
+  const downloadTargetId = useMemo(() => {
+    if (hasEpisodesContent && selectedEpisode) {
+      return `${modalItem?._id || modalItem?.id}_S${selectedSeasonNumber || 1}E${selectedEpisodeNumber || 1}`;
+    }
+    return String(modalItem?._id || modalItem?.id || '');
+  }, [hasEpisodesContent, selectedEpisode, modalItem, selectedSeasonNumber, selectedEpisodeNumber]);
+
+  const [downloadStatus, setDownloadStatus] = useState(null);
+  const [downloadedItem, setDownloadedItem] = useState(null);
+
+  const checkDownloadState = useCallback(() => {
+    if (!downloadTargetId) return;
+    setDownloadedItem(getDownloadedItem(downloadTargetId));
+    setDownloadStatus(getDownloadStatus(downloadTargetId));
+  }, [downloadTargetId]);
+
+  useEffect(() => {
+    checkDownloadState();
+    const handleEvt = () => checkDownloadState();
+    window.addEventListener('teamg:offline-progress', handleEvt);
+    window.addEventListener('teamg:offline-update', handleEvt);
+    return () => {
+      window.removeEventListener('teamg:offline-progress', handleEvt);
+      window.removeEventListener('teamg:offline-update', handleEvt);
+    };
+  }, [checkDownloadState]);
+
+  const handleStartDownload = async () => {
+    const videoUrl = hasEpisodesContent && selectedEpisode
+      ? (selectedEpisode.url || selectedEpisode.videoUrl || selectedEpisode.streamUrl || '')
+      : (modalItem?.url || modalItem?.videoUrl || modalItem?.streamUrl || modalItem?.playbackUrl || '');
+
+    if (!videoUrl) {
+      alert('Enlace de video no disponible para descargar.');
+      return;
+    }
+
+    try {
+      await startDownload({
+        id: downloadTargetId,
+        videoId: modalItem?._id || modalItem?.id,
+        title: hasEpisodesContent && selectedEpisode
+          ? `${title} - ${selectedEpisodeLabel} ${selectedEpisode?.title ? `(${selectedEpisode.title})` : ''}`
+          : title,
+        tipo: resolvedType,
+        videoUrl,
+        poster: posterImage,
+        backdrop: backdropImage,
+        year,
+        duration: hasEpisodesContent && selectedEpisode ? selectedEpisode?.duration : duration,
+        seasonNumber: selectedSeasonNumber,
+        episodeNumber: selectedEpisodeNumber,
+        episodeTitle: selectedEpisode?.title || '',
+      });
+    } catch (err) {
+      alert('Error al iniciar descarga: ' + (err.message || err));
+    }
+  };
+
   return (
     <div className="fixed inset-0" style={{ zIndex: 100000 }}>
       <div
@@ -712,6 +774,38 @@ export default function MobileVodDetailModal({
                     <Plus className="h-5 w-5" />
                     {isSavingToMyList ? 'Guardando...' : 'Agregar a mi lista'}
                   </button>
+
+                  {/* BOTÓN MODO OFFLINE */}
+                  {downloadedItem ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/offline')}
+                      className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-emerald-400/40 bg-emerald-950/40 px-5 py-4 text-base font-bold text-emerald-300 backdrop-blur-sm shadow-[0_8px_20px_rgba(16,185,129,0.2)] hover:bg-emerald-900/50 transition"
+                    >
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      <span>Disponible en Modo Offline ({downloadedItem.sizeFormatted})</span>
+                    </button>
+                  ) : downloadStatus && downloadStatus.status === 'downloading' ? (
+                    <div className="relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-[22px] border border-cyan-400/40 bg-cyan-950/50 px-5 py-4 text-base font-bold text-cyan-200">
+                      <div
+                        className="absolute inset-0 bg-cyan-500/25 transition-all duration-300"
+                        style={{ width: `${downloadStatus.progress}%` }}
+                      />
+                      <span className="relative z-10 flex items-center gap-2">
+                        <span className="animate-spin rounded-full h-4 w-4 border-2 border-cyan-400 border-t-transparent" />
+                        <span>Guardando Offline... {downloadStatus.progress}%</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleStartDownload}
+                      className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-cyan-300/20 bg-slate-900/60 hover:bg-cyan-950/40 hover:border-cyan-400/40 px-5 py-4 text-base font-bold text-white backdrop-blur-sm transition"
+                    >
+                      <WifiOff className="h-5 w-5 text-cyan-400" />
+                      <span>Guardar en Modo Offline</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

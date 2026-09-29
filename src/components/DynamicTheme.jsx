@@ -228,9 +228,18 @@ export function DynamicButton({ theme, children, onClick, className = "", varian
 }
 
 // Componente para cards con tema dinámico
-export function DynamicCard({ theme, children, className = "", glow = false }) {
+export function DynamicCard({ theme, children, className = "", glow = false, onClick, style = {}, ...props }) {
   if (!theme) {
-    return <div className={`${className} bg-gray-800 border border-gray-700`}>{children}</div>;
+    return (
+      <div 
+        className={`${className} bg-gray-800 border border-gray-700`}
+        onClick={onClick}
+        style={style}
+        {...props}
+      >
+        {children}
+      </div>
+    );
   }
   
   const cardStyle = {
@@ -240,11 +249,17 @@ export function DynamicCard({ theme, children, className = "", glow = false }) {
       ${theme.gradientStart}95 100%)`,
     backdropFilter: 'blur(10px)',
     border: `1px solid ${theme.primaryColor}30`,
-    boxShadow: glow ? `0 0 25px ${theme.primaryColor}20` : 'none'
+    boxShadow: glow ? `0 0 25px ${theme.primaryColor}20` : 'none',
+    ...style
   };
   
   return (
-    <div className={`${className} transition-all duration-300`} style={cardStyle}>
+    <div 
+      className={`${className} transition-all duration-300`} 
+      style={cardStyle}
+      onClick={onClick}
+      {...props}
+    >
       {children}
     </div>
   );

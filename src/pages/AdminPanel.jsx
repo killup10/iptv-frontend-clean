@@ -7,7 +7,8 @@ import {
   deleteAdminChannel, processM3UForAdmin,
   createAdminVideo, updateAdminVideo, deleteAdminVideo,
   fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser,
-  checkAdminChannelsStatus
+  checkAdminChannelsStatus,
+  getClientRequests, fulfillClientRequest, deleteClientRequest
 } from "@/utils/api.js";
 import AdminUserDevices from "@/components/admin/AdminUserDevices.jsx";
 import MigrationPanel from "@/components/MigrationPanel.jsx";
@@ -329,6 +330,15 @@ export default function AdminPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState({ channels: false, vod: false, m3u: false, users: false });
   const [activeTab, setActiveTab] = useState("manage_users");
+
+  // --- Estados para Pedido Clientes ---
+  const [requestsList, setRequestsList] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsFilter, setRequestsFilter] = useState("all");
+  const [requestsSearch, setRequestsSearch] = useState("");
+  const [fulfillingRequest, setFulfillingRequest] = useState(null);
+  const [m3uTextForSeries, setM3uTextForSeries] = useState("");
+  const [showM3uImporter, setShowM3uImporter] = useState(false);
 
   // --- Estados para Checker M3U ---
   const [checkerStatus, setCheckerStatus] = useState({});
@@ -1339,6 +1349,7 @@ export default function AdminPanel() {
 
   const clearVodForm = useCallback(() => {
     setVodId(null);
+    setFulfillingRequest(null);
     setVodForm({
       title: "",
       url: "",
@@ -1361,6 +1372,7 @@ export default function AdminPanel() {
       showInBanner: false
     });
   }, []);
+
 
   const handleVodFormChange = (e) => { const { name, value, type, checked } = e.target; setVodForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
   const handleVodPlanChange = (planKey) => { setVodForm(prev => { const currentPlans = prev.requiresPlan || []; const newPlans = currentPlans.includes(planKey) ? currentPlans.filter(p => p !== planKey) : [...currentPlans, planKey]; return { ...prev, requiresPlan: newPlans }; }); };
@@ -1463,8 +1475,19 @@ export default function AdminPanel() {
         await updateAdminVideo(vodId, dataToSend); 
         setSuccessMsg(`VOD "${dataToSend.title}" actualizado.`); 
       } else { 
-        await createAdminVideo(dataToSend); 
-        setSuccessMsg(`VOD "${dataToSend.title}" creado.`); 
+        const createdRes = await createAdminVideo(dataToSend); 
+        const createdId = createdRes?.video?._id || createdRes?._id;
+        if (fulfillingRequest && createdId) {
+          try {
+            await fulfillClientRequest(fulfillingRequest._id, createdId);
+            setSuccessMsg(`🎉 VOD "${dataToSend.title}" creado y pedido de ${fulfillingRequest.requestedBy?.username || 'cliente'} marcado como DISPONIBLE.`);
+          } catch (fulfillErr) {
+            console.warn("Error al marcar pedido como disponible:", fulfillErr);
+            setSuccessMsg(`VOD "${dataToSend.title}" creado exitosamente.`);
+          }
+        } else {
+          setSuccessMsg(`VOD "${dataToSend.title}" creado.`); 
+        }
       } 
       clearVodForm(); 
       fetchVideosList(); 
@@ -1609,6 +1632,167 @@ export default function AdminPanel() {
       return { ...prev, seasons: newSeasons };
     });
     setDragInfo(null);
+  };
+
+  // --- Lógica para Importar Episodios desde M3U (.m3u / Dropbox) ---
+  const handleParseM3U = (rawText) => {
+    if (!rawText || !rawText.trim()) {
+      setErrorMsg("El texto o archivo M3U está vacío.");
+      return;
+    }
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let currentTitle = '';
+    const parsedEpisodes = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('#EXTINF:')) {
+        const commaIdx = line.indexOf(',');
+        currentTitle = commaIdx !== -1 ? line.substring(commaIdx + 1).trim() : '';
+      } else if (line.startsWith('http://') || line.startsWith('https://')) {
+        parsedEpisodes.push({
+          rawTitle: currentTitle || `Capítulo ${parsedEpisodes.length + 1}`,
+          url: line
+        });
+        currentTitle = '';
+      }
+    }
+
+    if (parsedEpisodes.length === 0) {
+      setErrorMsg("No se detectaron URLs válidas que empiecen por http/https en el archivo M3U.");
+      return;
+    }
+
+    const seasonsMap = {};
+
+    parsedEpisodes.forEach((ep, idx) => {
+      let seasonNum = 1;
+      let chapterNum = idx + 1;
+      let cleanTitle = ep.rawTitle;
+
+      const seMatch = ep.rawTitle.match(/[sStT](\d{1,2})[\s._-]*[eE](\d{1,3})/i);
+      const tempCapMatch = ep.rawTitle.match(/(?:temporada|temp|season)\s*(\d{1,2}).*?(?:capitulo|cap|episodio|ep|episode)\s*(\d{1,3})/i);
+      const epOnlyMatch = ep.rawTitle.match(/(?:capitulo|cap|episodio|ep|episode)\s*(\d{1,3})/i);
+
+      if (seMatch) {
+        seasonNum = parseInt(seMatch[1], 10);
+        chapterNum = parseInt(seMatch[2], 10);
+      } else if (tempCapMatch) {
+        seasonNum = parseInt(tempCapMatch[1], 10);
+        chapterNum = parseInt(tempCapMatch[2], 10);
+      } else if (epOnlyMatch) {
+        chapterNum = parseInt(epOnlyMatch[1], 10);
+      }
+
+      if (!seasonsMap[seasonNum]) {
+        seasonsMap[seasonNum] = [];
+      }
+
+      seasonsMap[seasonNum].push({
+        title: cleanTitle || `Capítulo ${chapterNum}`,
+        url: ep.url,
+        thumbnail: '',
+        duration: '0:00',
+        description: ''
+      });
+    });
+
+    const seasonsArray = Object.keys(seasonsMap)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(sNum => ({
+        seasonNumber: sNum,
+        title: `Temporada ${sNum}`,
+        chapters: seasonsMap[sNum]
+      }));
+
+    setVodForm(prev => ({
+      ...prev,
+      seasons: seasonsArray
+    }));
+
+    setM3uTextForSeries("");
+    setShowM3uImporter(false);
+    setSuccessMsg(`✅ ¡${parsedEpisodes.length} capítulos importados con éxito en ${seasonsArray.length} temporada(s)!`);
+  };
+
+  const handleM3UFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === 'string') {
+        handleParseM3U(content);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // --- Lógica para Pedidos de Clientes ---
+  const fetchRequestsList = useCallback(async () => {
+    setRequestsLoading(true);
+    try {
+      const data = await getClientRequests({
+        status: requestsFilter,
+        search: requestsSearch,
+        limit: 100,
+      });
+      setRequestsList(data.requests || []);
+    } catch (err) {
+      console.error("Error al cargar pedidos:", err);
+      setErrorMsg("Error al cargar la lista de pedidos.");
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, [requestsFilter, requestsSearch]);
+
+  const handleAttendRequest = (req) => {
+    setFulfillingRequest(req);
+    clearMessages();
+
+    const isYear2026 = String(req.year || '').includes('2026');
+    const mainSec = (isYear2026 && req.tipo === 'pelicula') ? 'CINE_2026' : 'POR_GENERO';
+
+    setVodId(null);
+    setVodForm({
+      title: req.title || '',
+      url: '',
+      customThumbnail: req.poster || '',
+      bannerImage: req.backdrop || '',
+      description: req.overview || '',
+      trailerUrl: '',
+      releaseYear: req.year ? String(req.year) : new Date().getFullYear().toString(),
+      isFeatured: false,
+      active: true,
+      tipo: req.tipo || 'pelicula',
+      mainSection: mainSec,
+      genres: Array.isArray(req.genres) ? req.genres.join(', ') : '',
+      requiresPlan: ['gplay'],
+      seasons: req.tipo !== 'pelicula' ? [{ seasonNumber: 1, title: 'Temporada 1', chapters: [{ title: 'Capítulo 1', url: '', thumbnail: '', duration: '0:00', description: '' }] }] : [],
+      subcategoria: 'Netflix',
+      hasNewEpisodes: false,
+      is4K: false,
+      is60FPS: false,
+      showInBanner: false,
+    });
+
+    setActiveTab('add_vod');
+    setSuccessMsg(`Atendiendo pedido: "${req.title}". Ingresa tu enlace de Dropbox y guarda el VOD.`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteRequestClick = async (id, title) => {
+    if (!id || !window.confirm(`¿Estás seguro de eliminar el pedido "${title || 'este pedido'}"?`)) return;
+    try {
+      await deleteClientRequest(id);
+      setSuccessMsg(`Pedido "${title || ''}" eliminado.`);
+      fetchRequestsList();
+    } catch (err) {
+      setErrorMsg(err.message || 'Error al eliminar el pedido.');
+    }
   };
 
   // --- Funciones para upload de portada VOD ---
@@ -1766,12 +1950,14 @@ export default function AdminPanel() {
             }
         } else if (activeTab === "manage_users") {
             fetchAdminUsersList();
+        } else if (activeTab === "manage_requests") {
+            fetchRequestsList();
         }
 
         if (activeTab === "add_channel" && !channelId) clearChannelForm();
-        if (activeTab === "add_vod" && !vodId) clearVodForm();
+        if (activeTab === "add_vod" && !vodId && !fulfillingRequest) clearVodForm();
     }
-}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, loadMundialMatches, clearChannelForm, clearVodForm, vodSearchTerm]);
+}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, loadMundialMatches, clearChannelForm, clearVodForm, vodSearchTerm, fetchRequestsList, fulfillingRequest]);
 
 
 
@@ -1788,6 +1974,7 @@ export default function AdminPanel() {
 
       <div className="flex flex-wrap justify-center border-b border-gray-700 mb-6">
         <Tab label="Gestionar Usuarios" value="manage_users" activeTab={activeTab} onTabChange={setActiveTab} />
+        <Tab label="📩 Pedido Clientes" value="manage_requests" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label={vodId ? "Editar VOD" : "Agregar VOD"} value="add_vod" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Todos los VODs" value="manage_vod" activeTab={activeTab} onTabChange={setActiveTab} />
         <Tab label="Películas" value="manage_movies" activeTab={activeTab} onTabChange={setActiveTab} />
@@ -2086,6 +2273,125 @@ export default function AdminPanel() {
         </section>
       )}
       
+      {activeTab === "manage_requests" && (
+        <section className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4 border-b border-gray-700 pb-4">
+            <div>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                📩 Pedidos de Clientes ({requestsList.length})
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">
+                Solicitudes de títulos realizadas por tus clientes. Al pulsar "Atender / Agregar VOD", se abrirá el formulario con los datos cargados para que pegues el enlace de Dropbox.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex bg-gray-700 rounded-lg p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRequestsFilter("all")}
+                  className={`px-3 py-1.5 rounded-md font-medium transition ${requestsFilter === "all" ? "bg-red-600 text-white" : "text-gray-300 hover:text-white"}`}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequestsFilter("pendiente")}
+                  className={`px-3 py-1.5 rounded-md font-medium transition ${requestsFilter === "pendiente" ? "bg-yellow-600 text-white" : "text-gray-300 hover:text-white"}`}
+                >
+                  🟡 Pendientes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequestsFilter("disponible")}
+                  className={`px-3 py-1.5 rounded-md font-medium transition ${requestsFilter === "disponible" ? "bg-green-600 text-white" : "text-gray-300 hover:text-white"}`}
+                >
+                  🟢 Disponibles
+                </button>
+              </div>
+              <Button
+                type="button"
+                onClick={fetchRequestsList}
+                isLoading={requestsLoading}
+                className="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-2"
+              >
+                🔄 Actualizar
+              </Button>
+            </div>
+          </div>
+
+          {requestsLoading ? (
+            <div className="text-center py-12 text-gray-400">Cargando pedidos de clientes...</div>
+          ) : requestsList.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">No hay pedidos con el filtro seleccionado.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {requestsList.map((req) => (
+                <div key={req._id} className="bg-gray-700/80 border border-gray-600 rounded-lg p-4 flex gap-4 hover:border-gray-500 transition shadow">
+                  <img
+                    src={req.poster || '/img/placeholder-thumbnail.png'}
+                    alt={req.title}
+                    className="w-20 h-28 object-cover rounded bg-black flex-shrink-0 border border-gray-600"
+                    onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                  />
+                  <div className="flex-1 flex flex-col justify-between min-w-0">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${
+                          req.status === 'disponible' ? 'bg-green-900/80 text-green-300 border border-green-600' : 'bg-yellow-900/80 text-yellow-300 border border-yellow-600'
+                        }`}>
+                          {req.status === 'disponible' ? '✅ Disponible' : '🟡 Pendiente'}
+                        </span>
+                        <span className="text-[11px] text-gray-400 uppercase font-semibold bg-gray-800 px-1.5 py-0.5 rounded">
+                          {req.tipo}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-white text-base truncate" title={req.title}>
+                        {req.title} {req.year ? `(${req.year})` : ''}
+                      </h3>
+                      <p className="text-xs text-gray-300 mt-0.5">
+                        👤 <span className="text-gray-100 font-medium">{req.requestedBy?.username || 'Usuario'}</span>
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        📅 {new Date(req.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                      {req.note && (
+                        <p className="text-xs text-amber-300/90 italic mt-1 line-clamp-1">
+                          💬 "{req.note}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-600/60">
+                      {req.status !== 'disponible' ? (
+                        <Button
+                          type="button"
+                          onClick={() => handleAttendRequest(req)}
+                          className="flex-1 bg-green-600 hover:bg-green-500 text-xs py-1.5 font-bold"
+                        >
+                          🚀 Atender / Agregar VOD
+                        </Button>
+                      ) : (
+                        <span className="flex-1 text-xs text-green-400 font-semibold py-1">
+                          🎉 Ya en catálogo
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRequestClick(req._id, req.title)}
+                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1 bg-red-950/40 rounded border border-red-800/50 hover:bg-red-900/60"
+                        title="Eliminar pedido"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+      
       {activeTab === "add_vod" && (
         <section className="p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl max-w-2xl mx-auto">
           <h2 className="text-2xl font-semibold mb-6 text-center">{vodId ? "Editar VOD" : "Agregar Nuevo VOD"}</h2>
@@ -2104,7 +2410,61 @@ export default function AdminPanel() {
               <Input name="url" type="url" placeholder="URL del Video/Stream Principal" value={vodForm.url} onChange={handleVodFormChange} required />
             ) : (
               <div className="space-y-4 p-4 border border-gray-700 rounded-lg">
-                <h3 className="text-lg font-semibold text-white">Gestión de Temporadas</h3>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="text-lg font-semibold text-white">Gestión de Temporadas</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowM3uImporter(!showM3uImporter)}
+                    className="text-xs bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded font-medium flex items-center gap-1 shadow transition"
+                  >
+                    ⚡ {showM3uImporter ? "Ocultar Importador M3U" : "Importar desde archivo .m3u o texto"}
+                  </button>
+                </div>
+
+                {showM3uImporter && (
+                  <div className="p-4 bg-gray-900 border border-red-500/50 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
+                        📁 Carga Rápida de Episodios con Enlaces Dropbox (.m3u)
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-300">
+                      Sube un archivo <code className="text-red-300">.m3u</code> o pega el texto con los enlaces de Dropbox de cada episodio. El sistema detectará automáticamente las temporadas y capítulos (ej: S01E01, Cap 1, etc.) y rellenará la lista al instante.
+                    </p>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                      <label className="w-full sm:w-auto cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-4 py-2 rounded font-medium text-center border border-gray-500">
+                        📄 Seleccionar archivo .m3u
+                        <input
+                          type="file"
+                          accept=".m3u,.m3u8,.txt"
+                          onChange={handleM3UFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <span className="text-xs text-gray-400">o pega el texto abajo:</span>
+                    </div>
+
+                    <Textarea
+                      placeholder="#EXTINF:-1, S01E01 - Piloto&#10;https://www.dropbox.com/scl/fi/...&#10;#EXTINF:-1, S01E02 - Capitulo 2&#10;https://www.dropbox.com/scl/fi/..."
+                      value={m3uTextForSeries}
+                      onChange={(e) => setM3uTextForSeries(e.target.value)}
+                      className="text-xs font-mono h-28"
+                    />
+
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => handleParseM3U(m3uTextForSeries)}
+                        disabled={!m3uTextForSeries.trim()}
+                        className="bg-green-600 hover:bg-green-500 text-xs py-1.5 px-4 font-bold"
+                      >
+                        ⚡ Procesar y Rellenar Episodios
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {(vodForm.seasons || []).map((season, seasonIndex) => (
                   <div key={seasonIndex} className="space-y-3 p-4 bg-gray-700/50 rounded-lg">
                     <div className="flex items-center justify-between">

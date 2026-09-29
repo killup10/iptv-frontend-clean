@@ -980,3 +980,78 @@ export async function searchGlobal(searchQuery, limit = 20, page = 1, options = 
   console.log(`[SearchGlobal] ${results.length} resultados para "${searchQuery}" (${videos.length} VOD, ${channels.length} canales)`);
   return results;
 }
+
+// === GESTIÓN DE PEDIDOS / CLIENT REQUESTS ===
+export async function getClientRequests(params = {}) {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const res = await axiosInstance.get(`/api/requests${query ? `?${query}` : ''}`);
+    return res.data || { requests: [], total: 0 };
+  } catch (error) {
+    console.warn('[getClientRequests] Error al obtener pedidos del backend:', error?.message);
+    return { requests: [], total: 0 };
+  }
+}
+
+export async function createClientRequest(requestData) {
+  const res = await axiosInstance.post('/api/requests', requestData);
+  return res.data;
+}
+
+export async function fulfillClientRequest(requestId, videoId) {
+  const res = await axiosInstance.put(`/api/requests/${requestId}/fulfill`, { videoId });
+  return res.data;
+}
+
+export async function deleteClientRequest(requestId) {
+  const res = await axiosInstance.delete(`/api/requests/${requestId}`);
+  return res.data;
+}
+
+export async function searchTMDB(query) {
+  if (!query || !query.trim()) return [];
+  const cleanQuery = query.trim();
+
+  // Intento 1: A través de la API backend de TeamG
+  try {
+    const res = await axiosInstance.get(`/api/requests/tmdb-search?query=${encodeURIComponent(cleanQuery)}`);
+    if (res.data?.results && Array.isArray(res.data.results) && res.data.results.length > 0) {
+      return res.data.results;
+    }
+  } catch (backendError) {
+    console.warn('[searchTMDB] Backend no disponible o error, usando fallback directo a TMDB:', backendError?.message);
+  }
+
+  // Intento 2 (Fallback directo): Consulta directa a TMDB API (garantiza búsqueda 100% operativa)
+  try {
+    const tmdbApiKey = '9a918356a86407beac5efae2a78bf1c4';
+    const tmdbUrl = `https://api.themoviedb.org/3/search/multi?api_key=${tmdbApiKey}&language=es-MX&query=${encodeURIComponent(cleanQuery)}&page=1&include_adult=false`;
+
+    const rawRes = await fetch(tmdbUrl);
+    if (!rawRes.ok) {
+      throw new Error(`TMDB Direct API returned ${rawRes.status}`);
+    }
+
+    const data = await rawRes.json();
+    const rawResults = data?.results || [];
+
+    return rawResults
+      .filter((item) => item.media_type === 'movie' || item.media_type === 'tv')
+      .map((item) => ({
+        id: item.id,
+        title: item.title || item.name || '',
+        originalTitle: item.original_title || item.original_name || '',
+        mediaType: item.media_type === 'tv' ? 'serie' : 'pelicula',
+        poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : '',
+        backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : '',
+        year: (item.release_date || item.first_air_date || '').substring(0, 4),
+        overview: item.overview || '',
+        voteAverage: item.vote_average || 0,
+      }));
+  } catch (fallbackError) {
+    console.error('[searchTMDB] Error tanto en backend como en TMDB directo:', fallbackError);
+    throw fallbackError;
+  }
+}
+
+

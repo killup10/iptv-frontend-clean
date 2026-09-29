@@ -243,8 +243,18 @@ export function Watch() {
   const [videoUrl, setVideoUrl] = useState("");
   const [bounds, setBounds] = useState(null);
   const [currentChapterInfo, setCurrentChapterInfo] = useState(null);
-  const [channelList, setChannelList] = useState([]);
-  const [channelListReady, setChannelListReady] = useState(itemType !== 'channel');
+  const [channelList, setChannelList] = useState(() => {
+    if (Array.isArray(location.state?.channels) && location.state.channels.length > 0) {
+      return location.state.channels
+        .map((channel) => normalizeWatchChannel(channel))
+        .filter((channel) => channel.id);
+    }
+    return [];
+  });
+  const [channelListReady, setChannelListReady] = useState(() => {
+    if (itemType !== 'channel') return true;
+    return Array.isArray(location.state?.channels) && location.state.channels.length > 0;
+  });
   const [currentChannelIndex, setCurrentChannelIndex] = useState(-1);
   const [isReloadingChannel, setIsReloadingChannel] = useState(false);
   const [channelPlaybackIssue, setChannelPlaybackIssue] = useState(null);
@@ -277,6 +287,7 @@ export function Watch() {
   const [accessModalData, setAccessModalData] = useState(null);
 
   const videoAreaRef = useRef(null);
+  const lastPlayedMpvUrlRef = useRef(null);
   const channelControlRefs = useRef([]);
   const guideSectionRef = useRef(null);
   const channelPickerInputRef = useRef(null);
@@ -624,30 +635,45 @@ export function Watch() {
     }
   }, [itemId, location.state]);
 
+  // Limpiar cualquier ruta /watch guardada previamente en cache local que pueda causar loops
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('watch_from_location');
+      if (cached && String(cached).startsWith('/watch')) {
+        localStorage.removeItem('watch_from_location');
+      }
+    } catch (e) {}
+  }, []);
+
   // Guardar el origen de la navegación en localStorage como fallback (útil para Electron/HashRouter)
   useEffect(() => {
     if (location.state?.from || location.state?.fromSection) {
       try {
-        localStorage.setItem('watch_from_timestamp', String(Date.now()));
-        if (location.state.from) {
-          localStorage.setItem('watch_from_location', location.state.from);
-        } else {
-          localStorage.removeItem('watch_from_location');
+        const fromStr = location.state.from ? String(location.state.from) : '';
+        const isFromWatch = fromStr.startsWith('/watch');
+
+        if (!isFromWatch) {
+          localStorage.setItem('watch_from_timestamp', String(Date.now()));
+          if (location.state.from) {
+            localStorage.setItem('watch_from_location', location.state.from);
+          } else {
+            localStorage.removeItem('watch_from_location');
+          }
+          if (location.state.fromSection) {
+            localStorage.setItem('watch_from_section', location.state.fromSection);
+          } else {
+            localStorage.removeItem('watch_from_section');
+          }
+          if (location.state.returnState && !location.state.returnState?.isDetailReturn) {
+            localStorage.setItem('watch_return_state', JSON.stringify(location.state.returnState));
+          } else if (!location.state.returnState) {
+            localStorage.removeItem('watch_return_state');
+          }
+          console.log('[Watch] ✅ Estado de navegación respaldado en cache local:', {
+            from: location.state.from,
+            fromSection: location.state.fromSection
+          });
         }
-        if (location.state.fromSection) {
-          localStorage.setItem('watch_from_section', location.state.fromSection);
-        } else {
-          localStorage.removeItem('watch_from_section');
-        }
-        if (location.state.returnState) {
-          localStorage.setItem('watch_return_state', JSON.stringify(location.state.returnState));
-        } else {
-          localStorage.removeItem('watch_return_state');
-        }
-        console.log('[Watch] ✅ Estado de navegación respaldado en cache local:', {
-          from: location.state.from,
-          fromSection: location.state.fromSection
-        });
       } catch (e) {
         console.error('[Watch] Error al respaldar navegación en localStorage:', e);
       }
@@ -702,25 +728,51 @@ export function Watch() {
     ));
   }, [channelList, channelSearch]);
 
+  // Generalizar en "Series" todo contenido con episodios (series, animes, doramas, novelas, documentales, zona kids, etc.)
+  // exclusivamente para la función "Cambiar Serie / Buscar"
+  const isSeriesOrEpisodic = useMemo(() => {
+    if (itemType === 'channel') return false;
+    if (Array.isArray(itemData?.seasons) && itemData.seasons.length > 0) return true;
+    if (Array.isArray(itemData?.chapters) && itemData.chapters.length > 0) return true;
+    const currentType = String(itemData?.tipo || itemType || '').toLowerCase();
+    const currentSubtype = String(itemData?.subtipo || '').toLowerCase();
+    const episodicTypes = ['serie', 'series', 'anime', 'dorama', 'novela', 'documental', 'zona kids', 'kids', 'tv'];
+    if (episodicTypes.includes(currentType) || episodicTypes.includes(currentSubtype)) {
+      return true;
+    }
+    if (currentType && currentType !== 'pelicula' && currentType !== 'movie') {
+      return true;
+    }
+    return false;
+  }, [itemData?.chapters, itemData?.seasons, itemData?.subtipo, itemData?.tipo, itemType]);
+
   useEffect(() => {
     if (!isMoviePickerOpen) return;
     let isCancelled = false;
     const fetchMoviesForPicker = async () => {
       setIsSearchingMovies(true);
       try {
+        const queryParams = {
+          search: movieSearch ? movieSearch.trim() : undefined,
+          limit: 30
+        };
+
+        if (isSeriesOrEpisodic) {
+          // Generalizar en Series todo lo que tenga episodios (doramas, animes, documentales, zona kids, novelas, etc.)
+          queryParams.excludeTipo = 'pelicula';
+        } else {
+          queryParams.tipo = 'pelicula';
+        }
+
         const response = await axiosInstance.get('/api/videos', {
-          params: {
-            tipo: itemData?.tipo || 'pelicula',
-            search: movieSearch ? movieSearch.trim() : undefined,
-            limit: 30
-          }
+          params: queryParams
         });
         if (!isCancelled) {
           const results = response.data?.videos || response.data || [];
           setMovieSearchResults(Array.isArray(results) ? results : []);
         }
       } catch (err) {
-        console.warn('[Watch] Error buscando películas para selector:', err);
+        console.warn('[Watch] Error buscando contenido para selector:', err);
       } finally {
         if (!isCancelled) setIsSearchingMovies(false);
       }
@@ -730,26 +782,61 @@ export function Watch() {
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [isMoviePickerOpen, movieSearch, itemData?.tipo]);
+  }, [isMoviePickerOpen, movieSearch, isSeriesOrEpisodic]);
 
   const handleSelectMovie = (movie) => {
     setIsMoviePickerOpen(false);
     setMovieSearch('');
     const targetType = movie.tipo || 'movie';
-    // BACK desde el nuevo detalle vuelve aqui (misma seccion del detalle).
+
+    // Detener MPV en Electron antes de cambiar
+    if (window.electronMPV) {
+      suppressMpvClosedRef.current = true;
+      window.electronMPV.stop().catch(() => {});
+      setTimeout(() => {
+        suppressMpvClosedRef.current = false;
+      }, 1200);
+    }
+
+    try {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+        VideoPlayerPlugin.stopVideo().catch(() => {});
+      }
+      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+        backgroundPlaybackService.stopPlayback().catch(() => {});
+      }
+    } catch (e) {}
+
+    setError(null);
+    setLoading(true);
+    setVideoUrl('');
+    setItemData(null);
+
+    // Preservar el origen original (Home, Películas, Series, etc.)
+    // Cambiar de contenido sustituye la reproducción actual (igual que handleSelectChannel),
+    // garantizando que al presionar Salir / Volver se regrese directo a Home/catálogo.
+    const cachedLoc = localStorage.getItem('watch_from_location');
+    const validCachedLoc = cachedLoc && !cachedLoc.startsWith('/watch') ? cachedLoc : null;
+    const currentFrom = location.state?.from && !String(location.state.from).startsWith('/watch')
+      ? location.state.from
+      : validCachedLoc;
+    const rootFrom = currentFrom || '/';
+    const rootFromSection = location.state?.fromSection || localStorage.getItem('watch_from_section') || undefined;
+
+    const nextState = {
+      ...(location.state || {}),
+      from: rootFrom,
+      fromSection: rootFromSection,
+      returnState: location.state?.returnState?.isDetailReturn ? undefined : location.state?.returnState,
+      continueWatching: false,
+      startTime: 0,
+    };
+    delete nextState.seasonIndex;
+    delete nextState.chapterIndex;
+
     navigate(`/watch/${targetType}/${movie._id || movie.id}`, {
-      state: {
-        from: location.pathname,
-        returnState: {
-          isDetailReturn: true,
-          detailSection: focusedVodDetailSection,
-          vodActionIndex: focusedVodActionIndex,
-          seasonIndex: focusedSeasonIndex,
-          episodeIndex: focusedEpisodeIndex,
-          recommendationIndex: focusedRecommendationIndex,
-          toolbarIndex: focusedToolbarIndex,
-        },
-      },
+      replace: true,
+      state: nextState,
     });
   };
 
@@ -1810,9 +1897,18 @@ export function Watch() {
       toolbarIndex: focusedToolbarIndex,
     };
 
+    // Preservar la ruta raíz original para que si el usuario regresa al detalle previo,
+    // ese detalle aún recuerde cómo salir a Home o al catálogo principal.
+    const cachedLoc = localStorage.getItem('watch_from_location');
+    const validCachedLoc = cachedLoc && !cachedLoc.startsWith('/watch') ? cachedLoc : null;
+    const rootFrom = location.state?.rootFrom || (location.state?.from && !String(location.state.from).startsWith('/watch') ? location.state.from : validCachedLoc) || '/';
+    const rootFromSection = location.state?.rootFromSection || location.state?.fromSection || localStorage.getItem('watch_from_section') || undefined;
+
     navigate(`/watch/${recommendationType}/${recommendationId}`, {
       state: {
         from: location.pathname,
+        rootFrom,
+        rootFromSection,
         returnState: detailReturnState,
       },
     });
@@ -1824,6 +1920,7 @@ export function Watch() {
     focusedVodActionIndex,
     focusedVodDetailSection,
     location.pathname,
+    location.state,
     navigate,
   ]);
 
@@ -2613,7 +2710,7 @@ export function Watch() {
     console.log({
       isElectronEnv,
       videoUrl,
-      bounds,
+      hasBounds: !!bounds,
       startTime,
       itemData,
       currentChapterInfo
@@ -2626,6 +2723,12 @@ export function Watch() {
       }
       return;
     }
+
+    // Evitar reiniciar MPV si ya se está reproduciendo la misma URL
+    if (lastPlayedMpvUrlRef.current === videoUrl) {
+      return;
+    }
+    lastPlayedMpvUrlRef.current = videoUrl;
 
     const initializeMPV = async (retryCount = 0) => {
       suppressMpvClosedRef.current = true;
@@ -2712,6 +2815,7 @@ export function Watch() {
     }
 
     return () => {
+      lastPlayedMpvUrlRef.current = null;
       if (window.electronMPV) {
         suppressMpvClosedRef.current = true;
         window.electronMPV.stop().catch(err => {
@@ -2728,12 +2832,17 @@ export function Watch() {
         window.electronAPI.removeListener('mpv-closed', handleMpvClosed);
       }
     };
-  }, [videoUrl, bounds?.x, bounds?.y, bounds?.width, bounds?.height, startTime, itemType, itemId, itemData?.id]);
+  }, [videoUrl, Boolean(bounds), itemId]);
 
   // 5) Sincronización de bounds
   useEffect(() => {
     const isElectronEnv = typeof window !== "undefined" && window.electronMPV;
     if (!bounds || !isElectronEnv) return;
+
+    // Actualizar bounds en MPV dinámicamente si cambian sin reiniciar el proceso
+    try {
+      window.electronMPV.updateBounds(bounds);
+    } catch {}
 
     const removeListener = window.electronMPV.onRequestVideoBoundsSync(() => {
       if (videoAreaRef.current) {
@@ -2750,7 +2859,7 @@ export function Watch() {
     return () => {
       removeListener();
     };
-  }, [bounds]);
+  }, [bounds?.x, bounds?.y, bounds?.width, bounds?.height]);
 
   // Limpieza al desmontar
   useEffect(() => {
@@ -2801,6 +2910,9 @@ export function Watch() {
   }, []);
 
   const stopPlaybackSafely = useCallback(() => {
+    // En PC/Electron no usamos VideoPlayerPlugin ni backgroundPlayback de Android
+    if (typeof window !== 'undefined' && window.electronMPV) return;
+
     try {
       if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
         backgroundPlaybackService.stopPlayback().catch(err => {
@@ -2935,7 +3047,10 @@ export function Watch() {
     const cachedTimestamp = localStorage.getItem('watch_from_timestamp');
     const isNavigationCacheValid = cachedTimestamp && (Date.now() - Number(cachedTimestamp) < 60 * 60 * 1000); // Válido por 1 hora
 
-    const fromLocation = location.state?.from || (isNavigationCacheValid ? localStorage.getItem('watch_from_location') : null);
+    const rawCachedLocation = isNavigationCacheValid ? localStorage.getItem('watch_from_location') : null;
+    const validCachedLocation = rawCachedLocation && !rawCachedLocation.startsWith('/watch') ? rawCachedLocation : null;
+
+    let fromLocation = location.state?.from || validCachedLocation;
     const fromSection = location.state?.fromSection || (isNavigationCacheValid ? localStorage.getItem('watch_from_section') : null);
     
     let returnState = location.state?.returnState;
@@ -2949,6 +3064,15 @@ export function Watch() {
         console.error('[Watch.jsx] Error al parsear watch_return_state desde cache:', e);
       }
     }
+
+    // Prevenir bucle infinito: si fromLocation apunta a la misma ruta actual o al mismo itemId
+    if (fromLocation && (fromLocation === location.pathname || String(fromLocation).includes(String(itemId)))) {
+      console.warn('[Watch.jsx] fromLocation apunta a la misma ruta/contenido actual, descartando loop:', fromLocation);
+      fromLocation = null;
+      try {
+        localStorage.removeItem('watch_from_location');
+      } catch (e) {}
+    }
     
     console.log('[Watch.jsx] fromSection:', fromSection, 'fromLocation:', fromLocation, 'returnState:', returnState, 'isNavigationCacheValid:', isNavigationCacheValid);
     
@@ -2957,7 +3081,16 @@ export function Watch() {
       // de foco (seccion/item de Home, selectedIndex de grillas, o seccion
       // del detalle si venimos de otro watch). Nunca al sidebar.
       if (String(fromLocation).startsWith('/watch/')) {
-        navigate(fromLocation, returnState ? { state: { returnState }, replace: true } : { replace: true });
+        const rootFrom = location.state?.rootFrom || validCachedLocation || '/';
+        const rootFromSection = location.state?.rootFromSection || fromSection || null;
+        navigate(fromLocation, {
+          replace: true,
+          state: {
+            returnState,
+            from: rootFrom,
+            fromSection: rootFromSection,
+          },
+        });
       } else {
         navigate(fromLocation, returnState ? { state: returnState, replace: true } : { replace: true });
       }
@@ -3144,7 +3277,12 @@ export function Watch() {
     nextEpisodeNavigationRef.current = { key: targetKey, ts: now };
     navigate(`/watch/${itemType}/${itemId}`, {
       replace: true,
-      state: { seasonIndex, chapterIndex, continueWatching: true }
+      state: {
+        ...(location.state || {}),
+        seasonIndex,
+        chapterIndex,
+        continueWatching: true,
+      },
     });
   };
 
@@ -3223,6 +3361,8 @@ export function Watch() {
   }, [currentChannelIndex, location.state, navigate, stopPlaybackSafely]);
 
   const handleNativePlayerClosed = useCallback((data = {}) => {
+    // En PC/Electron no usamos listeners de reproductor nativo Android
+    if (typeof window !== 'undefined' && window.electronMPV) return;
     if (itemType !== 'channel') {
       return;
     }
@@ -3691,14 +3831,16 @@ export function Watch() {
       suppressMpvClosedRef.current = false;
     }, 1200);
 
-    try {
-      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
-        VideoPlayerPlugin.stopVideo().catch(() => {});
-      }
-      if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
-        backgroundPlaybackService.stopPlayback().catch(() => {});
-      }
-    } catch (e) {}
+    if (!window?.electronMPV) {
+      try {
+        if (VideoPlayerPlugin && typeof VideoPlayerPlugin.stopVideo === 'function') {
+          VideoPlayerPlugin.stopVideo().catch(() => {});
+        }
+        if (backgroundPlaybackService && typeof backgroundPlaybackService.stopPlayback === 'function') {
+          backgroundPlaybackService.stopPlayback().catch(() => {});
+        }
+      } catch (e) {}
+    }
 
     setChannelPlaybackIssue(null);
     setChannelPlaybackDismissed(false);
@@ -4758,7 +4900,7 @@ export function Watch() {
                       }`}
                     >
                       <span>🎬</span>
-                      <span>Cambiar Película / Buscar</span>
+                      <span>{isSeriesOrEpisodic ? 'Cambiar Serie / Buscar' : 'Cambiar Película / Buscar'}</span>
                     </button>
                     {smartRecommendations && smartRecommendations.length > 0 && (
                       <button
@@ -4795,7 +4937,7 @@ export function Watch() {
                         type="text"
                         value={movieSearch}
                         onChange={(e) => setMovieSearch(e.target.value)}
-                        placeholder="Escribe el nombre de la película o título para cambiar..."
+                        placeholder={isSeriesOrEpisodic ? "Escribe el nombre de la serie o título para cambiar..." : "Escribe el nombre de la película o título para cambiar..."}
                         className="flex-1 rounded-xl bg-zinc-900 border border-white/10 px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
                       />
                       <button
@@ -4810,7 +4952,7 @@ export function Watch() {
                       {isSearchingMovies ? (
                         <div className="py-8 text-center text-sm text-gray-400">
                           <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent mr-2" />
-                          Buscando títulos...
+                          {isSeriesOrEpisodic ? 'Buscando series y episodios...' : 'Buscando películas...'}
                         </div>
                       ) : movieSearchResults.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -4859,7 +5001,7 @@ export function Watch() {
                         </div>
                       ) : (
                         <div className="text-sm text-gray-400 py-6 text-center">
-                          No se encontraron títulos con esa búsqueda.
+                          {isSeriesOrEpisodic ? 'No se encontraron series con esa búsqueda.' : 'No se encontraron títulos con esa búsqueda.'}
                         </div>
                       )}
                     </div>
@@ -4985,6 +5127,7 @@ export function Watch() {
                   loading={smartRecommendationsLoading}
                   error={smartRecommendationsError}
                   onRetry={retrySmartRecommendations}
+                  onVideoClick={(video) => handleSelectMovie(video)}
                   title="Quizás también te guste este título"
                   maxItems={12}
                 />

@@ -89,7 +89,7 @@ function AppTV() {
         isOpen: true,
         latestVersion: d.latestVersion || prev.latestVersion || '1.5.11',
         notes: d.error || prev.notes || 'Tu versión ya no es compatible. Actualiza para continuar.',
-        downloadUrl: prev.downloadUrl || 'https://teamg.store/teamgplay2TV.apk',
+        downloadUrl: prev.downloadUrl || d.url || 'https://teamg.store/teamgplay2TV.apk',
         force: true,
       }));
     };

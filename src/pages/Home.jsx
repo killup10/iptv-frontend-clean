@@ -24,7 +24,7 @@ import {
 } from '../utils/api.js';
 import TrailerModal from '../components/TrailerModal.jsx';
 import { useContentAccess } from '../hooks/useContentAccess.js';
-import { Bolt, Download, Headphones, Heart, Laptop, ShieldCheck, Smartphone } from 'lucide-react';
+import { Bolt, WifiOff, Headphones, Heart, Laptop, ShieldCheck, Smartphone } from 'lucide-react';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import CoverCarousel from '../components/CoverCarousel.jsx';
 import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
@@ -1013,9 +1013,9 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
       icon: Heart,
     },
     {
-      title: 'Descargas',
+      title: 'Modo Offline',
       description: 'Ve sin conexion cuando quieras',
-      icon: Download,
+      icon: WifiOff,
     },
     {
       title: 'Soporte 24/7',
@@ -1197,6 +1197,8 @@ onProceedWithTrial={proceedWithTrial}
             {recentlyAdded.length > 0 && (
               <Carousel
                 title="Recien Agregados"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/recien-agregados')}
                 items={recentlyAdded}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1211,6 +1213,8 @@ onProceedWithTrial={proceedWithTrial}
             {continueWatchingItems.length > 0 && (
               <Carousel
                 title="Continuar Viendo"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/mi-lista')}
                 items={continueWatchingItems}
                 onItemClick={(item) => handleMobileVodSelection(item, 'continue-watching')}
                 onAddToMyListClick={handleAddToMyListSafe}
@@ -1225,6 +1229,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredChannels.length > 0 && (
               <Carousel
                 title="Canales en Vivo Destacados"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/live-tv')}
                 items={featuredChannels}
                 onItemClick={(item) => handleMobileVodSelection(item, 'channel')}
                 itemType="channel"
@@ -1236,6 +1242,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredMovies.length > 0 && (
               <Carousel
                 title="Películas Destacadas"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas')}
                 items={featuredMovies}
                 onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1249,6 +1257,8 @@ onProceedWithTrial={proceedWithTrial}
             {cine4KItems.length > 0 && (
               <Carousel
                 title="Cine 4K Ultra HD"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedMainSectionKey: 'CINE_4K' } })}
                 items={cine4KItems}
                 onItemClick={(item) => handleMobileVodSelection(item, 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1262,6 +1272,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredSeries.length > 0 && (
               <Carousel
                 title="Series Populares"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/series')}
                 items={featuredSeries}
                 onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1275,6 +1287,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredAnimes.length > 0 && (
               <Carousel
                 title="Animes Destacados"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/animes')}
                 items={featuredAnimes}
                 onItemClick={(item) => handleMobileVodSelection(item, 'anime')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1288,6 +1302,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredDoramas.length > 0 && (
               <Carousel
                 title="Series Asiáticas Populares"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/doramas')}
                 items={featuredDoramas}
                 onItemClick={(item) => handleMobileVodSelection(item, 'dorama')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1301,6 +1317,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredNovelas.length > 0 && (
               <Carousel
                 title="Novelas Destacadas"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/novelas')}
                 items={featuredNovelas}
                 onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1314,6 +1332,8 @@ onProceedWithTrial={proceedWithTrial}
             {featuredDocumentales.length > 0 && (
               <Carousel
                 title="Documentales Imperdibles"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/documentales')}
                 items={featuredDocumentales}
                 onItemClick={(item) => handleMobileVodSelection(item, 'serie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1327,6 +1347,8 @@ onProceedWithTrial={proceedWithTrial}
             {adventureItems.length > 0 && (
               <Carousel
                 title="Aventura para Todos"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Aventura', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={adventureItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1341,6 +1363,8 @@ onProceedWithTrial={proceedWithTrial}
             {familyItems.length > 0 && (
               <Carousel
                 title="Para la Familia"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/kids')}
                 items={familyItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1355,6 +1379,8 @@ onProceedWithTrial={proceedWithTrial}
             {horrorItems.length > 0 && (
               <Carousel
                 title="Terror y Suspenso"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={horrorItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1369,6 +1395,8 @@ onProceedWithTrial={proceedWithTrial}
             {actionItems.length > 0 && (
               <Carousel
                 title="Acción y Adrenalina"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Acción', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={actionItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1383,6 +1411,8 @@ onProceedWithTrial={proceedWithTrial}
             {sciFiItems.length > 0 && (
               <Carousel
                 title="Ciencia Ficción y Fantasía"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Ciencia Ficción', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={sciFiItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1397,6 +1427,8 @@ onProceedWithTrial={proceedWithTrial}
             {comedyItems.length > 0 && (
               <Carousel
                 title="Comedia y Risas"
+                actionLabel="Ver más"
+                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Comedia', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={comedyItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}

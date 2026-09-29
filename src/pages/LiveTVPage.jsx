@@ -11,6 +11,8 @@ import Card from '../components/Card.jsx';
 import Toast from '../components/Toast.jsx';
 import EpgGuide from '../components/EpgGuide.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
+import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
+import { getPlayerType, isAndroidTV } from '../utils/platformUtils.js';
 
 
 const formatLiveTime = (iso) => {
@@ -41,11 +43,33 @@ export default function LiveTVPage() {
   const [retryTrigger, setRetryTrigger] = useState(0);
   const [viewMode, setViewMode] = useState(() => {
     try {
-      return location.state?.viewMode || localStorage.getItem('livetv_view_mode') || 'grid';
+      return location.state?.viewMode || localStorage.getItem('livetv_view_mode') || 'guide';
     } catch {
-      return 'grid';
+      return 'guide';
     }
   });
+
+  // Forzar orientación horizontal (landscape) fluida en Android al estar en Guía TV
+  useEffect(() => {
+    const isMobileAndroid = getPlayerType() === 'android' && !isAndroidTV();
+    if (!isMobileAndroid) return;
+
+    if (viewMode === 'guide') {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.setScreenOrientation === 'function') {
+        VideoPlayerPlugin.setScreenOrientation({ orientation: 'landscape' }).catch(() => {});
+      }
+    } else {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.setScreenOrientation === 'function') {
+        VideoPlayerPlugin.setScreenOrientation({ orientation: 'portrait' }).catch(() => {});
+      }
+    }
+
+    return () => {
+      if (VideoPlayerPlugin && typeof VideoPlayerPlugin.setScreenOrientation === 'function') {
+        VideoPlayerPlugin.setScreenOrientation({ orientation: 'sensor' }).catch(() => {});
+      }
+    };
+  }, [viewMode]);
 
   const handleSetViewMode = (mode) => {
     setViewMode(mode);
@@ -144,6 +168,7 @@ export default function LiveTVPage() {
         selectedCategory,
         searchTerm,
         viewMode,
+        channels: (allChannels && allChannels.length > 0 ? allChannels : displayedChannels),
       },
     });
   };
@@ -217,17 +242,17 @@ export default function LiveTVPage() {
           <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-700">
             <button
               type="button"
-              onClick={() => handleSetViewMode('grid')}
-              className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
-            >
-              ▦ Canales
-            </button>
-            <button
-              type="button"
               onClick={() => handleSetViewMode('guide')}
               className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'guide' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
             >
               📅 Guía
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetViewMode('grid')}
+              className={`flex-1 px-4 py-2.5 text-sm font-bold transition-colors sm:flex-none ${viewMode === 'grid' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              ▦ Canales
             </button>
           </div>
           <input

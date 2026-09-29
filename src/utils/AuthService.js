@@ -1,7 +1,8 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
-import axiosInstance, { apiBaseURL } from "./axiosInstance.js";
+import axiosInstance, { apiBaseURL, APP_VERSION } from "./axiosInstance.js";
 import { storage } from "./storage.js";
 import { getOrCreateDeviceId } from "./deviceIdentity.js";
+import { getPlatformName } from "./platformUtils.js";
 
 export const login = async (username, password, unlinkDeviceId = null) => {
   const deviceId = await getOrCreateDeviceId();
@@ -32,6 +33,8 @@ export const login = async (username, password, unlinkDeviceId = null) => {
         headers: {
           "Content-Type": "application/json",
           "x-device-id": deviceId,
+          "x-app-version": APP_VERSION,
+          "x-teamg-client": getPlatformName() || "tv",
         },
         data: requestPayload,
         connectTimeout: 20000,

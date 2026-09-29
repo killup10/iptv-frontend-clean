@@ -1,12 +1,23 @@
 // electron.cjs
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const net = require('net');
 const isDev = process.env.NODE_ENV === 'development';
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL || 'http://127.0.0.1:5173';
-const MAIN_DEBUG_LOG = path.join(__dirname, 'electron-main-debug.log');
+
+// Permitir autoplay de audio multimedia y streaming sin interacción previa
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+function getMainDebugLogPath() {
+  try {
+    if (app && typeof app.getPath === 'function') {
+      return path.join(app.getPath('userData'), 'electron-main-debug.log');
+    }
+  } catch {}
+  return path.join(__dirname, 'electron-main-debug.log');
+}
 
 function logMainDebug(...parts) {
   const message = parts
@@ -26,7 +37,7 @@ function logMainDebug(...parts) {
     .join(' ');
 
   try {
-    fs.appendFileSync(MAIN_DEBUG_LOG, `[${new Date().toISOString()}] ${message}\n`);
+    fs.appendFileSync(getMainDebugLogPath(), `[${new Date().toISOString()}] ${message}\n`);
   } catch {}
 }
 
@@ -238,6 +249,8 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
       mpvSocket.on('error', (err) => {
         console.warn('[MPV Socket] Error de conexión:', err.message);
         mpvSocketConnected = false;
+        try { mpvSocket.destroy(); } catch {}
+        reject(err);
       });
       
       mpvSocket.on('close', () => {
@@ -245,13 +258,14 @@ function setupMPVSocketListener(pipePath = '\\\\.\\pipe\\mpv-socket') {
         mpvSocketConnected = false;
       });
       
-      // Timeout de 3 segundos para conexión
+      // Timeout de 2 segundos para conexión inicial
       setTimeout(() => {
         if (!mpvSocketConnected) {
           console.warn('[MPV Socket] Timeout en conexión, continuando sin socket');
+          try { mpvSocket?.destroy(); } catch {}
           reject(new Error('Timeout conectando al socket'));
         }
-      }, 3000);
+      }, 2000);
       
     } catch (err) {
       console.error('[MPV Socket] Error general:', err);
@@ -277,6 +291,28 @@ function createMainWindow() {
 
   // Quitar el menú por defecto (File, Edit, View, etc)
   mainWindow.removeMenu();
+
+  // Permitir reproducción de audio/video de YouTube sin bloqueo de Origin ni X-Frame-Options
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+    (details, callback) => {
+      details.requestHeaders['Origin'] = 'https://www.youtube.com';
+      details.requestHeaders['Referer'] = 'https://www.youtube.com/';
+      callback({ cancel: false, requestHeaders: details.requestHeaders });
+    }
+  );
+
+  session.defaultSession.webRequest.onHeadersReceived(
+    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+    (details, callback) => {
+      const headers = { ...details.responseHeaders };
+      delete headers['x-frame-options'];
+      delete headers['X-Frame-Options'];
+      delete headers['content-security-policy'];
+      delete headers['Content-Security-Policy'];
+      callback({ cancel: false, responseHeaders: headers });
+    }
+  );
 
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('[Electron Main] Renderer loaded successfully.');
@@ -428,6 +464,129 @@ ipcMain.handle('teamg-http-request', async (_event, requestConfig = {}) => {
   }
 });
 
+const ytMusicCache = new Map();
+const YT_MUSIC_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const PIPED_FALLBACKS = [
+  'https://pipedapi.adminforge.de',
+  'https://pipedapi.reallyaweso.me',
+  'https://pipedapi.leptons.xyz',
+];
+const INVIDIOUS_FALLBACKS = [
+  'https://inv.tux.pizza',
+  'https://invidious.nerdvpn.de',
+  'https://yt.artemislena.eu',
+  'https://iv.melmac.space',
+];
+
+// Extrae videoIds en orden de relevancia parseando los bloques videoRenderer
+// de ytInitialData (salta Shorts, directos y próximos estrenos).
+function extractYouTubeIdsFromHtml(html, maxCandidates = 6) {
+  const found = [];
+  const push = (id) => {
+    if (/^[a-zA-Z0-9_-]{11}$/.test(id) && !found.includes(id)) found.push(id);
+  };
+  const vrRegex = /"videoRenderer":\s*\{"videoId":"([a-zA-Z0-9_-]{11})"/g;
+  let m;
+  while ((m = vrRegex.exec(html)) !== null && found.length < maxCandidates) {
+    const window = html.slice(m.index, m.index + 2500);
+    if (window.includes('/shorts/') || window.includes('"style":"SHORTS"')) continue;
+    if (window.includes('"style":"UPCOMING"') || window.includes('upcomingEventData')) continue;
+    push(m[1]);
+  }
+  if (found.length === 0) {
+    const generic = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+    while ((m = generic.exec(html)) !== null && found.length < maxCandidates) push(m[1]);
+  }
+  return found;
+}
+
+async function resolveYouTubeViaPiped(query) {
+  for (const inst of PIPED_FALLBACKS) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(inst + '/search?q=' + encodeURIComponent(query + ' audio') + '&filter=videos', {
+        headers: { Accept: 'application/json', 'User-Agent': 'TeamGPlay/1.0' },
+        signal: controller.signal,
+      });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const items = data.items || [];
+      const video = items.find((v) => v.url && v.url.includes('/watch?v='));
+      const idMatch = video ? String(video.url).match(/v=([a-zA-Z0-9_-]{11})/) : null;
+      if (idMatch) return idMatch[1];
+    } catch {}
+  }
+  return null;
+}
+
+async function resolveYouTubeViaInvidious(query) {
+  for (const inst of INVIDIOUS_FALLBACKS) {
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(inst + '/api/v1/search?q=' + encodeURIComponent(query + ' audio') + '&type=video', {
+        headers: { Accept: 'application/json', 'User-Agent': 'TeamGPlay/1.0' },
+        signal: controller.signal,
+      });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data) && data[0] && data[0].videoId) return data[0].videoId;
+    } catch {}
+  }
+  return null;
+}
+
+ipcMain.handle('music-get-youtube-id', async (_event, query) => {
+  if (!query) return null;
+  const cleanQuery = String(query).trim();
+  const cached = ytMusicCache.get(cleanQuery);
+  if (cached && (Date.now() - cached.ts) < YT_MUSIC_CACHE_TTL_MS) {
+    return cached.id;
+  }
+  if (ytMusicCache.size > 2000) {
+    const oldest = ytMusicCache.keys().next().value;
+    ytMusicCache.delete(oldest);
+  }
+  // 1) HTML de YouTube con parseo de relevancia (sp=EgIQAQ== => solo videos)
+  try {
+    const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(cleanQuery + ' audio') + '&sp=EgIQAQ%253D%253D';
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        Accept: 'text/html',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    if (res.ok) {
+      const html = await res.text();
+      // consent/bot-wall: sin resultados reales -> pasar a fallbacks
+      if (!html.includes('consent.youtube.com') && html.length > 50000) {
+        const ids = extractYouTubeIdsFromHtml(html);
+        if (ids.length > 0) {
+          ytMusicCache.set(cleanQuery, { id: ids[0], ts: Date.now() });
+          return ids[0];
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Electron Main] Error searching YouTube HTML:', err && err.message);
+  }
+  // 2) Piped / 3) Invidious como respaldo (sin CORS desde main)
+  const fallbackId = (await resolveYouTubeViaPiped(cleanQuery)) || (await resolveYouTubeViaInvidious(cleanQuery));
+  if (fallbackId) {
+    ytMusicCache.set(cleanQuery, { id: fallbackId, ts: Date.now() });
+    return fallbackId;
+  }
+  return null;
+});
+
 app.on('before-quit', (event) => {
   if (isAppQuitting) {
     return;
@@ -559,7 +718,8 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     
     args.push('--no-border');
     args.push('--force-window=immediate');
-    args.push('--keep-open=yes');
+    args.push('--idle=yes');
+    args.push('--keep-open=always');
     args.push('--vo=gpu');
     args.push('--gpu-api=d3d11');
     args.push('--hwdec=auto-safe');
@@ -567,7 +727,8 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     args.push('--ytdl=no');
     args.push('--demuxer-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5');
     args.push('--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5');
-    args.push('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    args.push('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 TeamGPlay-Desktop/1.5.11 mpv');
+    args.push('--http-header-fields=x-teamg-client: electron');
     args.push('--volume=70');
     args.push('--osc=yes');
     args.push('--input-default-bindings=yes');
@@ -582,6 +743,7 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     console.log(`[MPV] Lanzando con argumentos:`, args);
     console.log(`[MPV] URL: ${url}, StartTime: ${startTime}`);
+    logMainDebug('[MPV launch]', { url, startTime, args });
 
     // Lanzar MPV con try-catch
     try {
@@ -598,6 +760,7 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     } catch (spawnErr) {
       const errorMsg = `Error al hacer spawn de MPV: ${spawnErr.message}`;
       console.error(`[MPV]`, errorMsg);
+      logMainDebug('[MPV spawn error]', errorMsg);
       return { success: false, error: errorMsg };
     }
 
@@ -605,6 +768,7 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
     mpvProcess.on('error', (err) => {
       const errorMsg = `Error al iniciar MPV: ${err.message}`;
       console.error(`[MPV ERROR]`, errorMsg);
+      logMainDebug('[MPV process error]', errorMsg);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('mpv-error', errorMsg);
       }
@@ -613,18 +777,23 @@ ipcMain.handle('mpv-embed-play', async (_, { url, bounds, startTime, title = 'Te
 
     mpvProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();
-      if (output) console.log(`[MPV stdout]:`, output);
+      if (output) {
+        console.log(`[MPV stdout]:`, output);
+        logMainDebug('[MPV stdout]', output);
+      }
     });
 
     mpvProcess.stderr.on('data', (data) => {
       const stderr = data.toString().trim();
       if (stderr) {
         console.warn(`[MPV stderr]:`, stderr);
+        logMainDebug('[MPV stderr]', stderr);
       }
     });
 
     mpvProcess.on('exit', (code, signal) => {
       console.log(`[MPV] Proceso terminado - código: ${code}, señal: ${signal}`);
+      logMainDebug(`[MPV] Proceso terminado - código: ${code}, señal: ${signal}`, { url });
       mpvEndEventSent = false;
       
       // Notificar al frontend que MPV se cerró para que guarde el progreso

@@ -7,6 +7,8 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
+import android.app.Activity;
+import android.content.pm.ActivityInfo;
 import android.app.UiModeManager;
 import android.os.Build;
 import android.util.Log;
@@ -253,6 +255,34 @@ public class VideoPlayerPlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "Error updating live channels", e);
             call.reject("Error updating live channels: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setScreenOrientation(PluginCall call) {
+        String orientation = call.getString("orientation", "sensor");
+        Activity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> {
+                try {
+                    if ("landscape".equalsIgnoreCase(orientation)) {
+                        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                    } else if ("portrait".equalsIgnoreCase(orientation)) {
+                        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                    } else {
+                        activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                    }
+                    JSObject result = new JSObject();
+                    result.put("success", true);
+                    result.put("orientation", orientation);
+                    call.resolve(result);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error setting screen orientation", e);
+                    call.reject("Error setting screen orientation: " + e.getMessage());
+                }
+            });
+        } else {
+            call.reject("Activity not available");
         }
     }
 

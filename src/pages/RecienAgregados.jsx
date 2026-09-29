@@ -361,7 +361,8 @@ export function RecienAgregados() {
       {isMobile && vodDetail?.item && (
         <MobileVodDetailModal
           item={vodDetail.item}
-          isOpen={vodDetail.isOpen}
+          itemType={vodDetail.itemType || 'movie'}
+          isOpen={Boolean(vodDetail?.item || vodDetail?.isOpen)}
           onClose={closeVodDetail}
           onPlay={handlePlayFromDetail}
           onContinue={handleContinueFromDetail}
