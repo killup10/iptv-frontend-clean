@@ -177,11 +177,57 @@ export function MusicProvider({ children }) {
         navigator.mediaSession.setActionHandler('pause', () => togglePlayRef.current?.());
         navigator.mediaSession.setActionHandler('previoustrack', () => handlePrevRef.current?.());
         navigator.mediaSession.setActionHandler('nexttrack', () => handleNextRef.current?.());
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (details.seekTime !== null && details.seekTime !== undefined && audioRef.current) {
+            audioRef.current.currentTime = details.seekTime;
+          }
+        });
       }
     } catch (err) {
       console.warn('[MusicContext] Error configurando MediaSession:', err);
     }
   }, [currentTrack]);
+
+  // Sincronizar estado play/pause con MediaSession para pantalla de bloqueo en móviles
+  useEffect(() => {
+    if ('mediaSession' in navigator && currentTrack) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying, currentTrack]);
+
+  // Sincronizar posición con la barra scrubber de MediaSession en pantalla de bloqueo
+  useEffect(() => {
+    if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && currentTrack && duration > 0) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(duration, 1),
+          playbackRate: 1.0,
+          position: Math.min(Math.max(currentTime, 0), duration)
+        });
+      } catch (e) {
+        // Ignorar posibles inconsistencias numéricas transitorias
+      }
+    }
+  }, [currentTime, duration, currentTrack]);
+
+  // Escuchar eventos de BackgroundPlaybackService emitidos desde la barra de notificaciones del móvil
+  useEffect(() => {
+    const onBgPlay = () => { if (audioRef.current && audioRef.current.paused) audioRef.current.play().catch(console.warn); };
+    const onBgPause = () => { if (audioRef.current && !audioRef.current.paused) audioRef.current.pause(); };
+    const onBgPrev = () => handlePrevRef.current?.();
+    const onBgNext = () => handleNextRef.current?.();
+
+    window.addEventListener('backgroundPlayback:play', onBgPlay);
+    window.addEventListener('backgroundPlayback:pause', onBgPause);
+    window.addEventListener('backgroundPlayback:prev', onBgPrev);
+    window.addEventListener('backgroundPlayback:next', onBgNext);
+    return () => {
+      window.removeEventListener('backgroundPlayback:play', onBgPlay);
+      window.removeEventListener('backgroundPlayback:pause', onBgPause);
+      window.removeEventListener('backgroundPlayback:prev', onBgPrev);
+      window.removeEventListener('backgroundPlayback:next', onBgNext);
+    };
+  }, []);
 
   // Carga el stream COMPLETO (mp3/m4a directo) en el <audio> nativo.
   // Si no hay stream disponible, delega al iframe YouTube como respaldo.

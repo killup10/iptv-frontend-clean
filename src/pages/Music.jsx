@@ -13,7 +13,8 @@ import {
   Disc3,
   Loader2,
   TrendingUp,
-  LayoutGrid
+  LayoutGrid,
+  ListMusic
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS } from '../services/musicService.js';
@@ -27,10 +28,12 @@ export default function Music() {
     togglePlay, 
     toggleFavorite, 
     isFavorite,
-    favorites 
+    favorites,
+    queue,
+    queueIndex
   } = useMusic();
 
-  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites'
+  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'queue'
   const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
   const [genreTracks, setGenreTracks] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
@@ -133,8 +136,11 @@ export default function Music() {
     if (activeTab === 'favorites') {
       return favorites;
     }
+    if (activeTab === 'queue') {
+      return queue;
+    }
     return topTracks;
-  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites]);
+  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue]);
 
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
@@ -157,7 +163,7 @@ export default function Music() {
                 Top 50 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-400 to-fuchsia-500">Éxitos Globales</span>
               </h1>
               <p className="text-gray-300 text-sm sm:text-base max-w-xl">
-                Escucha los lanzamientos más escuchados del momento, sintoniza radios en vivo o explora por tus géneros: cada tema arranca al instante y cambia solo a su versión completa.
+                Escucha los lanzamientos más escuchados del momento, sintoniza radios en vivo o explora por tus géneros con reproducción instantánea en alta fidelidad.
               </p>
 
               {/* Botones de acción rápida */}
@@ -274,7 +280,19 @@ export default function Music() {
               }`}
             >
               <Heart className="w-4 h-4" />
-              <span>Mis Favoritos ({favorites.length})</span>
+              <span>Mis Me Gusta ({favorites.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition ${
+                activeTab === 'queue'
+                  ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white shadow-lg shadow-purple-500/20'
+                  : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/5'
+              }`}
+            >
+              <ListMusic className="w-4 h-4" />
+              <span>Lista de Reproducción ({queue.length})</span>
             </button>
           </div>
         )}
@@ -463,21 +481,32 @@ export default function Music() {
           </div>
         )}
 
-        {/* CASO D: MIS FAVORITOS */}
+        {/* CASO D: MIS ME GUSTA */}
         {!searchQuery && activeTab === 'favorites' && (
           <div className="space-y-4 animate-in fade-in">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
-              <span>Mis Canciones Favoritas</span>
-              <span className="text-xs text-gray-400 font-normal">({favorites.length})</span>
-            </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-pink-500 fill-pink-500" />
+                  <span>Mis Me Gusta</span>
+                  <span className="text-xs text-gray-400 font-normal">({favorites.length})</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Tus canciones favoritas guardadas para escuchar en cualquier momento, incluso sin conexión a internet.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Modo Offline Disponible
+              </span>
+            </div>
 
             {favorites.length === 0 ? (
               <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
                 <Heart className="w-12 h-12 mx-auto mb-3 text-pink-500/40 animate-pulse" />
-                <p className="text-base font-semibold text-white">Aún no has guardado canciones en favoritos</p>
+                <p className="text-base font-semibold text-white">Aún no has agregado canciones a Mis Me Gusta</p>
                 <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
-                  Dale al icono del corazón en cualquier canción que te guste para que aparezca aquí siempre disponible.
+                  Toca el icono del corazón en cualquier canción que escuches para guardarla en tu lista personal.
                 </p>
               </div>
             ) : (
@@ -490,6 +519,58 @@ export default function Music() {
                     isPlaying={isPlaying && currentTrack?.id === track.id}
                     onPlay={() => playTrack(track, favorites)}
                     isFav={true}
+                    onToggleFav={() => toggleFavorite(track)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CASO: LISTA DE REPRODUCCIÓN */}
+        {!searchQuery && activeTab === 'queue' && (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <ListMusic className="w-5 h-5 text-fuchsia-400" />
+                  <span>Lista de Reproducción</span>
+                  <span className="text-xs text-gray-400 font-normal">({queue.length} canciones en cola)</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Orden de reproducción en curso. Toca cualquier tema para saltar a él directamente.
+                </p>
+              </div>
+              {queue.length > 0 && (
+                <button
+                  onClick={() => playTrack(queue[0], queue)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 hover:from-fuchsia-400 hover:to-pink-400 text-white font-bold text-xs shadow-md shadow-fuchsia-500/20 transition self-start sm:self-auto cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Reproducir desde el inicio</span>
+                </button>
+              )}
+            </div>
+
+            {queue.length === 0 ? (
+              <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
+                <ListMusic className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
+                <p className="text-base font-semibold text-white">La lista de reproducción está vacía</p>
+                <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                  Selecciona cualquier canción o pulsa "Reproducir Todo" en el Top para cargar tu lista de reproducción.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {queue.map((track, idx) => (
+                  <TrackCard 
+                    key={`${track.id}-${idx}`} 
+                    track={track} 
+                    queue={queue}
+                    index={idx + 1}
+                    isPlaying={isPlaying && currentTrack?.id === track.id}
+                    onPlay={() => playTrack(track, queue)}
+                    isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
                   />
                 ))}
@@ -541,12 +622,11 @@ export default function Music() {
 
 // Subcomponente de Tarjeta de Canción / Álbum
 function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav }) {
-  // Duración honesta: sin youtubeId solo existe el preview de 30s.
-  const hasFull = Boolean(track.youtubeId) || Boolean(track.isRadio);
-  const secs = hasFull ? (track.fullDuration || track.duration || 0) : 30;
+  const rawSecs = track.fullDuration || track.duration || 210;
   const durationLabel = track.isRadio
     ? 'EN VIVO'
-    : `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, '0')}`;
+    : `${Math.floor(rawSecs / 60)}:${(rawSecs % 60).toString().padStart(2, '0')}`;
+
   return (
     <div 
       onClick={onPlay}
@@ -594,18 +674,19 @@ function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav 
         </p>
       </div>
 
-      {/* Footer de la tarjeta: Duración y Favorito */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px] text-gray-500">
-        <span
-          className="flex items-center gap-1"
-          title={track.isRadio ? 'Radio en vivo' : hasFull ? 'Canción completa' : 'Vista previa de 30 segundos (se completa al reproducir)'}
-        >
-          <Clock className="w-3 h-3" />
-          {durationLabel}
-          {!track.isRadio && !hasFull && (
-            <span className="ml-1 px-1 rounded bg-white/10 text-gray-400 font-bold">30s</span>
+      {/* Footer de la tarjeta: Género musical, Duración y Favorito */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-[10px]">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {track.genre && (
+            <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-semibold text-[9px] truncate max-w-[85px]">
+              {track.genre}
+            </span>
           )}
-        </span>
+          <span className="flex items-center gap-1 text-gray-400 font-mono">
+            <Clock className="w-3 h-3 text-gray-500" />
+            {durationLabel}
+          </span>
+        </div>
 
         <button
           onClick={(e) => {
@@ -615,6 +696,7 @@ function TrackCard({ track, queue, index, isPlaying, onPlay, isFav, onToggleFav 
           className={`p-1 rounded-full transition ${
             isFav ? 'text-pink-500 hover:text-pink-400' : 'text-gray-500 hover:text-white'
           }`}
+          title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
         >
           <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500' : ''}`} />
         </button>

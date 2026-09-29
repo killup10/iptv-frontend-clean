@@ -415,14 +415,15 @@ async function fetchAndroidStreamViaCapacitor(youtubeId) {
 
     const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
     if (data?.playabilityStatus?.status !== 'OK') return null;
-    const fmts = [
-      ...(data.streamingData?.adaptiveFormats || []),
-      ...(data.streamingData?.formats || [])
-    ].filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
-    if (fmts.length === 0) return null;
 
-    const m4a = fmts.find(f => Number(f.itag) === 140) || fmts.find(f => Number(f.itag) === 139) || fmts[0];
-    return m4a?.url || null;
+    // Priorizar format 18 (MP4 progresivo con AAC completo, sin límite de 1MB/1:04 de Google Video)
+    const fmt18 = (data.streamingData?.formats || []).find(f => Number(f.itag) === 18 && f.url);
+    const chosen = fmt18
+      || (data.streamingData?.adaptiveFormats || []).find(f => Number(f.itag) === 140 && f.url)
+      || (data.streamingData?.adaptiveFormats || []).find(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url)
+      || (data.streamingData?.formats || [])[0];
+
+    return chosen?.url || null;
   } catch (e) {
     console.warn('[MusicService] CapacitorHttp direct audio failed:', e);
     return null;
@@ -442,7 +443,11 @@ export const musicService = {
         timeout: 10000
       });
       if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
-        return res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
+        const mapped = res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
+        try {
+          localStorage.setItem('teamg_music_top_cached', JSON.stringify(mapped));
+        } catch {}
+        return mapped;
       }
     } catch (err) {
       console.warn('[MusicService] Backend charts no disponible, usando feed oficial Apple v2:', err?.message);
@@ -471,7 +476,7 @@ export const musicService = {
             }
           } catch {}
 
-          return results.map((item) => {
+          const mapped = results.map((item) => {
             const lItem = lookupMap.get(String(item.id));
             const rawCover = (lItem && lItem.artworkUrl100) || item.artworkUrl100 || '';
             const hdCover = rawCover
@@ -501,11 +506,26 @@ export const musicService = {
               externalUrl: item.url || '',
             };
           });
+
+          try {
+            localStorage.setItem('teamg_music_top_cached', JSON.stringify(mapped));
+          } catch {}
+
+          return mapped;
         }
       }
     } catch (err) {
       console.warn('[MusicService] Fallback RSS Apple falló:', err);
     }
+
+    // Si no hay conexión (offline), cargar la última caché persistida de éxitos
+    try {
+      const offlineCached = localStorage.getItem('teamg_music_top_cached');
+      if (offlineCached) {
+        const parsed = JSON.parse(offlineCached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
 
     return INITIAL_FEATURED_TRACKS;
   },

@@ -655,18 +655,18 @@ async function fetchInnerTubeAudioFormat(cleanId) {
     if (!res.ok) return null;
     const data = await res.json();
     if (data.playabilityStatus?.status !== 'OK') return null;
-    const fmts = [
-      ...(data.streamingData?.adaptiveFormats || []),
-      ...(data.streamingData?.formats || [])
-    ].filter(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url);
-    if (fmts.length === 0) return null;
+    // Priorizar format 18 (MP4 progresivo con AAC completo, sin el límite de 1MB/1:04 de Google Video)
+    const fmt18 = (data.streamingData?.formats || []).find(f => Number(f.itag) === 18 && f.url);
+    const selectedFmt = fmt18 
+      || (data.streamingData?.adaptiveFormats || []).find(f => Number(f.itag) === 140 && f.url)
+      || (data.streamingData?.adaptiveFormats || []).find(f => f.mimeType && f.mimeType.startsWith('audio/') && f.url)
+      || (data.streamingData?.formats || [])[0];
 
-    const m4a = fmts.find(f => Number(f.itag) === 140) || fmts.find(f => Number(f.itag) === 139) || fmts[0];
-    if (m4a && m4a.url) {
+    if (selectedFmt && selectedFmt.url) {
       const entry = {
-        url: m4a.url,
-        contentLength: Number(m4a.contentLength) || 3500000,
-        mimeType: m4a.mimeType.split(';')[0] || 'audio/mp4',
+        url: selectedFmt.url,
+        contentLength: Number(selectedFmt.contentLength) || 16000000,
+        mimeType: selectedFmt.mimeType.split(';')[0] || 'audio/mp4',
         ts: Date.now()
       };
       if (directAudioCache.size > 500) {

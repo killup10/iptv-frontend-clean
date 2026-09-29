@@ -140,31 +140,10 @@ export default function GlobalMusicPlayer() {
               <p className="text-[11px] sm:text-xs text-gray-400 truncate">
                 {currentTrack.artist}
               </p>
-              {/* Indicador de calidad: completa vs vista previa de 30s */}
-              {!currentTrack.isRadio && (
-                <span
-                  className={`inline-flex items-center gap-1 mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                    audioQuality === 'full'
-                      ? 'text-emerald-300 border-emerald-400/40 bg-emerald-500/10'
-                      : audioQuality === 'loading-full'
-                        ? 'text-amber-300 border-amber-400/40 bg-amber-500/10 animate-pulse'
-                        : audioQuality === 'preview-fallback'
-                          ? 'text-gray-400 border-white/15 bg-white/5'
-                          : 'text-gray-400 border-white/15 bg-white/5'
-                  }`}
-                  title={
-                    audioQuality === 'full'
-                      ? 'Reproduciendo la canción completa'
-                      : audioQuality === 'loading-full'
-                        ? 'Arrancó la vista previa; buscando la versión completa…'
-                        : 'Solo se encontró vista previa de 30 segundos'
-                  }
-                >
-                  {audioQuality === 'full'
-                    ? '● COMPLETA'
-                    : audioQuality === 'loading-full'
-                      ? '◌ BUSCANDO COMPLETA…'
-                      : '○ VISTA PREVIA 30s'}
+              {/* Género musical */}
+              {!currentTrack.isRadio && (currentTrack.genre || currentTrack.album) && (
+                <span className="inline-flex items-center gap-1 mt-0.5 text-[9px] font-bold px-2 py-0.5 rounded-full border border-cyan-400/30 bg-cyan-500/10 text-cyan-300 truncate max-w-[130px]">
+                  {currentTrack.genre || currentTrack.album}
                 </span>
               )}
             </div>
@@ -257,7 +236,7 @@ export default function GlobalMusicPlayer() {
                   <input
                     type="range"
                     min={0}
-                    max={duration || 30}
+                    max={duration || currentTrack.fullDuration || currentTrack.duration || 210}
                     step={0.1}
                     value={displayedTime}
                     onMouseDown={handleSeekMouseDown}
@@ -271,7 +250,7 @@ export default function GlobalMusicPlayer() {
                     }}
                   />
                 </div>
-                <span className="w-9 font-mono">{formatTime(duration || 30)}</span>
+                <span className="w-9 font-mono">{formatTime(duration || currentTrack.fullDuration || currentTrack.duration || 210)}</span>
               </div>
             )}
           </div>
@@ -283,7 +262,7 @@ export default function GlobalMusicPlayer() {
               className={`p-2 rounded-xl transition ${
                 showQueueDrawer ? 'bg-fuchsia-500/20 text-fuchsia-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
-              title="Cola de reproducción"
+              title="Lista de Reproducción"
             >
               <ListMusic className="w-4 h-4" />
             </button>
@@ -324,7 +303,7 @@ export default function GlobalMusicPlayer() {
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
             <div className="flex items-center gap-2">
               <ListMusic className="w-4 h-4 text-cyan-400" />
-              <h3 className="text-sm font-bold text-white">Cola de Reproducción ({queue.length})</h3>
+              <h3 className="text-sm font-bold text-white">Lista de Reproducción ({queue.length})</h3>
             </div>
             <button
               onClick={() => setShowQueueDrawer(false)}
@@ -418,19 +397,22 @@ export default function GlobalMusicPlayer() {
               <h2 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
                 {currentTrack.title}
               </h2>
-              <p className="text-lg text-gray-300 font-medium mb-4">
+              <p className="text-lg text-gray-300 font-medium mb-3">
                 {currentTrack.artist}
               </p>
               {!currentTrack.isRadio && (
-                <p className={`text-[11px] font-bold mb-4 ${
-                  audioQuality === 'full' ? 'text-emerald-300' : audioQuality === 'loading-full' ? 'text-amber-300 animate-pulse' : 'text-gray-400'
-                }`}>
-                  {audioQuality === 'full'
-                    ? '● Canción completa'
-                    : audioQuality === 'loading-full'
-                      ? '◌ Vista previa · buscando versión completa…'
-                      : '○ Vista previa de 30 segundos'}
-                </p>
+                <div className="flex items-center gap-2 mb-4">
+                  {currentTrack.genre && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                      {currentTrack.genre}
+                    </span>
+                  )}
+                  {currentTrack.releaseDate && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 text-gray-300">
+                      {currentTrack.releaseDate}
+                    </span>
+                  )}
+                </div>
               )}
 
               <button
@@ -456,7 +438,7 @@ export default function GlobalMusicPlayer() {
                 <input
                   type="range"
                   min={0}
-                  max={duration || 30}
+                  max={duration || currentTrack.fullDuration || currentTrack.duration || 210}
                   step={0.1}
                   value={displayedTime}
                   onMouseDown={handleSeekMouseDown}
@@ -466,7 +448,7 @@ export default function GlobalMusicPlayer() {
                   onTouchEnd={handleSeekMouseUp}
                   className="w-full h-2 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400"
                 />
-                <span className="w-10 font-mono">{formatTime(duration || 30)}</span>
+                <span className="w-10 font-mono">{formatTime(duration || currentTrack.fullDuration || currentTrack.duration || 210)}</span>
               </div>
             )}
 
