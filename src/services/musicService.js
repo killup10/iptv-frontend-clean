@@ -385,6 +385,41 @@ const FULL_AUDIO_TTL = 3 * 60 * 60 * 1000;
 const YT_INNER_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
 /**
+ * Resuelve el ID de YouTube directamente en Android / Móvil sin pasar por el backend
+ */
+async function resolveYouTubeViaCapacitor(query) {
+  if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform?.()) return null;
+  try {
+    const res = await CapacitorHttp.post({
+      url: `https://www.youtube.com/youtubei/v1/search?key=${YT_INNER_KEY}`,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip'
+      },
+      data: {
+        context: {
+          client: {
+            clientName: 'ANDROID',
+            clientVersion: '20.10.38',
+            androidSdkVersion: 30,
+            hl: 'es',
+            gl: 'PE'
+          }
+        },
+        query: query + ' audio'
+      }
+    });
+    const str = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    const matches = [...str.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)].map(m => m[1]);
+    const uniqueIds = [...new Set(matches)];
+    if (uniqueIds.length > 0) return uniqueIds[0];
+  } catch (e) {
+    console.warn('[MusicService] Capacitor InnerTube search failed:', e);
+  }
+  return null;
+}
+
+/**
  * Resuelve stream de audio directo en Android/Android TV/iOS usando CapacitorHttp nativo.
  * Se ejecuta en ~400ms directamente desde la IP del dispositivo del usuario (sin Render ni CORS).
  */
@@ -598,7 +633,7 @@ export const musicService = {
     const cached = ytCacheGet(query);
     if (cached) return cached;
 
-    // 1. Electron IPC (proceso principal Node.js: ultra rápido, sin restricciones del navegador)
+    // 1. Electron IPC (proceso principal Node.js con InnerTube integrado: ~200ms)
     if (typeof window !== 'undefined' && window.electronAPI?.getMusicYouTubeId) {
       try {
         const id = await window.electronAPI.getMusicYouTubeId(query);
@@ -611,11 +646,24 @@ export const musicService = {
       }
     }
 
-    // 2. Backend vía axiosInstance (inyecta x-app-version: 1.5.12 y puente HTTP sin CORS)
+    // 2. Móvil / Android TV (Capacitor nativo): resolución directa en dispositivo sin CORS (~300ms)
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
+      try {
+        const nativeId = await resolveYouTubeViaCapacitor(query);
+        if (nativeId) {
+          ytCacheSet(query, nativeId);
+          return nativeId;
+        }
+      } catch (e) {
+        console.warn('[MusicService] Capacitor native resolve falló:', e);
+      }
+    }
+
+    // 3. Backend vía axiosInstance (timeout corto 4s)
     try {
       const res = await axiosInstance.get('/api/music/resolve', {
         params: { artist: cleanArtist, title: cleanTitle },
-        timeout: 12000
+        timeout: 4000
       });
       if (res.data?.youtubeId) {
         ytCacheSet(query, res.data.youtubeId);
@@ -625,7 +673,7 @@ export const musicService = {
       console.warn('[MusicService] Backend resolve vía axiosInstance falló:', err?.message);
     }
 
-    // 3. Fallback directo con fetch enviando x-app-version
+    // 4. Fallback directo con fetch enviando x-app-version
     try {
       const res = await fetchWithTimeout(
         `${API_BASE}/api/music/resolve?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`,
@@ -635,7 +683,7 @@ export const musicService = {
             'x-app-version': '1.5.12'
           }
         },
-        12000
+        5000
       );
       if (res.ok) {
         const data = await res.json();

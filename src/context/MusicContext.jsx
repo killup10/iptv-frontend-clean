@@ -96,17 +96,13 @@ export function MusicProvider({ children }) {
     const onError = (e) => {
       console.warn('[MusicContext] Error en audio nativo:', e);
       setIsLoadingAudio(false);
-      // Si falló el STREAM COMPLETO (no el preview): delegar al iframe YouTube
-      const audioEl = audioRef.current;
-      if (
-        audioEl &&
-        fullStreamRef.current &&
-        audioEl.src === fullStreamRef.current &&
-        currentTrackRef.current?.youtubeId
-      ) {
-        console.warn('[MusicContext] Stream completo falló, cambiando a iframe YouTube');
+      const track = currentTrackRef.current;
+      if (track?.youtubeId) {
+        console.warn('[MusicContext] Fallo de audio nativo, conmutando a YouTube iframe:', track.youtubeId);
         fullStreamRef.current = null;
         setPlaybackMode('youtube');
+      } else if (track?.audioUrl) {
+        fallbackToPreview();
       }
     };
 
@@ -248,24 +244,39 @@ export function MusicProvider({ children }) {
     };
   }, []);
 
+  // Watchdog de seguridad: si isLoadingAudio se queda atascado > 5s, liberar el control de UI
+  useEffect(() => {
+    if (!isLoadingAudio) return;
+    const timer = setTimeout(() => {
+      console.warn('[MusicContext] Watchdog: isLoadingAudio activo > 5s, liberando spinner');
+      setIsLoadingAudio(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isLoadingAudio]);
+
   // Carga el stream COMPLETO (mp3/m4a directo) en el <audio> nativo.
-  // Si no hay stream disponible, delega al iframe YouTube como respaldo.
+  // Si no hay stream directo disponible, delega al iframe YouTube como respaldo seguro.
   const loadFullAudio = useCallback(async (track, ytId) => {
     try {
       const url = await musicService.getFullAudioUrl(ytId);
-      // ¿Sigue vigente la misma pista? (el usuario pudo cambiar de canción)
-      if (!url || currentTrackRef.current?.id !== track.id) {
-        if (!url && currentTrackRef.current?.id === track.id) {
-          setPlaybackMode('youtube');
-        }
+      // ¿Sigue vigente la misma pista? (el usuario pudo cambiar de canción rápidamente)
+      if (currentTrackRef.current?.id !== track.id) {
+        return;
+      }
+      if (!url) {
+        console.warn('[MusicContext] Sin stream directo para', ytId, '-> conmutando a YouTube iframe');
+        setPlaybackMode('youtube');
+        setAudioQuality('full');
+        setIsLoadingAudio(false);
         return;
       }
       const audio = audioRef.current;
       if (!audio) {
         setPlaybackMode('youtube');
+        setIsLoadingAudio(false);
         return;
       }
-      // Conservar la posición del preview para un cambio sin saltos
+      // Conservar la posición del preview para un cambio sin saltos si ya estaba sonando
       let pos = 0;
       try { pos = Number.isFinite(audio.currentTime) ? audio.currentTime : 0; } catch {}
       fullStreamRef.current = url;
@@ -276,14 +287,24 @@ export function MusicProvider({ children }) {
         };
         audio.addEventListener('loadedmetadata', restorePos, { once: true });
       }
-      await audio.play().catch(() => {});
+      await audio.play().catch((playErr) => {
+        console.warn('[MusicContext] audio.play() falló en stream directo, conmutando a YouTube iframe:', playErr);
+        if (currentTrackRef.current?.id === track.id) {
+          setPlaybackMode('youtube');
+        }
+      });
       if (currentTrackRef.current?.id === track.id) {
         setAudioQuality('full');
         setPlaybackMode('native');
       }
-    } catch {
+    } catch (e) {
+      console.warn('[MusicContext] Error en loadFullAudio, conmutando a YouTube iframe:', e);
       if (currentTrackRef.current?.id === track.id) {
         setPlaybackMode('youtube');
+      }
+    } finally {
+      if (currentTrackRef.current?.id === track.id) {
+        setIsLoadingAudio(false);
       }
     }
   }, []);
@@ -295,6 +316,7 @@ export function MusicProvider({ children }) {
     fullStreamRef.current = null;
     setPlaybackMode('native');
     setAudioQuality('preview-fallback');
+    setIsLoadingAudio(false);
     if (track && audio && track.audioUrl) {
       try {
         audio.src = track.audioUrl;
@@ -303,15 +325,14 @@ export function MusicProvider({ children }) {
       } catch {}
     }
   }, []);
-  // Reproducir pista: arranque instantáneo con preview (30s) y cambio
-  // automático a canción COMPLETA en cuanto se resuelve.
+
+  // Prefetch de la versión completa de la siguiente pista en segundo plano
   const prefetchNextFullVersion = useCallback((currentQueue, currentIdx) => {
     if (!Array.isArray(currentQueue) || currentQueue.length === 0) return;
     const nextIdx = currentIdx + 1;
     if (nextIdx >= currentQueue.length) return;
     const next = currentQueue[nextIdx];
     if (!next || next.isRadio || next.youtubeId || !next.title) return;
-    // Prefetch en segundo plano: la siguiente canción ya tendrá versión completa
     musicService.getYouTubeId(next.artist, next.title).then((ytId) => {
       if (!ytId) return;
       setQueue((prev) => prev.map((t) => (
@@ -325,6 +346,9 @@ export function MusicProvider({ children }) {
   const playTrack = useCallback(async (track, newQueue = null) => {
     if (!track) return;
     const audio = audioRef.current;
+
+    // 1. Sincronización inmediata de ref para evitar condiciones de carrera al cambiar rápido de canción
+    currentTrackRef.current = track;
 
     // Actualizar cola
     let activeQueue = newQueue && Array.isArray(newQueue) ? newQueue : null;
@@ -351,10 +375,14 @@ export function MusicProvider({ children }) {
     fullStreamRef.current = null;
     setPlaybackMode('native');
 
+    // Detener cualquier audio previo de inmediato
+    if (audio) {
+      try { audio.pause(); } catch {}
+    }
+
     // Caso 1: Estación de Radio en Vivo (siempre completa, sin límite)
     if (track.isRadio) {
       if (audio) {
-        try { audio.pause(); } catch {}
         audio.src = track.audioUrl;
         audio.load();
         audio.play().catch(console.warn);
@@ -367,7 +395,7 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    // Caso 2: Pista con youtubeId ya resuelto -> stream COMPLETO nativo directo
+    // Caso 2: Pista con youtubeId ya resuelto -> stream COMPLETO directo
     if (track.youtubeId) {
       setCurrentTrack(track);
       setIsPlaying(true);
@@ -380,37 +408,47 @@ export function MusicProvider({ children }) {
         const idx = activeQueue.findIndex(t => t.id === track.id);
         prefetchNextFullVersion(activeQueue, idx);
       }
-      loadFullAudio(track, track.youtubeId);
+      try {
+        await loadFullAudio(track, track.youtubeId);
+      } finally {
+        if (currentTrackRef.current?.id === track.id) {
+          setIsLoadingAudio(false);
+        }
+      }
       return;
     }
 
-    // Caso 3: Pista con audioUrl disponible (preview de 30s para arranque instantáneo mientras se resuelve la completa)
+    // Caso 3: Pista sin youtubeId resuelto todavía
+    // Si tiene previewUrl o audioUrl, reproducir inmediatamente el preview (0ms de espera)
     if (audio && track.audioUrl) {
-      try { audio.pause(); } catch {}
       audio.src = track.audioUrl;
       audio.load();
       audio.play().catch(err => {
         console.warn('[MusicContext] Error iniciando preview nativo:', err);
       });
     } else if (audio) {
-      try { audio.pause(); } catch {}
-      audio.removeAttribute('src');
-      audio.load();
+      try {
+        audio.removeAttribute('src');
+        audio.load();
+      } catch {}
     }
 
     setCurrentTrack(track);
     setIsPlaying(true);
     setDuration(track.fullDuration || track.duration || 210);
     setAudioQuality('loading-full');
+    setIsLoadingAudio(true);
 
     // Resolver versión completa en YouTube en segundo plano
-    setIsLoadingAudio(true);
     try {
-      const ytId = await musicService.getYouTubeId(track.artist, track.title);
+      let ytId = await musicService.getYouTubeId(track.artist, track.title);
+      // Fallback secundario: si no encontró con "artista título", intentar solo con título
+      if (!ytId && track.title) {
+        ytId = await musicService.getYouTubeId('', track.title);
+      }
       if (ytId) {
         console.log('[MusicContext] Canción completa resuelta en YouTube:', ytId);
         const enriched = { ...track, youtubeId: ytId, isPreviewOnly: false };
-        // Si el usuario ya cambió de canción, solo propagar a la cola
         if (currentTrackRef.current?.id !== track.id) {
           setQueue(prev => prev.map(t => (
             t.id === track.id && !t.youtubeId ? enriched : t
@@ -423,29 +461,37 @@ export function MusicProvider({ children }) {
           }
           return prev;
         });
-        // Propagar a la cola para que next/prev/favoritos conserven la versión completa
         setQueue(prev => prev.map(t => (
           t.id === track.id && !t.youtubeId ? enriched : t
         )));
         const currentQueue = activeQueue || [];
         const idx = currentQueue.findIndex(t => t.id === track.id);
         prefetchNextFullVersion(currentQueue, idx);
-        // Cargar el stream completo nativo (o iframe como respaldo)
         await loadFullAudio(track, ytId);
       } else {
-        // Sin versión completa: se queda el preview de 30s (se informa en UI)
-        console.warn('[MusicContext] Sin versión completa, se mantiene preview 30s');
+        console.warn('[MusicContext] Sin versión completa resuelta');
         if (currentTrackRef.current?.id === track.id) {
-          setAudioQuality('preview-fallback');
+          if (track.audioUrl) {
+            setAudioQuality('preview-fallback');
+          } else {
+            // Sin preview ni resolución: conmutar a YouTube iframe con búsqueda
+            setPlaybackMode('youtube');
+          }
         }
       }
     } catch (err) {
       console.warn('[MusicContext] Error resolviendo canción completa:', err);
       if (currentTrackRef.current?.id === track.id) {
-        setAudioQuality('preview-fallback');
+        if (track.audioUrl) {
+          setAudioQuality('preview-fallback');
+        } else {
+          setPlaybackMode('youtube');
+        }
       }
     } finally {
-      setIsLoadingAudio(false);
+      if (currentTrackRef.current?.id === track.id) {
+        setIsLoadingAudio(false);
+      }
     }
   }, [prefetchNextFullVersion, loadFullAudio]);
 

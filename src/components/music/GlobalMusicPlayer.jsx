@@ -201,7 +201,6 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={togglePlay}
-                disabled={isLoadingAudio}
                 className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/20 hover:scale-105 active:scale-95 transition"
                 title={isPlaying ? 'Pausar' : 'Reproducir'}
               >
@@ -573,7 +572,7 @@ export default function GlobalMusicPlayer() {
                   modestbranding: 1,
                   playsinline: 1,
                   rel: 0,
-                  origin: 'https://www.youtube.com'
+                  origin: (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : 'https://www.youtube.com'
                 }
               }
             }}
