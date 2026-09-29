@@ -20,7 +20,10 @@ import {
   Trash2,
   Edit3,
   ArrowLeft,
-  Check
+  Check,
+  Download,
+  DownloadCloud,
+  HardDrive
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS } from '../services/musicService.js';
@@ -42,10 +45,21 @@ export default function Music() {
     deletePlaylist,
     renamePlaylist,
     removeTrackFromPlaylist,
-    openAddToPlaylistModal
+    openAddToPlaylistModal,
+    offlineTracks,
+    isTrackDownloaded,
+    downloadTrack,
+    deleteOfflineTrack,
+    downloadPlaylist,
+    isPlaylistDownloaded,
+    activeDownloadsMap,
+    isDownloadingPlaylistId,
+    playlistDownloadProgress,
+    getOfflineTotalStorage,
+    clearAllOffline
   } = useMusic();
 
-  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists'
+  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
   const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'queue'
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
@@ -371,6 +385,21 @@ export default function Music() {
               <ListMusic className="w-3.5 h-3.5" />
               <span>Tus Listas ({customPlaylists.length})</span>
             </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('offline');
+                setSelectedPlaylistId(null);
+              }}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
+                activeTab === 'offline'
+                  ? 'bg-gradient-to-r from-emerald-400 to-teal-500 text-black shadow-md shadow-emerald-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+              }`}
+            >
+              <DownloadCloud className="w-3.5 h-3.5" />
+              <span>Modo Offline ({offlineTracks.length})</span>
+            </button>
           </div>
         )}
 
@@ -406,6 +435,10 @@ export default function Music() {
                     isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    isDownloaded={isTrackDownloaded(track.id)}
+                    downloadStatus={activeDownloadsMap[track.id]}
+                    onDownload={() => downloadTrack(track)}
+                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
                   />
                 ))}
               </div>
@@ -473,6 +506,10 @@ export default function Music() {
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
                       onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                      isDownloaded={isTrackDownloaded(track.id)}
+                      downloadStatus={activeDownloadsMap[track.id]}
+                      onDownload={() => downloadTrack(track)}
+                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
                     />
                   ))}
                 </div>
@@ -574,10 +611,26 @@ export default function Music() {
                   Tus canciones favoritas guardadas para escuchar en cualquier momento, incluso sin conexión a internet.
                 </p>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Modo Offline Disponible
-              </span>
+              {favorites.length > 0 && (
+                <button
+                  onClick={() => downloadPlaylist({ id: 'fav_list', title: 'Mis Me Gusta', tracks: favorites })}
+                  disabled={isDownloadingPlaylistId === 'fav_list'}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm w-fit"
+                  title="Descargar todas tus canciones favoritas en el dispositivo para modo offline"
+                >
+                  {isDownloadingPlaylistId === 'fav_list' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                      <span>Descargando ({playlistDownloadProgress?.current || 0}/{favorites.length})...</span>
+                    </>
+                  ) : (
+                    <>
+                      <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Descargar Todos Mis Me Gusta ({favorites.length})</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             {favorites.length === 0 ? (
@@ -600,6 +653,10 @@ export default function Music() {
                     isFav={true}
                     onToggleFav={() => toggleFavorite(track)}
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    isDownloaded={isTrackDownloaded(track.id)}
+                    downloadStatus={activeDownloadsMap[track.id]}
+                    onDownload={() => downloadTrack(track)}
+                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
                   />
                 ))}
               </div>
@@ -716,6 +773,28 @@ export default function Music() {
                             <Shuffle className="w-3.5 h-3.5 text-cyan-400" />
                             <span>Aleatorio</span>
                           </button>
+
+                          {/* Botón Descargar Playlist Completa en Modo Offline */}
+                          {isPlaylistDownloaded(selectedPlaylist) ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs shadow-sm">
+                              <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                              <span>Playlist Descargada (Offline)</span>
+                            </div>
+                          ) : isDownloadingPlaylistId === selectedPlaylist.id ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs shadow-sm">
+                              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                              <span>Descargando {playlistDownloadProgress?.current || 0}/{playlistDownloadProgress?.total || selectedPlaylist.tracks.length} ({playlistDownloadProgress?.percentage || 0}%)</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => downloadPlaylist(selectedPlaylist)}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                              title="Descargar todas las canciones de esta playlist para escuchar sin conexión"
+                            >
+                              <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                              <span>Descargar Lista ({selectedPlaylist.tracks.length})</span>
+                            </button>
+                          )}
                         </>
                       )}
 
@@ -758,6 +837,10 @@ export default function Music() {
                         onToggleFav={() => toggleFavorite(track)}
                         onAddToPlaylist={() => openAddToPlaylistModal(track)}
                         onRemoveFromPlaylist={() => removeTrackFromPlaylist(selectedPlaylist.id, track.id)}
+                        isDownloaded={isTrackDownloaded(track.id)}
+                        downloadStatus={activeDownloadsMap[track.id]}
+                        onDownload={() => downloadTrack(track)}
+                        onDeleteOffline={() => deleteOfflineTrack(track.id)}
                       />
                     ))}
                   </div>
@@ -891,6 +974,14 @@ export default function Music() {
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <ListMusic className="w-10 h-10 text-fuchsia-400/40 mb-1" />
                                 <span className="text-[10px] text-gray-500">Vacía</span>
+                              </div>
+                            )}
+
+                            {/* Badge offline si la playlist completa está descargada */}
+                            {pl.tracks.length > 0 && isPlaylistDownloaded(pl) && (
+                              <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                OFFLINE
                               </div>
                             )}
 
@@ -1074,28 +1165,23 @@ export default function Music() {
                   </div>
                 </div>
 
-                {/* 5. Pop Latino */}
+                {/* 5. Modo Offline */}
                 <div 
                   onClick={() => {
-                    const pop = GENRES.find(g => g.id === 'pop');
-                    if (pop) setSelectedGenre(pop);
-                    setActiveTab('genres');
+                    setActiveTab('offline');
+                    setSelectedPlaylistId(null);
                   }}
-                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-emerald-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-emerald-500/40 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-emerald-950">
-                    <img 
-                      src={GENRES[1]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                      alt="Pop Latino" 
-                      className="w-full h-full object-cover group-hover:scale-105 transition"
-                    />
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center flex-shrink-0 shadow-md">
+                    <DownloadCloud className="w-5 h-5 sm:w-6 sm:h-6 text-black" />
                   </div>
                   <div className="min-w-0 flex-1 pr-2">
                     <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-emerald-300 transition">
-                      Pop Latino
+                      Modo Offline
                     </p>
-                    <p className="text-[10px] text-gray-400">
-                      Éxitos Mundiales
+                    <p className="text-[10px] text-emerald-400 font-medium truncate">
+                      {offlineTracks.length} {offlineTracks.length === 1 ? 'descargada' : 'descargadas'} • Sin datos
                     </p>
                   </div>
                 </div>
@@ -1153,12 +1239,121 @@ export default function Music() {
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
                       onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                      isDownloaded={isTrackDownloaded(track.id)}
+                      downloadStatus={activeDownloadsMap[track.id]}
+                      onDownload={() => downloadTrack(track)}
+                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
                     />
                   ))}
                 </div>
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* CASO E: MODO OFFLINE (CANCIONES GUARDADAS EN EL DISPOSITIVO) */}
+        {!searchQuery && activeTab === 'offline' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Cabecera del Modo Offline */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950/60 via-[#0a231c] to-teal-950/40 border border-emerald-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-xl border border-white/20">
+                <DownloadCloud className="w-12 h-12 text-black" />
+              </div>
+
+              <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>Almacenamiento Local en Dispositivo</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black text-white">
+                  Música Descargada • Modo Offline
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+                  Estas canciones están guardadas físicamente en tu teléfono o PC. Se reproducen instantáneamente sin gastar datos móviles y sin requerir señal de internet.
+                </p>
+
+                {/* Info de almacenamiento y botones de acción */}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs font-mono text-emerald-400">
+                    <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Espacio utilizado: {getOfflineTotalStorage()} ({offlineTracks.length} {offlineTracks.length === 1 ? 'canción' : 'canciones'})</span>
+                  </span>
+
+                  {offlineTracks.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => playTrack(offlineTracks[0], offlineTracks)}
+                        className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                      >
+                        <Play className="w-4 h-4 fill-black" />
+                        <span>Reproducir Todo Offline</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const shuffled = [...offlineTracks].sort(() => Math.random() - 0.5);
+                          playTrack(shuffled[0], shuffled);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Aleatorio Offline</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (window.confirm('¿Seguro que deseas eliminar todas las canciones descargadas para liberar espacio?')) {
+                            clearAllOffline();
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold text-xs border border-red-500/30 transition cursor-pointer md:ml-auto"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Borrar Todas</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Listado de pistas offline */}
+            {offlineTracks.length === 0 ? (
+              <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-emerald-500/20 rounded-3xl p-8 space-y-4">
+                <DownloadCloud className="w-14 h-14 mx-auto text-emerald-400/40 animate-pulse" />
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-white">No tienes canciones descargadas todavía</h3>
+                  <p className="text-xs text-gray-400 max-w-md mx-auto">
+                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-cyan-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Playlist" para escuchar tu música favorita sin conexión a internet.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('top')}
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition hover:scale-105"
+                >
+                  Explorar Top Éxitos
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {offlineTracks.map((track, idx) => (
+                  <TrackCard 
+                    key={`offline-${track.id}-${idx}`} 
+                    track={track} 
+                    queue={offlineTracks}
+                    index={idx + 1}
+                    isPlaying={isPlaying && currentTrack?.id === track.id}
+                    onPlay={() => playTrack(track, offlineTracks)}
+                    isFav={isFavorite(track.id)}
+                    onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    isDownloaded={true}
+                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1177,12 +1372,18 @@ function TrackCard({
   isFav, 
   onToggleFav, 
   onAddToPlaylist, 
-  onRemoveFromPlaylist 
+  onRemoveFromPlaylist,
+  isDownloaded,
+  downloadStatus,
+  onDownload,
+  onDeleteOffline
 }) {
   const rawSecs = track.fullDuration || track.duration || 210;
   const durationLabel = track.isRadio
     ? 'EN VIVO'
     : `${Math.floor(rawSecs / 60)}:${(rawSecs % 60).toString().padStart(2, '0')}`;
+
+  const isDownloading = downloadStatus?.status === 'downloading';
 
   return (
     <div 
@@ -1204,14 +1405,22 @@ function TrackCard({
 
         {/* Número de posición (para Top charts) */}
         {index && (
-          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-cyan-300 text-xs font-black flex items-center justify-center border border-white/10 shadow">
+          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-cyan-300 text-xs font-black flex items-center justify-center border border-white/10 shadow z-10">
             {index}
+          </span>
+        )}
+
+        {/* Indicador visual de Modo Offline Descargada */}
+        {isDownloaded && !index && (
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10">
+            <Check className="w-2.5 h-2.5 stroke-[3]" />
+            OFFLINE
           </span>
         )}
 
         {/* Género sobre la carátula (elegante y sin quitar espacio abajo) */}
         {!track.isRadio && track.genre && (
-          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-[9px] font-bold text-cyan-300 tracking-wider uppercase shadow truncate max-w-[90px]">
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-[9px] font-bold text-cyan-300 tracking-wider uppercase shadow truncate max-w-[90px] z-10">
             {track.genre}
           </span>
         )}
@@ -1246,6 +1455,41 @@ function TrackCard({
         </span>
 
         <div className="flex items-center gap-1">
+          {/* Botón Modo Offline: Descargar / En descarga / Descargada */}
+          {!track.isRadio && (
+            isDownloaded ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteOffline?.();
+                }}
+                className="p-1.5 rounded-lg text-emerald-400 hover:text-red-400 hover:bg-white/5 active:scale-90 transition"
+                title="Canción descargada en tu dispositivo (Modo Offline). Toca para borrar archivo"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            ) : isDownloading ? (
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="p-1.5 rounded-lg text-cyan-400"
+                title={`Descargando: ${downloadStatus?.progress || 0}%`}
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+              </button>
+            ) : onDownload ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDownload();
+                }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/5 active:scale-90 transition"
+                title="Descargar para escuchar sin internet (Modo Offline)"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            ) : null
+          )}
+
           {!track.isRadio && onAddToPlaylist && (
             <button
               onClick={(e) => {

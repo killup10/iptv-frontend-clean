@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { Capacitor } from '@capacitor/core';
 import { backgroundPlaybackService } from '../services/backgroundPlayback.js';
 import { musicService } from '../services/musicService.js';
+import * as musicOfflineService from '../services/musicOfflineService.js';
 
 const MusicContext = createContext(null);
 
@@ -45,6 +46,41 @@ export function MusicProvider({ children }) {
     }
   });
   const [playlistModalTrack, setPlaylistModalTrack] = useState(null);
+  const [offlineTracks, setOfflineTracks] = useState(() => musicOfflineService.getOfflineTracks());
+  const [activeDownloadsMap, setActiveDownloadsMap] = useState({});
+  const [isDownloadingPlaylistId, setIsDownloadingPlaylistId] = useState(null);
+  const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState(null);
+
+  // Escuchar eventos de descargas offline y sincronizar estado reactivo
+  useEffect(() => {
+    const handleOfflineUpdate = (e) => {
+      setOfflineTracks(e.detail?.tracks || musicOfflineService.getOfflineTracks());
+    };
+
+    const handleOfflineProgress = (e) => {
+      const detail = e.detail;
+      if (!detail || !detail.id) return;
+      setActiveDownloadsMap(prev => {
+        if (detail.status === 'completed' || detail.status === 'error') {
+          const next = { ...prev };
+          delete next[detail.id];
+          return next;
+        }
+        return {
+          ...prev,
+          [detail.id]: detail
+        };
+      });
+    };
+
+    window.addEventListener('teamg:music-offline-update', handleOfflineUpdate);
+    window.addEventListener('teamg:music-offline-progress', handleOfflineProgress);
+
+    return () => {
+      window.removeEventListener('teamg:music-offline-update', handleOfflineUpdate);
+      window.removeEventListener('teamg:music-offline-progress', handleOfflineProgress);
+    };
+  }, []);
 
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
@@ -407,6 +443,48 @@ export function MusicProvider({ children }) {
       try { audio.pause(); } catch {}
     }
 
+    // Caso 0: Pista guardada en Modo Offline (reproducción local instantánea sin internet)
+    if (musicOfflineService.isTrackOffline(track.id) || track.isOffline) {
+      try {
+        const offlineRecord = musicOfflineService.getOfflineTrack(track.id) || track;
+        const urls = await musicOfflineService.getOfflinePlaybackUrls(track.id);
+        const isNative = Capacitor.isNativePlatform();
+        const effectiveUrl = isNative ? urls.nativeUrl : urls.webUrl;
+
+        const offlineTrack = {
+          ...track,
+          ...offlineRecord,
+          isOffline: true,
+          audioUrl: effectiveUrl,
+          streamUrl: effectiveUrl
+        };
+
+        setCurrentTrack(offlineTrack);
+        setIsPlaying(true);
+        setIsLoadingAudio(false);
+        setDuration(offlineTrack.fullDuration || offlineTrack.duration || 210);
+        setAudioQuality('offline');
+        setPlaybackMode('native');
+        fullStreamRef.current = effectiveUrl;
+
+        backgroundPlaybackService.updatePlaybackState(
+          true,
+          offlineTrack,
+          0,
+          offlineTrack.fullDuration || offlineTrack.duration || 210
+        );
+
+        if (audio) {
+          audio.src = urls.webUrl;
+          audio.muted = isNative;
+          await audio.play().catch(console.warn);
+        }
+        return;
+      } catch (offlineErr) {
+        console.warn('[MusicContext] No se pudo reproducir offline local, reintentando online:', offlineErr);
+      }
+    }
+
     // Caso 1: Estación de Radio en Vivo (siempre completa, sin límite)
     if (track.isRadio) {
       const isNative = Capacitor.isNativePlatform();
@@ -756,6 +834,46 @@ export function MusicProvider({ children }) {
     setPlaylistModalTrack(null);
   }, []);
 
+  // --- MODO OFFLINE (DESCARGAS INDIVIDUALES Y PLAYLISTS) ---
+  const downloadTrack = useCallback(async (track) => {
+    if (!track) return null;
+    return await musicOfflineService.downloadTrackOffline(track);
+  }, []);
+
+  const deleteOfflineTrack = useCallback(async (trackId) => {
+    if (!trackId) return;
+    await musicOfflineService.deleteOfflineTrack(trackId);
+  }, []);
+
+  const isTrackDownloaded = useCallback((trackId) => {
+    return musicOfflineService.isTrackOffline(trackId);
+  }, [offlineTracks]);
+
+  const downloadPlaylist = useCallback(async (playlist) => {
+    if (!playlist || !Array.isArray(playlist.tracks) || playlist.tracks.length === 0) return;
+    setIsDownloadingPlaylistId(playlist.id);
+    setPlaylistDownloadProgress({ current: 0, total: playlist.tracks.length, percentage: 0 });
+    try {
+      await musicOfflineService.downloadPlaylistOffline(playlist, (progress) => {
+        setPlaylistDownloadProgress(progress);
+      });
+    } catch (err) {
+      console.error('[MusicContext] Error descargando playlist offline:', err);
+    } finally {
+      setIsDownloadingPlaylistId(null);
+      setPlaylistDownloadProgress(null);
+    }
+  }, []);
+
+  const isPlaylistDownloaded = useCallback((playlist) => {
+    if (!playlist || !Array.isArray(playlist.tracks) || playlist.tracks.length === 0) return false;
+    return playlist.tracks.every(t => musicOfflineService.isTrackOffline(t.id));
+  }, [offlineTracks]);
+
+  const clearAllOffline = useCallback(async () => {
+    await musicOfflineService.clearAllOfflineTracks();
+  }, []);
+
   const value = {
     currentTrack,
     isPlaying,
@@ -774,6 +892,17 @@ export function MusicProvider({ children }) {
     favorites,
     customPlaylists,
     playlistModalTrack,
+    offlineTracks,
+    activeDownloadsMap,
+    isDownloadingPlaylistId,
+    playlistDownloadProgress,
+    downloadTrack,
+    deleteOfflineTrack,
+    isTrackDownloaded,
+    downloadPlaylist,
+    isPlaylistDownloaded,
+    clearAllOffline,
+    getOfflineTotalStorage: musicOfflineService.getTotalOfflineSize,
     createPlaylist,
     deletePlaylist,
     renamePlaylist,

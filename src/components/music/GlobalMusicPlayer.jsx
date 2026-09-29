@@ -19,7 +19,10 @@ import {
   ListMusic, 
   ListPlus,
   X,
-  Loader2
+  Loader2,
+  Check,
+  Download,
+  DownloadCloud
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import ReactPlayer from 'react-player/youtube';
@@ -66,7 +69,11 @@ export default function GlobalMusicPlayer() {
     audioRef,
     setCurrentTime,
     setDuration,
-    setIsPlaying
+    setIsPlaying,
+    isTrackDownloaded,
+    downloadTrack,
+    deleteOfflineTrack,
+    activeDownloadsMap
   } = useMusic();
 
   const [showQueueDrawer, setShowQueueDrawer] = useState(false);
@@ -76,6 +83,9 @@ export default function GlobalMusicPlayer() {
   if (!currentTrack) return null;
 
   const isFav = isFavorite(currentTrack.id);
+  const isDownloaded = isTrackDownloaded(currentTrack.id);
+  const dlStatus = activeDownloadsMap[currentTrack.id];
+  const isDownloading = dlStatus?.status === 'downloading';
   const displayedTime = isSeeking ? seekVal : currentTime;
   const progressPercent = duration > 0 ? (displayedTime / duration) * 100 : 0;
 
@@ -168,6 +178,41 @@ export default function GlobalMusicPlayer() {
               >
                 <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500' : ''}`} />
               </button>
+
+              {/* Botón Descarga Offline */}
+              {!currentTrack.isRadio && (
+                isDownloaded ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteOfflineTrack(currentTrack.id);
+                    }}
+                    className="p-1.5 rounded-full text-emerald-400 hover:text-red-400 hover:bg-white/5 transition"
+                    title="Canción descargada en tu dispositivo (Modo Offline). Toca para borrar archivo"
+                  >
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                ) : isDownloading ? (
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 rounded-full text-cyan-400"
+                    title={`Descargando audio: ${dlStatus?.progress || 0}%`}
+                  >
+                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadTrack(currentTrack);
+                    }}
+                    className="p-1.5 rounded-full text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition"
+                    title="Descargar para Modo Offline (escuchar sin internet)"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                )
+              )}
 
               {!currentTrack.isRadio && (
                 <button
@@ -497,6 +542,34 @@ export default function GlobalMusicPlayer() {
                     <ListPlus className="w-4 h-4" />
                     <span className="text-xs font-semibold">Añadir a Playlist</span>
                   </button>
+                )}
+
+                {/* Botón Descarga Modo Offline en pantalla completa */}
+                {!currentTrack.isRadio && (
+                  isDownloaded ? (
+                    <button
+                      onClick={() => deleteOfflineTrack(currentTrack.id)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 transition cursor-pointer"
+                      title="Canción descargada en tu dispositivo. Toca para borrar archivo"
+                    >
+                      <Check className="w-4 h-4 stroke-[2.5] text-emerald-400" />
+                      <span className="text-xs font-semibold">Descargada (Offline)</span>
+                    </button>
+                  ) : isDownloading ? (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-500/40 bg-cyan-500/15 text-cyan-300">
+                      <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                      <span className="text-xs font-semibold">Descargando {dlStatus?.progress || 0}%</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => downloadTrack(currentTrack)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 text-gray-300 hover:text-cyan-300 hover:border-cyan-400/40 hover:bg-white/10 transition cursor-pointer"
+                      title="Descargar para escuchar sin internet (Modo Offline)"
+                    >
+                      <Download className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs font-semibold">Descargar Offline</span>
+                    </button>
+                  )
                 )}
               </div>
             </div>
