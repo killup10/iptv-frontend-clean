@@ -297,6 +297,15 @@ function App() {
             return;
           }
 
+          // 🔥 Manejador interno para la sección de Música (categorías, listas, reproductor expandido)
+          if (window.__musicBackHandler && typeof window.__musicBackHandler === 'function') {
+            const handled = window.__musicBackHandler();
+            if (handled) {
+              console.log('[App.jsx] BackButton gestionado dentro de Música');
+              return;
+            }
+          }
+
           // En HashRouter, usar location.pathname para detectar /watch correctamente.
           if (isWatchPage) {
             console.log('[App.jsx] En /watch - ignorando handler global de backButton');

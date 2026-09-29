@@ -130,12 +130,13 @@ class BackgroundPlaybackService {
         this.mediaSession.playbackState = 'playing';
       }
 
-      // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia
+      // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia y reproducir con ExoPlayer
       if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
         NativeMusicPlayback.updatePlayback({
           title: mediaInfo.title || 'TeamG Play',
           artist: mediaInfo.artist || 'Reproduciendo',
           coverUrl: mediaInfo.coverUrl || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
+          audioUrl: mediaInfo.audioUrl || mediaInfo.streamUrl || '',
           isPlaying: true,
           duration: mediaInfo.duration ? Math.round(mediaInfo.duration) : 0,
           position: mediaInfo.position ? Math.round(mediaInfo.position) : 0
@@ -164,12 +165,19 @@ class BackgroundPlaybackService {
         title: mediaInfo.title || 'TeamG Play',
         artist: mediaInfo.artist || 'Reproduciendo',
         coverUrl: mediaInfo.cover || mediaInfo.coverUrl || '',
+        audioUrl: mediaInfo.audioUrl || mediaInfo.streamUrl || '',
         isPlaying: Boolean(isPlaying),
         duration: duration ? Math.round(duration) : 0,
         position: position ? Math.round(position) : 0
       }).catch(err => {
         console.warn('[BackgroundPlayback] Error en updatePlaybackState nativo:', err);
       });
+    }
+  }
+
+  seekTo(seconds) {
+    if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
+      NativeMusicPlayback.seekTo({ position: Math.round(seconds) }).catch(() => {});
     }
   }
 

@@ -21,6 +21,13 @@ import android.support.v4.media.session.PlaybackStateCompat;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.audio.AudioAttributes;
+
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -28,8 +35,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Servicio en primer plano (Foreground Service) para reproducción de música en segundo plano
- * y control desde la pantalla de bloqueo y barra de notificaciones del sistema Android.
+ * Servicio en primer plano (Foreground Service) con ExoPlayer nativo integrado.
+ * Garantiza reproducción 100% ininterrumpida al minimizar la app, apagar la pantalla
+ * y control interactivo instantáneo desde la pantalla de bloqueo y barra de notificaciones.
  */
 public class MusicPlaybackService extends Service {
     private static final String TAG = "MusicPlaybackService";
@@ -44,15 +52,17 @@ public class MusicPlaybackService extends Service {
     public static final String ACTION_PREV = "play.teamg.store.ACTION_MUSIC_PREV";
     public static final String ACTION_STOP = "play.teamg.store.ACTION_MUSIC_STOP";
 
-    // Variables de estado accesibles de forma estática por MainActivity
+    // Variables de estado accesibles de forma estática
     public static volatile boolean isServiceRunning = false;
     public static volatile boolean isPlaying = false;
     public static volatile String currentTitle = "TeamG Music";
     public static volatile String currentArtist = "Reproduciendo";
     public static volatile String currentCoverUrl = "";
+    public static volatile String currentAudioUrl = "";
     public static volatile long currentDuration = 0L;
     public static volatile long currentPosition = 0L;
 
+    private ExoPlayer player;
     private MediaSessionCompat mediaSession;
     private PowerManager.WakeLock wakeLock;
     private NotificationManager notificationManager;
@@ -73,7 +83,7 @@ public class MusicPlaybackService extends Service {
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         createNotificationChannel();
 
-        // 1. Inicializar WakeLock parcial para evitar que la CPU duerma cuando se apaga la pantalla
+        // 1. WakeLock parcial para asegurar que la CPU no duerma con la pantalla apagada
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
@@ -84,7 +94,43 @@ public class MusicPlaybackService extends Service {
             Log.w(TAG, "No se pudo obtener WakeLock", e);
         }
 
-        // 2. Inicializar MediaSessionCompat para pantalla de bloqueo, auriculares y mandos
+        // 2. Inicializar ExoPlayer nativo para reproducción de audio
+        try {
+            player = new ExoPlayer.Builder(this).build();
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build();
+            player.setAudioAttributes(audioAttributes, true); // Control automático de AudioFocus
+
+            player.addListener(new Player.Listener() {
+                @Override
+                public void onIsPlayingChanged(boolean isPlayingNow) {
+                    isPlaying = isPlayingNow;
+                    manageWakeLock(isPlaying);
+                    updateMediaSessionState();
+                    updateNotification();
+                    MusicPlaybackPlugin.sendMediaAction(isPlaying ? "play" : "pause");
+                }
+
+                @Override
+                public void onPlaybackStateChanged(int playbackState) {
+                    if (playbackState == Player.STATE_ENDED) {
+                        Log.d(TAG, "Canción finalizada en ExoPlayer nativo -> pasando a la siguiente");
+                        MusicPlaybackPlugin.sendMediaAction("next");
+                    }
+                }
+
+                @Override
+                public void onPlayerError(PlaybackException error) {
+                    Log.e(TAG, "ExoPlayer error de reproducción: " + error.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Error inicializando ExoPlayer nativo", e);
+        }
+
+        // 3. Inicializar MediaSessionCompat para la pantalla de bloqueo y controles del sistema
         try {
             mediaSession = new MediaSessionCompat(this, "TeamGMusicSession");
             mediaSession.setFlags(
@@ -144,10 +190,51 @@ public class MusicPlaybackService extends Service {
                 if (cover != null) {
                     currentCoverUrl = cover;
                 }
-                isPlaying = intent.getBooleanExtra("isPlaying", isPlaying);
+                String audioUrl = intent.getStringExtra("audioUrl");
+                boolean reqPlay = intent.getBooleanExtra("isPlaying", isPlaying);
                 currentDuration = intent.getLongExtra("duration", currentDuration);
                 currentPosition = intent.getLongExtra("position", currentPosition);
 
+                // Si se solicitó seek
+                if (intent.hasExtra("seekToSeconds") && player != null) {
+                    long seekSec = intent.getLongExtra("seekToSeconds", 0L);
+                    player.seekTo(seekSec * 1000L);
+                }
+
+                // Si se pasó un stream de audio válido, cargarlo en ExoPlayer
+                if (audioUrl != null && !audioUrl.trim().isEmpty()) {
+                    boolean isDifferentUrl = !audioUrl.equals(currentAudioUrl);
+                    if (isDifferentUrl) {
+                        currentAudioUrl = audioUrl;
+                        if (player != null) {
+                            try {
+                                MediaItem mediaItem = MediaItem.fromUri(audioUrl);
+                                player.setMediaItem(mediaItem);
+                                player.prepare();
+                                if (reqPlay) {
+                                    player.play();
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error preparando audio en ExoPlayer: " + e.getMessage());
+                            }
+                        }
+                    } else if (player != null) {
+                        if (reqPlay && !player.isPlaying()) {
+                            player.play();
+                        } else if (!reqPlay && player.isPlaying()) {
+                            player.pause();
+                        }
+                    }
+                } else if (player != null) {
+                    // Si no vino URL nueva pero cambió estado isPlaying
+                    if (reqPlay && !player.isPlaying()) {
+                        player.play();
+                    } else if (!reqPlay && player.isPlaying()) {
+                        player.pause();
+                    }
+                }
+
+                isPlaying = (player != null && player.isPlaying()) || reqPlay;
                 manageWakeLock(isPlaying);
                 updateMediaSessionState();
                 loadCoverBitmap(currentCoverUrl);
@@ -173,6 +260,9 @@ public class MusicPlaybackService extends Service {
     private void handleAction(String action) {
         switch (action) {
             case ACTION_PLAY:
+                if (player != null) {
+                    player.play();
+                }
                 isPlaying = true;
                 manageWakeLock(true);
                 updateMediaSessionState();
@@ -181,6 +271,9 @@ public class MusicPlaybackService extends Service {
                 break;
 
             case ACTION_PAUSE:
+                if (player != null) {
+                    player.pause();
+                }
                 isPlaying = false;
                 manageWakeLock(false);
                 updateMediaSessionState();
@@ -189,7 +282,17 @@ public class MusicPlaybackService extends Service {
                 break;
 
             case ACTION_TOGGLE:
-                isPlaying = !isPlaying;
+                if (player != null) {
+                    if (player.isPlaying()) {
+                        player.pause();
+                        isPlaying = false;
+                    } else {
+                        player.play();
+                        isPlaying = true;
+                    }
+                } else {
+                    isPlaying = !isPlaying;
+                }
                 manageWakeLock(isPlaying);
                 updateMediaSessionState();
                 updateNotification();
@@ -205,6 +308,9 @@ public class MusicPlaybackService extends Service {
                 break;
 
             case ACTION_STOP:
+                if (player != null) {
+                    player.stop();
+                }
                 isPlaying = false;
                 manageWakeLock(false);
                 stopForeground(true);
@@ -217,7 +323,7 @@ public class MusicPlaybackService extends Service {
         try {
             if (wakeLock != null) {
                 if (acquire && !wakeLock.isHeld()) {
-                    wakeLock.acquire(12 * 60 * 60 * 1000L); // Hasta 12 horas de música continua
+                    wakeLock.acquire(12 * 60 * 60 * 1000L); // Hasta 12 horas continuas
                 } else if (!acquire && wakeLock.isHeld()) {
                     wakeLock.release();
                 }
@@ -266,15 +372,18 @@ public class MusicPlaybackService extends Service {
                 PlaybackStateCompat.ACTION_STOP
             );
 
+        long pos = (player != null) ? player.getCurrentPosition() : (currentPosition * 1000L);
         int state = isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED;
-        stateBuilder.setState(state, currentPosition * 1000L, 1.0f);
+        stateBuilder.setState(state, pos, 1.0f);
         mediaSession.setPlaybackState(stateBuilder.build());
+
+        long dur = (player != null && player.getDuration() > 0) ? player.getDuration() : (currentDuration * 1000L);
 
         MediaMetadataCompat.Builder metaBuilder = new MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist)
             .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "TeamG Music")
-            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentDuration * 1000L);
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, dur);
 
         if (currentCoverBitmap != null) {
             metaBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, currentCoverBitmap);
@@ -390,6 +499,9 @@ public class MusicPlaybackService extends Service {
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
         // Si el usuario desliza y elimina la aplicación de tareas recientes, cerrar el servicio
+        if (player != null) {
+            player.stop();
+        }
         manageWakeLock(false);
         stopForeground(true);
         stopSelf();
@@ -401,6 +513,10 @@ public class MusicPlaybackService extends Service {
         isServiceRunning = false;
         isPlaying = false;
         manageWakeLock(false);
+        if (player != null) {
+            player.release();
+            player = null;
+        }
         if (mediaSession != null) {
             mediaSession.setActive(false);
             mediaSession.release();

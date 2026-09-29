@@ -125,6 +125,33 @@ export default function Music() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
+  // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
+  useEffect(() => {
+    window.__musicBackHandler = () => {
+      // 1. Si está viendo una playlist personalizada específica
+      if (selectedPlaylistId) {
+        setSelectedPlaylistId(null);
+        return true;
+      }
+      // 2. Si hay una búsqueda activa
+      if (searchQuery) {
+        setSearchQuery('');
+        return true;
+      }
+      // 3. Si está en otra pestaña que no es 'top' (por ejemplo géneros, radios, listas, favoritos)
+      if (activeTab !== 'top') {
+        setActiveTab('top');
+        return true;
+      }
+      // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente
+      return false;
+    };
+
+    return () => {
+      window.__musicBackHandler = null;
+    };
+  }, [selectedPlaylistId, searchQuery, activeTab]);
+
   // Reproducir todo el Top 50
   const handlePlayAllTop = () => {
     if (topTracks.length > 0) {
@@ -229,6 +256,29 @@ export default function Music() {
 
       {/* 2. BARRA DE BÚSQUEDA Y PESTAÑAS */}
       <div className="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
+
+        {/* Botón de retroceso contextual dentro de Música */}
+        {(activeTab !== 'top' || selectedPlaylistId || searchQuery) && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (selectedPlaylistId) setSelectedPlaylistId(null);
+                else if (searchQuery) setSearchQuery('');
+                else setActiveTab('top');
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-white text-xs font-semibold border border-cyan-400/30 active:scale-95 transition shadow-sm"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>
+                {selectedPlaylistId 
+                  ? 'Volver a Mis Listas' 
+                  : searchQuery 
+                    ? 'Limpiar Búsqueda' 
+                    : 'Volver a Lo Más Escuchado'}
+              </span>
+            </button>
+          </div>
+        )}
         
         {/* Input de Búsqueda */}
         <div className="relative max-w-xl">

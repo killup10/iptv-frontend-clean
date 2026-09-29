@@ -45,6 +45,7 @@ public class MusicPlaybackPlugin extends Plugin {
             String title = call.getString("title", "TeamG Music");
             String artist = call.getString("artist", "Reproduciendo");
             String coverUrl = call.getString("coverUrl", "");
+            String audioUrl = call.getString("audioUrl", "");
             boolean isPlaying = call.getBoolean("isPlaying", true);
             long duration = call.getLong("duration", 0L);
             long position = call.getLong("position", 0L);
@@ -55,6 +56,7 @@ public class MusicPlaybackPlugin extends Plugin {
             intent.putExtra("title", title);
             intent.putExtra("artist", artist);
             intent.putExtra("coverUrl", coverUrl);
+            intent.putExtra("audioUrl", audioUrl);
             intent.putExtra("isPlaying", isPlaying);
             intent.putExtra("duration", duration);
             intent.putExtra("position", position);
@@ -67,6 +69,26 @@ public class MusicPlaybackPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             Log.e(TAG, "Error actualizando reproducción", e);
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void seekTo(PluginCall call) {
+        try {
+            long positionSeconds = call.getLong("position", 0L);
+            Context context = getContext();
+            Intent intent = new Intent(context, MusicPlaybackService.class);
+            intent.setAction(MusicPlaybackService.ACTION_UPDATE);
+            intent.putExtra("seekToSeconds", positionSeconds);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent);
+            } else {
+                context.startService(intent);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "Error en seekTo", e);
             call.reject("Error: " + e.getMessage());
         }
     }

@@ -11,17 +11,66 @@ const API_BASE =
 const ITUNES_SEARCH_URL = 'https://itunes.apple.com/search';
 
 // Radios en vivo de alta fidelidad (streaming 24/7 directo, siempre completas)
+// Radios en vivo de alta fidelidad 100% verificadas (streaming 24/7 directo)
 export const LIVE_RADIOS = [
   {
-    id: 'radio-moda',
-    title: 'Radio Moda 97.3 FM',
-    artist: 'Te Mueve! - Reggaetón & Urbano',
+    id: 'radio-lazona',
+    title: 'Radio La Zona 90.5 FM',
+    artist: 'Música Urbana, Reggaetón & Trap',
     album: 'Emisora en Vivo',
     category: 'Reggaetón & Urbano',
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://18493.live.streamtheworld.com/MODA_SC',
+    audioUrl: 'https://mdstrm.com/audio/5fada54116646e098d97e6a5/icecast.audio',
     isRadio: true,
-    frequency: '97.3 FM',
+    frequency: '90.5 FM',
+    country: 'PE'
+  },
+  {
+    id: 'radio-studio92',
+    title: 'Studio 92 92.5 FM',
+    artist: 'Primeros en tu Música - Pop & Hits',
+    album: 'Emisora en Vivo',
+    category: 'Pop & Éxitos',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    audioUrl: 'https://mdstrm.com/audio/5fada553978fe1080e3ac5ea/icecast.audio',
+    isRadio: true,
+    frequency: '92.5 FM',
+    country: 'PE'
+  },
+  {
+    id: 'radio-panamericana',
+    title: 'Radio Panamericana 101.1 FM',
+    artist: 'Lo que el Perú quiere escuchar - Salsa & Cumbia',
+    album: 'Emisora en Vivo',
+    category: 'Salsa & Cumbia',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    audioUrl: 'https://mdstrm.com/audio/6598b62dded1380470f4e539/icecast.audio',
+    isRadio: true,
+    frequency: '101.1 FM',
+    country: 'PE'
+  },
+  {
+    id: 'radio-oxigeno',
+    title: 'Radio Oxígeno 102.1 FM',
+    artist: 'Clásicos del Rock & Pop',
+    album: 'Emisora en Vivo',
+    category: 'Rock Clásico',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    audioUrl: 'https://mdstrm.com/audio/5fab0687bcd6c2389ee9480c/icecast.audio',
+    isRadio: true,
+    frequency: '102.1 FM',
+    country: 'PE'
+  },
+  {
+    id: 'radio-ondacero',
+    title: 'Radio Onda Cero',
+    artist: 'Te Activa - Reggaetón & Trap',
+    album: 'Emisora en Vivo',
+    category: 'Reggaetón & Urbano',
+    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
+    audioUrl: 'https://mdstrm.com/audio/6598b65ab398c90871aff8cc/icecast.audio',
+    isRadio: true,
+    frequency: '98.1 FM',
     country: 'PE'
   },
   {
@@ -31,34 +80,22 @@ export const LIVE_RADIOS = [
     album: 'Emisora en Vivo',
     category: 'Pop & Éxitos',
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://stream.zeno.fm/fvrx452618uvv',
+    audioUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40AAC.aac',
     isRadio: true,
-    frequency: 'Online',
+    frequency: 'Global',
     country: 'ES'
   },
   {
-    id: 'radio-planeta',
-    title: 'Radio Planeta 107.7 FM',
-    artist: 'Tu Música en Inglés',
+    id: 'radio-disney',
+    title: 'Radio Disney',
+    artist: 'Escucha lo que quieres sentir - Pop Latino',
     album: 'Emisora en Vivo',
-    category: 'Pop Internacional',
-    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://18483.live.streamtheworld.com/PLANETA_SC',
+    category: 'Pop Latino',
+    cover: 'https://images.unsplash.com/photo-1526478806334-5fd488fcaabc?w=600&auto=format&fit=crop&q=80',
+    audioUrl: 'https://playerservices.streamtheworld.com/api/livestream-redirect/DISNEY_ARG_BA_ADP.aac',
     isRadio: true,
-    frequency: '107.7 FM',
-    country: 'PE'
-  },
-  {
-    id: 'radio-oxigeno',
-    title: 'Radio Oxígeno',
-    artist: 'Clásicos del Rock & Pop',
-    album: 'Emisora en Vivo',
-    category: 'Rock Clásico',
-    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://18483.live.streamtheworld.com/OXIGENO_SC',
-    isRadio: true,
-    frequency: '102.1 FM',
-    country: 'PE'
+    frequency: 'Online',
+    country: 'LATAM'
   },
   {
     id: 'radio-ibiza',
@@ -67,7 +104,7 @@ export const LIVE_RADIOS = [
     album: 'Emisora en Vivo',
     category: 'Electrónica & EDM',
     cover: 'https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://listenssl.ibizaglobalradio.com:8024/ibizaglobalradio.mp3',
+    audioUrl: 'https://cdn-peer031.streaming-pro.com:8025/ibizaglobalradio.mp3',
     isRadio: true,
     frequency: 'Online',
     country: 'IBZ'
@@ -85,96 +122,84 @@ export const LIVE_RADIOS = [
     country: 'Global'
   },
   {
-    id: 'radio-panamericana',
-    title: 'Radio Panamericana',
-    artist: 'Lo que el Perú quiere escuchar - Salsa',
+    id: 'radio-rpp',
+    title: 'RPP Noticias',
+    artist: 'Confianza por todos los medios - Información 24/7',
     album: 'Emisora en Vivo',
-    category: 'Salsa & Cumbia',
+    category: 'Noticias & Opinión',
     cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://18483.live.streamtheworld.com/PANAMERICANA_SC',
+    audioUrl: 'https://mdstrm.com/audio/5fab3416b5f9ef165cfab6e9/icecast.audio',
     isRadio: true,
-    frequency: '101.1 FM',
+    frequency: '89.7 FM',
     country: 'PE'
-  },
-  {
-    id: 'radio-disney',
-    title: 'Radio Disney Latinoamérica',
-    artist: 'Escucha lo que quieres sentir',
-    album: 'Emisora en Vivo',
-    category: 'Pop Latino',
-    cover: 'https://images.unsplash.com/photo-1526478806334-5fd488fcaabc?w=600&auto=format&fit=crop&q=80',
-    audioUrl: 'https://stream.zeno.fm/cvuuvkypgahvv',
-    isRadio: true,
-    frequency: 'Online',
-    country: 'LATAM'
   }
 ];
 
-// Géneros con queries vivas (sin año hardcodeado para no congelar el catálogo)
+// Géneros con consultas actualizadas a estrenos y éxitos recientes 2025-2026
 export const GENRES = [
   {
     id: 'reggaeton',
     name: 'Reggaetón',
-    subtitle: 'Urbano & Perreo',
+    subtitle: 'Estrenos & Tendencias 2025-2026',
     bg: 'linear-gradient(135deg, #e1118c 0%, #8c0b57 100%)',
-    query: 'reggaeton exitos urbano',
+    query: 'reggaeton 2025 2026 exitos urbano',
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80'
   },
   {
     id: 'pop',
     name: 'Pop Latino',
-    subtitle: 'Éxitos Globales',
+    subtitle: 'Éxitos Actuales Globales',
     bg: 'linear-gradient(135deg, #27856a 0%, #134637 100%)',
-    query: 'pop latino exitos',
+    query: 'pop latino 2025 2026 exitos',
     cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'cumbia',
+    name: 'Salsa & Cumbia',
+    subtitle: 'Fiesta & Ritmo Actual',
+    bg: 'linear-gradient(135deg, #ba5d07 0%, #633204 100%)',
+    query: 'salsa cumbia fiesta exitos 2025 2026',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&auto=format&fit=crop&q=80'
   },
   {
     id: 'rock',
     name: 'Rock Clásico',
-    subtitle: 'En Español & Clásicos',
+    subtitle: 'En Español & Clásicos Inmortales',
     bg: 'linear-gradient(135deg, #e91429 0%, #7d0b16 100%)',
-    query: 'rock en espanol exitos',
+    query: 'rock en espanol clasicos exitos',
     cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&auto=format&fit=crop&q=80'
   },
   {
     id: 'electronic',
     name: 'Electrónica',
-    subtitle: 'EDM & House',
+    subtitle: 'EDM & House Hits',
     bg: 'linear-gradient(135deg, #8400e7 0%, #46007b 100%)',
-    query: 'electronic dance hits',
+    query: 'electronic dance hits edm 2025 2026',
     cover: 'https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=400&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 'cumbia',
-    name: 'Salsa & Cumbia',
-    subtitle: 'Fiesta Latina',
-    bg: 'linear-gradient(135deg, #ba5d07 0%, #633204 100%)',
-    query: 'salsa cumbia fiesta exitos',
-    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 'lofi',
-    name: 'Chill & Lo-Fi',
-    subtitle: 'Enfoque & Relax',
-    bg: 'linear-gradient(135deg, #1e3264 0%, #0e1830 100%)',
-    query: 'lofi hip hop chill beats',
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&auto=format&fit=crop&q=80'
-  },
-  {
-    id: 'gym',
-    name: 'Gym Beast',
-    subtitle: 'Workout & Energía',
-    bg: 'linear-gradient(135deg, #e61e32 0%, #300005 100%)',
-    query: 'workout motivation hits',
-    cover: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80'
   },
   {
     id: 'trap',
     name: 'Trap & Drill',
     subtitle: 'Tendencias Callejeras',
     bg: 'linear-gradient(135deg, #477d95 0%, #1e3540 100%)',
-    query: 'trap latino exitos',
+    query: 'trap latino drill exitos 2025 2026',
     cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'lofi',
+    name: 'Chill & Lo-Fi',
+    subtitle: 'Enfoque & Relax',
+    bg: 'linear-gradient(135deg, #1e3264 0%, #0e1830 100%)',
+    query: 'lofi hip hop chill beats relax',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'gym',
+    name: 'Gym Beast',
+    subtitle: 'Workout & Energía Pura',
+    bg: 'linear-gradient(135deg, #e61e32 0%, #300005 100%)',
+    query: 'workout motivation hits energy',
+    cover: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80'
   }
 ];
 
@@ -598,10 +623,15 @@ export const musicService = {
   },
 
   /**
-   * Obtiene canciones por género musical.
+   * Obtiene canciones por género musical (priorizando lanzamientos recientes y éxitos actuales).
    */
-  async getTracksByGenre(genreQuery, limit = 24) {
-    return this.searchTracks(genreQuery, limit);
+  async getTracksByGenre(genreQuery, limit = 28) {
+    const tracks = await this.searchTracks(genreQuery, limit);
+    return tracks.sort((a, b) => {
+      const yearA = parseInt(a.releaseDate) || 0;
+      const yearB = parseInt(b.releaseDate) || 0;
+      return yearB - yearA;
+    });
   },
 
   /**
