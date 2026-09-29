@@ -285,6 +285,7 @@ function createMainWindow() {
       contextIsolation: true, 
       nodeIntegration: false, 
       preload: path.join(__dirname, 'preload.cjs'),
+      webSecurity: false,
     },
     show: false
   });
@@ -294,7 +295,7 @@ function createMainWindow() {
 
   // Permitir reproducción de audio/video de YouTube sin bloqueo de Origin ni X-Frame-Options
   session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'] },
     (details, callback) => {
       details.requestHeaders['Origin'] = 'https://www.youtube.com';
       details.requestHeaders['Referer'] = 'https://www.youtube.com/';
@@ -303,7 +304,7 @@ function createMainWindow() {
   );
 
   session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] },
+    { urls: ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*', '*://*.googlevideo.com/*'] },
     (details, callback) => {
       const headers = { ...details.responseHeaders };
       delete headers['x-frame-options'];
@@ -994,6 +995,83 @@ ipcMain.handle('mpv-set-pip-floating', async (_, { enabled }) => {
     console.error('[MPV PIP] Error general:', error);
     return { success: false, isPipActive: isPipMode, error: error.message };
   }
+});
+
+// -----------------------------------------------------------
+// IPC: Resolver ID de YouTube para canciones completas en TeamG Music
+// -----------------------------------------------------------
+const electronYtCache = new Map();
+
+ipcMain.handle('music-get-youtube-id', async (_event, query) => {
+  if (!query || typeof query !== 'string') return null;
+  const cleanQuery = query.trim();
+  if (!cleanQuery) return null;
+
+  const cacheKey = cleanQuery.toLowerCase();
+  if (electronYtCache.has(cacheKey)) {
+    return electronYtCache.get(cacheKey);
+  }
+
+  console.log('[Electron Music] Resolviendo YouTube ID para:', cleanQuery);
+
+  // 1. Backend oficial con x-app-version: 1.5.12
+  try {
+    const res = await fetch(`https://api.teamg.store/api/music/resolve?title=${encodeURIComponent(cleanQuery)}`, {
+      headers: {
+        'Accept': 'application/json',
+        'x-app-version': '1.5.12'
+      },
+      timeout: 10000
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.youtubeId) {
+        console.log('[Electron Music] ✓ Resuelto vía backend:', data.youtubeId);
+        electronYtCache.set(cacheKey, data.youtubeId);
+        return data.youtubeId;
+      }
+    }
+  } catch (err) {
+    console.warn('[Electron Music] Falló backend resolve:', err.message);
+  }
+
+  // 2. Scraping directo de YouTube desde Node.js (sin restricciones de CORS)
+  try {
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanQuery + ' audio')}&sp=EgIQAQ%253D%253D`;
+    const res = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Accept': 'text/html'
+      },
+      timeout: 10000
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const vrRegex = /"videoRenderer":\s*\{"videoId":"([a-zA-Z0-9_-]{11})"/g;
+      let m;
+      while ((m = vrRegex.exec(html)) !== null) {
+        const id = m[1];
+        const idx = m.index;
+        const snippet = html.slice(idx, idx + 2000);
+        if (snippet.includes('SHORTS') || snippet.includes('/shorts/')) continue;
+        console.log('[Electron Music] ✓ Resuelto vía scraping directo:', id);
+        electronYtCache.set(cacheKey, id);
+        return id;
+      }
+      const genericRegex = /\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+      const mGen = genericRegex.exec(html);
+      if (mGen && mGen[1]) {
+        console.log('[Electron Music] ✓ Resuelto vía fallback:', mGen[1]);
+        electronYtCache.set(cacheKey, mGen[1]);
+        return mGen[1];
+      }
+    }
+  } catch (err) {
+    console.warn('[Electron Music] Falló scraping directo:', err.message);
+  }
+
+  return null;
 });
 
 

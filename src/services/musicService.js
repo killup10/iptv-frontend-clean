@@ -1,11 +1,6 @@
 // src/services/musicService.js
 // Servicio de música TeamG Play: catálogo fresco + CANCIÓN COMPLETA.
-// Arquitectura:
-//   1. Metadata y covers -> iTunes Search API (vía backend /api/music, sin CORS).
-//   2. Audio COMPLETO   -> YouTube ID resuelto por backend /api/music/resolve
-//      (el previewUrl de Apple son SOLO 30 segundos y se usa únicamente
-//      como arranque instantáneo mientras se resuelve la versión completa).
-//   3. Radios en vivo   -> streams directos 24/7 (ya eran completos).
+import axiosInstance from '../utils/axiosInstance.js';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' &&
@@ -227,6 +222,21 @@ function normalizeBackendTrack(t) {
 export const INITIAL_FEATURED_TRACKS = [
   {
     id: 'feat-1',
+    title: 'BbY WOW',
+    artist: 'KAROL G, Judeline & rusowsky',
+    album: 'BbY WOW',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 225,
+    fullDuration: 225,
+    genre: 'Urbano Latino',
+    isRadio: false
+  },
+  {
+    id: 'feat-2',
     title: 'NUEVAYoL',
     artist: 'Bad Bunny',
     album: 'DeBÍ TiRAR MÁS FOToS',
@@ -241,9 +251,9 @@ export const INITIAL_FEATURED_TRACKS = [
     isRadio: false
   },
   {
-    id: 'feat-2',
+    id: 'feat-3',
     title: 'LUNA',
-    artist: 'Feid',
+    artist: 'Feid & ATL Jacob',
     album: 'FERXXOCALIPSIS',
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
     audioUrl: '',
@@ -256,33 +266,48 @@ export const INITIAL_FEATURED_TRACKS = [
     isRadio: false
   },
   {
-    id: 'feat-3',
-    title: 'Starboy',
-    artist: 'The Weeknd',
-    album: 'Starboy',
-    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 230,
-    fullDuration: 230,
-    genre: 'R&B / Pop',
-    isRadio: false
-  },
-  {
     id: 'feat-4',
-    title: 'TQG',
-    artist: 'KAROL G',
-    album: 'MAÑANA SERÁ BONITO',
+    title: 'Monaco',
+    artist: 'Bad Bunny',
+    album: 'nadie sabe lo que va a pasar mañana',
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
     audioUrl: '',
     previewUrl: '',
     youtubeId: null,
     isPreviewOnly: true,
-    duration: 197,
-    fullDuration: 197,
-    genre: 'Urbano Latino',
+    duration: 267,
+    fullDuration: 267,
+    genre: 'Trap Latino',
+    isRadio: false
+  },
+  {
+    id: 'feat-5',
+    title: 'Touching The Sky',
+    artist: 'Rauw Alejandro',
+    album: 'Cosa Nuestra',
+    cover: 'https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 188,
+    fullDuration: 188,
+    genre: 'Pop Urbano',
+    isRadio: false
+  },
+  {
+    id: 'feat-6',
+    title: 'Patient Zero',
+    artist: 'Taylor Swift',
+    album: 'Patient Zero',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 215,
+    fullDuration: 215,
+    genre: 'Pop',
     isRadio: false
   }
 ];
@@ -356,50 +381,56 @@ export const musicService = {
    * country: 'global' | 'latin' | 'PE' | 'US' | 'ES' | 'MX'
    */
   async getTopTracks(country = 'global') {
-    // 1) Backend (catálogo fresco + intercalado por país)
+    // 1) Backend vía axiosInstance (incluye headers x-app-version: 1.5.12 y puente Electron)
     try {
-      const res = await fetchWithTimeout(
-        `${API_BASE}/api/music/charts?country=${encodeURIComponent(country)}`,
-        { headers: { Accept: 'application/json' } },
-        12000
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const tracks = (data.tracks || []).map(normalizeBackendTrack).filter(Boolean);
-        if (tracks.length > 0) return tracks;
+      const res = await axiosInstance.get('/api/music/charts', {
+        params: { country },
+        timeout: 10000
+      });
+      if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
+        return res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
       }
     } catch (err) {
-      console.warn('[MusicService] Backend charts no disponible, fallback iTunes:', err?.message);
+      console.warn('[MusicService] Backend charts no disponible, usando feed oficial Apple v2:', err?.message);
     }
 
-    // 2) Fallback directo a iTunes Search API (NO el RSS deprecado)
+    // 2) Fallback directo al feed oficial de Apple Music Most-Played (v2 en vivo, NO búsquedas antiguas)
     try {
-      const queries =
-        country === 'latin'
-          ? ['exitos reggaeton', 'pop latino hits']
-          : ['top hits global', 'billboard hot 100'];
-      const results = await Promise.allSettled(
-        queries.map((q) =>
-          fetch(`${ITUNES_SEARCH_URL}?term=${encodeURIComponent(q)}&entity=song&limit=25`).then((r) => r.json())
-        )
-      );
-      const seen = new Set();
-      const merged = [];
-      for (const r of results) {
-        if (r.status !== 'fulfilled') continue;
-        for (const item of r.value.results || []) {
-          const key = `${(item.trackName || '').toLowerCase()}::${(item.artistName || '').toLowerCase()}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push(formatItunesTrack(item));
-          }
-          if (merged.length >= 50) break;
+      const key = String(country || 'global').toLowerCase();
+      const feedCountry = ['pe', 'es', 'mx', 'us'].includes(key) ? key : (key === 'latin' ? 'pe' : 'us');
+      const res = await fetch(`https://rss.applemarketingtools.com/api/v2/${feedCountry}/music/most-played/50/songs.json`);
+      if (res.ok) {
+        const data = await res.json();
+        const results = data?.feed?.results || [];
+        if (results.length > 0) {
+          return results.map((item) => {
+            const rawCover = item.artworkUrl100 || '';
+            const hdCover = rawCover
+              ? rawCover.replace(/100x100bb/, '600x600bb')
+              : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+            return {
+              id: `apple-${item.id}`,
+              trackId: item.id,
+              title: item.name || 'Canción Desconocida',
+              artist: item.artistName || 'Artista Desconocido',
+              album: item.name || 'Sencillo',
+              cover: hdCover,
+              audioUrl: '',
+              previewUrl: '',
+              duration: 210,
+              fullDuration: 210,
+              isPreviewOnly: true,
+              youtubeId: null,
+              genre: item.genres && item.genres[0] ? item.genres[0].name : 'Música',
+              releaseDate: item.releaseDate ? String(item.releaseDate).substring(0, 4) : '2026',
+              isRadio: false,
+              externalUrl: item.url || '',
+            };
+          });
         }
-        if (merged.length >= 50) break;
       }
-      if (merged.length > 0) return merged;
     } catch (err) {
-      console.warn('[MusicService] Fallback iTunes falló:', err);
+      console.warn('[MusicService] Fallback RSS Apple falló:', err);
     }
 
     return INITIAL_FEATURED_TRACKS;
@@ -411,17 +442,14 @@ export const musicService = {
   async searchTracks(query, limit = 30) {
     if (!query || query.trim().length === 0) return [];
 
-    // 1) Backend (normalizado + sin CORS)
+    // 1) Backend vía axiosInstance (normalizado + sin CORS)
     try {
-      const res = await fetchWithTimeout(
-        `${API_BASE}/api/music/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`,
-        { headers: { Accept: 'application/json' } },
-        12000
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const tracks = (data.tracks || []).map(normalizeBackendTrack).filter(Boolean);
-        if (tracks.length > 0) return tracks;
+      const res = await axiosInstance.get('/api/music/search', {
+        params: { q: query.trim(), limit },
+        timeout: 10000
+      });
+      if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
+        return res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
       }
     } catch (err) {
       console.warn('[MusicService] Backend search no disponible, fallback directo:', err?.message);
@@ -476,12 +504,44 @@ export const musicService = {
     const cached = ytCacheGet(query);
     if (cached) return cached;
 
-    // 1. Backend (estrategia principal: sin CORS, multi-fuente, con caché 7 días)
+    // 1. Electron IPC (proceso principal Node.js: ultra rápido, sin restricciones del navegador)
+    if (typeof window !== 'undefined' && window.electronAPI?.getMusicYouTubeId) {
+      try {
+        const id = await window.electronAPI.getMusicYouTubeId(query);
+        if (id) {
+          ytCacheSet(query, id);
+          return id;
+        }
+      } catch (e) {
+        console.warn('[MusicService] Electron IPC getMusicYouTubeId falló:', e);
+      }
+    }
+
+    // 2. Backend vía axiosInstance (inyecta x-app-version: 1.5.12 y puente HTTP sin CORS)
+    try {
+      const res = await axiosInstance.get('/api/music/resolve', {
+        params: { artist: cleanArtist, title: cleanTitle },
+        timeout: 12000
+      });
+      if (res.data?.youtubeId) {
+        ytCacheSet(query, res.data.youtubeId);
+        return res.data.youtubeId;
+      }
+    } catch (err) {
+      console.warn('[MusicService] Backend resolve vía axiosInstance falló:', err?.message);
+    }
+
+    // 3. Fallback directo con fetch enviando x-app-version
     try {
       const res = await fetchWithTimeout(
         `${API_BASE}/api/music/resolve?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`,
-        { headers: { Accept: 'application/json' } },
-        15000
+        {
+          headers: {
+            'Accept': 'application/json',
+            'x-app-version': '1.5.12'
+          }
+        },
+        12000
       );
       if (res.ok) {
         const data = await res.json();
@@ -491,20 +551,7 @@ export const musicService = {
         }
       }
     } catch (err) {
-      console.warn('[MusicService] Backend resolve falló:', err?.message);
-    }
-
-    // 2. Electron IPC (proceso main Node.js, sin bloqueos CORS)
-    if (typeof window !== 'undefined' && window.electronAPI?.getMusicYouTubeId) {
-      try {
-        const id = await window.electronAPI.getMusicYouTubeId(query);
-        if (id) {
-          ytCacheSet(query, id);
-          return id;
-        }
-      } catch (e) {
-        console.warn('[MusicService] Electron IPC getMusicYouTubeId failed:', e);
-      }
+      console.warn('[MusicService] Backend resolve con fetch falló:', err?.message);
     }
 
     // 3. Piped / Invidious directos (solo web; última opción)

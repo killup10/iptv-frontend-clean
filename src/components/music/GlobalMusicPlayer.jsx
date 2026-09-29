@@ -515,10 +515,10 @@ export default function GlobalMusicPlayer() {
         </div>
       )}
 
-      {/* REPRODUCTOR DE YOUTUBE ACTIVO (EN VIEWPORT PARA EVITAR SUSPENSIÓN DE CHROMIUM) */}
+      {/* REPRODUCTOR DE YOUTUBE ACTIVO (OCULTO DETRÁS DE LA BARRA INFERIOR CON TAMAÑO VÁLIDO) */}
       {currentTrack?.youtubeId && (
         <div 
-          className="fixed bottom-0 right-0 w-2 h-2 overflow-hidden pointer-events-none z-[99989] opacity-10"
+          className="fixed bottom-0 right-0 w-[300px] h-[200px] overflow-hidden pointer-events-none z-[10] opacity-5"
           aria-hidden="true"
         >
           <ReactPlayer
@@ -530,6 +530,7 @@ export default function GlobalMusicPlayer() {
             width="100%"
             height="100%"
             onPlay={() => {
+              console.log('[ReactPlayer] ✓ YouTube reproduciendo canción completa');
               setIsPlaying(true);
               if (audioRef?.current && !audioRef.current.paused) {
                 audioRef.current.pause();
@@ -537,8 +538,9 @@ export default function GlobalMusicPlayer() {
             }}
             onPause={() => setIsPlaying(false)}
             onEnded={nextTrack}
+            progressInterval={250}
             onProgress={(progress) => {
-              if (!isSeeking) {
+              if (!isSeeking && progress.playedSeconds !== undefined) {
                 setCurrentTime(progress.playedSeconds);
               }
             }}
@@ -563,7 +565,8 @@ export default function GlobalMusicPlayer() {
                   fs: 0,
                   modestbranding: 1,
                   playsinline: 1,
-                  rel: 0
+                  rel: 0,
+                  origin: 'https://www.youtube.com'
                 }
               }
             }}

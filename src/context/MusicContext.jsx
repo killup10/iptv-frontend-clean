@@ -52,14 +52,14 @@ export function MusicProvider({ children }) {
     const onCanPlay = () => setIsLoadingAudio(false);
 
     const onTimeUpdate = () => {
-      if (!currentTrackRef.current?.youtubeId) {
+      if (audio && !audio.paused) {
         setCurrentTime(audio.currentTime);
       }
     };
 
     const onLoadedMetadata = () => {
-      if (!currentTrackRef.current?.youtubeId) {
-        setDuration(audio.duration || 0);
+      if (audio && !audio.paused) {
+        setDuration(audio.duration || 30);
       }
       setIsLoadingAudio(false);
     };
@@ -97,19 +97,22 @@ export function MusicProvider({ children }) {
     if (!audio) return;
 
     const onEnded = () => {
-      if (!currentTrackRef.current?.youtubeId) {
-        if (repeatMode === 'one') {
-          audio.currentTime = 0;
-          audio.play().catch(console.warn);
-        } else {
-          handleNext();
-        }
+      // Si la versión completa ya está activa o en camino en YouTube, NO saltar al acabarse el preview de 30s
+      if (currentTrackRef.current?.youtubeId) {
+        console.log('[MusicContext] Preview de 30s finalizado; versión completa en YouTube activa.');
+        return;
+      }
+      if (repeatMode === 'one') {
+        audio.currentTime = 0;
+        audio.play().catch(console.warn);
+      } else {
+        handleNext();
       }
     };
 
     audio.addEventListener('ended', onEnded);
     return () => audio.removeEventListener('ended', onEnded);
-  }, [repeatMode, queue, queueIndex, isShuffle]);
+  }, [repeatMode, queue, queueIndex, isShuffle, handleNext]);
 
   // Actualizar volumen del elemento audio nativo
   useEffect(() => {
@@ -214,7 +217,26 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    // Caso 2: Pista con audioUrl disponible (preview 30s de arranque instantáneo)
+    // Caso 2: Pista con youtubeId ya resuelto (canción completa directa, sin preview de 30s)
+    if (track.youtubeId) {
+      if (audio) {
+        try { audio.pause(); } catch {}
+        audio.removeAttribute('src');
+        audio.load();
+      }
+      setCurrentTrack(track);
+      setIsPlaying(true);
+      setIsLoadingAudio(false);
+      setDuration(track.fullDuration || track.duration || 210);
+      setAudioQuality('full');
+      if (activeQueue) {
+        const idx = activeQueue.findIndex(t => t.id === track.id);
+        prefetchNextFullVersion(activeQueue, idx);
+      }
+      return;
+    }
+
+    // Caso 3: Pista con audioUrl disponible (preview de 30s para arranque instantáneo mientras se resuelve la completa)
     if (audio && track.audioUrl) {
       try { audio.pause(); } catch {}
       audio.src = track.audioUrl;
@@ -223,7 +245,6 @@ export function MusicProvider({ children }) {
         console.warn('[MusicContext] Error iniciando preview nativo:', err);
       });
     } else if (audio) {
-      // Sin preview: detener audio anterior y esperar la versión completa
       try { audio.pause(); } catch {}
       audio.removeAttribute('src');
       audio.load();
@@ -231,28 +252,8 @@ export function MusicProvider({ children }) {
 
     setCurrentTrack(track);
     setIsPlaying(true);
-
-    // Duración honesta: el preview REAL dura 30s; la completa llega con YouTube.
-    if (track.youtubeId) {
-      setDuration(track.fullDuration || track.duration || 180);
-      setAudioQuality('full');
-    } else if (track.audioUrl) {
-      setDuration(30);
-      setAudioQuality('loading-full');
-    } else {
-      setDuration(track.fullDuration || track.duration || 180);
-      setAudioQuality('loading-full');
-    }
-
-    // Si ya tiene youtubeId (canción completa ya resuelta previamente)
-    if (track.youtubeId) {
-      setIsLoadingAudio(false);
-      if (activeQueue) {
-        const idx = activeQueue.findIndex(t => t.id === track.id);
-        prefetchNextFullVersion(activeQueue, idx);
-      }
-      return;
-    }
+    setDuration(track.fullDuration || track.duration || 210);
+    setAudioQuality('loading-full');
 
     // Resolver versión completa en YouTube en segundo plano
     setIsLoadingAudio(true);
