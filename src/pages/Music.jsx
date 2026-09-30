@@ -25,10 +25,12 @@ import {
   DownloadCloud,
   HardDrive,
   Mic,
-  MicOff
+  MicOff,
+  Globe,
+  Lock
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
-import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS } from '../services/musicService.js';
+import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 
 export default function Music() {
@@ -47,6 +49,7 @@ export default function Music() {
     createPlaylist,
     deletePlaylist,
     renamePlaylist,
+    togglePlaylistPrivacy,
     removeTrackFromPlaylist,
     openAddToPlaylistModal,
     offlineTracks,
@@ -67,9 +70,10 @@ export default function Music() {
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
-  const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'queue'
+  const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'community' | 'queue'
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
+  const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(false);
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
@@ -77,6 +81,18 @@ export default function Music() {
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try {
+      const saved = localStorage.getItem('teamg_music_recent_searches');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [curatedPlaylists, setCuratedPlaylists] = useState(DEFAULT_CURATED_PLAYLISTS);
+  const [selectedCuratedPlaylist, setSelectedCuratedPlaylist] = useState(null);
+  const [curatedPlaylistTracks, setCuratedPlaylistTracks] = useState([]);
+  const [isLoadingCuratedTracks, setIsLoadingCuratedTracks] = useState(false);
   const [isLoadingTop, setIsLoadingTop] = useState(true);
   const [isLoadingGenre, setIsLoadingGenre] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -125,7 +141,81 @@ export default function Music() {
     return () => { isMounted = false; };
   }, [selectedGenre]);
 
-  // Búsqueda en vivo con Debounce
+  // Cargar playlists curadas de la comunidad y tendencias
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCurated() {
+      try {
+        const list = await musicService.getCuratedPlaylists(16);
+        if (isMounted && list && list.length > 0) {
+          setCuratedPlaylists(list);
+        }
+      } catch (e) {
+        console.warn('[MusicPage] Error cargando playlists curadas:', e);
+      }
+    }
+    loadCurated();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Cargar canciones de la playlist curada seleccionada
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCuratedTracks() {
+      if (!selectedCuratedPlaylist) {
+        setCuratedPlaylistTracks([]);
+        return;
+      }
+      setIsLoadingCuratedTracks(true);
+      try {
+        const tracks = await musicService.getPlaylistTracks(
+          selectedCuratedPlaylist.deezerId || selectedCuratedPlaylist.id
+        );
+        if (isMounted) {
+          setCuratedPlaylistTracks(tracks);
+        }
+      } catch (e) {
+        console.warn('[MusicPage] Error cargando temas de playlist curada:', e);
+      } finally {
+        if (isMounted) setIsLoadingCuratedTracks(false);
+      }
+    }
+    loadCuratedTracks();
+    return () => { isMounted = false; };
+  }, [selectedCuratedPlaylist]);
+
+  // Gestión de historial de búsquedas recientes
+  const saveRecentSearch = useCallback((term) => {
+    const clean = String(term || '').trim();
+    if (!clean || clean.length < 2) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(item => item.toLowerCase() !== clean.toLowerCase());
+      const next = [clean, ...filtered].slice(0, 8);
+      try {
+        localStorage.setItem('teamg_music_recent_searches', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const removeRecentSearch = useCallback((term) => {
+    setRecentSearches(prev => {
+      const next = prev.filter(item => item !== term);
+      try {
+        localStorage.setItem('teamg_music_recent_searches', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem('teamg_music_recent_searches');
+    } catch {}
+  }, []);
+
+  // Búsqueda en vivo con Debounce e historial automático
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -138,6 +228,9 @@ export default function Music() {
       try {
         const results = await musicService.searchTracks(searchQuery, 30);
         setSearchResults(results);
+        if (results && results.length > 0) {
+          saveRecentSearch(searchQuery);
+        }
       } catch (err) {
         console.warn('[MusicPage] Error en búsqueda:', err);
       } finally {
@@ -146,7 +239,7 @@ export default function Music() {
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [searchQuery]);
+  }, [searchQuery, saveRecentSearch]);
 
   const stopVoiceSearch = useCallback(() => {
     if (recognitionRef.current) {
@@ -258,6 +351,7 @@ export default function Music() {
     setActiveTab(newTab);
     if (newTab !== 'playlists') {
       setSelectedPlaylistId(null);
+      setSelectedCuratedPlaylist(null);
     }
   }, [activeTab]);
 
@@ -273,31 +367,37 @@ export default function Music() {
       setIsExpandedPlayer(false);
       return true;
     }
-    // 1. Si está viendo una playlist personalizada específica
+    // 1. Si está viendo una playlist curada de la comunidad
+    if (selectedCuratedPlaylist) {
+      setSelectedCuratedPlaylist(null);
+      setCuratedPlaylistTracks([]);
+      return true;
+    }
+    // 2. Si está viendo una playlist personalizada específica
     if (selectedPlaylistId) {
       setSelectedPlaylistId(null);
       return true;
     }
-    // 2. Si hay una búsqueda activa
+    // 3. Si hay una búsqueda activa
     if (searchQuery) {
       setSearchQuery('');
       return true;
     }
-    // 3. Si hay historial previo de pestañas dentro de Música (ej: vino de radios a listas)
+    // 4. Si hay historial previo de pestañas dentro de Música (ej: vino de radios a listas)
     if (tabHistory.length > 0) {
       const prevTab = tabHistory[tabHistory.length - 1];
       setTabHistory(prev => prev.slice(0, -1));
       setActiveTab(prevTab);
       return true;
     }
-    // 4. Si está en otra pestaña que no es 'top'
+    // 5. Si está en otra pestaña que no es 'top'
     if (activeTab !== 'top') {
       setActiveTab('top');
       return true;
     }
     // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
     return false;
-  }, [isExpandedPlayer, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
+  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
 
   useEffect(() => {
     window.__musicBackHandler = handleMusicBack;
@@ -342,10 +442,11 @@ export default function Music() {
     }
     if (activeTab === 'playlists' || activeTab === 'queue') {
       if (selectedPlaylist) return selectedPlaylist.tracks;
+      if (selectedCuratedPlaylist) return curatedPlaylistTracks;
       return queue;
     }
     return topTracks;
-  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue, selectedPlaylist]);
+  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue, selectedPlaylist, selectedCuratedPlaylist, curatedPlaylistTracks]);
 
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
@@ -362,7 +463,7 @@ export default function Music() {
             <div className="space-y-3 text-center md:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-xs font-bold tracking-wider uppercase">
                 <Disc3 className="w-3.5 h-3.5 animate-spin" />
-                TeamG Music • Audio en Alta Fidelidad
+                TeamG Music ♪ • Audio en Alta Fidelidad
               </div>
               <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
                 Top 50 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-400 to-fuchsia-500">Éxitos Globales</span>
@@ -395,7 +496,7 @@ export default function Music() {
             <div className="relative group hidden sm:block">
               <div className="w-44 h-44 sm:w-56 sm:h-56 rounded-2xl overflow-hidden shadow-2xl border border-white/20 transform rotate-2 group-hover:rotate-0 transition-transform duration-500">
                 <img 
-                  src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80'} 
+                  src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
                   alt="Top 50 Cover" 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -411,8 +512,8 @@ export default function Music() {
       {/* 2. BARRA DE BÚSQUEDA Y PESTAÑAS */}
       <div className="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
 
-        {/* Botón de retroceso contextual dentro de Música */}
-        {(activeTab !== 'top' || selectedPlaylistId || searchQuery || tabHistory.length > 0) && (
+        {/* Botón de retroceso contextual dentro de TeamG Music ♪ */}
+        {(activeTab !== 'top' || selectedPlaylistId || selectedCuratedPlaylist || searchQuery || tabHistory.length > 0) && (
           <div className="flex items-center gap-2">
             <button
               onClick={handleMusicBack}
@@ -422,9 +523,11 @@ export default function Music() {
               <span>
                 {selectedPlaylistId 
                   ? 'Volver a Mis Listas' 
-                  : searchQuery 
-                    ? 'Limpiar Búsqueda' 
-                    : 'Atrás'}
+                  : selectedCuratedPlaylist
+                    ? 'Volver a Playlists Curadas'
+                    : searchQuery 
+                      ? 'Limpiar Búsqueda' 
+                      : 'Atrás'}
               </span>
             </button>
           </div>
@@ -501,6 +604,48 @@ export default function Music() {
               >
                 ✕
               </button>
+            </div>
+          )}
+
+          {/* Historial de búsquedas recientes */}
+          {!searchQuery && recentSearches.length > 0 && (
+            <div className="mt-3 space-y-1.5 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs text-gray-400 px-1">
+                <div className="flex items-center gap-1.5 font-semibold text-gray-300">
+                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Búsquedas recientes</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearRecentSearches}
+                  className="text-[11px] text-gray-400 hover:text-cyan-300 transition cursor-pointer"
+                >
+                  Borrar todo
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                {recentSearches.map((term, idx) => (
+                  <div
+                    key={`${term}-${idx}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-cyan-400/40 text-xs text-gray-300 hover:text-white transition cursor-pointer group active:scale-95"
+                  >
+                    <span onClick={() => setSearchQuery(term)} className="truncate max-w-[200px]">
+                      {term}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeRecentSearch(term);
+                      }}
+                      className="text-gray-500 hover:text-rose-400 text-xs transition ml-0.5"
+                      title="Eliminar del historial"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -846,8 +991,132 @@ export default function Music() {
         {/* CASO: LISTAS DE REPRODUCCIÓN & PLAYLISTS PERSONALIZADAS */}
         {!searchQuery && (activeTab === 'playlists' || activeTab === 'queue') && (
           <div className="space-y-6 animate-in fade-in">
-            {/* Si el usuario tiene una playlist seleccionada, mostramos la vista detallada de esa playlist */}
-            {selectedPlaylist ? (
+            {/* Si el usuario tiene una playlist curada seleccionada, mostramos su detalle */}
+            {selectedCuratedPlaylist ? (
+              <div className="space-y-6 animate-in fade-in">
+                {/* Botón Volver */}
+                <button
+                  onClick={() => setSelectedCuratedPlaylist(null)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Volver a Playlists</span>
+                </button>
+
+                {/* Banner de la Playlist Curada */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/50 via-[#160f29] to-cyan-950/40 border border-cyan-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                  <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                    <img 
+                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                      alt={selectedCuratedPlaylist.name} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[10px] font-bold tracking-wider uppercase">
+                      <Globe className="w-3 h-3 text-cyan-400" />
+                      <span>Playlist de la Comunidad • Varios Artistas</span>
+                    </span>
+
+                    <h2 className="text-2xl sm:text-4xl font-black text-white truncate">
+                      {selectedCuratedPlaylist.name}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-gray-300 max-w-2xl line-clamp-2">
+                      {selectedCuratedPlaylist.description}
+                    </p>
+
+                    <p className="text-xs text-gray-400">
+                      {curatedPlaylistTracks.length > 0 
+                        ? `${curatedPlaylistTracks.length} canciones • ${Math.round(curatedPlaylistTracks.reduce((acc, t) => acc + (t.duration || 210), 0) / 60)} min`
+                        : `${selectedCuratedPlaylist.trackCount || 50} canciones seleccionadas`}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                      {curatedPlaylistTracks.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => playTrack(curatedPlaylistTracks[0], curatedPlaylistTracks)}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 hover:from-cyan-300 hover:to-fuchsia-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                          >
+                            <Play className="w-4 h-4 fill-black" />
+                            <span>Reproducir Todo</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const shuffled = [...curatedPlaylistTracks].sort(() => Math.random() - 0.5);
+                              playTrack(shuffled[0], shuffled);
+                            }}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                          >
+                            <Shuffle className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Aleatorio</span>
+                          </button>
+
+                          {isPlaylistDownloaded({ id: selectedCuratedPlaylist.id, tracks: curatedPlaylistTracks }) ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs shadow-sm">
+                              <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                              <span>Descargada (Offline)</span>
+                            </div>
+                          ) : isDownloadingPlaylistId === selectedCuratedPlaylist.id ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs shadow-sm">
+                              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                              <span>Descargando...</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => downloadPlaylist({ id: selectedCuratedPlaylist.id, name: selectedCuratedPlaylist.name, tracks: curatedPlaylistTracks })}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                            >
+                              <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                              <span>Descargar Lista ({curatedPlaylistTracks.length})</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Canciones de la playlist curada */}
+                {isLoadingCuratedTracks ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    <span className="text-xs">Cargando canciones de la comunidad...</span>
+                  </div>
+                ) : curatedPlaylistTracks.length === 0 ? (
+                  <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8">
+                    <Music2 className="w-12 h-12 mx-auto mb-3 text-cyan-400/50" />
+                    <p className="text-base font-semibold text-white">No se pudieron cargar las canciones</p>
+                    <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                      Intenta con otra playlist de la comunidad.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {curatedPlaylistTracks.map((track, idx) => (
+                      <TrackCard 
+                        key={`${track.id}-${idx}`} 
+                        track={track} 
+                        queue={curatedPlaylistTracks}
+                        index={idx + 1}
+                        isPlaying={isPlaying && currentTrack?.id === track.id}
+                        onPlay={() => playTrack(track, curatedPlaylistTracks)}
+                        isFav={isFavorite(track.id)}
+                        onToggleFav={() => toggleFavorite(track)}
+                        onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                        isDownloaded={isTrackDownloaded(track.id)}
+                        downloadStatus={activeDownloadsMap[track.id]}
+                        onDownload={() => downloadTrack(track)}
+                        onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : selectedPlaylist ? (
               <div className="space-y-6">
                 {/* Botón Volver */}
                 <button
@@ -925,10 +1194,25 @@ export default function Music() {
                       </div>
                     )}
 
-                    <p className="text-xs text-gray-400">
-                      {selectedPlaylist.tracks.length} {selectedPlaylist.tracks.length === 1 ? 'canción' : 'canciones'}
-                      {selectedPlaylist.tracks.length > 0 && ` • ${Math.round(selectedPlaylist.tracks.reduce((acc, t) => acc + (t.fullDuration || t.duration || 210), 0) / 60)} min`}
-                    </p>
+                      <div className="flex items-center justify-center md:justify-start gap-2">
+                        <p className="text-xs text-gray-400">
+                          {selectedPlaylist.tracks.length} {selectedPlaylist.tracks.length === 1 ? 'canción' : 'canciones'}
+                          {selectedPlaylist.tracks.length > 0 && ` • ${Math.round(selectedPlaylist.tracks.reduce((acc, t) => acc + (t.fullDuration || t.duration || 210), 0) / 60)} min`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => togglePlaylistPrivacy(selectedPlaylist.id)}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition cursor-pointer ${
+                            selectedPlaylist.isPublic
+                              ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/30'
+                              : 'bg-white/10 border-white/20 text-gray-400 hover:text-white'
+                          }`}
+                          title={selectedPlaylist.isPublic ? "Lista pública. Clic para hacerla privada" : "Lista privada. Clic para hacerla pública"}
+                        >
+                          {selectedPlaylist.isPublic ? <Globe className="w-3 h-3 text-cyan-400" /> : <Lock className="w-3 h-3 text-gray-400" />}
+                          <span>{selectedPlaylist.isPublic ? 'Pública' : 'Privada'}</span>
+                        </button>
+                      </div>
 
                     {/* Botones de acción */}
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
@@ -1040,11 +1324,11 @@ export default function Music() {
                     </p>
                   </div>
 
-                  {/* Selector Mis Playlists vs Cola en Reproducción */}
-                  <div className="flex items-center gap-1.5 p-1 bg-white/5 border border-white/10 rounded-2xl self-start sm:self-auto">
+                  {/* Selector Mis Playlists vs Comunidad vs Cola */}
+                  <div className="flex items-center gap-1.5 p-1 bg-white/5 border border-white/10 rounded-2xl self-start sm:self-auto overflow-x-auto max-w-full">
                     <button
                       onClick={() => setPlaylistSubTab('custom')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                         playlistSubTab === 'custom'
                           ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-md'
                           : 'text-gray-400 hover:text-white'
@@ -1053,8 +1337,19 @@ export default function Music() {
                       Mis Playlists ({customPlaylists.length})
                     </button>
                     <button
+                      onClick={() => setPlaylistSubTab('community')}
+                      className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                        playlistSubTab === 'community'
+                          ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-extrabold shadow-md'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Comunidad ({curatedPlaylists.length + customPlaylists.filter(p => p.isPublic).length})</span>
+                    </button>
+                    <button
                       onClick={() => setPlaylistSubTab('queue')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                         playlistSubTab === 'queue'
                           ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-extrabold shadow-md'
                           : 'text-gray-400 hover:text-white'
@@ -1070,48 +1365,62 @@ export default function Music() {
                   <div className="space-y-6">
                     {/* Formulario para crear nueva lista */}
                     {isCreatingPlaylist && (
-                      <div className="p-4 rounded-2xl bg-fuchsia-950/30 border border-fuchsia-500/30 flex flex-col sm:flex-row items-center gap-3 animate-in fade-in">
+                      <div className="p-4 rounded-2xl bg-fuchsia-950/30 border border-fuchsia-500/30 flex flex-col gap-3 animate-in fade-in">
                         <input
                           type="text"
                           value={newPlaylistTitle}
                           onChange={(e) => setNewPlaylistTitle(e.target.value)}
                           placeholder="Nombre de la nueva playlist (ej. Reggaeton 2026, Gym, Relax...)"
-                          className="flex-1 px-4 py-2.5 bg-black/50 border border-white/20 focus:border-cyan-400 rounded-xl text-white text-sm focus:outline-none w-full"
+                          className="px-4 py-2.5 bg-black/50 border border-white/20 focus:border-cyan-400 rounded-xl text-white text-sm focus:outline-none w-full"
                           autoFocus
                           maxLength={50}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               if (newPlaylistTitle.trim()) {
-                                createPlaylist(newPlaylistTitle.trim());
+                                createPlaylist(newPlaylistTitle.trim(), '', newPlaylistIsPublic);
                                 setNewPlaylistTitle('');
                                 setIsCreatingPlaylist(false);
                               }
                             }
                           }}
                         />
-                        <div className="flex items-center gap-2 self-end sm:self-auto">
-                          <button
-                            onClick={() => {
-                              if (newPlaylistTitle.trim()) {
-                                createPlaylist(newPlaylistTitle.trim());
-                                setNewPlaylistTitle('');
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-cyan-300 transition">
+                            <input
+                              type="checkbox"
+                              checked={newPlaylistIsPublic}
+                              onChange={(e) => setNewPlaylistIsPublic(e.target.checked)}
+                              className="rounded bg-black/40 border-white/20 text-cyan-400 focus:ring-0 cursor-pointer"
+                            />
+                            <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Hacer pública para que otros usuarios la vean en la sección de Comunidad</span>
+                          </label>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <button
+                              onClick={() => {
+                                if (newPlaylistTitle.trim()) {
+                                  createPlaylist(newPlaylistTitle.trim(), '', newPlaylistIsPublic);
+                                  setNewPlaylistTitle('');
+                                  setIsCreatingPlaylist(false);
+                                }
+                              }}
+                              disabled={!newPlaylistTitle.trim()}
+                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer"
+                            >
+                              Crear Lista
+                            </button>
+                            <button
+                              onClick={() => {
                                 setIsCreatingPlaylist(false);
-                              }
-                            }}
-                            disabled={!newPlaylistTitle.trim()}
-                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer"
-                          >
-                            Crear Lista
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsCreatingPlaylist(false);
-                              setNewPlaylistTitle('');
-                            }}
-                            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-semibold cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
+                                setNewPlaylistTitle('');
+                              }}
+                              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-300 text-xs font-semibold cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1156,6 +1465,24 @@ export default function Music() {
                               </div>
                             )}
 
+                            {/* Badge / Botón rápido de Privacidad (Pública vs Privada) */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePlaylistPrivacy(pl.id);
+                              }}
+                              className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-bold border backdrop-blur-md transition z-10 flex items-center gap-1 cursor-pointer ${
+                                pl.isPublic
+                                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/30'
+                                  : 'bg-black/60 border-white/20 text-gray-400 hover:text-white hover:bg-black/80'
+                              }`}
+                              title={pl.isPublic ? "Playlist Pública. Haz clic para hacerla Privada" : "Playlist Privada. Haz clic para hacerla Pública"}
+                            >
+                              {pl.isPublic ? <Globe className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+                              <span>{pl.isPublic ? 'PÚBLICA' : 'PRIVADA'}</span>
+                            </button>
+
                             {/* Badge offline si la playlist completa está descargada */}
                             {pl.tracks.length > 0 && isPlaylistDownloaded(pl) && (
                               <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10">
@@ -1190,6 +1517,106 @@ export default function Music() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUB-PESTAÑA 2: COMUNIDAD & PLAYLISTS CURADAS */}
+                {playlistSubTab === 'community' && (
+                  <div className="space-y-8 animate-in fade-in">
+                    {/* Listas Públicas creadas por usuarios */}
+                    {customPlaylists.filter(p => p.isPublic).length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-cyan-400" />
+                          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                            Listas Públicas de la Comunidad
+                          </h3>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                          {customPlaylists.filter(p => p.isPublic).map((pl) => (
+                            <div
+                              key={pl.id}
+                              onClick={() => setSelectedPlaylistId(pl.id)}
+                              className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-400/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
+                            >
+                              <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
+                                {pl.cover ? (
+                                  <img src={pl.cover} alt={pl.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                                ) : (
+                                  <ListMusic className="w-10 h-10 text-cyan-400/40" />
+                                )}
+                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-[9px] font-bold text-cyan-300 backdrop-blur-md flex items-center gap-1">
+                                  <Globe className="w-2.5 h-2.5" />
+                                  <span>PÚBLICA</span>
+                                </div>
+                              </div>
+                              <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">{pl.name}</h4>
+                              <p className="text-[11px] text-gray-400 mt-0.5">{pl.tracks.length} canciones</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Playlists Curadas y Tendencias Globales de Diversos Artistas */}
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                          <Disc3 className="w-4 h-4 text-fuchsia-400 animate-spin" />
+                          <span>Playlists Curadas & Tendencias Globales</span>
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Listas temáticas con canciones y colaboraciones de múltiples artistas (estilo Spotify / Apple Music).
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {curatedPlaylists.map((pl) => (
+                          <div
+                            key={pl.id}
+                            onClick={() => setSelectedCuratedPlaylist(pl)}
+                            className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-400/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
+                          >
+                            <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
+                              <img 
+                                src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                                alt={pl.name} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                              />
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md">
+                                TENDENCIA
+                              </div>
+                              <div 
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setSelectedCuratedPlaylist(pl);
+                                  const tracks = await musicService.getPlaylistTracks(pl.deezerId || pl.id);
+                                  if (tracks && tracks.length > 0) {
+                                    playTrack(tracks[0], tracks);
+                                  }
+                                }}
+                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
+                                title="Reproducir playlist"
+                              >
+                                <Play className="w-4 h-4 fill-black ml-0.5" />
+                              </div>
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                                {pl.name}
+                              </h4>
+                              <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5">
+                                {pl.description}
+                              </p>
+                              <p className="text-[10px] text-cyan-400/80 mt-1 font-semibold">
+                                {pl.trackCount || 50} canciones
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}

@@ -803,14 +803,15 @@ export function MusicProvider({ children }) {
     return favorites.some(t => t.id === trackId);
   }, [favorites]);
 
-  // --- PLAYLISTS PERSONALIZADAS ---
-  const createPlaylist = useCallback((name, description = '') => {
+  // --- PLAYLISTS PERSONALIZADAS (CON SOPORTE PÚBLICA / PRIVADA) ---
+  const createPlaylist = useCallback((name, description = '', isPublic = false) => {
     const trimmed = String(name || '').trim();
     if (!trimmed) return null;
     const newPlaylist = {
       id: `pl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       name: trimmed,
       description: description.trim(),
+      isPublic: Boolean(isPublic),
       createdAt: Date.now(),
       cover: '',
       tracks: []
@@ -819,16 +820,28 @@ export function MusicProvider({ children }) {
     return newPlaylist;
   }, []);
 
+  const togglePlaylistPrivacy = useCallback((playlistId) => {
+    setCustomPlaylists(prev => prev.map(pl => (
+      pl.id === playlistId ? { ...pl, isPublic: !pl.isPublic } : pl
+    )));
+  }, []);
+
   const deletePlaylist = useCallback((playlistId) => {
     setCustomPlaylists(prev => prev.filter(pl => pl.id !== playlistId));
   }, []);
 
-  const renamePlaylist = useCallback((playlistId, newName) => {
+  const renamePlaylist = useCallback((playlistId, newName, newDescription = undefined, newIsPublic = undefined) => {
     const trimmed = String(newName || '').trim();
     if (!trimmed) return;
-    setCustomPlaylists(prev => prev.map(pl => (
-      pl.id === playlistId ? { ...pl, name: trimmed } : pl
-    )));
+    setCustomPlaylists(prev => prev.map(pl => {
+      if (pl.id !== playlistId) return pl;
+      return {
+        ...pl,
+        name: trimmed,
+        ...(newDescription !== undefined ? { description: String(newDescription).trim() } : {}),
+        ...(newIsPublic !== undefined ? { isPublic: Boolean(newIsPublic) } : {})
+      };
+    }));
   }, []);
 
   const addTrackToPlaylist = useCallback((playlistId, track) => {
@@ -962,6 +975,7 @@ export function MusicProvider({ children }) {
     createPlaylist,
     deletePlaylist,
     renamePlaylist,
+    togglePlaylistPrivacy,
     addTrackToPlaylist,
     removeTrackFromPlaylist,
     toggleTrackInPlaylist,

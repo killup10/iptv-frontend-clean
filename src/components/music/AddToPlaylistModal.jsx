@@ -1,6 +1,6 @@
 // src/components/music/AddToPlaylistModal.jsx
 import React, { useState } from 'react';
-import { X, Plus, Check, ListMusic, Music2 } from 'lucide-react';
+import { X, Plus, Check, ListMusic, Music2, Globe, Lock } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 
 export default function AddToPlaylistModal() {
@@ -15,6 +15,7 @@ export default function AddToPlaylistModal() {
   } = useMusic();
 
   const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
   if (!playlistModalTrack) return null;
@@ -24,11 +25,11 @@ export default function AddToPlaylistModal() {
     const name = newPlaylistName.trim();
     if (!name) return;
 
-    const created = createPlaylist(name);
+    const created = createPlaylist(name, '', newPlaylistIsPublic);
     if (created) {
       addTrackToPlaylist(created.id, playlistModalTrack);
       setNewPlaylistName('');
-      setFeedbackMsg(`¡Añadida a "${name}"!`);
+      setFeedbackMsg(`¡Añadida a "${name}" (${newPlaylistIsPublic ? 'Pública' : 'Privada'})!`);
       setTimeout(() => setFeedbackMsg(''), 2500);
     }
   };
@@ -118,7 +119,18 @@ export default function AddToPlaylistModal() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-white truncate">{pl.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-sm font-bold text-white truncate">{pl.name}</h4>
+                        {pl.isPublic ? (
+                          <span title="Pública (Comunidad)" className="text-cyan-400">
+                            <Globe className="w-3 h-3 inline" />
+                          </span>
+                        ) : (
+                          <span title="Privada" className="text-gray-500">
+                            <Lock className="w-3 h-3 inline" />
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-gray-400">{pl.tracks.length} {pl.tracks.length === 1 ? 'canción' : 'canciones'}</p>
                     </div>
                   </div>
@@ -137,35 +149,48 @@ export default function AddToPlaylistModal() {
         </div>
 
         {/* Formulario para Crear Nueva Playlist */}
-        <div className="p-4 border-t border-white/10 bg-black/40">
-          <form onSubmit={handleCreateAndAdd} className="flex gap-2">
-            <input
-              type="text"
-              value={newPlaylistName}
-              onChange={(e) => setNewPlaylistName(e.target.value)}
-              placeholder="Nueva playlist (ej. Mis Favoritas, Gym...)"
-              className="flex-1 px-4 py-2.5 bg-white/5 border border-white/15 focus:border-cyan-400/60 rounded-xl text-white text-xs placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
-              maxLength={40}
-            />
-            <button
-              type="submit"
-              disabled={!newPlaylistName.trim()}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black font-bold text-xs shadow-md transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Crear y Añadir</span>
-            </button>
-          </form>
+        <div className="p-4 border-t border-white/10 bg-black/40 space-y-2.5">
+          <form onSubmit={handleCreateAndAdd} className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                placeholder="Nueva playlist (ej. Mis Favoritas, Gym...)"
+                className="flex-1 px-4 py-2.5 bg-white/5 border border-white/15 focus:border-cyan-400/60 rounded-xl text-white text-xs placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
+                maxLength={40}
+              />
+              <button
+                type="submit"
+                disabled={!newPlaylistName.trim()}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black font-bold text-xs shadow-md transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Crear y Añadir</span>
+              </button>
+            </div>
 
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={closeAddToPlaylistModal}
-              className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition cursor-pointer"
-            >
-              Listo
-            </button>
-          </div>
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-400 hover:text-cyan-300 transition">
+                <input
+                  type="checkbox"
+                  checked={newPlaylistIsPublic}
+                  onChange={(e) => setNewPlaylistIsPublic(e.target.checked)}
+                  className="rounded bg-black/40 border-white/20 text-cyan-400 focus:ring-0 cursor-pointer"
+                />
+                <Globe className="w-3 h-3 text-cyan-400" />
+                <span>Hacer pública para la comunidad</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={closeAddToPlaylistModal}
+                className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs transition cursor-pointer"
+              >
+                Listo
+              </button>
+            </div>
+          </form>
         </div>
 
       </div>

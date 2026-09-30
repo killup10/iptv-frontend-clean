@@ -500,7 +500,7 @@ function App() {
                   </Link>
                   <Link to="/musica" className="text-cyan-300 hover:text-white px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
                     <Music className="w-4 h-4 text-cyan-400" />
-                    <span>Música</span>
+                    <span>TeamG Music ♪</span>
                   </Link>
                   <Link to="/pedidos" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
                     <span>📩</span>
@@ -737,7 +737,7 @@ function App() {
                   </Link>
                   <Link to="/musica" className="flex items-center gap-3 text-cyan-300 hover:text-white px-3 py-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-base font-bold transition" onClick={closeAllMenus}>
                     <Music className="w-5 h-5 text-cyan-400" />
-                    <span>Música</span>
+                    <span>TeamG Music ♪</span>
                   </Link>
                   <Link to="/pedidos" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span>📩</span> Pedidos

@@ -203,6 +203,76 @@ export const GENRES = [
   }
 ];
 
+// Playlists curadas predeterminadas con selecciones de varios artistas y nombres temáticos
+export const DEFAULT_CURATED_PLAYLISTS = [
+  {
+    id: 'curated_1290316405',
+    deezerId: 1290316405,
+    name: 'Chill Relax & Lo-Fi',
+    description: 'Vibras relajantes para descansar, estudiar o desconectar con melodías suaves.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    trackCount: 45,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_1306931615',
+    deezerId: 1306931615,
+    name: 'Rock & Metal Essentials',
+    description: 'Himnos eternos de AC/DC, Falling In Reverse, Linkin Park, Metallica y más.',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_178699142',
+    deezerId: 178699142,
+    name: 'Fuego Latino & Perreo',
+    description: 'Los temas más encendidos de reggaetón, dembow y música urbana global.',
+    cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
+    trackCount: 60,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_2045665684',
+    deezerId: 2045665684,
+    name: 'Salsa & Bachata de Oro',
+    description: 'Clásicos y éxitos románticos para bailar y disfrutar en toda fiesta.',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    trackCount: 40,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_9590427822',
+    deezerId: 9590427822,
+    name: 'Deep House & Club Beats',
+    description: 'Electrónica envolvente, sintetizadores y ritmos nocturnos sin interrupciones.',
+    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_867825522',
+    deezerId: 867825522,
+    name: '80s & 90s Retro Hits',
+    description: 'Nostalgia pura con las canciones que definieron dos generaciones doradas.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    trackCount: 55,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  }
+];
+
 // Helper para transformar resultados de iTunes a formato uniforme de TeamG Music.
 // NOTA: previewUrl de Apple = SOLO 30 segundos. Se usa como arranque instantáneo;
 // la versión COMPLETA llega vía youtubeId (resuelto por el backend).
@@ -241,6 +311,138 @@ function normalizeBackendTrack(t) {
     isPreviewOnly: !t.youtubeId,
     youtubeId: t.youtubeId || null
   };
+}
+
+// Formatear canciones de Deezer para enriquecer el catálogo con estrenos de cualquier artista (ej. Falling In Reverse - Joseph)
+function formatDeezerTrack(item) {
+  if (!item) return null;
+  const cover =
+    item.album?.cover_big ||
+    item.album?.cover_medium ||
+    item.artist?.picture_big ||
+    'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+
+  const duration = item.duration || 210;
+
+  return {
+    id: `deezer-${item.id}`,
+    trackId: item.id,
+    title: item.title || 'Canción Desconocida',
+    artist: item.artist?.name || 'Artista Desconocido',
+    album: item.album?.title || item.title || 'Sencillo',
+    cover,
+    audioUrl: item.preview || '',
+    previewUrl: item.preview || '',
+    duration: duration,
+    fullDuration: duration,
+    isPreviewOnly: true,
+    youtubeId: null,
+    genre: 'Música',
+    releaseDate: '2026',
+    isRadio: false,
+    externalUrl: item.link || '',
+    source: 'deezer'
+  };
+}
+
+// Calificación de relevancia para priorizar canciones exactas en búsquedas por título o artista
+function scoreTrackRelevance(track, query) {
+  if (!track || !query) return 0;
+  const qClean = query.toLowerCase().trim();
+  const words = qClean.split(/\s+/).filter(w => w.length > 1);
+  const title = (track.title || '').toLowerCase();
+  const artist = (track.artist || '').toLowerCase();
+  const full = `${title} ${artist}`;
+
+  let score = 0;
+  if (title === qClean) score += 500;
+  if (title.includes(qClean)) score += 300;
+
+  let matchedWords = 0;
+  for (const w of words) {
+    if (title.includes(w)) {
+      score += 50;
+      matchedWords++;
+    } else if (artist.includes(w)) {
+      score += 20;
+      matchedWords++;
+    }
+  }
+  if (words.length > 0 && matchedWords === words.length) {
+    score += 200;
+  }
+  return score;
+}
+
+// Helper para consumir la API de Deezer (JSONP en web browsers sin CORS, CapacitorHttp en Android/TV, fetch en Node/Electron)
+async function fetchDeezerApi(endpoint) {
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.();
+
+  // 1) Móvil / Android TV nativo: CapacitorHttp sin restricciones de CORS
+  if (isNative && CapacitorHttp) {
+    try {
+      const res = await CapacitorHttp.get({
+        url: `https://api.deezer.com${endpoint}`
+      });
+      if (res.status === 200 && res.data) {
+        return typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+      }
+    } catch (e) {
+      console.warn('[MusicService] Deezer CapacitorHttp error:', e);
+    }
+  }
+
+  // 2) Proceso Electron / Node
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    try {
+      const res = await fetch(`https://api.deezer.com${endpoint}`);
+      if (res.ok) return await res.json();
+    } catch {}
+  }
+
+  // 3) Web Browser estándar: Deezer soporta JSONP nativamente sin restricciones de CORS
+  if (typeof document !== 'undefined') {
+    return new Promise((resolve) => {
+      const cbName = `dz_cb_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const script = document.createElement('script');
+      const separator = endpoint.includes('?') ? '&' : '?';
+      const url = `https://api.deezer.com${endpoint}${separator}output=jsonp&callback=${cbName}`;
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(null);
+      }, 5000);
+
+      function cleanup() {
+        clearTimeout(timer);
+        try {
+          delete window[cbName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        } catch {}
+      }
+
+      window[cbName] = (data) => {
+        cleanup();
+        resolve(data || null);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      script.src = url;
+      document.head.appendChild(script);
+    });
+  }
+
+  // 4) Fallback con fetch directo
+  try {
+    const res = await fetch(`https://api.deezer.com${endpoint}`);
+    if (res.ok) return await res.json();
+  } catch {}
+
+  return null;
 }
 
 // Canciones destacadas de arranque instantáneo.
@@ -592,34 +794,106 @@ export const musicService = {
 
   /**
    * Busca cualquier canción, artista o álbum en tiempo real.
+   * Consulta Deezer e iTunes en paralelo para cobertura total de artistas y novedades
+   * (asegurando que temas recientes como "Joseph" de Falling In Reverse aparezcan de inmediato).
    */
   async searchTracks(query, limit = 30) {
     if (!query || query.trim().length === 0) return [];
+    const cleanQuery = query.trim();
 
+    // Consultamos Deezer e iTunes en paralelo
+    const [deezerData, itunesTracks] = await Promise.all([
+      fetchDeezerApi(`/search?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`).catch(() => null),
+      this.searchItunesOnly(cleanQuery, limit).catch(() => [])
+    ]);
+
+    const deezerTracks = (deezerData?.data || []).map(formatDeezerTrack).filter(Boolean);
+
+    const seen = new Set();
+    const merged = [];
+
+    // Priorizar y unificar sin duplicados
+    for (const track of [...deezerTracks, ...itunesTracks]) {
+      if (!track || !track.title || !track.artist) continue;
+      const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(track);
+      }
+    }
+
+    // Ordenar por relevancia exacta según la consulta
+    merged.sort((a, b) => scoreTrackRelevance(b, cleanQuery) - scoreTrackRelevance(a, cleanQuery));
+    return merged.slice(0, limit);
+  },
+
+  /**
+   * Búsqueda en iTunes / Backend como respaldo complementario.
+   */
+  async searchItunesOnly(query, limit = 25) {
     // 1) Backend vía axiosInstance (normalizado + sin CORS)
     try {
       const res = await axiosInstance.get('/api/music/search', {
         params: { q: query.trim(), limit },
-        timeout: 10000
+        timeout: 4500
       });
       if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
         return res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
       }
-    } catch (err) {
-      console.warn('[MusicService] Backend search no disponible, fallback directo:', err?.message);
-    }
+    } catch {}
 
     // 2) Fallback directo a iTunes
     try {
       const cleanQuery = encodeURIComponent(query.trim());
       const res = await fetch(`${ITUNES_SEARCH_URL}?term=${cleanQuery}&entity=song&limit=${limit}`);
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) return [];
       const data = await res.json();
       return (data.results || []).map(formatItunesTrack);
-    } catch (error) {
-      console.error('[MusicService] Error buscando canciones:', error);
+    } catch {
       return [];
     }
+  },
+
+  /**
+   * Obtiene playlists curadas de la comunidad y tendencias (Deezer charts + presets).
+   */
+  async getCuratedPlaylists(limit = 12) {
+    try {
+      const data = await fetchDeezerApi(`/chart/0/playlists?limit=${limit}`);
+      if (data && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data.map(p => ({
+          id: `curated_${p.id}`,
+          deezerId: p.id,
+          name: p.title,
+          description: p.description || 'Playlist curada con los mejores éxitos de varios artistas.',
+          cover: p.picture_medium || p.picture_big || p.picture || '',
+          trackCount: p.nb_tracks || 50,
+          isCurated: true,
+          isPublic: true,
+          creator: 'Comunidad TeamG & Deezer',
+          tracks: []
+        }));
+      }
+    } catch (e) {
+      console.warn('[MusicService] Error cargando playlists curadas:', e);
+    }
+    return DEFAULT_CURATED_PLAYLISTS;
+  },
+
+  /**
+   * Obtiene las canciones de una playlist curada de la comunidad.
+   */
+  async getPlaylistTracks(playlistIdOrDeezerId) {
+    const rawId = String(playlistIdOrDeezerId).replace(/^curated_/, '');
+    try {
+      const data = await fetchDeezerApi(`/playlist/${rawId}`);
+      if (data && data.tracks && Array.isArray(data.tracks.data)) {
+        return data.tracks.data.map(formatDeezerTrack).filter(Boolean);
+      }
+    } catch (e) {
+      console.warn('[MusicService] Error cargando canciones de playlist curada:', e);
+    }
+    return [];
   },
 
   /**
