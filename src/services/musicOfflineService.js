@@ -335,6 +335,10 @@ async function resolveAudioUrlForDownload(track) {
  * Descarga una canción individual para escuchar en Modo Offline
  */
 export async function downloadTrackOffline(track, onProgress = null) {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Sin conexión a internet. Para descargar canciones debes conectarte a una red Wi-Fi o datos móviles.');
+  }
+
   if (!track || !track.id) {
     throw new Error('Información de canción inválida');
   }

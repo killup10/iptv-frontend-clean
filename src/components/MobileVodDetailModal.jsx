@@ -480,11 +480,16 @@ export default function MobileVodDetailModal({
   }, [checkDownloadState]);
 
   const handleStartDownload = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      alert('⚠️ Sin conexión a internet\n\nPara descargar este contenido debes estar conectado a una red Wi-Fi o datos móviles.');
+      return;
+    }
+
     let targetEpisode = selectedEpisode;
     let targetItem = modalItem;
 
     // Si es serie y el capítulo seleccionado aún no tiene URL resuelta, obtener el detalle completo primero
-    if (hasEpisodesContent && (!targetEpisode || !targetEpisode.url)) {
+    if (hasEpisodesContent && (!targetEpisode || (!targetEpisode.downloadUrl && !targetEpisode.url))) {
       try {
         const full = await fetchVideoById(itemId);
         if (full) {
@@ -499,8 +504,8 @@ export default function MobileVodDetailModal({
     }
 
     const videoUrl = hasEpisodesContent && targetEpisode
-      ? (targetEpisode.url || targetEpisode.videoUrl || targetEpisode.streamUrl || '')
-      : (targetItem?.url || targetItem?.videoUrl || targetItem?.streamUrl || targetItem?.playbackUrl || '');
+      ? (targetEpisode.downloadUrl || targetEpisode.url || targetEpisode.videoUrl || targetEpisode.streamUrl || '')
+      : (targetItem?.downloadUrl || targetItem?.url || targetItem?.videoUrl || targetItem?.streamUrl || targetItem?.playbackUrl || '');
 
     if (!videoUrl) {
       alert('Enlace de video no disponible para descargar.');

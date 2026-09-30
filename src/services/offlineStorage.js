@@ -288,7 +288,11 @@ export async function resolveDirectVideoUrl(videoUrl) {
         finalUrl = res.data.downloadUrl || res.data.sourceUrl;
       }
     } catch (e) {
-      console.warn('[offlineStorage] No se pudo resolver URL directa vía backend:', e?.message || e);
+      console.error('[offlineStorage] Error resolviendo URL directa vía backend:', e?.message || e);
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Sin conexión a internet. Para descargar contenido offline debes conectarte a una red Wi-Fi o datos móviles.');
+      }
+      throw new Error(e?.response?.data?.error || e?.message || 'No se pudo obtener el enlace de descarga directa del servidor.');
     }
   }
 
@@ -306,6 +310,10 @@ export async function resolveDirectVideoUrl(videoUrl) {
  * Inicia la descarga protegida de un video (Película o Episodio)
  */
 export async function startDownload(mediaItem) {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Sin conexión a internet. Para descargar contenido offline debes conectarte a una red Wi-Fi o datos móviles.');
+  }
+
   if (!mediaItem || !mediaItem.id || !mediaItem.videoUrl) {
     throw new Error('Información de video incompleta para iniciar la descarga');
   }
