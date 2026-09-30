@@ -38,7 +38,6 @@ const Colecciones = React.lazy(() => import('./pages/Colecciones.jsx'));
 const ZonaKids = React.lazy(() => import('./pages/ZonaKids.jsx'));
 const BulkUploadPage = React.lazy(() => import('./pages/BulkUploadPage.jsx'));
 const MyList = React.lazy(() => import('./pages/MyList.jsx'));
-const TestPlayer = React.lazy(() => import('./pages/TestPlayer.jsx'));
 const Profiles = React.lazy(() => import('./pages/Profiles.jsx'));
 const Settings = React.lazy(() => import('./pages/Settings.jsx'));
 const RecienAgregados = React.lazy(() => import('./pages/RecienAgregados.jsx'));
@@ -250,16 +249,6 @@ const router = createHashRouter([
           <ProtectedRoute adminOnly={true}>
             <Suspense fallback={<PageLoader />}>
               <BulkUploadPage />
-            </Suspense>
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "test-player",
-        element: (
-          <ProtectedRoute>
-            <Suspense fallback={<PageLoader />}>
-              <TestPlayer />
             </Suspense>
           </ProtectedRoute>
         ),

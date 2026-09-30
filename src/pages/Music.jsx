@@ -108,9 +108,36 @@ export default function Music() {
     }
   });
   const [curatedPlaylists, setCuratedPlaylists] = useState(DEFAULT_CURATED_PLAYLISTS);
+  const [communityUserPlaylists, setCommunityUserPlaylists] = useState([]);
   const [selectedCuratedPlaylist, setSelectedCuratedPlaylist] = useState(null);
   const [curatedPlaylistTracks, setCuratedPlaylistTracks] = useState([]);
   const [isLoadingCuratedTracks, setIsLoadingCuratedTracks] = useState(false);
+
+  // Playlists públicas unificadas (servidor + usuario actual)
+  const combinedPublicPlaylists = useMemo(() => {
+    const map = new Map();
+    if (Array.isArray(communityUserPlaylists)) {
+      communityUserPlaylists.forEach(pl => {
+        if (pl && pl.id) {
+          map.set(pl.id, {
+            ...pl,
+            isUserCommunity: true,
+            creator: pl.creator || pl.username || 'Usuario TeamG'
+          });
+        }
+      });
+    }
+    if (Array.isArray(customPlaylists)) {
+      customPlaylists.filter(p => p.isPublic).forEach(pl => {
+        map.set(pl.id, {
+          ...pl,
+          isUserCommunity: true,
+          creator: user?.username ? `@${user.username}` : 'Tú'
+        });
+      });
+    }
+    return Array.from(map.values());
+  }, [communityUserPlaylists, customPlaylists, user?.username]);
   const [isLoadingTop, setIsLoadingTop] = useState(true);
   const [isLoadingGenre, setIsLoadingGenre] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -159,22 +186,30 @@ export default function Music() {
     return () => { isMounted = false; };
   }, [selectedGenre]);
 
-  // Cargar playlists curadas de la comunidad y tendencias
+  // Cargar playlists curadas de la comunidad y tendencias + playlists públicas de usuarios
   useEffect(() => {
     let isMounted = true;
     async function loadCurated() {
       try {
-        const list = await musicService.getCuratedPlaylists(16);
-        if (isMounted && list && list.length > 0) {
-          setCuratedPlaylists(list);
+        const [list, userPubList] = await Promise.all([
+          musicService.getCuratedPlaylists(16),
+          musicService.getCommunityUserPlaylists(60)
+        ]);
+        if (isMounted) {
+          if (list && list.length > 0) {
+            setCuratedPlaylists(list);
+          }
+          if (Array.isArray(userPubList)) {
+            setCommunityUserPlaylists(userPubList);
+          }
         }
       } catch (e) {
-        console.warn('[MusicPage] Error cargando playlists curadas:', e);
+        console.warn('[MusicPage] Error cargando playlists de la comunidad:', e);
       }
     }
     loadCurated();
     return () => { isMounted = false; };
-  }, []);
+  }, [activeTab]);
 
   // Cargar canciones de la playlist curada seleccionada
   useEffect(() => {
@@ -182,6 +217,12 @@ export default function Music() {
     async function loadCuratedTracks() {
       if (!selectedCuratedPlaylist) {
         setCuratedPlaylistTracks([]);
+        return;
+      }
+      // Si la playlist ya contiene canciones directas (es una playlist creada por un usuario de la comunidad)
+      if (Array.isArray(selectedCuratedPlaylist.tracks) && selectedCuratedPlaylist.tracks.length > 0) {
+        setCuratedPlaylistTracks(selectedCuratedPlaylist.tracks);
+        setIsLoadingCuratedTracks(false);
         return;
       }
       setIsLoadingCuratedTracks(true);
@@ -1287,7 +1328,7 @@ export default function Music() {
                         : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
                     }`}
                   >
-                    Todas ({curatedPlaylists.length + customPlaylists.filter(p => p.isPublic).length})
+                    Todas ({curatedPlaylists.length + combinedPublicPlaylists.length})
                   </button>
                   <button
                     onClick={() => setCommunityFilter('curated')}
@@ -1307,12 +1348,12 @@ export default function Music() {
                         : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
                     }`}
                   >
-                    Creadas por Usuarios ({customPlaylists.filter(p => p.isPublic).length})
+                    Creadas por Usuarios ({combinedPublicPlaylists.length})
                   </button>
                 </div>
 
                 {/* Listas Públicas Creadas por Usuarios */}
-                {(communityFilter === 'all' || communityFilter === 'user') && customPlaylists.filter(p => p.isPublic).length > 0 && (
+                {(communityFilter === 'all' || communityFilter === 'user') && combinedPublicPlaylists.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-fuchsia-400" />
@@ -1321,12 +1362,15 @@ export default function Music() {
                       </h3>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                      {customPlaylists.filter(p => p.isPublic).map((pl) => (
+                      {combinedPublicPlaylists.map((pl) => (
                         <div
                           key={`public-user-${pl.id}`}
                           onClick={() => {
-                            setActiveTab('playlists');
-                            setSelectedPlaylistId(pl.id);
+                            setSelectedCuratedPlaylist({
+                              ...pl,
+                              creator: pl.creator || pl.username || 'Comunidad',
+                              isUserCommunity: true
+                            });
                           }}
                           className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
                         >
@@ -1342,7 +1386,8 @@ export default function Music() {
                             </div>
                           </div>
                           <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">{pl.name}</h4>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{pl.tracks.length} canciones</p>
+                          <p className="text-[11px] text-fuchsia-400/90 font-medium truncate mt-0.5">Por {pl.creator || pl.username || 'Usuario'}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{(pl.tracks || []).length} canciones</p>
                         </div>
                       ))}
                     </div>
@@ -1350,7 +1395,7 @@ export default function Music() {
                 )}
 
                 {/* Si no hay playlists públicas de usuario y seleccionó ese filtro */}
-                {communityFilter === 'user' && customPlaylists.filter(p => p.isPublic).length === 0 && (
+                {communityFilter === 'user' && combinedPublicPlaylists.length === 0 && (
                   <div className="text-center py-16 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8 space-y-3">
                     <Globe className="w-10 h-10 mx-auto text-fuchsia-400/50" />
                     <h4 className="text-base font-bold text-white">Sé el primero en compartir una playlist</h4>
@@ -2171,7 +2216,7 @@ export default function Music() {
                       }`}
                     >
                       <Globe className="w-3.5 h-3.5" />
-                      <span>Comunidad ({curatedPlaylists.length + customPlaylists.filter(p => p.isPublic).length})</span>
+                      <span>Comunidad ({curatedPlaylists.length + combinedPublicPlaylists.length})</span>
                     </button>
                     <button
                       onClick={() => setPlaylistSubTab('queue')}
@@ -2351,7 +2396,7 @@ export default function Music() {
                 {playlistSubTab === 'community' && (
                   <div className="space-y-8 animate-in fade-in">
                     {/* Listas Públicas creadas por usuarios */}
-                    {customPlaylists.filter(p => p.isPublic).length > 0 && (
+                    {combinedPublicPlaylists.length > 0 && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
                           <Globe className="w-4 h-4 text-fuchsia-400" />
@@ -2360,10 +2405,22 @@ export default function Music() {
                           </h3>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                          {customPlaylists.filter(p => p.isPublic).map((pl) => (
+                          {combinedPublicPlaylists.map((pl) => (
                             <div
-                              key={pl.id}
-                              onClick={() => setSelectedPlaylistId(pl.id)}
+                              key={`comm-sub-${pl.id}`}
+                              onClick={() => {
+                                if (customPlaylists.some(p => p.id === pl.id)) {
+                                  setSelectedPlaylistId(pl.id);
+                                  setPlaylistSubTab('custom');
+                                } else {
+                                  setActiveTab('community');
+                                  setSelectedCuratedPlaylist({
+                                    ...pl,
+                                    creator: pl.creator || pl.username || 'Comunidad',
+                                    isUserCommunity: true
+                                  });
+                                }
+                              }}
                               className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-400/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
                             >
                               <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
@@ -2378,7 +2435,8 @@ export default function Music() {
                                 </div>
                               </div>
                               <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">{pl.name}</h4>
-                              <p className="text-[11px] text-gray-400 mt-0.5">{pl.tracks.length} canciones</p>
+                              <p className="text-[11px] text-fuchsia-400/90 font-medium truncate mt-0.5">Por {pl.creator || pl.username || 'Usuario'}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{(pl.tracks || []).length} canciones</p>
                             </div>
                           ))}
                         </div>
@@ -2819,8 +2877,10 @@ function TrackCard({
 
   const formattedDate = track.releaseDate ? (() => {
     try {
-      const parts = track.releaseDate.split('T')[0].split('-');
-      if (parts.length === 3) {
+      const raw = String(track.releaseDate).trim();
+      if (!raw) return null;
+      const parts = raw.split('T')[0].split('-');
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
         const year = parts[0];
         const month = parts[1];
         const day = parts[2];
@@ -2828,9 +2888,12 @@ function TrackCard({
         const mIdx = parseInt(month, 10) - 1;
         return `${day} ${months[mIdx] || month} ${year}`;
       }
-      return track.releaseDate;
+      if (parts.length === 1 && /^\d{4}$/.test(parts[0])) {
+        return parts[0];
+      }
+      return raw;
     } catch {
-      return track.releaseDate;
+      return null;
     }
   })() : null;
 

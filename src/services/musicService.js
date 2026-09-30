@@ -550,7 +550,7 @@ function formatItunesRssTrack(e) {
   }
 
   const rawDate = e['im:releaseDate']?.label || '';
-  const releaseDate = rawDate ? rawDate.substring(0, 10) : '2026';
+  const releaseDate = rawDate ? rawDate.substring(0, 10) : '';
   const genre = e.category?.attributes?.label || 'Música';
   const album = e['im:collection']?.['im:name']?.label || title;
 
@@ -608,7 +608,7 @@ function formatDeezerTrack(item) {
     isPreviewOnly: true,
     youtubeId: null,
     genre: 'Música',
-    releaseDate: '2026',
+    releaseDate: item.release_date ? String(item.release_date).substring(0, 10) : (item.album?.release_date ? String(item.album.release_date).substring(0, 10) : ''),
     isRadio: false,
     externalUrl: item.link || '',
     source: 'deezer'
@@ -1121,8 +1121,8 @@ export const musicService = {
               youtubeId: null,
               genre: (lItem && lItem.primaryGenreName) || (item.genres && item.genres[0] ? item.genres[0].name : 'Música'),
               releaseDate: lItem?.releaseDate
-                ? String(lItem.releaseDate).substring(0, 4)
-                : (item.releaseDate ? String(item.releaseDate).substring(0, 4) : '2026'),
+                ? String(lItem.releaseDate).substring(0, 10)
+                : (item.releaseDate ? String(item.releaseDate).substring(0, 10) : ''),
               isRadio: false,
               externalUrl: item.url || '',
             };
@@ -1160,23 +1160,47 @@ export const musicService = {
     if (!query || query.trim().length === 0) return [];
     const cleanQuery = query.trim();
 
-    // Consultamos Deezer e iTunes en paralelo
-    const [deezerData, itunesTracks] = await Promise.all([
-      fetchDeezerApi(`/search?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`).catch(() => null),
-      this.searchItunesOnly(cleanQuery, limit).catch(() => [])
+    // Consultamos iTunes y Deezer en paralelo (iTunes tiene fechas oficiales de lanzamiento 100% reales)
+    const [itunesTracks, deezerData] = await Promise.all([
+      this.searchItunesOnly(cleanQuery, limit).catch(() => []),
+      fetchDeezerApi(`/search?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`).catch(() => null)
     ]);
 
     const deezerTracks = (deezerData?.data || []).map(formatDeezerTrack).filter(Boolean);
 
+    // Mapa de canciones de iTunes indexadas para cruzamiento de fechas reales oficiales
+    const itunesMap = new Map();
+    for (const it of itunesTracks) {
+      if (it?.title && it?.artist) {
+        const key = `${it.title}_${it.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+        itunesMap.set(key, it);
+      }
+    }
+
     const seen = new Set();
     const merged = [];
 
-    // Priorizar y unificar sin duplicados
-    for (const track of [...deezerTracks, ...itunesTracks]) {
+    // 1) Priorizar canciones de iTunes primero (metadatos oficiales y año real verificado)
+    for (const track of itunesTracks) {
       if (!track || !track.title || !track.artist) continue;
       const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!seen.has(key)) {
         seen.add(key);
+        merged.push(track);
+      }
+    }
+
+    // 2) Complementar con canciones de Deezer (para estrenos o temas que no estén indexados en iTunes)
+    for (const track of deezerTracks) {
+      if (!track || !track.title || !track.artist) continue;
+      const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        // Si Deezer no tenía fecha pero iTunes sí la tenía registrada:
+        const itMatch = itunesMap.get(key);
+        if (itMatch && itMatch.releaseDate && (!track.releaseDate || track.releaseDate === '2026')) {
+          track.releaseDate = itMatch.releaseDate;
+        }
         merged.push(track);
       }
     }
@@ -1196,10 +1220,22 @@ export const musicService = {
   },
 
   /**
-   * Búsqueda en iTunes / Backend como respaldo complementario.
+   * Búsqueda en iTunes con metadatos oficiales y fechas reales de lanzamiento.
    */
   async searchItunesOnly(query, limit = 25) {
-    // 1) Backend vía axiosInstance (normalizado + sin CORS)
+    // 1) Petición directa a iTunes con entity=song para fechas oficiales exactas
+    try {
+      const cleanQuery = encodeURIComponent(query.trim());
+      const res = await fetch(`${ITUNES_SEARCH_URL}?term=${cleanQuery}&entity=song&limit=${limit}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && Array.isArray(data.results) && data.results.length > 0) {
+          return data.results.map(formatItunesTrack);
+        }
+      }
+    } catch {}
+
+    // 2) Backend vía axiosInstance (normalizado + sin CORS)
     try {
       const res = await axiosInstance.get('/api/music/search', {
         params: { q: query.trim(), limit },
@@ -1210,16 +1246,7 @@ export const musicService = {
       }
     } catch {}
 
-    // 2) Fallback directo a iTunes
-    try {
-      const cleanQuery = encodeURIComponent(query.trim());
-      const res = await fetch(`${ITUNES_SEARCH_URL}?term=${cleanQuery}&entity=song&limit=${limit}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data.results || []).map(formatItunesTrack);
-    } catch {
-      return [];
-    }
+    return [];
   },
 
   /**
@@ -1635,5 +1662,71 @@ export const musicService = {
       });
     }
     return tracks;
+  },
+
+  // --- CLOUD PLAYLIST SYNC & COMMUNITY APIS ---
+  async syncUserPlaylists(localPlaylists = []) {
+    try {
+      const res = await axiosInstance.post('/api/music/playlists/sync', {
+        playlists: localPlaylists,
+      }, { timeout: 10000 });
+      return res.data?.playlists || [];
+    } catch (err) {
+      console.warn('[MusicService] syncUserPlaylists failed, fallback to local:', err?.message);
+      return null;
+    }
+  },
+
+  async getUserPlaylists() {
+    try {
+      const res = await axiosInstance.get('/api/music/playlists/my', { timeout: 10000 });
+      return res.data?.playlists || [];
+    } catch (err) {
+      console.warn('[MusicService] getUserPlaylists failed:', err?.message);
+      return null;
+    }
+  },
+
+  async saveUserPlaylist(playlist) {
+    try {
+      const res = await axiosInstance.post('/api/music/playlists', playlist, { timeout: 8000 });
+      return res.data?.playlist || playlist;
+    } catch (err) {
+      console.warn('[MusicService] saveUserPlaylist failed:', err?.message);
+      return playlist;
+    }
+  },
+
+  async updateUserPlaylist(customId, data) {
+    try {
+      const res = await axiosInstance.put(`/api/music/playlists/${encodeURIComponent(customId)}`, data, { timeout: 8000 });
+      return res.data?.playlist || null;
+    } catch (err) {
+      console.warn('[MusicService] updateUserPlaylist failed:', err?.message);
+      return null;
+    }
+  },
+
+  async deleteUserPlaylist(customId) {
+    try {
+      const res = await axiosInstance.delete(`/api/music/playlists/${encodeURIComponent(customId)}`, { timeout: 8000 });
+      return res.data?.success || false;
+    } catch (err) {
+      console.warn('[MusicService] deleteUserPlaylist failed:', err?.message);
+      return false;
+    }
+  },
+
+  async getCommunityUserPlaylists(limit = 60) {
+    try {
+      const res = await axiosInstance.get('/api/music/playlists/community', {
+        params: { limit },
+        timeout: 10000
+      });
+      return res.data?.playlists || [];
+    } catch (err) {
+      console.warn('[MusicService] getCommunityUserPlaylists failed:', err?.message);
+      return [];
+    }
   }
 };

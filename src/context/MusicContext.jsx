@@ -1,9 +1,9 @@
-// src/context/MusicContext.jsx
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { backgroundPlaybackService } from '../services/backgroundPlayback.js';
 import { musicService } from '../services/musicService.js';
 import * as musicOfflineService from '../services/musicOfflineService.js';
+import { storage } from '../utils/storage.js';
 
 const MusicContext = createContext(null);
 
@@ -104,6 +104,11 @@ export function MusicProvider({ children }) {
   useEffect(() => {
     playbackModeRef.current = playbackMode;
   }, [playbackMode]);
+
+  const customPlaylistsRef = useRef(customPlaylists);
+  useEffect(() => {
+    customPlaylistsRef.current = customPlaylists;
+  }, [customPlaylists]);
 
   // Inicializar elemento de audio nativo UNA SOLA VEZ al montar
   useEffect(() => {
@@ -218,6 +223,37 @@ export function MusicProvider({ children }) {
       console.warn('[MusicContext] No se pudo guardar playlists:', e);
     }
   }, [customPlaylists]);
+
+  // Sincronizar automáticamente playlists con el servidor si el usuario tiene sesión activa
+  const syncWithCloud = useCallback(async () => {
+    try {
+      const token = await storage.getItem('token');
+      if (!token) return;
+      const localPlaylists = customPlaylistsRef.current || [];
+      const remotePlaylists = await musicService.syncUserPlaylists(localPlaylists);
+      if (Array.isArray(remotePlaylists)) {
+        setCustomPlaylists(remotePlaylists);
+        try {
+          localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(remotePlaylists));
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('[MusicContext] Error en syncWithCloud:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncWithCloud();
+    const handleAuthChange = () => {
+      syncWithCloud();
+    };
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('teamg:auth-change', handleAuthChange);
+    return () => {
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('teamg:auth-change', handleAuthChange);
+    };
+  }, [syncWithCloud]);
 
   // Sincronizar posición y estado nativo cuando la app vuelve de segundo plano
   useEffect(() => {
@@ -803,7 +839,7 @@ export function MusicProvider({ children }) {
     return favorites.some(t => t.id === trackId);
   }, [favorites]);
 
-  // --- PLAYLISTS PERSONALIZADAS (CON SOPORTE PÚBLICA / PRIVADA) ---
+  // --- PLAYLISTS PERSONALIZADAS (CON SOPORTE PÚBLICA / PRIVADA Y SINCRONIZACIÓN EN LA NUBE) ---
   const createPlaylist = useCallback((name, description = '', isPublic = false) => {
     const trimmed = String(name || '').trim();
     if (!trimmed) return null;
@@ -817,77 +853,108 @@ export function MusicProvider({ children }) {
       tracks: []
     };
     setCustomPlaylists(prev => [newPlaylist, ...prev]);
+    // Guardar en la nube en segundo plano
+    musicService.saveUserPlaylist(newPlaylist).catch(e => {
+      console.warn('[MusicContext] Error guardando playlist en la nube:', e);
+    });
     return newPlaylist;
   }, []);
 
   const togglePlaylistPrivacy = useCallback((playlistId) => {
-    setCustomPlaylists(prev => prev.map(pl => (
-      pl.id === playlistId ? { ...pl, isPublic: !pl.isPublic } : pl
-    )));
+    let nextStatus = false;
+    setCustomPlaylists(prev => prev.map(pl => {
+      if (pl.id === playlistId) {
+        nextStatus = !pl.isPublic;
+        return { ...pl, isPublic: nextStatus };
+      }
+      return pl;
+    }));
+    // Actualizar visibilidad en la nube
+    musicService.updateUserPlaylist(playlistId, { isPublic: nextStatus }).catch(() => {});
   }, []);
 
   const deletePlaylist = useCallback((playlistId) => {
     setCustomPlaylists(prev => prev.filter(pl => pl.id !== playlistId));
+    // Eliminar en la nube
+    musicService.deleteUserPlaylist(playlistId).catch(() => {});
   }, []);
 
   const renamePlaylist = useCallback((playlistId, newName, newDescription = undefined, newIsPublic = undefined) => {
     const trimmed = String(newName || '').trim();
     if (!trimmed) return;
+    const updateData = { name: trimmed };
+    if (newDescription !== undefined) updateData.description = String(newDescription).trim();
+    if (newIsPublic !== undefined) updateData.isPublic = Boolean(newIsPublic);
+
     setCustomPlaylists(prev => prev.map(pl => {
       if (pl.id !== playlistId) return pl;
       return {
         ...pl,
-        name: trimmed,
-        ...(newDescription !== undefined ? { description: String(newDescription).trim() } : {}),
-        ...(newIsPublic !== undefined ? { isPublic: Boolean(newIsPublic) } : {})
+        ...updateData
       };
     }));
+    // Actualizar en la nube
+    musicService.updateUserPlaylist(playlistId, updateData).catch(() => {});
   }, []);
 
   const addTrackToPlaylist = useCallback((playlistId, track) => {
     if (!track || !playlistId) return false;
     let added = false;
+    let updatedTracks = [];
+    let updatedCover = '';
     setCustomPlaylists(prev => prev.map(pl => {
       if (pl.id !== playlistId) return pl;
       const alreadyHas = pl.tracks.some(t => t.id === track.id);
       if (alreadyHas) return pl;
       added = true;
-      const updatedTracks = [...pl.tracks, track];
+      updatedTracks = [...pl.tracks, track];
+      updatedCover = pl.cover || track.cover || '';
       return {
         ...pl,
-        cover: pl.cover || track.cover || '',
+        cover: updatedCover,
         tracks: updatedTracks
       };
     }));
+    if (added) {
+      musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
+    }
     return added;
   }, []);
 
   const removeTrackFromPlaylist = useCallback((playlistId, trackId) => {
+    let updatedTracks = [];
+    let updatedCover = '';
     setCustomPlaylists(prev => prev.map(pl => {
       if (pl.id !== playlistId) return pl;
-      const updatedTracks = pl.tracks.filter(t => t.id !== trackId);
+      updatedTracks = pl.tracks.filter(t => t.id !== trackId);
+      updatedCover = updatedTracks[0]?.cover || '';
       return {
         ...pl,
-        cover: updatedTracks[0]?.cover || '',
+        cover: updatedCover,
         tracks: updatedTracks
       };
     }));
+    musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
   }, []);
 
   const toggleTrackInPlaylist = useCallback((playlistId, track) => {
     if (!track || !playlistId) return;
+    let updatedTracks = [];
+    let updatedCover = '';
     setCustomPlaylists(prev => prev.map(pl => {
       if (pl.id !== playlistId) return pl;
       const exists = pl.tracks.some(t => t.id === track.id);
-      const updatedTracks = exists
+      updatedTracks = exists
         ? pl.tracks.filter(t => t.id !== track.id)
         : [...pl.tracks, track];
+      updatedCover = updatedTracks[0]?.cover || '';
       return {
         ...pl,
-        cover: updatedTracks[0]?.cover || '',
+        cover: updatedCover,
         tracks: updatedTracks
       };
     }));
+    musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
   }, []);
 
   const isTrackInPlaylist = useCallback((playlistId, trackId) => {
@@ -976,6 +1043,7 @@ export function MusicProvider({ children }) {
     deletePlaylist,
     renamePlaylist,
     togglePlaylistPrivacy,
+    syncPlaylists: syncWithCloud,
     addTrackToPlaylist,
     removeTrackFromPlaylist,
     toggleTrackInPlaylist,

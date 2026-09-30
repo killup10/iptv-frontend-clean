@@ -126,7 +126,7 @@ function App() {
   }, [location.pathname, user, navigate]);
 
   const isAuthPage = location.pathname === "/login" || location.pathname.startsWith("/register");
-  const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player') || location.pathname.startsWith('/test-player');
+  const isWatchPage = location.pathname.startsWith('/watch') || location.pathname.startsWith('/player');
   const isLiveTVPage = location.pathname === '/live-tv';
 
   // Cortar reproducción nativa y audio en segundo plano al salir de cualquier pantalla de reproducción
@@ -761,9 +761,6 @@ function App() {
                   <Link to="/offline" className="flex items-center gap-3 text-purple-300 hover:text-white px-3 py-3 rounded-xl bg-purple-500/10 border border-purple-400/25 text-base font-bold transition" onClick={closeAllMenus}>
                     <WifiOff className="w-5 h-5 text-purple-400" />
                     <span>Modo Offline</span>
-                  </Link>
-                  <Link to="/test-player" className="flex items-center gap-3 text-yellow-400 hover:text-yellow-300 px-3 py-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-base font-semibold transition" onClick={closeAllMenus}>
-                    <span>🧪</span> Test ExoPlayer
                   </Link>
                 </div>
 
