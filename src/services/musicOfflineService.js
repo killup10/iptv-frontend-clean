@@ -37,20 +37,98 @@ export function formatBytes(bytes) {
   return mb.toFixed(1) + ' MB';
 }
 
-// Duración de la licencia offline de música: 30 días renovables con conexión
+// Duración máxima de la licencia offline de música: 30 días (acotada al vencimiento de suscripción en AdminPanel)
 export const OFFLINE_LICENSE_DURATION_DAYS = 30;
 export const OFFLINE_LICENSE_DURATION_MS = OFFLINE_LICENSE_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
- * Obtiene la información de validez de la licencia offline de una canción
+ * Obtiene el usuario activo almacenado en la app
  */
-export function getTrackLicenseInfo(trackOrId) {
+export function getActiveUser() {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Comprueba si la suscripción del usuario está activa y al día en el AdminPanel
+ */
+export function isUserSubscriptionActive(user = null) {
+  const u = user || getActiveUser();
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  if (u.isActive === false) return false;
+  if (u.expiresAt) {
+    const exp = new Date(u.expiresAt).getTime();
+    if (isNaN(exp) || exp <= Date.now()) {
+      return false; // Suscripción vencida en AdminPanel
+    }
+  }
+  return true;
+}
+
+/**
+ * Calcula la duración permitida de la licencia offline en milisegundos.
+ * Si el usuario renovó en AdminPanel, la licencia dura hasta 30 días,
+ * pero NUNCA más allá de la fecha de vencimiento pagada por el cliente.
+ */
+export function calculateAllowedLicenseDuration(user = null) {
+  const u = user || getActiveUser();
+  if (!u || !isUserSubscriptionActive(u)) {
+    return 0; // Suscripción inactiva o vencida
+  }
+
+  // Administrador o sin fecha de vencimiento (ilimitado)
+  if (u.role === 'admin' || !u.expiresAt) {
+    return OFFLINE_LICENSE_DURATION_MS;
+  }
+
+  const subRemainingMs = new Date(u.expiresAt).getTime() - Date.now();
+  if (subRemainingMs <= 0) {
+    return 0; // Suscripción vencida
+  }
+
+  return Math.min(OFFLINE_LICENSE_DURATION_MS, subRemainingMs);
+}
+
+/**
+ * Obtiene la información de validez de la licencia offline de una canción,
+ * considerando tanto el límite de 30 días como el estado de suscripción en AdminPanel.
+ */
+export function getTrackLicenseInfo(trackOrId, user = null) {
   const track = typeof trackOrId === 'object' && trackOrId !== null ? trackOrId : getOfflineTrack(trackOrId);
-  if (!track) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0 };
+  if (!track) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0, isSubscriptionExpired: false };
 
   const now = Date.now();
-  const expiresAt = track.licenseExpiresAt || ((track.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
-  const diffMs = expiresAt - now;
+  const u = user || getActiveUser();
+  const subActive = isUserSubscriptionActive(u);
+
+  // Si la suscripción del usuario ya venció en AdminPanel
+  if (!subActive) {
+    return {
+      isValid: false,
+      daysRemaining: 0,
+      isExpired: true,
+      expiresAt: track.licenseExpiresAt || 0,
+      isSubscriptionExpired: true,
+    };
+  }
+
+  const baseExpiresAt = track.licenseExpiresAt || ((track.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
+
+  // Acotar al vencimiento pagado si no es admin
+  let effectiveExpiresAt = baseExpiresAt;
+  if (u?.expiresAt && u.role !== 'admin') {
+    const subExp = new Date(u.expiresAt).getTime();
+    if (!isNaN(subExp)) {
+      effectiveExpiresAt = Math.min(baseExpiresAt, subExp);
+    }
+  }
+
+  const diffMs = effectiveExpiresAt - now;
   const daysRemaining = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
   const isExpired = diffMs <= 0;
 
@@ -58,15 +136,17 @@ export function getTrackLicenseInfo(trackOrId) {
     isValid: !isExpired,
     daysRemaining,
     isExpired,
-    expiresAt,
+    expiresAt: effectiveExpiresAt,
     lastOnlineValidation: track.lastOnlineValidation || track.downloadedAt || now,
+    isSubscriptionExpired: false,
   };
 }
 
 /**
- * Renueva el período de 30 días para todas las canciones offline si el dispositivo está en línea
+ * Renueva el período de licencia para todas las canciones offline SOLO si el cliente
+ * tiene suscripción activa y pagada en el AdminPanel.
  */
-export function renewAllMusicOfflineLicenses() {
+export function renewAllMusicOfflineLicenses(user = null) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return false;
   }
@@ -74,16 +154,42 @@ export function renewAllMusicOfflineLicenses() {
   const list = getOfflineTracks();
   if (!list || list.length === 0) return true;
 
-  let hasChanged = false;
+  const u = user || getActiveUser();
+  const subActive = isUserSubscriptionActive(u);
   const now = Date.now();
+  let hasChanged = false;
+
+  // Si el cliente no renovó o está vencido en AdminPanel:
+  if (!subActive) {
+    console.warn('[musicOfflineService] Suscripción inactiva o expirada en AdminPanel. Bloqueando licencias offline de música.');
+    const updated = list.map((track) => {
+      if (track.licenseExpiresAt !== 0) {
+        hasChanged = true;
+        return {
+          ...track,
+          licenseExpiresAt: 0,
+          lastOnlineValidation: now,
+        };
+      }
+      return track;
+    });
+    if (hasChanged) {
+      saveOfflineTracks(updated);
+    }
+    return false;
+  }
+
+  // Si el cliente SÍ está al día: extender período según su fecha de suscripción
+  const allowedDuration = calculateAllowedLicenseDuration(u);
+  const newExpiry = now + allowedDuration;
+
   const updated = list.map((track) => {
     const lastCheck = track.lastOnlineValidation || 0;
-    // Renovar si no tiene fecha, si está vencida, o si pasaron más de 6 horas desde la última comprobación
-    if (!track.licenseExpiresAt || (now - lastCheck) > 6 * 60 * 60 * 1000 || track.licenseExpiresAt < now) {
+    if (!track.licenseExpiresAt || track.licenseExpiresAt < now || (now - lastCheck) > 6 * 60 * 60 * 1000 || track.licenseExpiresAt !== newExpiry) {
       hasChanged = true;
       return {
         ...track,
-        licenseExpiresAt: now + OFFLINE_LICENSE_DURATION_MS,
+        licenseExpiresAt: newExpiry,
         lastOnlineValidation: now,
       };
     }
@@ -92,7 +198,7 @@ export function renewAllMusicOfflineLicenses() {
 
   if (hasChanged) {
     saveOfflineTracks(updated);
-    console.log('[musicOfflineService] Licencias offline de música renovadas por 30 días.');
+    console.log(`[musicOfflineService] Licencias offline de música renovadas por suscripción activa (${Math.ceil(allowedDuration / (24*60*60*1000))} días).`);
   }
   return true;
 }
@@ -100,10 +206,24 @@ export function renewAllMusicOfflineLicenses() {
 /**
  * Obtiene la lista de canciones guardadas para Modo Offline
  */
+/**
+ * Obtiene la lista de canciones guardadas para Modo Offline,
+ * limpiando automáticamente registros corruptos o vacíos (0 MB).
+ */
 export function getOfflineTracks() {
   try {
     const raw = localStorage.getItem(STORAGE_MUSIC_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    const valid = list.filter((item) => {
+      const bytes = Number(item.sizeBytes || 0);
+      if (bytes > 0 && bytes < 20 * 1024) return false;
+      if (item.sizeFormatted === '0 MB' && bytes < 20 * 1024) return false;
+      return true;
+    });
+    if (valid.length !== list.length) {
+      saveOfflineTracks(valid);
+    }
+    return valid;
   } catch (err) {
     console.error('[musicOfflineService] Error leyendo canciones offline:', err);
     return [];
@@ -128,7 +248,7 @@ function saveOfflineTracks(tracks) {
 export function isTrackOffline(trackId) {
   if (!trackId) return false;
   const list = getOfflineTracks();
-  return list.some((item) => String(item.id) === String(trackId));
+  return list.some((item) => String(item.id) === String(trackId) && (item.sizeBytes === undefined || item.sizeBytes >= 20 * 1024));
 }
 
 /**
@@ -137,7 +257,11 @@ export function isTrackOffline(trackId) {
 export function getOfflineTrack(trackId) {
   if (!trackId) return null;
   const list = getOfflineTracks();
-  return list.find((item) => String(item.id) === String(trackId)) || null;
+  const item = list.find((item) => String(item.id) === String(trackId)) || null;
+  if (item && item.sizeBytes !== undefined && item.sizeBytes < 20 * 1024) {
+    return null;
+  }
+  return item;
 }
 
 /**
@@ -154,17 +278,19 @@ export function getActiveDownloadStatus(trackId) {
 async function resolveAudioUrlForDownload(track) {
   if (!track) return null;
 
+  let resolved = null;
+
   // 1. Si ya tiene streamUrl directa
   if (track.streamUrl && /^https?:\/\//i.test(track.streamUrl)) {
-    return track.streamUrl;
+    resolved = track.streamUrl;
   }
 
   // 2. Si ya tiene youtubeId resuelto, obtener stream directo de alta calidad
-  if (track.youtubeId) {
+  if (!resolved && track.youtubeId) {
     try {
       const fullUrl = await musicService.getFullAudioUrl(track.youtubeId);
       if (fullUrl && /^https?:\/\//i.test(fullUrl)) {
-        return fullUrl;
+        resolved = fullUrl;
       }
     } catch (e) {
       console.warn('[musicOfflineService] Error obteniendo audio completo por youtubeId:', e);
@@ -172,14 +298,14 @@ async function resolveAudioUrlForDownload(track) {
   }
 
   // 3. Si no tiene youtubeId, resolverlo primero
-  if (track.title) {
+  if (!resolved && track.title) {
     try {
       const ytId = await musicService.getYouTubeId(track.artist, track.title);
       if (ytId) {
         track.youtubeId = ytId;
         const fullUrl = await musicService.getFullAudioUrl(ytId);
         if (fullUrl && /^https?:\/\//i.test(fullUrl)) {
-          return fullUrl;
+          resolved = fullUrl;
         }
       }
     } catch (e) {
@@ -188,8 +314,18 @@ async function resolveAudioUrlForDownload(track) {
   }
 
   // 4. Fallback: Si tiene audioUrl estándar (mp3 de vista previa / fuente directa)
-  if (track.audioUrl && /^https?:\/\//i.test(track.audioUrl)) {
-    return track.audioUrl;
+  if (!resolved && track.audioUrl && /^https?:\/\//i.test(track.audioUrl)) {
+    resolved = track.audioUrl;
+  }
+
+  if (resolved) {
+    let finalUrl = resolved.trim();
+    if (finalUrl.includes('dl.dropbox.com')) {
+      finalUrl = finalUrl.replace('dl.dropbox.com', 'dl.dropboxusercontent.com');
+    } else if (finalUrl.includes('www.dropbox.com')) {
+      finalUrl = finalUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+    }
+    return finalUrl;
   }
 
   return null;
@@ -257,15 +393,17 @@ export async function downloadTrackOffline(track, onProgress = null) {
 
       let progressSub = null;
       try {
-        progressSub = await Filesystem.addListener('downloadProgress', (event) => {
-          if (event.contentLength > 0) {
-            const pct = Math.min(98, Math.max(25, Math.round(25 + ((event.bytesWritten / event.contentLength) * 73))));
+        progressSub = await Filesystem.addListener('progress', (event) => {
+          const bytes = Number(event?.bytes ?? event?.bytesWritten ?? 0);
+          const total = Number(event?.contentLength ?? event?.total ?? 0);
+          if (total > 0) {
+            const pct = Math.min(98, Math.max(25, Math.round(25 + ((bytes / total) * 73))));
             notifyProgress({
               id: trackId,
               progress: pct,
               status: 'downloading',
-              bytes: event.bytesWritten,
-              total: event.contentLength
+              bytes,
+              total
             });
           }
         });
@@ -294,6 +432,16 @@ export async function downloadTrackOffline(track, onProgress = null) {
         finalSizeBytes = stat.size || 0;
       } catch (_) {}
 
+      // Validar integridad mínima: audio real > 20 KB
+      if (finalSizeBytes < 20 * 1024) {
+        try {
+          await Filesystem.deleteFile({
+            path: relativeFilePath,
+            directory: Directory.Data
+          });
+        } catch (_) {}
+        throw new Error('La descarga de la canción falló o el archivo está incompleto (0 MB).');
+      }
       localFilePath = relativeFilePath;
 
     } else {
@@ -483,19 +631,27 @@ export async function getOfflinePlaybackUrls(trackId) {
     throw new Error('Canción no encontrada en almacenamiento offline.');
   }
 
-  // Validación de Licencia Offline de 30 días
+  // Validación de Licencia Offline vinculada al estado de suscripción
   const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+  const u = getActiveUser();
+
   if (isOnline) {
-    // Si el usuario tiene conexión a internet, renovar período de 30 días de forma transparente
+    if (!isUserSubscriptionActive(u)) {
+      throw new Error('Tu suscripción ha vencido en TeamG Play. Por favor contacta a tu proveedor para renovar tu suscripción y reactivar tus canciones offline.');
+    }
+    const allowedDuration = calculateAllowedLicenseDuration(u);
     const now = Date.now();
-    track.licenseExpiresAt = now + OFFLINE_LICENSE_DURATION_MS;
+    track.licenseExpiresAt = now + allowedDuration;
     track.lastOnlineValidation = now;
     const list = getOfflineTracks().map((t) => String(t.id) === String(trackId) ? track : t);
     saveOfflineTracks(list);
   } else {
-    // Si está offline, comprobar si los 30 días siguen vigentes
-    const lic = getTrackLicenseInfo(track);
-    if (lic.isExpired) {
+    // Si está offline, comprobar si los días permitidos siguen vigentes
+    const lic = getTrackLicenseInfo(track, u);
+    if (!lic.isValid) {
+      if (lic.isSubscriptionExpired) {
+        throw new Error('Tu suscripción ha vencido en TeamG Play. Por favor renueva tu servicio con tu administrador para reactivar la reproducción de tu música offline.');
+      }
       throw new Error('Tu licencia offline de 30 días ha caducado. Conecta el dispositivo a internet para renovar el acceso a esta canción.');
     }
   }

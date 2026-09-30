@@ -46,9 +46,15 @@ export default function Descargas() {
   // Reproducir contenido sin conexión
   const handlePlayOffline = async (item) => {
     const lic = getLicenseInfo(item);
-    if (lic.isExpired && typeof navigator !== 'undefined' && !navigator.onLine) {
-      alert('⚠️ Licencia Offline Caducada (30 días sin conexión)\n\nPara proteger los derechos del contenido, conecta tu dispositivo a internet para renovar el período de reproducción offline.');
-      return;
+    if (lic.isExpired) {
+      if (lic.isSubscriptionExpired) {
+        alert('⚠️ Suscripción Vencida en TeamG Play\n\nTu suscripción ha expirado en el panel de administración. Por favor realiza tu pago de renovación con tu proveedor para reactivar la reproducción de tus descargas.');
+        return;
+      }
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        alert('⚠️ Licencia Offline Caducada (30 días sin conexión)\n\nPara proteger los derechos del contenido, conecta tu dispositivo a internet para renovar el período de reproducción offline.');
+        return;
+      }
     }
 
     try {

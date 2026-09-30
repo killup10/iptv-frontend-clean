@@ -1,5 +1,6 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import axiosInstance from '../utils/axiosInstance.js';
 
 const STORAGE_KEY = 'teamg_offline_items';
 const OFFLINE_FOLDER = 'teamg_offline_vod';
@@ -23,20 +24,99 @@ export const isNativeStorage = () => {
   }
 };
 
-// Duración de la licencia offline: 30 días renovables conectándose a internet
+// Duración máxima de la licencia offline: 30 días (acotada al vencimiento de la suscripción del cliente)
 export const OFFLINE_LICENSE_DURATION_DAYS = 30;
 export const OFFLINE_LICENSE_DURATION_MS = OFFLINE_LICENSE_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
- * Obtiene la información de validez de la licencia offline de un video
+ * Obtiene el usuario activo almacenado en la app
  */
-export function getLicenseInfo(itemOrId) {
+export function getActiveUser() {
+  try {
+    const raw = localStorage.getItem('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Comprueba si la suscripción del usuario está activa y al día en el AdminPanel
+ */
+export function isUserSubscriptionActive(user = null) {
+  const u = user || getActiveUser();
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  if (u.isActive === false) return false;
+  if (u.expiresAt) {
+    const exp = new Date(u.expiresAt).getTime();
+    if (isNaN(exp) || exp <= Date.now()) {
+      return false; // Suscripción vencida en AdminPanel
+    }
+  }
+  return true;
+}
+
+/**
+ * Calcula la duración permitida de la licencia offline en milisegundos.
+ * Si el usuario renovó en AdminPanel, la licencia dura hasta 30 días,
+ * pero NUNCA más allá de la fecha de vencimiento pagada por el cliente.
+ */
+export function calculateAllowedLicenseDuration(user = null) {
+  const u = user || getActiveUser();
+  if (!u || !isUserSubscriptionActive(u)) {
+    return 0; // Suscripción inactiva o vencida
+  }
+
+  // Administrador o sin fecha de vencimiento (ilimitado)
+  if (u.role === 'admin' || !u.expiresAt) {
+    return OFFLINE_LICENSE_DURATION_MS;
+  }
+
+  const subRemainingMs = new Date(u.expiresAt).getTime() - Date.now();
+  if (subRemainingMs <= 0) {
+    return 0; // Suscripción vencida
+  }
+
+  // Máximo 30 días o lo que le quede de suscripción pagada
+  return Math.min(OFFLINE_LICENSE_DURATION_MS, subRemainingMs);
+}
+
+/**
+ * Obtiene la información de validez de la licencia offline de un video,
+ * considerando tanto el límite de 30 días como el estado de suscripción en AdminPanel.
+ */
+export function getLicenseInfo(itemOrId, user = null) {
   const item = typeof itemOrId === 'object' && itemOrId !== null ? itemOrId : getDownloadedItem(itemOrId);
-  if (!item) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0 };
+  if (!item) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0, isSubscriptionExpired: false };
 
   const now = Date.now();
-  const expiresAt = item.licenseExpiresAt || ((item.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
-  const diffMs = expiresAt - now;
+  const u = user || getActiveUser();
+  const subActive = isUserSubscriptionActive(u);
+
+  // Si la suscripción del cliente ya venció en AdminPanel
+  if (!subActive) {
+    return {
+      isValid: false,
+      daysRemaining: 0,
+      isExpired: true,
+      expiresAt: item.licenseExpiresAt || 0,
+      isSubscriptionExpired: true,
+    };
+  }
+
+  const baseExpiresAt = item.licenseExpiresAt || ((item.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
+
+  // Acotar a la fecha de vencimiento pagada del usuario si no es admin
+  let effectiveExpiresAt = baseExpiresAt;
+  if (u?.expiresAt && u.role !== 'admin') {
+    const subExp = new Date(u.expiresAt).getTime();
+    if (!isNaN(subExp)) {
+      effectiveExpiresAt = Math.min(baseExpiresAt, subExp);
+    }
+  }
+
+  const diffMs = effectiveExpiresAt - now;
   const daysRemaining = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
   const isExpired = diffMs <= 0;
 
@@ -44,15 +124,17 @@ export function getLicenseInfo(itemOrId) {
     isValid: !isExpired,
     daysRemaining,
     isExpired,
-    expiresAt,
+    expiresAt: effectiveExpiresAt,
     lastOnlineValidation: item.lastOnlineValidation || item.downloadedAt || now,
+    isSubscriptionExpired: false,
   };
 }
 
 /**
- * Renueva el período de 30 días para todos los videos offline si el dispositivo está en línea
+ * Renueva el período de licencia para todos los videos offline SOLO si el cliente
+ * tiene suscripción activa y pagada en el AdminPanel.
  */
-export function renewAllOfflineLicenses() {
+export function renewAllOfflineLicenses(user = null) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return false;
   }
@@ -60,16 +142,42 @@ export function renewAllOfflineLicenses() {
   const list = getDownloads();
   if (!list || list.length === 0) return true;
 
-  let hasChanged = false;
+  const u = user || getActiveUser();
+  const subActive = isUserSubscriptionActive(u);
   const now = Date.now();
+  let hasChanged = false;
+
+  // Si el cliente no tiene suscripción activa o no ha renovado el pago en AdminPanel:
+  if (!subActive) {
+    console.warn('[offlineStorage] Suscripción inactiva o expirada en AdminPanel. Bloqueando licencias offline.');
+    const updated = list.map((item) => {
+      if (item.licenseExpiresAt !== 0) {
+        hasChanged = true;
+        return {
+          ...item,
+          licenseExpiresAt: 0, // Bloquear de inmediato
+          lastOnlineValidation: now,
+        };
+      }
+      return item;
+    });
+    if (hasChanged) {
+      saveDownloads(updated);
+    }
+    return false;
+  }
+
+  // Si el cliente SÍ renovó y está al día: extender período según su fecha de suscripción
+  const allowedDuration = calculateAllowedLicenseDuration(u);
+  const newExpiry = now + allowedDuration;
+
   const updated = list.map((item) => {
     const lastCheck = item.lastOnlineValidation || 0;
-    // Renovar si no tiene fecha, si está vencida, o si pasaron más de 6 horas desde la última comprobación
-    if (!item.licenseExpiresAt || (now - lastCheck) > 6 * 60 * 60 * 1000 || item.licenseExpiresAt < now) {
+    if (!item.licenseExpiresAt || item.licenseExpiresAt < now || (now - lastCheck) > 6 * 60 * 60 * 1000 || item.licenseExpiresAt !== newExpiry) {
       hasChanged = true;
       return {
         ...item,
-        licenseExpiresAt: now + OFFLINE_LICENSE_DURATION_MS,
+        licenseExpiresAt: newExpiry,
         lastOnlineValidation: now,
       };
     }
@@ -78,18 +186,30 @@ export function renewAllOfflineLicenses() {
 
   if (hasChanged) {
     saveDownloads(updated);
-    console.log('[offlineStorage] Licencias offline de videos renovadas por 30 días.');
+    console.log(`[offlineStorage] Licencias offline de videos renovadas exitosamente por suscripción activa (${Math.ceil(allowedDuration / (24*60*60*1000))} días).`);
   }
   return true;
 }
 
 /**
- * Obtiene la lista de elementos descargados guardados en almacenamiento local
+ * Obtiene la lista de elementos descargados guardados en almacenamiento local,
+ * limpiando automáticamente registros incompletos o vacíos (0 MB).
  */
 export function getDownloads() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    // Limpieza automática de descargas corruptas o vacías (0 MB)
+    const valid = list.filter((item) => {
+      const bytes = Number(item.sizeBytes || 0);
+      if (bytes > 0 && bytes < 100 * 1024) return false;
+      if (item.sizeFormatted === '0 MB' && bytes < 100 * 1024) return false;
+      return true;
+    });
+    if (valid.length !== list.length) {
+      saveDownloads(valid);
+    }
+    return valid;
   } catch (err) {
     console.error('[offlineStorage] Error leyendo descargas:', err);
     return [];
@@ -109,12 +229,12 @@ function saveDownloads(items) {
 }
 
 /**
- * Verifica si un elemento específico ya está descargado
+ * Verifica si un elemento específico ya está descargado y es válido
  */
 export function isDownloaded(id) {
   if (!id) return false;
   const list = getDownloads();
-  return list.some((item) => String(item.id) === String(id));
+  return list.some((item) => String(item.id) === String(id) && (item.sizeBytes === undefined || item.sizeBytes >= 100 * 1024));
 }
 
 /**
@@ -123,7 +243,11 @@ export function isDownloaded(id) {
 export function getDownloadedItem(id) {
   if (!id) return null;
   const list = getDownloads();
-  return list.find((item) => String(item.id) === String(id)) || null;
+  const item = list.find((item) => String(item.id) === String(id)) || null;
+  if (item && item.sizeBytes !== undefined && item.sizeBytes < 100 * 1024) {
+    return null; // Descarga corrupta
+  }
+  return item;
 }
 
 /**
@@ -147,6 +271,38 @@ export function formatBytes(bytes) {
 }
 
 /**
+ * Resuelve la URL directa de descarga de un video (resolviendo tokens de backend o normalizando Dropbox)
+ */
+export async function resolveDirectVideoUrl(videoUrl) {
+  if (!videoUrl || typeof videoUrl !== 'string') return null;
+
+  let finalUrl = videoUrl.trim();
+
+  // Si es una URL protegida de playback (/api/videos/playback/...)
+  if (finalUrl.includes('/api/videos/playback/')) {
+    try {
+      const sep = finalUrl.includes('?') ? '&' : '?';
+      const resolveUrl = `${finalUrl}${sep}resolve=1`;
+      const res = await axiosInstance.get(resolveUrl);
+      if (res.data?.downloadUrl || res.data?.sourceUrl) {
+        finalUrl = res.data.downloadUrl || res.data.sourceUrl;
+      }
+    } catch (e) {
+      console.warn('[offlineStorage] No se pudo resolver URL directa vía backend:', e?.message || e);
+    }
+  }
+
+  // Normalizar enlaces de Dropbox a dl.dropboxusercontent.com para descarga directa sin saltos 302
+  if (finalUrl.includes('dl.dropbox.com')) {
+    finalUrl = finalUrl.replace('dl.dropbox.com', 'dl.dropboxusercontent.com');
+  } else if (finalUrl.includes('www.dropbox.com')) {
+    finalUrl = finalUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+  }
+
+  return finalUrl;
+}
+
+/**
  * Inicia la descarga protegida de un video (Película o Episodio)
  */
 export async function startDownload(mediaItem) {
@@ -166,13 +322,29 @@ export async function startDownload(mediaItem) {
     return;
   }
 
+  // Resolver la URL de descarga directa sin saltos de redirección
+  const directVideoUrl = await resolveDirectVideoUrl(mediaItem.videoUrl);
+  if (!directVideoUrl) {
+    throw new Error('No se pudo obtener el enlace de descarga del video');
+  }
+
+  if (directVideoUrl.toLowerCase().includes('.m3u8')) {
+    throw new Error('Este contenido se emite en formato HLS en vivo y no está disponible para descarga offline.');
+  }
+
   // Notificar inicio de descarga
   activeDownloads.set(itemId, { progress: 0, status: 'downloading', bytes: 0, total: 0 });
   window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
     detail: { id: itemId, progress: 0, status: 'downloading' }
   }));
 
-  const safeFileName = `tg_vod_${itemId}_${Date.now()}.tgdat`;
+  let ext = '.mp4';
+  const lowerUrl = directVideoUrl.toLowerCase();
+  if (lowerUrl.includes('.mkv')) ext = '.mkv';
+  else if (lowerUrl.includes('.webm')) ext = '.webm';
+  else if (lowerUrl.includes('.avi')) ext = '.avi';
+
+  const safeFileName = `tg_vod_${itemId}_${Date.now()}${ext}`;
   const relativeFilePath = `${OFFLINE_FOLDER}/${safeFileName}`;
 
   try {
@@ -191,17 +363,19 @@ export async function startDownload(mediaItem) {
 
       let progressSub = null;
       try {
-        progressSub = await Filesystem.addListener('downloadProgress', (event) => {
-          if (event.contentLength > 0) {
-            const pct = Math.min(100, Math.max(0, Math.round((event.bytesWritten / event.contentLength) * 100)));
+        progressSub = await Filesystem.addListener('progress', (event) => {
+          const bytes = Number(event?.bytes ?? event?.bytesWritten ?? 0);
+          const total = Number(event?.contentLength ?? event?.total ?? 0);
+          if (total > 0) {
+            const pct = Math.min(99, Math.max(1, Math.round((bytes / total) * 100)));
             activeDownloads.set(itemId, {
               progress: pct,
               status: 'downloading',
-              bytes: event.bytesWritten,
-              total: event.contentLength
+              bytes,
+              total,
             });
             window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
-              detail: { id: itemId, progress: pct, status: 'downloading', bytes: event.bytesWritten, total: event.contentLength }
+              detail: { id: itemId, progress: pct, status: 'downloading', bytes, total }
             }));
           }
         });
@@ -210,8 +384,8 @@ export async function startDownload(mediaItem) {
       }
 
       console.log(`[offlineStorage] Descargando video en Sandbox Privado: ${mediaItem.title}`);
-      const downloadRes = await Filesystem.downloadFile({
-        url: mediaItem.videoUrl,
+      await Filesystem.downloadFile({
+        url: directVideoUrl,
         path: relativeFilePath,
         directory: Directory.Data,
         progress: true,
@@ -230,6 +404,17 @@ export async function startDownload(mediaItem) {
         });
         sizeBytes = stat.size || 0;
       } catch (_) {}
+
+      // Validación de integridad: un archivo de video real debe tener al menos 100 KB
+      if (sizeBytes < 100 * 1024) {
+        try {
+          await Filesystem.deleteFile({
+            path: relativeFilePath,
+            directory: Directory.Data,
+          });
+        } catch (_) {}
+        throw new Error('La descarga falló o el archivo recibido está incompleto (0 MB). Verifica tu conexión a internet.');
+      }
 
       // Registrar metadata en lista de descargas
       const downloadRecord = {
@@ -262,7 +447,7 @@ export async function startDownload(mediaItem) {
       // === ALMACENAMIENTO WEB / DESKTOP (INDEXEDDB / CACHE API) ===
       console.log(`[offlineStorage] Descargando video mediante Cache API / Blob: ${mediaItem.title}`);
       
-      const response = await fetch(mediaItem.videoUrl);
+      const response = await fetch(directVideoUrl);
       if (!response.ok) {
         throw new Error(`Error HTTP al descargar: ${response.status}`);
       }
@@ -279,7 +464,7 @@ export async function startDownload(mediaItem) {
         receivedBytes += value.length;
 
         if (contentLength > 0) {
-          const pct = Math.round((receivedBytes / contentLength) * 100);
+          const pct = Math.min(99, Math.round((receivedBytes / contentLength) * 100));
           activeDownloads.set(itemId, {
             progress: pct,
             status: 'downloading',
@@ -292,7 +477,12 @@ export async function startDownload(mediaItem) {
         }
       }
 
-      const blob = new Blob(chunks, { type: 'video/mp4' });
+      if (receivedBytes < 100 * 1024) {
+        throw new Error('La descarga no pudo completarse correctamente (archivo incompleto o vacío).');
+      }
+
+      const mimeType = ext === '.mkv' ? 'video/x-matroska' : 'video/mp4';
+      const blob = new Blob(chunks, { type: mimeType });
       
       // Guardar en Cache API
       const cache = await caches.open('teamg-offline-vod-v1');
@@ -381,19 +571,27 @@ export async function getOfflinePlaybackUrl(id) {
     throw new Error('Contenido no encontrado en las descargas locales.');
   }
 
-  // Validación de la Licencia Offline de 30 días
+  // Validación de la Licencia Offline vinculada al estado de suscripción
   const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+  const u = getActiveUser();
+
   if (isOnline) {
-    // Si el usuario tiene conexión a internet, renovar período de 30 días automáticamente
+    if (!isUserSubscriptionActive(u)) {
+      throw new Error('Tu suscripción ha vencido en TeamG Play. Por favor contacta a tu proveedor para renovar tu suscripción y reactivar tus contenidos offline.');
+    }
+    const allowedDuration = calculateAllowedLicenseDuration(u);
     const now = Date.now();
-    item.licenseExpiresAt = now + OFFLINE_LICENSE_DURATION_MS;
+    item.licenseExpiresAt = now + allowedDuration;
     item.lastOnlineValidation = now;
     const list = getDownloads().map((it) => String(it.id) === String(id) ? item : it);
     saveDownloads(list);
   } else {
-    // Si está offline, comprobar si la licencia de 30 días sigue vigente
-    const lic = getLicenseInfo(item);
-    if (lic.isExpired) {
+    // Si está offline, comprobar si la licencia sigue vigente (acotada a la suscripción pagada)
+    const lic = getLicenseInfo(item, u);
+    if (!lic.isValid) {
+      if (lic.isSubscriptionExpired) {
+        throw new Error('Tu suscripción ha vencido en TeamG Play. Por favor renueva tu servicio con tu administrador para reactivar la reproducción de tus descargas.');
+      }
       throw new Error('Tu licencia offline de 30 días ha caducado. Conecta el dispositivo a internet para renovar el acceso a este contenido.');
     }
   }

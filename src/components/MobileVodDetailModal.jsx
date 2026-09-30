@@ -458,7 +458,13 @@ export default function MobileVodDetailModal({
 
   const checkDownloadState = useCallback(() => {
     if (!downloadTargetId) return;
-    setDownloadedItem(getDownloadedItem(downloadTargetId));
+    const item = getDownloadedItem(downloadTargetId);
+    // Si el item tiene tamaño 0 MB o corrupto, no considerarlo descargado para permitir redescarga
+    if (item && (item.sizeBytes === 0 || item.sizeFormatted === '0 MB' || (item.sizeBytes && item.sizeBytes < 100 * 1024))) {
+      setDownloadedItem(null);
+    } else {
+      setDownloadedItem(item);
+    }
     setDownloadStatus(getDownloadStatus(downloadTargetId));
   }, [downloadTargetId]);
 
@@ -474,9 +480,27 @@ export default function MobileVodDetailModal({
   }, [checkDownloadState]);
 
   const handleStartDownload = async () => {
-    const videoUrl = hasEpisodesContent && selectedEpisode
-      ? (selectedEpisode.url || selectedEpisode.videoUrl || selectedEpisode.streamUrl || '')
-      : (modalItem?.url || modalItem?.videoUrl || modalItem?.streamUrl || modalItem?.playbackUrl || '');
+    let targetEpisode = selectedEpisode;
+    let targetItem = modalItem;
+
+    // Si es serie y el capítulo seleccionado aún no tiene URL resuelta, obtener el detalle completo primero
+    if (hasEpisodesContent && (!targetEpisode || !targetEpisode.url)) {
+      try {
+        const full = await fetchVideoById(itemId);
+        if (full) {
+          targetItem = full;
+          const seasons = getTVItemSeasons(full);
+          const season = seasons?.[selectedSeasonIndex];
+          targetEpisode = season?.chapters?.[selectedEpisodeIndex] || null;
+        }
+      } catch (e) {
+        console.warn('[MobileVodDetailModal] Error precargando detalle para descarga:', e);
+      }
+    }
+
+    const videoUrl = hasEpisodesContent && targetEpisode
+      ? (targetEpisode.url || targetEpisode.videoUrl || targetEpisode.streamUrl || '')
+      : (targetItem?.url || targetItem?.videoUrl || targetItem?.streamUrl || targetItem?.playbackUrl || '');
 
     if (!videoUrl) {
       alert('Enlace de video no disponible para descargar.');
@@ -486,19 +510,19 @@ export default function MobileVodDetailModal({
     try {
       await startDownload({
         id: downloadTargetId,
-        videoId: modalItem?._id || modalItem?.id,
-        title: hasEpisodesContent && selectedEpisode
-          ? `${title} - ${selectedEpisodeLabel} ${selectedEpisode?.title ? `(${selectedEpisode.title})` : ''}`
+        videoId: targetItem?._id || targetItem?.id,
+        title: hasEpisodesContent && targetEpisode
+          ? `${title} - ${selectedEpisodeLabel} ${targetEpisode?.title ? `(${targetEpisode.title})` : ''}`
           : title,
         tipo: resolvedType,
         videoUrl,
         poster: posterImage,
         backdrop: backdropImage,
         year,
-        duration: hasEpisodesContent && selectedEpisode ? selectedEpisode?.duration : duration,
+        duration: hasEpisodesContent && targetEpisode ? targetEpisode?.duration : duration,
         seasonNumber: selectedSeasonNumber,
         episodeNumber: selectedEpisodeNumber,
-        episodeTitle: selectedEpisode?.title || '',
+        episodeTitle: targetEpisode?.title || '',
       });
     } catch (err) {
       alert('Error al iniciar descarga: ' + (err.message || err));

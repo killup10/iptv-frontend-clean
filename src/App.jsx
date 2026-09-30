@@ -14,6 +14,7 @@ import { isPremiumUser } from "./utils/planAccess.js";
 import GlobalMusicPlayer from "./components/music/GlobalMusicPlayer.jsx";
 import { renewAllOfflineLicenses } from "./services/offlineStorage.js";
 import { renewAllMusicOfflineLicenses } from "./services/musicOfflineService.js";
+import { storage } from "./utils/storage.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -119,20 +120,43 @@ function App() {
     return () => { clearTimeout(timer); window.removeEventListener('teamg-update-required', onForceUpdate); };
   }, []);
 
-  // Renovación automática de licencias offline (30 días) al iniciar o reconectar a internet
+  // Renovación de licencias offline sujeta a suscripción activa en AdminPanel
   useEffect(() => {
-    const handleRenewal = () => {
+    const handleRenewal = async () => {
       if (typeof navigator !== 'undefined' && navigator.onLine) {
-        console.log('[App] Conectado a internet: Renovando licencias offline de video y música por 30 días...');
-        renewAllOfflineLicenses();
-        renewAllMusicOfflineLicenses();
+        try {
+          const token = await storage.getItem('token');
+          if (token) {
+            // Validar estado en tiempo real contra MongoDB / AdminPanel
+            const res = await axiosInstance.get('/api/auth/session');
+            const freshUser = res.data?.user;
+            if (freshUser) {
+              const currentStored = await storage.getItem('user');
+              const parsedStored = currentStored ? JSON.parse(currentStored) : {};
+              const updatedUser = {
+                ...parsedStored,
+                ...freshUser,
+              };
+              await storage.setItem('user', JSON.stringify(updatedUser));
+              renewAllOfflineLicenses(updatedUser);
+              renewAllMusicOfflineLicenses(updatedUser);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('[App] Error al verificar suscripción en backend para licencias:', err?.message);
+        }
+
+        // Fallback si no hay conexión al backend
+        renewAllOfflineLicenses(user);
+        renewAllMusicOfflineLicenses(user);
       }
     };
 
     handleRenewal();
     window.addEventListener('online', handleRenewal);
     return () => window.removeEventListener('online', handleRenewal);
-  }, []);
+  }, [user]);
 
   // Auto-redirect logged-in users from root to /home
   useEffect(() => {
