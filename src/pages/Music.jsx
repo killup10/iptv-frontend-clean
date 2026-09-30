@@ -1,5 +1,5 @@
 // src/pages/Music.jsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Play, 
   Pause, 
@@ -23,10 +23,13 @@ import {
   Check,
   Download,
   DownloadCloud,
-  HardDrive
+  HardDrive,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS } from '../services/musicService.js';
+import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 
 export default function Music() {
   const { 
@@ -77,6 +80,9 @@ export default function Music() {
   const [isLoadingTop, setIsLoadingTop] = useState(true);
   const [isLoadingGenre, setIsLoadingGenre] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+  const recognitionRef = useRef(null);
 
   // Cargar Top Éxitos iniciales
   useEffect(() => {
@@ -142,6 +148,110 @@ export default function Music() {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
+  const stopVoiceSearch = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {}
+      recognitionRef.current = null;
+    }
+    setIsVoiceListening(false);
+  }, []);
+
+  const startVoiceSearch = useCallback(async () => {
+    setVoiceError('');
+
+    if (isVoiceListening) {
+      stopVoiceSearch();
+      return;
+    }
+
+    if (!supportsSpeechRecognition()) {
+      setVoiceError('Tu dispositivo o navegador no soporta búsqueda por voz.');
+      return;
+    }
+
+    try {
+      const hasPermission = await checkAndRequestMicrophonePermission();
+      if (!hasPermission) {
+        setVoiceError('Permiso de micrófono denegado. Actívalo en los ajustes de tu dispositivo.');
+        return;
+      }
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setVoiceError('Reconocimiento de voz no disponible.');
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = 'es-ES';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsVoiceListening(true);
+        setVoiceError('');
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+          setSearchQuery(transcript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('[MusicVoiceSearch] Error de voz:', event.error);
+        let errorMsg = '';
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          errorMsg = 'Permiso denegado para usar el micrófono.';
+        } else if (event.error === 'no-speech') {
+          errorMsg = 'No se detectó audio. Habla más cerca del micrófono.';
+        } else if (event.error === 'network') {
+          errorMsg = 'Error de conexión para procesar voz.';
+        } else if (event.error !== 'aborted') {
+          errorMsg = 'No se pudo reconocer la voz.';
+        }
+        if (errorMsg) {
+          setVoiceError(errorMsg);
+        }
+        setIsVoiceListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsVoiceListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn('[MusicVoiceSearch] Error iniciando reconocimiento:', err);
+      setVoiceError('No se pudo iniciar la búsqueda por voz.');
+      setIsVoiceListening(false);
+    }
+  }, [isVoiceListening, stopVoiceSearch]);
+
+  useEffect(() => {
+    if (!voiceError) return;
+    const timer = setTimeout(() => {
+      setVoiceError('');
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [voiceError]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+      }
+    };
+  }, []);
+
   const navigateToTab = useCallback((newTab) => {
     if (newTab === activeTab) return;
     setTabHistory(prev => [...prev.slice(-10), activeTab]);
@@ -153,6 +263,11 @@ export default function Music() {
 
   // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
   const handleMusicBack = useCallback(() => {
+    // -1. Si el reconocimiento por voz está activo, cancelarlo
+    if (isVoiceListening) {
+      stopVoiceSearch();
+      return true;
+    }
     // 0. Si el reproductor expandido (pantalla completa) está abierto, cerrarlo
     if (isExpandedPlayer) {
       setIsExpandedPlayer(false);
@@ -316,28 +431,77 @@ export default function Music() {
         )}
         
         {/* Input de Búsqueda */}
-        <div className="relative max-w-xl">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            {isSearching ? (
-              <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
-            ) : (
-              <Search className="w-5 h-5 text-gray-400" />
-            )}
+        <div className="max-w-xl">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              {isSearching ? (
+                <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+              ) : (
+                <Search className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isVoiceListening ? "🎙️ Escuchando... Di una canción o artista" : "Buscar por canción, artista, álbum o tema..."}
+              className={`w-full pl-11 pr-24 py-3.5 bg-white/[0.05] border rounded-2xl text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 backdrop-blur-md transition shadow-inner ${
+                isVoiceListening
+                  ? 'border-pink-500 ring-2 ring-pink-500/30 bg-pink-950/20 placeholder-pink-300/70'
+                  : 'border-white/10 focus:border-cyan-400/60 focus:ring-cyan-500/20'
+              }`}
+            />
+            <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center gap-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                  title="Borrar búsqueda"
+                >
+                  ✕
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={startVoiceSearch}
+                className={`p-2 rounded-xl transition flex items-center justify-center cursor-pointer ${
+                  isVoiceListening
+                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/40 animate-pulse scale-105'
+                    : 'text-gray-400 hover:text-cyan-300 hover:bg-white/10 active:scale-95'
+                }`}
+                title={isVoiceListening ? "Detener búsqueda por voz" : "Buscar por voz"}
+                aria-label={isVoiceListening ? "Detener búsqueda por voz" : "Buscar por voz"}
+              >
+                {isVoiceListening ? (
+                  <MicOff className="w-4 h-4 animate-bounce" />
+                ) : (
+                  <Mic className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por canción, artista, álbum o tema..."
-            className="w-full pl-11 pr-10 py-3.5 bg-white/[0.05] border border-white/10 focus:border-cyan-400/60 rounded-2xl text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 backdrop-blur-md transition shadow-inner"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-white"
-            >
-              ✕
-            </button>
+
+          {/* Feedback de voz activo */}
+          {isVoiceListening && (
+            <div className="mt-2 flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-xl bg-pink-500/15 border border-pink-500/30 text-pink-300 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-pink-400 animate-ping" />
+              <span>Escuchando... Di el título de la canción o el artista</span>
+            </div>
+          )}
+
+          {/* Alerta de error de voz */}
+          {voiceError && (
+            <div className="mt-2 flex items-center justify-between text-xs px-3.5 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300">
+              <span>{voiceError}</span>
+              <button 
+                type="button" 
+                onClick={() => setVoiceError('')} 
+                className="ml-2 text-rose-400 hover:text-rose-200"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
 
