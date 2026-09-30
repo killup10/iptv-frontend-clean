@@ -30,6 +30,8 @@ const SECTION_REQUIRED_PLANS = {
   CINE_2026: ['premium', 'cinefilo'],
   TV_EN_VIVO: ['premium'],
   DORAMAS: ['estandar', 'premium', 'cinefilo'],
+  MUSICA: ['premium'],
+  TEAMG_MUSIC: ['premium'],
 };
 
 function normalizeToken(value) {
@@ -129,3 +131,14 @@ export function getAccessLockState(item, userPlan, options = {}) {
     lockMessage: minimumPlan ? `Necesitas ${getPlanLabel(minimumPlan)} o superior` : 'Actualiza tu plan',
   };
 }
+
+/**
+ * Valida si un usuario tiene acceso al Plan Premium (o es admin).
+ * Los planes inferiores (gplay, basico, estandar, sports, cinefilo, etc.) retornan false.
+ */
+export function isPremiumUser(user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return normalizePlanKey(user.plan) === 'premium';
+}
+

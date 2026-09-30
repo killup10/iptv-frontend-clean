@@ -31,8 +31,11 @@ import {
   Sparkles,
   Flame,
   Users,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
+import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
@@ -70,6 +73,10 @@ export default function Music() {
     isExpandedPlayer,
     setIsExpandedPlayer
   } = useMusic();
+
+  const { user, isLoadingAuth } = useAuth();
+  const navigate = useNavigate();
+  const isPremium = isPremiumUser(user);
 
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'fresh' | 'community' | 'indie' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
@@ -532,6 +539,109 @@ export default function Music() {
     }
     return topTracks;
   }, [searchQuery, searchResults, activeTab, topTracks, recentTracks, indieTracks, genreTracks, favorites, queue, selectedPlaylist, selectedCuratedPlaylist, curatedPlaylistTracks]);
+
+  // Pantalla de carga mientras se sincroniza la sesión
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-10 h-10 text-fuchsia-400 animate-spin" />
+        <span className="text-xs text-gray-400">Verificando acceso a TeamG Music...</span>
+      </div>
+    );
+  }
+
+  // ACCESO EXCLUSIVO: Solo usuarios con Plan Premium (o admin) pueden acceder
+  if (!isPremium) {
+    const currentPlanLabel = getPlanLabel(user?.plan || 'gratuito');
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
+        <div className="relative w-full max-w-lg rounded-3xl bg-gradient-to-b from-[#180a2b] via-[#0f041c] to-black border border-fuchsia-500/30 p-6 sm:p-10 shadow-[0_0_60px_rgba(217,70,239,0.2)] text-center overflow-hidden">
+          {/* Ambient Glows */}
+          <div className="absolute -top-24 -left-24 w-60 h-60 bg-fuchsia-600/20 rounded-full blur-[80px] pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-600/20 rounded-full blur-[80px] pointer-events-none" />
+
+          {/* Icono Candado Premium */}
+          <div className="relative mx-auto w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-fuchsia-600 to-purple-800 flex items-center justify-center shadow-2xl border border-white/20 mb-6 group">
+            <Lock className="w-10 h-10 sm:w-12 sm:h-12 text-white drop-shadow-md animate-pulse" />
+            <span className="absolute -bottom-2 px-2.5 py-0.5 rounded-full bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider shadow">
+              PREMIUM
+            </span>
+          </div>
+
+          {/* Badge */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-[10px] font-black uppercase tracking-wider text-fuchsia-300 mb-3">
+            <Music2 className="w-3.5 h-3.5 text-fuchsia-400" />
+            <span>Exclusivo para Suscriptores Premium</span>
+          </div>
+
+          {/* Titulo */}
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
+            Desbloquea TeamG Music ♪
+          </h2>
+
+          <p className="text-xs sm:text-sm text-gray-300 leading-relaxed max-w-md mx-auto mb-6">
+            La sección oficial de música en streaming, descargas offline y emisoras 24/7 está reservada únicamente para el <strong className="text-fuchsia-400">Plan Premium</strong>.
+          </p>
+
+          {/* Info del Plan Actual vs Requerido */}
+          <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 mb-6 text-xs flex items-center justify-between">
+            <div className="text-left">
+              <span className="text-gray-400 block text-[11px]">Tu plan actual:</span>
+              <span className="font-extrabold text-amber-400 uppercase tracking-wide">
+                {currentPlanLabel}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-gray-400 block text-[11px]">Plan requerido:</span>
+              <span className="font-black text-fuchsia-400 uppercase tracking-wide bg-fuchsia-500/10 px-2 py-0.5 rounded border border-fuchsia-500/30">
+                PREMIUM
+              </span>
+            </div>
+          </div>
+
+          {/* Beneficios */}
+          <div className="text-left space-y-2.5 mb-8 bg-black/40 border border-white/5 rounded-2xl p-4 text-xs text-gray-300">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 stroke-[2.5]" />
+              <span>+100M canciones completas sin límites ni anuncios</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 stroke-[2.5]" />
+              <span>Modo Offline para escuchar sin internet en tu móvil y PC</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 stroke-[2.5]" />
+              <span>Reproducción en segundo plano con pantalla apagada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 stroke-[2.5]" />
+              <span>Búsqueda por voz y playlists comunitarias en vivo</span>
+            </div>
+          </div>
+
+          {/* Acciones */}
+          <div className="space-y-3">
+            <a
+              href="https://wa.me/51912194777?text=Hola%20TeamG%20Play,%20deseo%20migrar%20mi%20cuenta%20al%20Plan%20Premium%20para%20desbloquear%20TeamG%20Music"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:from-fuchsia-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider text-center transition-all shadow-[0_0_25px_rgba(217,70,239,0.35)] flex items-center justify-center gap-2 active:scale-95"
+            >
+              <Lock className="w-4 h-4 text-white" />
+              <span>Migrar a Plan Premium por WhatsApp</span>
+            </a>
+
+            <button
+              onClick={() => navigate('/home')}
+              className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-semibold transition cursor-pointer"
+            >
+              Volver al Inicio
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">

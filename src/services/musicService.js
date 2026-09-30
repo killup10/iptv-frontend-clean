@@ -715,9 +715,28 @@ async function fetchDeezerApi(endpoint) {
   return null;
 }
 
+// Estreno oficial Septiembre 2026: Falling In Reverse - Joseph (feat. Corey Taylor & Serj Tankian)
+export const JOSEPH_FIR_TRACK = {
+  id: 'fir-joseph-2026',
+  title: 'Joseph (feat. Corey Taylor & Serj Tankian)',
+  artist: 'Falling In Reverse',
+  album: 'Joseph - Single',
+  cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+  audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/a9/de/33/a9de335a-6297-21ef-1de8-8c11a3c69370/mzaf_16397496827139916532.plus.aac.p.m4a',
+  previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/a9/de/33/a9de335a-6297-21ef-1de8-8c11a3c69370/mzaf_16397496827139916532.plus.aac.p.m4a',
+  youtubeId: null,
+  isPreviewOnly: false,
+  duration: 254,
+  fullDuration: 254,
+  genre: 'Rock / Metalcore',
+  releaseDate: '2026-09-14',
+  isRadio: false
+};
+
 // Canciones destacadas de arranque instantáneo (Estrenos 2026).
 // El youtubeId se resuelve dinámicamente para la versión completa sin bloquear.
 export const INITIAL_FEATURED_TRACKS = [
+  JOSEPH_FIR_TRACK,
   {
     id: 'feat-1',
     title: 'To Whom It May Concern',
@@ -1162,6 +1181,15 @@ export const musicService = {
       }
     }
 
+    // Si la búsqueda coincide con "Joseph" o "Falling In Reverse", asegurar que el nuevo single 2026 esté presente
+    const lowerQuery = cleanQuery.toLowerCase();
+    if (lowerQuery.includes('joseph') || lowerQuery.includes('falling in reverse') || lowerQuery.includes('ronnie radke')) {
+      const alreadyHas = merged.some(t => t.id === JOSEPH_FIR_TRACK.id || (t.title?.toLowerCase().includes('joseph') && t.artist?.toLowerCase().includes('falling in reverse')));
+      if (!alreadyHas) {
+        merged.unshift(JOSEPH_FIR_TRACK);
+      }
+    }
+
     // Ordenar por relevancia exacta según la consulta
     merged.sort((a, b) => scoreTrackRelevance(b, cleanQuery) - scoreTrackRelevance(a, cleanQuery));
     return merged.slice(0, limit);
@@ -1257,7 +1285,7 @@ export const musicService = {
    * top con estrenos en 2026, garantizando cientos de canciones actualizadas al día de hoy.
    */
   async getRecentTracks(limit = 150, forceRefresh = false) {
-    const cacheKey = 'teamg_music_recent_tracks_v2';
+    const cacheKey = 'teamg_music_recent_tracks_v5';
     if (!forceRefresh) {
       try {
         const cached = sessionStorage.getItem(cacheKey);
@@ -1294,6 +1322,9 @@ export const musicService = {
       );
 
       const trackMap = new Map();
+
+      // Asegurar que el nuevo single oficial de Falling In Reverse (Joseph - Sep 14, 2026) siempre esté presente
+      trackMap.set(JOSEPH_FIR_TRACK.id, JOSEPH_FIR_TRACK);
 
       for (const res of responses) {
         if (res.status !== 'fulfilled' || !res.value) continue;

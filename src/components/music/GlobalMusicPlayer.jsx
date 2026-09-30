@@ -25,6 +25,8 @@ import {
   DownloadCloud
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { isPremiumUser } from '../../utils/planAccess.js';
 import ReactPlayer from 'react-player/youtube';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
 
@@ -76,11 +78,14 @@ export default function GlobalMusicPlayer() {
     activeDownloadsMap
   } = useMusic();
 
+  const { user } = useAuth();
+  const isPremium = isPremiumUser(user);
+
   const [showQueueDrawer, setShowQueueDrawer] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
 
-  if (!currentTrack) return null;
+  if (!isPremium || !currentTrack) return null;
 
   const isFav = isFavorite(currentTrack.id);
   const isDownloaded = isTrackDownloaded(currentTrack.id);

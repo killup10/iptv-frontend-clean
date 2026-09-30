@@ -9,7 +9,8 @@ import { fetchVideoCounts } from "./utils/api.js";
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
 import VideoPlayerPlugin from "./plugins/VideoPlayerPlugin.js";
-import { WifiOff, Music } from 'lucide-react';
+import { WifiOff, Music, Lock } from 'lucide-react';
+import { isPremiumUser } from "./utils/planAccess.js";
 import GlobalMusicPlayer from "./components/music/GlobalMusicPlayer.jsx";
 
 const SEARCH_SELECTION_TYPE_MAP = {
@@ -44,6 +45,7 @@ function App() {
   const { user, activeProfile, clearActiveProfile, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isUserPremium = isPremiumUser(user);
 
   useEffect(() => {
     console.log('[App.jsx] Estado del usuario:', user);
@@ -501,6 +503,12 @@ function App() {
                   <Link to="/musica" className="text-fuchsia-400 hover:text-fuchsia-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
                     <Music className="w-4 h-4 text-fuchsia-400" />
                     <span>TeamG Music ♪</span>
+                    {!isUserPremium && (
+                      <span className="flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                        <Lock className="w-2.5 h-2.5" />
+                        PREMIUM
+                      </span>
+                    )}
                   </Link>
                   <Link to="/pedidos" className="text-pink-400 hover:text-pink-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
                     <span>📩</span>
@@ -735,9 +743,17 @@ function App() {
                   <Link to="/mi-lista" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span>❤️</span> Mi Lista
                   </Link>
-                  <Link to="/musica" className="flex items-center gap-3 text-fuchsia-300 hover:text-white px-3 py-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-400/25 text-base font-bold transition" onClick={closeAllMenus}>
-                    <Music className="w-5 h-5 text-fuchsia-400" />
-                    <span>TeamG Music ♪</span>
+                  <Link to="/musica" className="flex items-center justify-between text-fuchsia-300 hover:text-white px-3 py-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-400/25 text-base font-bold transition" onClick={closeAllMenus}>
+                    <div className="flex items-center gap-3">
+                      <Music className="w-5 h-5 text-fuchsia-400" />
+                      <span>TeamG Music ♪</span>
+                    </div>
+                    {!isUserPremium && (
+                      <span className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                        <Lock className="w-3 h-3" />
+                        PREMIUM
+                      </span>
+                    )}
                   </Link>
                   <Link to="/pedidos" className="flex items-center gap-3 text-pink-300 hover:text-white px-3 py-3 rounded-xl bg-pink-500/10 border border-pink-400/25 text-base font-bold transition" onClick={closeAllMenus}>
                     <span>📩</span> Pedidos
