@@ -27,10 +27,13 @@ import {
   Mic,
   MicOff,
   Globe,
-  Lock
+  Lock,
+  Sparkles,
+  Flame,
+  Users
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
-import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS } from '../services/musicService.js';
+import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 
 export default function Music() {
@@ -67,7 +70,7 @@ export default function Music() {
     setIsExpandedPlayer
   } = useMusic();
 
-  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
+  const [activeTab, setActiveTab] = useState('top'); // 'top' | 'fresh' | 'community' | 'indie' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
   const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'community' | 'queue'
@@ -77,6 +80,13 @@ export default function Music() {
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
+  const [recentTracks, setRecentTracks] = useState([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+  const [independentArtists, setIndependentArtists] = useState(INDEPENDENT_ARTISTS);
+  const [selectedIndieArtist, setSelectedIndieArtist] = useState(null);
+  const [indieTracks, setIndieTracks] = useState([]);
+  const [isLoadingIndie, setIsLoadingIndie] = useState(false);
+  const [communityFilter, setCommunityFilter] = useState('all'); // 'all' | 'curated' | 'user'
   const [genreTracks, setGenreTracks] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,6 +193,51 @@ export default function Music() {
     loadCuratedTracks();
     return () => { isMounted = false; };
   }, [selectedCuratedPlaylist]);
+
+  // Cargar Lo Más Reciente (Estrenos 2026)
+  useEffect(() => {
+    let isMounted = true;
+    if (activeTab === 'fresh' && recentTracks.length === 0) {
+      async function loadRecent() {
+        setIsLoadingRecent(true);
+        try {
+          const tracks = await musicService.getRecentTracks(30);
+          if (isMounted && tracks && tracks.length > 0) {
+            setRecentTracks(tracks);
+          }
+        } catch (e) {
+          console.warn('[MusicPage] Error cargando canciones recientes:', e);
+        } finally {
+          if (isMounted) setIsLoadingRecent(false);
+        }
+      }
+      loadRecent();
+    }
+    return () => { isMounted = false; };
+  }, [activeTab, recentTracks.length]);
+
+  // Cargar Artistas Independientes / Temas
+  useEffect(() => {
+    let isMounted = true;
+    if (activeTab === 'indie') {
+      async function loadIndie() {
+        setIsLoadingIndie(true);
+        try {
+          const query = selectedIndieArtist ? selectedIndieArtist.query : null;
+          const tracks = await musicService.getIndependentTracks(query, 30);
+          if (isMounted) {
+            setIndieTracks(tracks);
+          }
+        } catch (e) {
+          console.warn('[MusicPage] Error cargando música indie:', e);
+        } finally {
+          if (isMounted) setIsLoadingIndie(false);
+        }
+      }
+      loadIndie();
+    }
+    return () => { isMounted = false; };
+  }, [activeTab, selectedIndieArtist]);
 
   // Gestión de historial de búsquedas recientes
   const saveRecentSearch = useCallback((term) => {
@@ -349,9 +404,12 @@ export default function Music() {
     if (newTab === activeTab) return;
     setTabHistory(prev => [...prev.slice(-10), activeTab]);
     setActiveTab(newTab);
-    if (newTab !== 'playlists') {
+    if (newTab !== 'playlists' && newTab !== 'community') {
       setSelectedPlaylistId(null);
       setSelectedCuratedPlaylist(null);
+    }
+    if (newTab !== 'indie') {
+      setSelectedIndieArtist(null);
     }
   }, [activeTab]);
 
@@ -365,6 +423,11 @@ export default function Music() {
     // 0. Si el reproductor expandido (pantalla completa) está abierto, cerrarlo
     if (isExpandedPlayer) {
       setIsExpandedPlayer(false);
+      return true;
+    }
+    // 0.1 Si está viendo un artista independiente en detalle
+    if (selectedIndieArtist) {
+      setSelectedIndieArtist(null);
       return true;
     }
     // 1. Si está viendo una playlist curada de la comunidad
@@ -397,7 +460,7 @@ export default function Music() {
     }
     // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
     return false;
-  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
+  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
 
   useEffect(() => {
     window.__musicBackHandler = handleMusicBack;
@@ -434,51 +497,57 @@ export default function Music() {
     if (activeTab === 'top') {
       return topTracks;
     }
+    if (activeTab === 'fresh') {
+      return recentTracks;
+    }
+    if (activeTab === 'indie') {
+      return indieTracks;
+    }
     if (activeTab === 'genres') {
       return genreTracks;
     }
     if (activeTab === 'favorites') {
       return favorites;
     }
-    if (activeTab === 'playlists' || activeTab === 'queue') {
+    if (activeTab === 'playlists' || activeTab === 'queue' || activeTab === 'community') {
       if (selectedPlaylist) return selectedPlaylist.tracks;
       if (selectedCuratedPlaylist) return curatedPlaylistTracks;
       return queue;
     }
     return topTracks;
-  }, [searchQuery, searchResults, activeTab, topTracks, genreTracks, favorites, queue, selectedPlaylist, selectedCuratedPlaylist, curatedPlaylistTracks]);
+  }, [searchQuery, searchResults, activeTab, topTracks, recentTracks, indieTracks, genreTracks, favorites, queue, selectedPlaylist, selectedCuratedPlaylist, curatedPlaylistTracks]);
 
   return (
     <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
       
       {/* 1. HERO BANNER PRINCIPAL (SOLO DESKTOP PARA MANTENER MÓVIL ÁGIL COMO SPOTIFY) */}
       <div className="hidden md:block relative pt-6 pb-8 px-4 sm:px-8 max-w-7xl mx-auto">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-purple-900/40 to-cyan-950/60 border border-fuchsia-500/20 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-purple-900/50 to-indigo-950/60 border border-fuchsia-500/20 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
           
           {/* Luces y brillos de fondo */}
           <div className="absolute -top-24 -left-24 w-80 h-80 bg-fuchsia-600/30 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-3 text-center md:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-xs font-bold tracking-wider uppercase">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/30 text-fuchsia-300 text-xs font-bold tracking-wider uppercase">
                 <Disc3 className="w-3.5 h-3.5 animate-spin" />
                 TeamG Music ♪ • Audio en Alta Fidelidad
               </div>
               <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
-                Top 50 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-400 to-fuchsia-500">Éxitos Globales</span>
+                Top 50 <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 via-pink-400 to-purple-400">Éxitos Globales</span>
               </h1>
               <p className="text-gray-300 text-sm sm:text-base max-w-xl">
-                Escucha los lanzamientos más escuchados del momento, sintoniza radios en vivo o explora por tus géneros con reproducción instantánea en alta fidelidad.
+                Escucha los lanzamientos más escuchados del momento, playlists de la comunidad, descubre artistas independientes o sintoniza radios en vivo.
               </p>
 
               {/* Botones de acción rápida */}
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
                 <button
                   onClick={handlePlayAllTop}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black font-bold shadow-lg shadow-fuchsia-500/25 hover:scale-105 active:scale-95 transition"
+                  className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold shadow-lg shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition"
                 >
-                  <Play className="w-4 h-4 fill-black" />
+                  <Play className="w-4 h-4 fill-white" />
                   <span>Reproducir Todo</span>
                 </button>
 
@@ -486,7 +555,7 @@ export default function Music() {
                   onClick={handleShuffleTop}
                   className="flex items-center gap-2 px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold border border-white/10 hover:border-white/20 transition"
                 >
-                  <Shuffle className="w-4 h-4 text-cyan-400" />
+                  <Shuffle className="w-4 h-4 text-fuchsia-400" />
                   <span>Aleatorio</span>
                 </button>
               </div>
@@ -513,21 +582,23 @@ export default function Music() {
       <div className="px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
 
         {/* Botón de retroceso contextual dentro de TeamG Music ♪ */}
-        {(activeTab !== 'top' || selectedPlaylistId || selectedCuratedPlaylist || searchQuery || tabHistory.length > 0) && (
+        {(activeTab !== 'top' || selectedPlaylistId || selectedCuratedPlaylist || selectedIndieArtist || searchQuery || tabHistory.length > 0) && (
           <div className="flex items-center gap-2">
             <button
               onClick={handleMusicBack}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 hover:text-white text-xs font-semibold border border-cyan-400/30 active:scale-95 transition shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-300 hover:text-white text-xs font-semibold border border-fuchsia-400/30 active:scale-95 transition shadow-sm cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>
                 {selectedPlaylistId 
                   ? 'Volver a Mis Listas' 
                   : selectedCuratedPlaylist
-                    ? 'Volver a Playlists Curadas'
-                    : searchQuery 
-                      ? 'Limpiar Búsqueda' 
-                      : 'Atrás'}
+                    ? 'Volver a Playlists'
+                    : selectedIndieArtist
+                      ? 'Volver a Artistas Independientes'
+                      : searchQuery 
+                        ? 'Limpiar Búsqueda' 
+                        : 'Atrás'}
               </span>
             </button>
           </div>
@@ -538,7 +609,7 @@ export default function Music() {
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               {isSearching ? (
-                <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                <Loader2 className="w-5 h-5 text-fuchsia-400 animate-spin" />
               ) : (
                 <Search className="w-5 h-5 text-gray-400" />
               )}
@@ -551,7 +622,7 @@ export default function Music() {
               className={`w-full pl-11 pr-24 py-3.5 bg-white/[0.05] border rounded-2xl text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 backdrop-blur-md transition shadow-inner ${
                 isVoiceListening
                   ? 'border-pink-500 ring-2 ring-pink-500/30 bg-pink-950/20 placeholder-pink-300/70'
-                  : 'border-white/10 focus:border-cyan-400/60 focus:ring-cyan-500/20'
+                  : 'border-white/10 focus:border-fuchsia-400/60 focus:ring-fuchsia-500/20'
               }`}
             />
             <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center gap-1">
@@ -571,7 +642,7 @@ export default function Music() {
                 className={`p-2 rounded-xl transition flex items-center justify-center cursor-pointer ${
                   isVoiceListening
                     ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/40 animate-pulse scale-105'
-                    : 'text-gray-400 hover:text-cyan-300 hover:bg-white/10 active:scale-95'
+                    : 'text-gray-400 hover:text-fuchsia-300 hover:bg-white/10 active:scale-95'
                 }`}
                 title={isVoiceListening ? "Detener búsqueda por voz" : "Buscar por voz"}
                 aria-label={isVoiceListening ? "Detener búsqueda por voz" : "Buscar por voz"}
@@ -612,13 +683,13 @@ export default function Music() {
             <div className="mt-3 space-y-1.5 animate-in fade-in">
               <div className="flex items-center justify-between text-xs text-gray-400 px-1">
                 <div className="flex items-center gap-1.5 font-semibold text-gray-300">
-                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                  <Clock className="w-3.5 h-3.5 text-fuchsia-400" />
                   <span>Búsquedas recientes</span>
                 </div>
                 <button
                   type="button"
                   onClick={clearRecentSearches}
-                  className="text-[11px] text-gray-400 hover:text-cyan-300 transition cursor-pointer"
+                  className="text-[11px] text-gray-400 hover:text-fuchsia-300 transition cursor-pointer"
                 >
                   Borrar todo
                 </button>
@@ -627,7 +698,7 @@ export default function Music() {
                 {recentSearches.map((term, idx) => (
                   <div
                     key={`${term}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-cyan-400/40 text-xs text-gray-300 hover:text-white transition cursor-pointer group active:scale-95"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-fuchsia-400/40 text-xs text-gray-300 hover:text-white transition cursor-pointer group active:scale-95"
                   >
                     <span onClick={() => setSearchQuery(term)} className="truncate max-w-[200px]">
                       {term}
@@ -650,14 +721,15 @@ export default function Music() {
           )}
         </div>
 
-        {/* Pestañas de Navegación estilo Píldoras */}
+        {/* Pestañas de Navegación estilo Píldoras con Nuevas Categorías */}
         {!searchQuery && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+            {/* 1. Top Éxitos */}
             <button
               onClick={() => navigateToTab('top')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 activeTab === 'top'
-                  ? 'bg-gradient-to-r from-cyan-400 to-cyan-500 text-black shadow-md shadow-cyan-500/25'
+                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-md shadow-fuchsia-500/25'
                   : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
@@ -665,6 +737,46 @@ export default function Music() {
               <span>Top Éxitos</span>
             </button>
 
+            {/* 2. Lo Más Reciente */}
+            <button
+              onClick={() => navigateToTab('fresh')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
+                activeTab === 'fresh'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Lo Más Reciente</span>
+            </button>
+
+            {/* 3. Playlists & Tendencias (Comunidad) */}
+            <button
+              onClick={() => navigateToTab('community')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
+                activeTab === 'community'
+                  ? 'bg-gradient-to-r from-pink-500 to-fuchsia-600 text-white shadow-md shadow-pink-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Playlists & Tendencias</span>
+            </button>
+
+            {/* 4. Artistas Independientes */}
+            <button
+              onClick={() => navigateToTab('indie')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
+                activeTab === 'indie'
+                  ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-md shadow-amber-500/25'
+                  : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5" />
+              <span>Artistas Independientes</span>
+            </button>
+
+            {/* 5. Explorar Géneros */}
             <button
               onClick={() => navigateToTab('genres')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
@@ -677,6 +789,7 @@ export default function Music() {
               <span>Explorar Géneros</span>
             </button>
 
+            {/* 6. Radios en Vivo */}
             <button
               onClick={() => navigateToTab('radios')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
@@ -689,6 +802,7 @@ export default function Music() {
               <span>Radios en Vivo</span>
             </button>
 
+            {/* 7. Tus Me Gusta */}
             <button
               onClick={() => navigateToTab('favorites')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
@@ -701,6 +815,7 @@ export default function Music() {
               <span>Tus Me Gusta ({favorites.length})</span>
             </button>
 
+            {/* 8. Tus Listas */}
             <button
               onClick={() => navigateToTab('playlists')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
@@ -713,6 +828,7 @@ export default function Music() {
               <span>Tus Listas ({customPlaylists.length})</span>
             </button>
 
+            {/* 9. Modo Offline */}
             <button
               onClick={() => navigateToTab('offline')}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
@@ -739,11 +855,11 @@ export default function Music() {
 
             {isSearching ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
               </div>
             ) : searchResults.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
-                <Music2 className="w-12 h-12 mx-auto mb-3 opacity-40 text-cyan-400" />
+                <Music2 className="w-12 h-12 mx-auto mb-3 opacity-40 text-fuchsia-400" />
                 <p className="text-base font-semibold">No se encontraron resultados para tu búsqueda</p>
                 <p className="text-xs text-gray-500 mt-1">Prueba escribiendo el nombre exacto de la canción o artista.</p>
               </div>
@@ -767,6 +883,580 @@ export default function Music() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* CASO: LO MÁS RECIENTE / ESTRENOS 2026 */}
+        {!searchQuery && activeTab === 'fresh' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Header del Lanzamiento */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-950/60 via-[#181130] to-fuchsia-950/40 border border-indigo-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+              <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-2xl border border-white/15">
+                <Sparkles className="w-14 h-14 text-white animate-pulse" />
+              </div>
+
+              <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
+                  <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-ping" />
+                  <span>Estrenos 2026 • Nuevos Lanzamientos</span>
+                </div>
+                <h2 className="text-2xl sm:text-4xl font-black text-white">
+                  Lo Más Reciente Esta Semana
+                </h2>
+                <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+                  Sencillos recién salidos del estudio, colaboraciones mundiales y los temas más frescos agregados a nuestro catálogo oficial.
+                </p>
+
+                {recentTracks.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                    <button
+                      onClick={() => playTrack(recentTracks[0], recentTracks)}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
+                    >
+                      <Play className="w-4 h-4 fill-white" />
+                      <span>Reproducir Todo ({recentTracks.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const shuffled = [...recentTracks].sort(() => Math.random() - 0.5);
+                        playTrack(shuffled[0], shuffled);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                    >
+                      <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <span>Aleatorio</span>
+                    </button>
+
+                    <button
+                      onClick={() => downloadPlaylist({ id: 'fresh_2026', title: 'Lo Más Reciente 2026', tracks: recentTracks })}
+                      disabled={isDownloadingPlaylistId === 'fresh_2026'}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                    >
+                      {isDownloadingPlaylistId === 'fresh_2026' ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                          <span>Descargando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Descargar Todo ({recentTracks.length})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Listado de Canciones */}
+            {isLoadingRecent ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
+                <span className="text-xs">Sincronizando los lanzamientos más recientes de 2026...</span>
+              </div>
+            ) : recentTracks.length === 0 ? (
+              <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
+                <Sparkles className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
+                <p className="text-base font-semibold text-white">No se pudieron cargar los estrenos</p>
+                <p className="text-xs text-gray-500 mt-1">Verifica tu conexión a internet o intenta nuevamente.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {recentTracks.map((track, idx) => (
+                  <TrackCard 
+                    key={`fresh-${track.id}-${idx}`} 
+                    track={track} 
+                    queue={recentTracks}
+                    index={idx + 1}
+                    isPlaying={isPlaying && currentTrack?.id === track.id}
+                    onPlay={() => playTrack(track, recentTracks)}
+                    isFav={isFavorite(track.id)}
+                    onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    isDownloaded={isTrackDownloaded(track.id)}
+                    downloadStatus={activeDownloadsMap[track.id]}
+                    onDownload={() => downloadTrack(track)}
+                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CASO: PLAYLISTS DE LA COMUNIDAD & TENDENCIAS */}
+        {!searchQuery && activeTab === 'community' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Si el usuario tiene una playlist curada seleccionada, mostramos su detalle */}
+            {selectedCuratedPlaylist ? (
+              <div className="space-y-6 animate-in fade-in">
+                {/* Botón Volver */}
+                <button
+                  onClick={() => setSelectedCuratedPlaylist(null)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Volver a Playlists de la Comunidad</span>
+                </button>
+
+                {/* Banner de la Playlist Curada */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-fuchsia-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                  <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                    <img 
+                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                      alt={selectedCuratedPlaylist.name} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-300 text-[10px] font-bold tracking-wider uppercase">
+                      <Globe className="w-3 h-3 text-fuchsia-400" />
+                      <span>Playlist de la Comunidad • {selectedCuratedPlaylist.creator || 'Varios Artistas'}</span>
+                    </span>
+
+                    <h2 className="text-2xl sm:text-4xl font-black text-white truncate">
+                      {selectedCuratedPlaylist.name}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-gray-300 max-w-2xl line-clamp-2">
+                      {selectedCuratedPlaylist.description}
+                    </p>
+
+                    <p className="text-xs text-gray-400">
+                      {curatedPlaylistTracks.length > 0 
+                        ? `${curatedPlaylistTracks.length} canciones • ${Math.round(curatedPlaylistTracks.reduce((acc, t) => acc + (t.duration || 210), 0) / 60)} min`
+                        : `${selectedCuratedPlaylist.trackCount || 50} canciones seleccionadas`}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                      {curatedPlaylistTracks.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => playTrack(curatedPlaylistTracks[0], curatedPlaylistTracks)}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                          >
+                            <Play className="w-4 h-4 fill-white" />
+                            <span>Reproducir Todo</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              const shuffled = [...curatedPlaylistTracks].sort(() => Math.random() - 0.5);
+                              playTrack(shuffled[0], shuffled);
+                            }}
+                            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                          >
+                            <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
+                            <span>Aleatorio</span>
+                          </button>
+
+                          {isPlaylistDownloaded({ id: selectedCuratedPlaylist.id, tracks: curatedPlaylistTracks }) ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs shadow-sm">
+                              <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                              <span>Descargada (Offline)</span>
+                            </div>
+                          ) : isDownloadingPlaylistId === selectedCuratedPlaylist.id ? (
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-300 font-bold text-xs shadow-sm">
+                              <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
+                              <span>Descargando...</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => downloadPlaylist({ id: selectedCuratedPlaylist.id, name: selectedCuratedPlaylist.name, tracks: curatedPlaylistTracks })}
+                              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 hover:text-white font-semibold text-xs border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                            >
+                              <DownloadCloud className="w-4 h-4 text-emerald-400" />
+                              <span>Descargar Lista ({curatedPlaylistTracks.length})</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Canciones de la playlist curada */}
+                {isLoadingCuratedTracks ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                    <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
+                    <span className="text-xs">Cargando canciones de la comunidad...</span>
+                  </div>
+                ) : curatedPlaylistTracks.length === 0 ? (
+                  <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8">
+                    <Music2 className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/50" />
+                    <p className="text-base font-semibold text-white">No se pudieron cargar las canciones</p>
+                    <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                      Intenta con otra playlist de la comunidad.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {curatedPlaylistTracks.map((track, idx) => (
+                      <TrackCard 
+                        key={`curated-track-${track.id}-${idx}`} 
+                        track={track} 
+                        queue={curatedPlaylistTracks}
+                        index={idx + 1}
+                        isPlaying={isPlaying && currentTrack?.id === track.id}
+                        onPlay={() => playTrack(track, curatedPlaylistTracks)}
+                        isFav={isFavorite(track.id)}
+                        onToggleFav={() => toggleFavorite(track)}
+                        onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                        isDownloaded={isTrackDownloaded(track.id)}
+                        downloadStatus={activeDownloadsMap[track.id]}
+                        onDownload={() => downloadTrack(track)}
+                        onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Vista Principal de la Pestaña Comunidad & Tendencias */
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                      <Globe className="w-6 h-6 text-fuchsia-400" />
+                      <span>Playlists de la Comunidad & Tendencias</span>
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Playlists virales con nombres originales de múltiples artistas y selecciones creadas por la comunidad de TeamG Play.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('playlists');
+                      setIsCreatingPlaylist(true);
+                      setNewPlaylistIsPublic(true);
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-md transition self-start sm:self-auto cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Crear Mi Playlist Pública</span>
+                  </button>
+                </div>
+
+                {/* Filtro: Todas / Tendencias Virales / Creadas por Usuarios */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    onClick={() => setCommunityFilter('all')}
+                    className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                      communityFilter === 'all'
+                        ? 'bg-fuchsia-500 text-white shadow-md shadow-fuchsia-500/25'
+                        : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    Todas ({curatedPlaylists.length + customPlaylists.filter(p => p.isPublic).length})
+                  </button>
+                  <button
+                    onClick={() => setCommunityFilter('curated')}
+                    className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                      communityFilter === 'curated'
+                        ? 'bg-fuchsia-500 text-white shadow-md shadow-fuchsia-500/25'
+                        : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    Tendencias & Virales ({curatedPlaylists.length})
+                  </button>
+                  <button
+                    onClick={() => setCommunityFilter('user')}
+                    className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                      communityFilter === 'user'
+                        ? 'bg-fuchsia-500 text-white shadow-md shadow-fuchsia-500/25'
+                        : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    Creadas por Usuarios ({customPlaylists.filter(p => p.isPublic).length})
+                  </button>
+                </div>
+
+                {/* Listas Públicas Creadas por Usuarios */}
+                {(communityFilter === 'all' || communityFilter === 'user') && customPlaylists.filter(p => p.isPublic).length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-fuchsia-400" />
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                        Playlists Creadas por la Comunidad
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {customPlaylists.filter(p => p.isPublic).map((pl) => (
+                        <div
+                          key={`public-user-${pl.id}`}
+                          onClick={() => {
+                            setActiveTab('playlists');
+                            setSelectedPlaylistId(pl.id);
+                          }}
+                          className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
+                        >
+                          <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
+                            {pl.cover ? (
+                              <img src={pl.cover} alt={pl.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                            ) : (
+                              <ListMusic className="w-10 h-10 text-fuchsia-400/40" />
+                            )}
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/50 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md flex items-center gap-1">
+                              <Globe className="w-2.5 h-2.5" />
+                              <span>PÚBLICA</span>
+                            </div>
+                          </div>
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">{pl.name}</h4>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{pl.tracks.length} canciones</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Si no hay playlists públicas de usuario y seleccionó ese filtro */}
+                {communityFilter === 'user' && customPlaylists.filter(p => p.isPublic).length === 0 && (
+                  <div className="text-center py-16 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8 space-y-3">
+                    <Globe className="w-10 h-10 mx-auto text-fuchsia-400/50" />
+                    <h4 className="text-base font-bold text-white">Sé el primero en compartir una playlist</h4>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto">
+                      Crea tu lista en "Tus Listas" y activa la opción "Pública" para que todos los usuarios de TeamG Play puedan disfrutarla aquí.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setActiveTab('playlists');
+                        setIsCreatingPlaylist(true);
+                        setNewPlaylistIsPublic(true);
+                      }}
+                      className="px-5 py-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold text-xs shadow-md transition hover:scale-105 cursor-pointer"
+                    >
+                      + Crear Playlist Pública
+                    </button>
+                  </div>
+                )}
+
+                {/* Playlists Curadas y Tendencias Globales de Múltiples Artistas */}
+                {(communityFilter === 'all' || communityFilter === 'curated') && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Disc3 className="w-4 h-4 text-fuchsia-400 animate-spin" />
+                      <h3 className="text-sm sm:text-base font-bold text-white">
+                        Tendencias Curadas con Varios Artistas
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      {curatedPlaylists.map((pl) => (
+                        <div
+                          key={`community-curated-${pl.id}`}
+                          onClick={() => setSelectedCuratedPlaylist(pl)}
+                          className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
+                        >
+                          <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
+                            <img 
+                              src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                              alt={pl.name} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            />
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md">
+                              TENDENCIA
+                            </div>
+                            <div 
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setSelectedCuratedPlaylist(pl);
+                                const tracks = await musicService.getPlaylistTracks(pl.deezerId || pl.id);
+                                if (tracks && tracks.length > 0) {
+                                  playTrack(tracks[0], tracks);
+                                }
+                              }}
+                              className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
+                              title="Reproducir playlist"
+                            >
+                              <Play className="w-4 h-4 fill-white ml-0.5" />
+                            </div>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">
+                              {pl.name}
+                            </h4>
+                            <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5">
+                              {pl.description}
+                            </p>
+                            <p className="text-[10px] text-fuchsia-400/80 mt-1 font-semibold">
+                              {pl.trackCount || 50} canciones
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CASO: ARTISTAS INDEPENDIENTES & DESCUBRIMIENTOS */}
+        {!searchQuery && activeTab === 'indie' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Header */}
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 mb-1">
+                <Flame className="w-6 h-6 text-amber-500" />
+                <span>Artistas Independientes & Descubrimientos</span>
+              </h2>
+              <p className="text-xs text-gray-400">
+                Música emergente, Bedroom Pop, Indie Latino, Post-Hardcore y proyectos fuera de los algoritmos comerciales masivos.
+              </p>
+            </div>
+
+            {/* Carrusel / Grilla de Selección de Artistas Independientes */}
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+              <button
+                onClick={() => setSelectedIndieArtist(null)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex-shrink-0 ${
+                  !selectedIndieArtist
+                    ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/50'
+                    : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Todos los Descubrimientos</span>
+              </button>
+
+              {independentArtists.map((artist) => {
+                const isSelected = selectedIndieArtist?.id === artist.id;
+                return (
+                  <button
+                    key={artist.id}
+                    onClick={() => setSelectedIndieArtist(artist)}
+                    className={`flex items-center gap-2.5 px-3 py-1.5 rounded-2xl transition cursor-pointer flex-shrink-0 ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white shadow-lg ring-2 ring-amber-400/50'
+                        : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 border border-white/20">
+                      <img src={artist.cover} alt={artist.name} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-xs font-bold">{artist.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Spotlight Banner si hay un artista seleccionado */}
+            {selectedIndieArtist && (
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-amber-950/40 via-[#20121d] to-purple-950/40 border border-amber-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl animate-in fade-in">
+                <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden bg-black/60 border-2 border-amber-400/40 flex-shrink-0 shadow-2xl">
+                  <img src={selectedIndieArtist.cover} alt={selectedIndieArtist.name} className="w-full h-full object-cover" />
+                </div>
+
+                <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                      {selectedIndieArtist.genre}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-gray-300">
+                      📍 {selectedIndieArtist.origin}
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-4xl font-black text-white">
+                    {selectedIndieArtist.name}
+                  </h2>
+
+                  <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
+                    {selectedIndieArtist.bio}
+                  </p>
+
+                  {selectedIndieArtist.popularTrack && (
+                    <p className="text-xs text-amber-300/90 font-medium">
+                      Temas destacados: <strong>{selectedIndieArtist.popularTrack}</strong>
+                    </p>
+                  )}
+
+                  {indieTracks.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                      <button
+                        onClick={() => playTrack(indieTracks[0], indieTracks)}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                      >
+                        <Play className="w-4 h-4 fill-white" />
+                        <span>Reproducir Todo ({indieTracks.length})</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const shuffled = [...indieTracks].sort(() => Math.random() - 0.5);
+                          playTrack(shuffled[0], shuffled);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Aleatorio</span>
+                      </button>
+
+                      <button
+                        onClick={() => downloadPlaylist({ id: `indie_${selectedIndieArtist.id}`, title: selectedIndieArtist.name, tracks: indieTracks })}
+                        disabled={isDownloadingPlaylistId === `indie_${selectedIndieArtist.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                      >
+                        <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Descargar Todo ({indieTracks.length})</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Listado de Canciones Indie */}
+            <div className="pt-2">
+              <h3 className="text-base font-bold mb-4 flex items-center gap-2 text-white">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                <span>
+                  {selectedIndieArtist 
+                    ? `Canciones de ${selectedIndieArtist.name}` 
+                    : 'Colección de Artistas Independientes Recomendados'}
+                </span>
+                <span className="text-xs text-gray-400 font-normal">({indieTracks.length} canciones)</span>
+              </h3>
+
+              {isLoadingIndie ? (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                  <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+                  <span className="text-xs">Sincronizando canciones del artista...</span>
+                </div>
+              ) : indieTracks.length === 0 ? (
+                <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
+                  <Flame className="w-12 h-12 mx-auto mb-3 text-amber-400/40" />
+                  <p className="text-base font-semibold text-white">No se pudieron cargar las canciones</p>
+                  <p className="text-xs text-gray-500 mt-1">Intenta seleccionando otro artista de la lista.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {indieTracks.map((track, idx) => (
+                    <TrackCard 
+                      key={`indie-${track.id}-${idx}`} 
+                      track={track} 
+                      queue={indieTracks}
+                      index={idx + 1}
+                      isPlaying={isPlaying && currentTrack?.id === track.id}
+                      onPlay={() => playTrack(track, indieTracks)}
+                      isFav={isFavorite(track.id)}
+                      onToggleFav={() => toggleFavorite(track)}
+                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                      isDownloaded={isTrackDownloaded(track.id)}
+                      downloadStatus={activeDownloadsMap[track.id]}
+                      onDownload={() => downloadTrack(track)}
+                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -810,7 +1500,7 @@ export default function Music() {
             {/* Canciones del Género Seleccionado */}
             <div className="pt-2">
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-500" />
                 <span>Canciones Destacadas • {selectedGenre.name}</span>
               </h3>
 
@@ -887,7 +1577,7 @@ export default function Music() {
                       <span className="text-[10px] uppercase font-bold text-fuchsia-400 tracking-wider">
                         {radio.category}
                       </span>
-                      <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-400 transition">
+                      <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-400 transition">
                         {radio.title}
                       </h4>
                       <p className="text-xs text-gray-400 truncate">{radio.artist}</p>
@@ -1004,7 +1694,7 @@ export default function Music() {
                 </button>
 
                 {/* Banner de la Playlist Curada */}
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/50 via-[#160f29] to-cyan-950/40 border border-cyan-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-fuchsia-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
                   <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
                     <img 
                       src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
@@ -1014,8 +1704,8 @@ export default function Music() {
                   </div>
 
                   <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-[10px] font-bold tracking-wider uppercase">
-                      <Globe className="w-3 h-3 text-cyan-400" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-300 text-[10px] font-bold tracking-wider uppercase">
+                      <Globe className="w-3 h-3 text-fuchsia-400" />
                       <span>Playlist de la Comunidad • Varios Artistas</span>
                     </span>
 
@@ -1038,9 +1728,9 @@ export default function Music() {
                         <>
                           <button
                             onClick={() => playTrack(curatedPlaylistTracks[0], curatedPlaylistTracks)}
-                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 hover:from-cyan-300 hover:to-fuchsia-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
                           >
-                            <Play className="w-4 h-4 fill-black" />
+                            <Play className="w-4 h-4 fill-white" />
                             <span>Reproducir Todo</span>
                           </button>
 
@@ -1051,7 +1741,7 @@ export default function Music() {
                             }}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
                           >
-                            <Shuffle className="w-3.5 h-3.5 text-cyan-400" />
+                            <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
                             <span>Aleatorio</span>
                           </button>
 
@@ -1061,8 +1751,8 @@ export default function Music() {
                               <span>Descargada (Offline)</span>
                             </div>
                           ) : isDownloadingPlaylistId === selectedCuratedPlaylist.id ? (
-                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs shadow-sm">
-                              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-300 font-bold text-xs shadow-sm">
+                              <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
                               <span>Descargando...</span>
                             </div>
                           ) : (
@@ -1083,12 +1773,12 @@ export default function Music() {
                 {/* Canciones de la playlist curada */}
                 {isLoadingCuratedTracks ? (
                   <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-                    <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
                     <span className="text-xs">Cargando canciones de la comunidad...</span>
                   </div>
                 ) : curatedPlaylistTracks.length === 0 ? (
                   <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8">
-                    <Music2 className="w-12 h-12 mx-auto mb-3 text-cyan-400/50" />
+                    <Music2 className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/50" />
                     <p className="text-base font-semibold text-white">No se pudieron cargar las canciones</p>
                     <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                       Intenta con otra playlist de la comunidad.
@@ -1144,7 +1834,7 @@ export default function Music() {
 
                   {/* Info y Acciones */}
                   <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 block">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-fuchsia-400 block">
                       Lista de reproducción personalizada
                     </span>
 
@@ -1154,7 +1844,7 @@ export default function Music() {
                           type="text"
                           value={editingTitle}
                           onChange={(e) => setEditingTitle(e.target.value)}
-                          className="flex-1 px-3 py-1.5 bg-white/10 border border-cyan-400 rounded-xl text-white text-base font-bold focus:outline-none"
+                          className="flex-1 px-3 py-1.5 bg-white/10 border border-fuchsia-400 rounded-xl text-white text-base font-bold focus:outline-none"
                           autoFocus
                           maxLength={50}
                         />
@@ -1165,7 +1855,7 @@ export default function Music() {
                             }
                             setEditingPlaylistId(null);
                           }}
-                          className="px-3 py-1.5 rounded-xl bg-cyan-400 text-black font-bold text-xs cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold text-xs cursor-pointer"
                         >
                           Guardar
                         </button>
@@ -1204,12 +1894,12 @@ export default function Music() {
                           onClick={() => togglePlaylistPrivacy(selectedPlaylist.id)}
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition cursor-pointer ${
                             selectedPlaylist.isPublic
-                              ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300 hover:bg-cyan-500/30'
+                              ? 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-300 hover:bg-fuchsia-500/30'
                               : 'bg-white/10 border-white/20 text-gray-400 hover:text-white'
                           }`}
                           title={selectedPlaylist.isPublic ? "Lista pública. Clic para hacerla privada" : "Lista privada. Clic para hacerla pública"}
                         >
-                          {selectedPlaylist.isPublic ? <Globe className="w-3 h-3 text-cyan-400" /> : <Lock className="w-3 h-3 text-gray-400" />}
+                          {selectedPlaylist.isPublic ? <Globe className="w-3 h-3 text-fuchsia-400" /> : <Lock className="w-3 h-3 text-gray-400" />}
                           <span>{selectedPlaylist.isPublic ? 'Pública' : 'Privada'}</span>
                         </button>
                       </div>
@@ -1220,9 +1910,9 @@ export default function Music() {
                         <>
                           <button
                             onClick={() => playTrack(selectedPlaylist.tracks[0], selectedPlaylist.tracks)}
-                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 hover:from-cyan-300 hover:to-fuchsia-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
                           >
-                            <Play className="w-4 h-4 fill-black" />
+                            <Play className="w-4 h-4 fill-white" />
                             <span>Reproducir Todo</span>
                           </button>
 
@@ -1233,7 +1923,7 @@ export default function Music() {
                             }}
                             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
                           >
-                            <Shuffle className="w-3.5 h-3.5 text-cyan-400" />
+                            <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
                             <span>Aleatorio</span>
                           </button>
 
@@ -1244,8 +1934,8 @@ export default function Music() {
                               <span>Playlist Descargada (Offline)</span>
                             </div>
                           ) : isDownloadingPlaylistId === selectedPlaylist.id ? (
-                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold text-xs shadow-sm">
-                              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                            <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-300 font-bold text-xs shadow-sm">
+                              <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
                               <span>Descargando {playlistDownloadProgress?.current || 0}/{playlistDownloadProgress?.total || selectedPlaylist.tracks.length} ({playlistDownloadProgress?.percentage || 0}%)</span>
                             </div>
                           ) : (
@@ -1280,7 +1970,7 @@ export default function Music() {
                 {/* Canciones de la playlist */}
                 {selectedPlaylist.tracks.length === 0 ? (
                   <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-white/10 rounded-3xl p-8">
-                    <Music2 className="w-12 h-12 mx-auto mb-3 text-cyan-400/50" />
+                    <Music2 className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/50" />
                     <p className="text-base font-semibold text-white">Esta lista aún no tiene canciones</p>
                     <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
                       Explora el Top de Éxitos o busca tus canciones favoritas y toca el icono <strong>+</strong> para agregarlas aquí.
@@ -1340,7 +2030,7 @@ export default function Music() {
                       onClick={() => setPlaylistSubTab('community')}
                       className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                         playlistSubTab === 'community'
-                          ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-extrabold shadow-md'
+                          ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-md'
                           : 'text-gray-400 hover:text-white'
                       }`}
                     >
@@ -1351,7 +2041,7 @@ export default function Music() {
                       onClick={() => setPlaylistSubTab('queue')}
                       className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                         playlistSubTab === 'queue'
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-extrabold shadow-md'
+                          ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
                           : 'text-gray-400 hover:text-white'
                       }`}
                     >
@@ -1371,7 +2061,7 @@ export default function Music() {
                           value={newPlaylistTitle}
                           onChange={(e) => setNewPlaylistTitle(e.target.value)}
                           placeholder="Nombre de la nueva playlist (ej. Reggaeton 2026, Gym, Relax...)"
-                          className="px-4 py-2.5 bg-black/50 border border-white/20 focus:border-cyan-400 rounded-xl text-white text-sm focus:outline-none w-full"
+                          className="px-4 py-2.5 bg-black/50 border border-white/20 focus:border-fuchsia-400 rounded-xl text-white text-sm focus:outline-none w-full"
                           autoFocus
                           maxLength={50}
                           onKeyDown={(e) => {
@@ -1386,14 +2076,14 @@ export default function Music() {
                         />
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-cyan-300 transition">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-300 hover:text-fuchsia-300 transition">
                             <input
                               type="checkbox"
                               checked={newPlaylistIsPublic}
                               onChange={(e) => setNewPlaylistIsPublic(e.target.checked)}
-                              className="rounded bg-black/40 border-white/20 text-cyan-400 focus:ring-0 cursor-pointer"
+                              className="rounded bg-black/40 border-white/20 text-fuchsia-500 focus:ring-0 cursor-pointer"
                             />
-                            <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                            <Globe className="w-3.5 h-3.5 text-fuchsia-400" />
                             <span>Hacer pública para que otros usuarios la vean en la sección de Comunidad</span>
                           </label>
 
@@ -1407,7 +2097,7 @@ export default function Music() {
                                 }
                               }}
                               disabled={!newPlaylistTitle.trim()}
-                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer"
+                              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold text-xs shadow-md transition disabled:opacity-40 cursor-pointer"
                             >
                               Crear Lista
                             </button>
@@ -1430,12 +2120,12 @@ export default function Music() {
                       {/* Tarjeta para "+ Crear Playlist" */}
                       <button
                         onClick={() => setIsCreatingPlaylist(true)}
-                        className="group flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-fuchsia-500/30 hover:border-cyan-400/60 bg-fuchsia-950/10 hover:bg-fuchsia-950/20 text-center transition duration-300 cursor-pointer min-h-[220px]"
+                        className="group flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-fuchsia-500/30 hover:border-fuchsia-400/60 bg-fuchsia-950/10 hover:bg-fuchsia-950/20 text-center transition duration-300 cursor-pointer min-h-[220px]"
                       >
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-fuchsia-500/20 to-cyan-500/20 border border-fuchsia-400/30 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                          <Plus className="w-7 h-7 text-cyan-300" />
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-fuchsia-500/20 to-purple-500/20 border border-fuchsia-400/30 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                          <Plus className="w-7 h-7 text-fuchsia-300" />
                         </div>
-                        <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition">
+                        <h4 className="text-sm font-bold text-white group-hover:text-fuchsia-300 transition">
                           Crear Playlist
                         </h4>
                         <p className="text-[11px] text-gray-500 mt-1">
@@ -1474,7 +2164,7 @@ export default function Music() {
                               }}
                               className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-bold border backdrop-blur-md transition z-10 flex items-center gap-1 cursor-pointer ${
                                 pl.isPublic
-                                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 hover:bg-cyan-500/30'
+                                  ? 'bg-fuchsia-500/20 border-fuchsia-400/50 text-fuchsia-300 hover:bg-fuchsia-500/30'
                                   : 'bg-black/60 border-white/20 text-gray-400 hover:text-white hover:bg-black/80'
                               }`}
                               title={pl.isPublic ? "Playlist Pública. Haz clic para hacerla Privada" : "Playlist Privada. Haz clic para hacerla Pública"}
@@ -1498,17 +2188,17 @@ export default function Music() {
                                   e.stopPropagation();
                                   playTrack(pl.tracks[0], pl.tracks);
                                 }}
-                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
+                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
                                 title="Reproducir playlist"
                               >
-                                <Play className="w-4 h-4 fill-black ml-0.5" />
+                                <Play className="w-4 h-4 fill-white ml-0.5" />
                               </div>
                             )}
                           </div>
 
                           {/* Info */}
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                            <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">
                               {pl.name}
                             </h4>
                             <p className="text-[11px] text-gray-400 mt-0.5">
@@ -1528,7 +2218,7 @@ export default function Music() {
                     {customPlaylists.filter(p => p.isPublic).length > 0 && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <Globe className="w-4 h-4 text-cyan-400" />
+                          <Globe className="w-4 h-4 text-fuchsia-400" />
                           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
                             Listas Públicas de la Comunidad
                           </h3>
@@ -1538,20 +2228,20 @@ export default function Music() {
                             <div
                               key={pl.id}
                               onClick={() => setSelectedPlaylistId(pl.id)}
-                              className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-400/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
+                              className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-400/40 transition duration-300 flex flex-col cursor-pointer min-h-[220px]"
                             >
                               <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
                                 {pl.cover ? (
                                   <img src={pl.cover} alt={pl.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
                                 ) : (
-                                  <ListMusic className="w-10 h-10 text-cyan-400/40" />
+                                  <ListMusic className="w-10 h-10 text-fuchsia-400/40" />
                                 )}
-                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/50 text-[9px] font-bold text-cyan-300 backdrop-blur-md flex items-center gap-1">
+                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/50 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md flex items-center gap-1">
                                   <Globe className="w-2.5 h-2.5" />
                                   <span>PÚBLICA</span>
                                 </div>
                               </div>
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">{pl.name}</h4>
+                              <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">{pl.name}</h4>
                               <p className="text-[11px] text-gray-400 mt-0.5">{pl.tracks.length} canciones</p>
                             </div>
                           ))}
@@ -1576,7 +2266,7 @@ export default function Music() {
                           <div
                             key={pl.id}
                             onClick={() => setSelectedCuratedPlaylist(pl)}
-                            className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-400/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
+                            className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
                           >
                             <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
                               <img 
@@ -1596,21 +2286,21 @@ export default function Music() {
                                     playTrack(tracks[0], tracks);
                                   }
                                 }}
-                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
+                                className="absolute bottom-2 right-2 w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110 transition-all duration-300"
                                 title="Reproducir playlist"
                               >
-                                <Play className="w-4 h-4 fill-black ml-0.5" />
+                                <Play className="w-4 h-4 fill-white ml-0.5" />
                               </div>
                             </div>
 
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                              <h4 className="text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">
                                 {pl.name}
                               </h4>
                               <p className="text-[11px] text-gray-400 line-clamp-2 mt-0.5">
                                 {pl.description}
                               </p>
-                              <p className="text-[10px] text-cyan-400/80 mt-1 font-semibold">
+                              <p className="text-[10px] text-fuchsia-400/80 mt-1 font-semibold">
                                 {pl.trackCount || 50} canciones
                               </p>
                             </div>
@@ -1703,20 +2393,20 @@ export default function Music() {
                 {/* 2. Top 50 Global */}
                 <div 
                   onClick={handlePlayAllTop}
-                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-cyan-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
+                  className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
-                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-cyan-950">
+                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-purple-950">
                     <img 
                       src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
                       alt="Top 50" 
                       className="w-full h-full object-cover group-hover:scale-105 transition"
                     />
-                    <div className="absolute top-1 left-1 bg-cyan-400 text-[8px] font-black text-black px-1 rounded shadow">
+                    <div className="absolute top-1 left-1 bg-gradient-to-r from-fuchsia-500 to-purple-600 text-[8px] font-black text-white px-1 rounded shadow">
                       #1
                     </div>
                   </div>
                   <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-300 transition">
+                    <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-fuchsia-300 transition">
                       Top 50 Éxitos
                     </p>
                     <p className="text-[10px] text-gray-400 truncate">
@@ -1821,7 +2511,7 @@ export default function Music() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-cyan-400" />
+                    <TrendingUp className="w-5 h-5 text-fuchsia-400" />
                     <span>Lo Más Escuchado Esta Semana</span>
                   </h2>
                   <p className="text-xs text-gray-400">Tendencias musicales actualizadas minuto a minuto.</p>
@@ -1830,7 +2520,7 @@ export default function Music() {
 
               {isLoadingTop ? (
                 <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
@@ -1931,12 +2621,12 @@ export default function Music() {
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-white">No tienes canciones descargadas todavía</h3>
                   <p className="text-xs text-gray-400 max-w-md mx-auto">
-                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-cyan-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Playlist" para escuchar tu música favorita sin conexión a internet.
+                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-emerald-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Playlist" para escuchar tu música favorita sin conexión a internet.
                   </p>
                 </div>
                 <button
                   onClick={() => setActiveTab('top')}
-                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-bold text-xs shadow-md transition hover:scale-105"
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold text-xs shadow-md transition hover:scale-105"
                 >
                   Explorar Top Éxitos
                 </button>
@@ -1996,7 +2686,7 @@ function TrackCard({
       onClick={onPlay}
       className={`group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border transition duration-300 flex flex-col cursor-pointer active:scale-[0.98] ${
         isPlaying 
-          ? 'border-cyan-400/60 shadow-lg shadow-cyan-500/10 bg-cyan-500/5' 
+          ? 'border-fuchsia-500/60 shadow-lg shadow-fuchsia-500/15 bg-fuchsia-500/10' 
           : 'border-white/5 hover:border-white/20'
       }`}
     >
@@ -2011,7 +2701,7 @@ function TrackCard({
 
         {/* Número de posición (para Top charts) */}
         {index && (
-          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-cyan-300 text-xs font-black flex items-center justify-center border border-white/10 shadow z-10">
+          <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-fuchsia-300 text-xs font-black flex items-center justify-center border border-white/10 shadow z-10">
             {index}
           </span>
         )}
@@ -2026,26 +2716,26 @@ function TrackCard({
 
         {/* Género sobre la carátula (elegante y sin quitar espacio abajo) */}
         {!track.isRadio && track.genre && (
-          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-[9px] font-bold text-cyan-300 tracking-wider uppercase shadow truncate max-w-[90px] z-10">
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-[9px] font-bold text-fuchsia-300 tracking-wider uppercase shadow truncate max-w-[90px] z-10">
             {track.genre}
           </span>
         )}
 
         {/* Botón flotante Play */}
-        <div className={`absolute bottom-2 right-2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl transition-all duration-300 ${
+        <div className={`absolute bottom-2 right-2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white flex items-center justify-center shadow-xl transition-all duration-300 ${
           isPlaying ? 'opacity-100 scale-100' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:scale-110'
         }`}>
           {isPlaying ? (
-            <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-black" />
+            <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
           ) : (
-            <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-black ml-0.5" />
+            <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white ml-0.5" />
           )}
         </div>
       </div>
 
       {/* Título y Artista */}
       <div className="flex-1 min-w-0">
-        <h4 className={`text-xs sm:text-sm font-bold truncate transition ${isPlaying ? 'text-cyan-400' : 'text-white group-hover:text-cyan-300'}`}>
+        <h4 className={`text-xs sm:text-sm font-bold truncate transition ${isPlaying ? 'text-fuchsia-400' : 'text-white group-hover:text-fuchsia-300'}`}>
           {track.title}
         </h4>
         <p className="text-[11px] text-gray-400 truncate mt-0.5">
@@ -2077,10 +2767,10 @@ function TrackCard({
             ) : isDownloading ? (
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="p-1.5 rounded-lg text-cyan-400"
+                className="p-1.5 rounded-lg text-fuchsia-400"
                 title={`Descargando: ${downloadStatus?.progress || 0}%`}
               >
-                <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
               </button>
             ) : onDownload ? (
               <button
@@ -2088,7 +2778,7 @@ function TrackCard({
                   e.stopPropagation();
                   onDownload();
                 }}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-cyan-400 hover:bg-white/5 active:scale-90 transition"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-fuchsia-400 hover:bg-white/5 active:scale-90 transition"
                 title="Descargar para escuchar sin internet (Modo Offline)"
               >
                 <Download className="w-4 h-4" />

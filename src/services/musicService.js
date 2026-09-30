@@ -270,6 +270,230 @@ export const DEFAULT_CURATED_PLAYLISTS = [
     isCurated: true,
     isPublic: true,
     creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_lofi_coding',
+    name: '🎧 Lo-Fi Midnight Coding & Focus',
+    query: 'lofi hip hop chill beats study relax',
+    description: 'Beats instrumentales sin distracciones para programar, concentrarse y fluir de noche.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    trackCount: 40,
+    isCurated: true,
+    isPublic: true,
+    creator: 'DevCommunity'
+  },
+  {
+    id: 'curated_gym_beast',
+    name: '⚡ Modo Bestia Gym 200BPM',
+    query: 'workout hardstyle phonk motivation gym hits',
+    description: 'Phonk, hardstyle y ritmos pesados para romper récords personales en cada serie.',
+    cover: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
+    trackCount: 45,
+    isCurated: true,
+    isPublic: true,
+    creator: 'IronPumpers'
+  },
+  {
+    id: 'curated_perreo_2026',
+    name: '🔥 Perreo Sucio 2026 Sin Censura',
+    query: 'reggaeton perreo bellakeo 2026',
+    description: 'El reggaetón más oscuro, explícito y pegajoso que está reventando las discotecas.',
+    cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'DJ_Discoteca'
+  },
+  {
+    id: 'curated_costa_verde',
+    name: '🚗 Manejando de Noche por la Costa Verde',
+    query: 'synthwave night drive retro chill outrun',
+    description: 'Vistas al mar, luces de la ciudad y sintetizadores hipnóticos para manejar sin rumbo.',
+    cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
+    trackCount: 35,
+    isCurated: true,
+    isPublic: true,
+    creator: 'LimaNocturna'
+  },
+  {
+    id: 'curated_emo_revival',
+    name: '🖤 Emo & Post-Hardcore Revival',
+    query: 'Falling In Reverse Pierce The Veil Bring Me The Horizon My Chemical Romance',
+    description: 'Gritos catárticos y riffs inolvidables con Falling In Reverse, PTV, BMTH y clásicos 2000s.',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    trackCount: 42,
+    isCurated: true,
+    isPublic: true,
+    creator: 'RonnieRadkeFan'
+  },
+  {
+    id: 'curated_chicha_cumbia',
+    name: '🍺 Chicha, Cumbia & Cerveza Helada',
+    query: 'cumbia villera chicha armonia 10 chacalon los shapis grupo 5',
+    description: 'Himnos populares de barrio, guitarra chichera y cumbia con sentimiento real.',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    trackCount: 48,
+    isCurated: true,
+    isPublic: true,
+    creator: 'SaborPopular'
+  },
+  {
+    id: 'curated_gaming_night',
+    name: '🎮 Gaming Session / Tryhard 100%',
+    query: 'gaming edm dubstep electronic hype trap',
+    description: 'Adrenalina pura para rankear en Valorant, CS, Warzone o LoL sin perder los reflejos.',
+    cover: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80',
+    trackCount: 40,
+    isCurated: true,
+    isPublic: true,
+    creator: 'ClutchGamer'
+  },
+  {
+    id: 'curated_madrugada',
+    name: '🌙 Melancolía de Madrugada (3:00 AM)',
+    query: 'sad indie acoustic slow melancholy emotional',
+    description: 'Para cuando no puedes dormir y los pensamientos se vuelven canciones.',
+    cover: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
+    trackCount: 38,
+    isCurated: true,
+    isPublic: true,
+    creator: 'InsomnioClub'
+  },
+  {
+    id: 'curated_indie_discovery',
+    name: '🌱 Descubrimiento Indie & Bedroom Pop',
+    query: 'The Marias Cuco Kevin Kaarl Ed Maverick Boy Pablo Men I Trust',
+    description: 'Joyas ocultas fuera de la radio comercial: guitarras soñadoras y producciones caseras íntimas.',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    trackCount: 36,
+    isCurated: true,
+    isPublic: true,
+    creator: 'IndieVibes'
+  },
+  {
+    id: 'curated_acoustic_coffee',
+    name: '☕ Acoustic Sunday & Coffee Vibes',
+    query: 'acoustic guitar singer songwriter morning calm',
+    description: 'Guitarras de palo, voces cálidas y una taza de café en una mañana tranquila.',
+    cover: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&auto=format&fit=crop&q=80',
+    trackCount: 32,
+    isCurated: true,
+    isPublic: true,
+    creator: 'MorningMellow'
+  }
+];
+
+// Artistas Independientes & Descubrimientos Recomendados
+export const INDEPENDENT_ARTISTS = [
+  {
+    id: 'indie-themarias',
+    name: 'The Marías',
+    genre: 'Indie Pop / Dream Pop',
+    origin: 'Los Ángeles, CA',
+    bio: 'Banda liderada por María Zardoya, conocidos por su atmósfera sensual, elegante, psicodélica y bilingüe.',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Hush / Cariño',
+    query: 'The Marias'
+  },
+  {
+    id: 'indie-cuco',
+    name: 'Cuco',
+    genre: 'Chicano Dream Pop / Lo-Fi',
+    origin: 'Hawthorne, CA',
+    bio: 'Pionero del bedroom pop latino con trompetas nostálgicas, sintetizadores y romance juvenil sincero.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Lo Que Siento / Amor de Siempre',
+    query: 'Cuco'
+  },
+  {
+    id: 'indie-kevinkaarl',
+    name: 'Kevin Kaarl',
+    genre: 'Folk Alternativo / Acústico',
+    origin: 'Chihuahua, México',
+    bio: 'Cantautor de voz profunda con letras melancólicas y poéticas que conectan con millones de jóvenes.',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'San Lucas / Colapso',
+    query: 'Kevin Kaarl'
+  },
+  {
+    id: 'indie-edmaverick',
+    name: 'Ed Maverick',
+    genre: 'Folk / Indie Rock',
+    origin: 'Delicias, México',
+    bio: 'Guitarra cruda, poesía juvenil honesta y acordes folk que definieron una generación independiente.',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Fuentes de Ortiz / Acurrucar',
+    query: 'Ed Maverick'
+  },
+  {
+    id: 'indie-bratty',
+    name: 'Bratty',
+    genre: 'Bedroom Pop / Surf Indie',
+    origin: 'Culiacán, México',
+    bio: 'Proyecto de Jenny Juárez con riffs melódicos, distorsión suave y estética DIY nostálgica.',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Honey, No Estás / Quizás',
+    query: 'Bratty'
+  },
+  {
+    id: 'indie-depresion-sonora',
+    name: 'Depresión Sonora',
+    genre: 'Post-Punk / New Wave',
+    origin: 'Madrid, España',
+    bio: 'Marcos Crespo capturó el nihilismo bailable con cajas de ritmos aceleradas y guitarras frías de garage.',
+    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Ya No Hay Verano / Gasolina y Mechero',
+    query: 'Depresion Sonora'
+  },
+  {
+    id: 'indie-sensenra',
+    name: 'Sen Senra',
+    genre: 'R&B / Bedroom Pop',
+    origin: 'Galicia, España',
+    bio: 'Sensibilidad pop moderna, producciones pulidas y carisma magnético fuera de las discográficas convencionales.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Ya No Te Hago Falta / Subiendo al Cielo',
+    query: 'Sen Senra'
+  },
+  {
+    id: 'indie-menitrust',
+    name: 'Men I Trust',
+    genre: 'Dream Pop / Indie Chill',
+    origin: 'Montreal, Canadá',
+    bio: 'Banda canadiense que autogestiona su música de principio a fin, con un sonido suave y bajo hipnótico.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Show Me How / Norton Commander',
+    query: 'Men I Trust'
+  },
+  {
+    id: 'indie-silvanaestrada',
+    name: 'Silvana Estrada',
+    genre: 'Folklore Alternativo / Cantautora',
+    origin: 'Coatepec, México',
+    bio: 'Cuatro venezolano, voz prodigiosa e intensidad emocional que rescata las raíces latinoamericanas.',
+    cover: 'https://images.unsplash.com/photo-1526478806334-5fd488fcaabc?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Te Guardo / Al Norte',
+    query: 'Silvana Estrada'
+  },
+  {
+    id: 'indie-boypablo',
+    name: 'Boy Pablo',
+    genre: 'Jangle Pop / Indie Rock',
+    origin: 'Bergen, Noruega',
+    bio: 'Chileno-noruego Nicolás Muñoz saltó a la fama mundial con guitarras vibrantes, risas y pop soleado.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Everytime / Feeling Lonely',
+    query: 'Boy Pablo'
+  },
+  {
+    id: 'indie-fallinginreverse',
+    name: 'Falling In Reverse',
+    genre: 'Post-Hardcore / Rock Alternativo',
+    origin: 'Las Vegas, NV',
+    bio: 'Ronnie Radke desafía las reglas de la industria con producciones independientes de rock potente como Joseph.',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    popularTrack: 'Joseph / Watch the World Burn',
+    query: 'Falling In Reverse'
   }
 ];
 
@@ -857,22 +1081,29 @@ export const musicService = {
   /**
    * Obtiene playlists curadas de la comunidad y tendencias (Deezer charts + presets).
    */
-  async getCuratedPlaylists(limit = 12) {
+  async getCuratedPlaylists(limit = 24) {
     try {
       const data = await fetchDeezerApi(`/chart/0/playlists?limit=${limit}`);
       if (data && Array.isArray(data.data) && data.data.length > 0) {
-        return data.data.map(p => ({
+        const deezerList = data.data.map(p => ({
           id: `curated_${p.id}`,
           deezerId: p.id,
           name: p.title,
-          description: p.description || 'Playlist curada con los mejores éxitos de varios artistas.',
+          description: p.description || 'Playlist curada con los mejores éxitos en tendencia.',
           cover: p.picture_medium || p.picture_big || p.picture || '',
           trackCount: p.nb_tracks || 50,
           isCurated: true,
           isPublic: true,
-          creator: 'Comunidad TeamG & Deezer',
+          creator: 'Tendencias Globales',
           tracks: []
         }));
+        const combined = [...DEFAULT_CURATED_PLAYLISTS, ...deezerList];
+        const seen = new Set();
+        return combined.filter(p => {
+          if (!p.id || seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
       }
     } catch (e) {
       console.warn('[MusicService] Error cargando playlists curadas:', e);
@@ -882,18 +1113,59 @@ export const musicService = {
 
   /**
    * Obtiene las canciones de una playlist curada de la comunidad.
+   * Si es un ID numérico de Deezer, lo consulta; si es una temática personalizada, busca sus canciones correspondientes.
    */
   async getPlaylistTracks(playlistIdOrDeezerId) {
     const rawId = String(playlistIdOrDeezerId).replace(/^curated_/, '');
+    if (/^\d+$/.test(rawId)) {
+      try {
+        const data = await fetchDeezerApi(`/playlist/${rawId}`);
+        if (data && data.tracks && Array.isArray(data.tracks.data) && data.tracks.data.length > 0) {
+          return data.tracks.data.map(formatDeezerTrack).filter(Boolean);
+        }
+      } catch (e) {
+        console.warn('[MusicService] Error cargando canciones de playlist Deezer:', e);
+      }
+    }
+
+    // Si es una playlist temática de nuestra lista o fallback
+    const curated = DEFAULT_CURATED_PLAYLISTS.find(p => p.id === playlistIdOrDeezerId || String(p.deezerId) === rawId);
+    const searchQuery = curated?.query || curated?.name || 'exitos 2026';
+    return await this.searchTracks(searchQuery, 30);
+  },
+
+  /**
+   * Obtiene los temas más recientes (Lanzamientos 2026 / singles nuevos).
+   */
+  async getRecentTracks(limit = 30) {
     try {
-      const data = await fetchDeezerApi(`/playlist/${rawId}`);
-      if (data && data.tracks && Array.isArray(data.tracks.data)) {
-        return data.tracks.data.map(formatDeezerTrack).filter(Boolean);
+      const tracks = await this.searchTracks('2026 exitos nuevos sencillos estrenos', limit);
+      if (tracks && tracks.length > 0) {
+        return tracks.sort((a, b) => {
+          const yearA = parseInt(a.releaseDate) || 0;
+          const yearB = parseInt(b.releaseDate) || 0;
+          return yearB - yearA;
+        });
       }
     } catch (e) {
-      console.warn('[MusicService] Error cargando canciones de playlist curada:', e);
+      console.warn('[MusicService] Error cargando temas recientes:', e);
     }
-    return [];
+    return INITIAL_FEATURED_TRACKS;
+  },
+
+  /**
+   * Artistas independientes recomendados.
+   */
+  getIndependentArtists() {
+    return INDEPENDENT_ARTISTS;
+  },
+
+  /**
+   * Canciones de artistas independientes / alternativos.
+   */
+  async getIndependentTracks(artistQuery = null, limit = 30) {
+    const query = artistQuery || 'The Marias Cuco Kevin Kaarl Ed Maverick Bratty Depresion Sonora Sen Senra Men I Trust';
+    return await this.searchTracks(query, limit);
   },
 
   /**

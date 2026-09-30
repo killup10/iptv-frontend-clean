@@ -125,7 +125,7 @@ export default function GlobalMusicPlayer() {
         {!currentTrack.isRadio && (
           <div className="md:hidden absolute bottom-0 left-2 right-2 h-[2.5px] bg-white/10 rounded-b-2xl overflow-hidden pointer-events-none">
             <div 
-              className="h-full bg-gradient-to-r from-cyan-400 via-pink-400 to-fuchsia-500 transition-all duration-300"
+              className="h-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-purple-600 transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -156,7 +156,7 @@ export default function GlobalMusicPlayer() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-cyan-400 transition">
+              <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-fuchsia-400 transition">
                 {currentTrack.title}
               </h4>
               <p className="text-[11px] text-gray-400 truncate">
@@ -197,10 +197,10 @@ export default function GlobalMusicPlayer() {
                 ) : isDownloading ? (
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="p-1.5 rounded-full text-cyan-400"
+                    className="p-1.5 rounded-full text-fuchsia-400"
                     title={`Descargando audio: ${dlStatus?.progress || 0}%`}
                   >
-                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                    <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
                   </button>
                 ) : (
                   <button
@@ -208,7 +208,7 @@ export default function GlobalMusicPlayer() {
                       e.stopPropagation();
                       downloadTrack(currentTrack);
                     }}
-                    className="p-1.5 rounded-full text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition"
+                    className="p-1.5 rounded-full text-gray-400 hover:text-fuchsia-400 hover:bg-white/5 transition"
                     title="Descargar para Modo Offline (escuchar sin internet)"
                   >
                     <Download className="w-4 h-4" />
@@ -237,7 +237,7 @@ export default function GlobalMusicPlayer() {
               <button
                 onClick={toggleShuffle}
                 className={`p-1.5 rounded-full transition ${
-                  isShuffle ? 'text-cyan-400' : 'text-gray-400 hover:text-white'
+                  isShuffle ? 'text-fuchsia-400' : 'text-gray-400 hover:text-white'
                 }`}
                 title="Modo aleatorio"
               >
@@ -255,15 +255,15 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={togglePlay}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/20 hover:scale-105 active:scale-95 transition"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white flex items-center justify-center shadow-lg shadow-fuchsia-500/25 hover:scale-105 active:scale-95 transition"
                 title={isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {isLoadingAudio ? (
                   <Loader2 className="w-5 h-5 animate-spin text-white" />
                 ) : isPlaying ? (
-                  <Pause className="w-5 h-5 fill-black text-black" />
+                  <Pause className="w-5 h-5 fill-white text-white" />
                 ) : (
-                  <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                  <Play className="w-5 h-5 fill-white text-white ml-0.5" />
                 )}
               </button>
 
@@ -279,7 +279,7 @@ export default function GlobalMusicPlayer() {
               <button
                 onClick={toggleRepeat}
                 className={`p-1.5 rounded-full transition ${
-                  repeatMode !== 'off' ? 'text-cyan-400' : 'text-gray-400 hover:text-white'
+                  repeatMode !== 'off' ? 'text-fuchsia-400' : 'text-gray-400 hover:text-white'
                 }`}
                 title={`Repetir: ${repeatMode === 'all' ? 'Toda la cola' : repeatMode === 'one' ? 'Canción actual' : 'Desactivado'}`}
               >
@@ -312,9 +312,9 @@ export default function GlobalMusicPlayer() {
                     onChange={handleSeekChange}
                     onMouseUp={handleSeekMouseUp}
                     onTouchEnd={handleSeekMouseUp}
-                    className="w-full h-1.5 bg-white/10 group-hover:bg-white/20 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none"
+                    className="w-full h-1.5 bg-white/10 group-hover:bg-white/20 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 focus:outline-none"
                     style={{
-                      background: `linear-gradient(to right, #06b6d4 0%, #d946ef ${progressPercent}%, rgba(255,255,255,0.15) ${progressPercent}%, rgba(255,255,255,0.15) 100%)`
+                      background: `linear-gradient(to right, #d946ef 0%, #a855f7 ${progressPercent}%, rgba(255,255,255,0.15) ${progressPercent}%, rgba(255,255,255,0.15) 100%)`
                     }}
                   />
                 </div>
@@ -348,15 +348,15 @@ export default function GlobalMusicPlayer() {
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-lg shadow-fuchsia-500/25 active:scale-95 transition"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-fuchsia-500/25 active:scale-95 transition"
                 title={isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {isLoadingAudio ? (
                   <Loader2 className="w-5 h-5 animate-spin text-white" />
                 ) : isPlaying ? (
-                  <Pause className="w-5 h-5 fill-black text-black" />
+                  <Pause className="w-5 h-5 fill-white text-white" />
                 ) : (
-                  <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                  <Play className="w-5 h-5 fill-white text-white ml-0.5" />
                 )}
               </button>
             </div>
@@ -388,7 +388,7 @@ export default function GlobalMusicPlayer() {
                   step={0.01}
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
-                  className="w-20 h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                  className="w-20 h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
                 />
               </div>
 
@@ -410,7 +410,7 @@ export default function GlobalMusicPlayer() {
         <div className="fixed bottom-20 right-4 z-[99992] w-80 max-h-96 bg-[#120d20]/95 backdrop-blur-2xl border border-fuchsia-500/30 rounded-2xl shadow-2xl p-4 flex flex-col animate-in fade-in slide-in-from-bottom-5">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
             <div className="flex items-center gap-2">
-              <ListMusic className="w-4 h-4 text-cyan-400" />
+              <ListMusic className="w-4 h-4 text-fuchsia-400" />
               <h3 className="text-sm font-bold text-white">Lista de Reproducción ({queue.length})</h3>
             </div>
             <button
@@ -433,7 +433,7 @@ export default function GlobalMusicPlayer() {
                     onClick={() => playTrack(track, queue)}
                     className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer transition ${
                       isSelected 
-                        ? 'bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 border border-cyan-400/30 text-white' 
+                        ? 'bg-gradient-to-r from-fuchsia-500/20 to-purple-500/20 border border-fuchsia-400/30 text-white' 
                         : 'hover:bg-white/5 text-gray-300'
                     }`}
                   >
@@ -443,16 +443,16 @@ export default function GlobalMusicPlayer() {
                       className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-semibold truncate ${isSelected ? 'text-cyan-300' : 'text-white'}`}>
+                      <p className={`text-xs font-semibold truncate ${isSelected ? 'text-fuchsia-300' : 'text-white'}`}>
                         {track.title}
                       </p>
                       <p className="text-[10px] text-gray-400 truncate">{track.artist}</p>
                     </div>
                     {isSelected && (
                       <div className="flex gap-0.5 items-end h-3">
-                        <span className="w-0.5 h-3 bg-cyan-400 animate-pulse" />
-                        <span className="w-0.5 h-2 bg-fuchsia-400 animate-pulse delay-75" />
-                        <span className="w-0.5 h-3 bg-cyan-400 animate-pulse delay-150" />
+                        <span className="w-0.5 h-3 bg-fuchsia-400 animate-pulse" />
+                        <span className="w-0.5 h-2 bg-pink-400 animate-pulse delay-75" />
+                        <span className="w-0.5 h-3 bg-fuchsia-400 animate-pulse delay-150" />
                       </div>
                     )}
                   </div>
@@ -470,8 +470,8 @@ export default function GlobalMusicPlayer() {
           {/* Header del Modal */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center">
-                <Music className="w-4 h-4 text-cyan-400" />
+              <div className="w-8 h-8 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 flex items-center justify-center">
+                <Music className="w-4 h-4 text-fuchsia-400" />
               </div>
               <span className="text-xs uppercase tracking-widest text-gray-400 font-bold">
                 {currentTrack.isRadio ? 'Radio en Vivo' : 'Reproduciendo de TeamG Music'}
@@ -490,7 +490,7 @@ export default function GlobalMusicPlayer() {
           {/* Cuerpo Central: Carátula gigante & Título */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 my-auto max-w-5xl mx-auto w-full">
             <div className="relative group">
-              <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500 to-fuchsia-600 rounded-3xl blur-2xl opacity-40 group-hover:opacity-60 transition duration-700 animate-pulse" />
+              <div className="absolute -inset-4 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-purple-600 rounded-3xl blur-2xl opacity-40 group-hover:opacity-60 transition duration-700 animate-pulse" />
               <img 
                 src={currentTrack.cover} 
                 alt={currentTrack.title}
@@ -511,7 +511,7 @@ export default function GlobalMusicPlayer() {
               {!currentTrack.isRadio && (
                 <div className="flex items-center gap-2 mb-4">
                   {currentTrack.genre && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30">
                       {currentTrack.genre}
                     </span>
                   )}
@@ -558,17 +558,17 @@ export default function GlobalMusicPlayer() {
                       <span className="text-xs font-semibold">Descargada (Offline)</span>
                     </button>
                   ) : isDownloading ? (
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-cyan-500/40 bg-cyan-500/15 text-cyan-300">
-                      <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300">
+                      <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
                       <span className="text-xs font-semibold">Descargando {dlStatus?.progress || 0}%</span>
                     </div>
                   ) : (
                     <button
                       onClick={() => downloadTrack(currentTrack)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 text-gray-300 hover:text-cyan-300 hover:border-cyan-400/40 hover:bg-white/10 transition cursor-pointer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 text-gray-300 hover:text-fuchsia-300 hover:border-fuchsia-400/40 hover:bg-white/10 transition cursor-pointer"
                       title="Descargar para escuchar sin internet (Modo Offline)"
                     >
-                      <Download className="w-4 h-4 text-cyan-400" />
+                      <Download className="w-4 h-4 text-fuchsia-400" />
                       <span className="text-xs font-semibold">Descargar Offline</span>
                     </button>
                   )
@@ -594,7 +594,7 @@ export default function GlobalMusicPlayer() {
                   onChange={handleSeekChange}
                   onMouseUp={handleSeekMouseUp}
                   onTouchEnd={handleSeekMouseUp}
-                  className="w-full h-2 bg-white/15 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                  className="w-full h-2 bg-white/15 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
                 />
                 <span className="w-10 font-mono">{formatTime(duration || currentTrack.fullDuration || currentTrack.duration || 210)}</span>
               </div>
@@ -604,7 +604,7 @@ export default function GlobalMusicPlayer() {
             <div className="flex items-center justify-center gap-8">
               <button
                 onClick={toggleShuffle}
-                className={`p-2 transition ${isShuffle ? 'text-cyan-400' : 'text-gray-500 hover:text-white'}`}
+                className={`p-2 transition ${isShuffle ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
               >
                 <Shuffle className="w-5 h-5" />
               </button>
@@ -619,12 +619,12 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={togglePlay}
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black flex items-center justify-center shadow-xl shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition"
+                className="w-16 h-16 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition"
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 fill-black" />
+                  <Pause className="w-8 h-8 fill-white text-white" />
                 ) : (
-                  <Play className="w-8 h-8 fill-black ml-1" />
+                  <Play className="w-8 h-8 fill-white text-white ml-1" />
                 )}
               </button>
 
@@ -638,7 +638,7 @@ export default function GlobalMusicPlayer() {
 
               <button
                 onClick={toggleRepeat}
-                className={`p-2 transition ${repeatMode !== 'off' ? 'text-cyan-400' : 'text-gray-500 hover:text-white'}`}
+                className={`p-2 transition ${repeatMode !== 'off' ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
               >
                 {repeatMode === 'one' ? <Repeat1 className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
               </button>
