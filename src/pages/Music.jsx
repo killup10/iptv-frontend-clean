@@ -762,7 +762,7 @@ export default function Music() {
                   : 'bg-white/[0.06] text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Disc3 className="w-3.5 h-3.5 text-fuchsia-400" />
               <span>Lo Más Reciente</span>
             </button>
 
@@ -908,7 +908,7 @@ export default function Music() {
             {/* Header del Lanzamiento */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-950/60 via-[#181130] to-fuchsia-950/40 border border-indigo-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
               <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-2xl border border-white/15">
-                <Sparkles className="w-14 h-14 text-white animate-pulse" />
+                <Disc3 className="w-14 h-14 text-white animate-[spin_8s_linear_infinite]" />
               </div>
 
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
@@ -984,7 +984,7 @@ export default function Music() {
               </div>
             ) : recentTracks.length === 0 ? (
               <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
-                <Sparkles className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
+                <Disc3 className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
                 <p className="text-base font-semibold text-white">No se pudieron cargar los estrenos</p>
                 <p className="text-xs text-gray-500 mt-1">Verifica tu conexión a internet o intenta nuevamente.</p>
               </div>
@@ -1347,7 +1347,7 @@ export default function Music() {
                     : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <Music2 className="w-3.5 h-3.5" />
                 <span>Todos los Descubrimientos</span>
               </button>
 
