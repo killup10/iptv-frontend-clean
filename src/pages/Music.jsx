@@ -32,6 +32,8 @@ import {
   Flame,
   Users,
   RefreshCw,
+  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -39,6 +41,7 @@ import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
+import { getTrackLicenseInfo, renewAllMusicOfflineLicenses } from '../services/musicOfflineService.js';
 
 export default function Music() {
   const { 
@@ -2752,9 +2755,15 @@ export default function Music() {
               </div>
 
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span>Almacenamiento Local en Dispositivo</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>Almacenamiento Local en Dispositivo</span>
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-gray-200 border border-white/15">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Licencia offline: <strong>30 días válidos</strong> (renovable con internet)</span>
+                  </div>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-white">
                   Música Descargada • Modo Offline
@@ -2923,12 +2932,23 @@ function TrackCard({
         )}
 
         {/* Indicador visual de Modo Offline Descargada */}
-        {isDownloaded && !index && (
-          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10">
-            <Check className="w-2.5 h-2.5 stroke-[3]" />
-            OFFLINE
-          </span>
-        )}
+        {isDownloaded && !index && (() => {
+          const lic = getTrackLicenseInfo(track);
+          if (lic.isExpired) {
+            return (
+              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-red-600/90 text-[8px] font-black text-white tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10">
+                <AlertCircle className="w-2.5 h-2.5 stroke-[3]" />
+                EXPIRADO
+              </span>
+            );
+          }
+          return (
+            <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10" title={`Licencia offline: ${lic.daysRemaining} días restantes`}>
+              <Check className="w-2.5 h-2.5 stroke-[3]" />
+              {lic.daysRemaining < 30 ? `${lic.daysRemaining}D OFFLINE` : 'OFFLINE'}
+            </span>
+          );
+        })()}
 
         {/* Género sobre la carátula (elegante y sin quitar espacio abajo) */}
         {!track.isRadio && track.genre && (

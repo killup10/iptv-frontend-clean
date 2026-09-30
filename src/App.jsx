@@ -12,6 +12,8 @@ import VideoPlayerPlugin from "./plugins/VideoPlayerPlugin.js";
 import { WifiOff, Music, Lock } from 'lucide-react';
 import { isPremiumUser } from "./utils/planAccess.js";
 import GlobalMusicPlayer from "./components/music/GlobalMusicPlayer.jsx";
+import { renewAllOfflineLicenses } from "./services/offlineStorage.js";
+import { renewAllMusicOfflineLicenses } from "./services/musicOfflineService.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -115,6 +117,21 @@ function App() {
     // Check update on startup (wait 3 seconds to avoid blocking main content load)
     const timer = setTimeout(checkUpdates, 3000);
     return () => { clearTimeout(timer); window.removeEventListener('teamg-update-required', onForceUpdate); };
+  }, []);
+
+  // Renovación automática de licencias offline (30 días) al iniciar o reconectar a internet
+  useEffect(() => {
+    const handleRenewal = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.log('[App] Conectado a internet: Renovando licencias offline de video y música por 30 días...');
+        renewAllOfflineLicenses();
+        renewAllMusicOfflineLicenses();
+      }
+    };
+
+    handleRenewal();
+    window.addEventListener('online', handleRenewal);
+    return () => window.removeEventListener('online', handleRenewal);
   }, []);
 
   // Auto-redirect logged-in users from root to /home

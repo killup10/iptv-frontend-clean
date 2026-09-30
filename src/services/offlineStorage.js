@@ -23,6 +23,66 @@ export const isNativeStorage = () => {
   }
 };
 
+// Duración de la licencia offline: 30 días renovables conectándose a internet
+export const OFFLINE_LICENSE_DURATION_DAYS = 30;
+export const OFFLINE_LICENSE_DURATION_MS = OFFLINE_LICENSE_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Obtiene la información de validez de la licencia offline de un video
+ */
+export function getLicenseInfo(itemOrId) {
+  const item = typeof itemOrId === 'object' && itemOrId !== null ? itemOrId : getDownloadedItem(itemOrId);
+  if (!item) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0 };
+
+  const now = Date.now();
+  const expiresAt = item.licenseExpiresAt || ((item.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
+  const diffMs = expiresAt - now;
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  const isExpired = diffMs <= 0;
+
+  return {
+    isValid: !isExpired,
+    daysRemaining,
+    isExpired,
+    expiresAt,
+    lastOnlineValidation: item.lastOnlineValidation || item.downloadedAt || now,
+  };
+}
+
+/**
+ * Renueva el período de 30 días para todos los videos offline si el dispositivo está en línea
+ */
+export function renewAllOfflineLicenses() {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return false;
+  }
+
+  const list = getDownloads();
+  if (!list || list.length === 0) return true;
+
+  let hasChanged = false;
+  const now = Date.now();
+  const updated = list.map((item) => {
+    const lastCheck = item.lastOnlineValidation || 0;
+    // Renovar si no tiene fecha, si está vencida, o si pasaron más de 6 horas desde la última comprobación
+    if (!item.licenseExpiresAt || (now - lastCheck) > 6 * 60 * 60 * 1000 || item.licenseExpiresAt < now) {
+      hasChanged = true;
+      return {
+        ...item,
+        licenseExpiresAt: now + OFFLINE_LICENSE_DURATION_MS,
+        lastOnlineValidation: now,
+      };
+    }
+    return item;
+  });
+
+  if (hasChanged) {
+    saveDownloads(updated);
+    console.log('[offlineStorage] Licencias offline de videos renovadas por 30 días.');
+  }
+  return true;
+}
+
 /**
  * Obtiene la lista de elementos descargados guardados en almacenamiento local
  */
@@ -189,6 +249,8 @@ export async function startDownload(mediaItem) {
         sizeBytes,
         sizeFormatted: formatBytes(sizeBytes),
         downloadedAt: Date.now(),
+        licenseExpiresAt: Date.now() + OFFLINE_LICENSE_DURATION_MS,
+        lastOnlineValidation: Date.now(),
         isEncrypted: true,
         storageType: 'native_sandbox',
       };
@@ -254,6 +316,8 @@ export async function startDownload(mediaItem) {
         sizeBytes: receivedBytes,
         sizeFormatted: formatBytes(receivedBytes),
         downloadedAt: Date.now(),
+        licenseExpiresAt: Date.now() + OFFLINE_LICENSE_DURATION_MS,
+        lastOnlineValidation: Date.now(),
         isEncrypted: true,
         storageType: 'cache_api',
       };
@@ -315,6 +379,23 @@ export async function getOfflinePlaybackUrl(id) {
   const item = getDownloadedItem(id);
   if (!item) {
     throw new Error('Contenido no encontrado en las descargas locales.');
+  }
+
+  // Validación de la Licencia Offline de 30 días
+  const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+  if (isOnline) {
+    // Si el usuario tiene conexión a internet, renovar período de 30 días automáticamente
+    const now = Date.now();
+    item.licenseExpiresAt = now + OFFLINE_LICENSE_DURATION_MS;
+    item.lastOnlineValidation = now;
+    const list = getDownloads().map((it) => String(it.id) === String(id) ? item : it);
+    saveDownloads(list);
+  } else {
+    // Si está offline, comprobar si la licencia de 30 días sigue vigente
+    const lic = getLicenseInfo(item);
+    if (lic.isExpired) {
+      throw new Error('Tu licencia offline de 30 días ha caducado. Conecta el dispositivo a internet para renovar el acceso a este contenido.');
+    }
   }
 
   if (isNativeStorage() && item.storageType === 'native_sandbox') {

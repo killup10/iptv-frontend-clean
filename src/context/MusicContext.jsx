@@ -574,6 +574,14 @@ export function MusicProvider({ children }) {
         return;
       } catch (offlineErr) {
         console.warn('[MusicContext] No se pudo reproducir offline local, reintentando online:', offlineErr);
+        if (offlineErr?.message?.includes('licencia offline')) {
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            alert('⚠️ ' + (offlineErr.message || 'Tu licencia offline de 30 días ha caducado. Conecta el dispositivo a internet para renovarla.'));
+            setIsLoadingAudio(false);
+            setIsPlaying(false);
+            return;
+          }
+        }
       }
     }
 
@@ -1039,6 +1047,7 @@ export function MusicProvider({ children }) {
     isPlaylistDownloaded,
     clearAllOffline,
     getOfflineTotalStorage: musicOfflineService.getTotalOfflineSize,
+    getTrackLicenseInfo: musicOfflineService.getTrackLicenseInfo,
     createPlaylist,
     deletePlaylist,
     renamePlaylist,

@@ -37,6 +37,66 @@ export function formatBytes(bytes) {
   return mb.toFixed(1) + ' MB';
 }
 
+// Duración de la licencia offline de música: 30 días renovables con conexión
+export const OFFLINE_LICENSE_DURATION_DAYS = 30;
+export const OFFLINE_LICENSE_DURATION_MS = OFFLINE_LICENSE_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Obtiene la información de validez de la licencia offline de una canción
+ */
+export function getTrackLicenseInfo(trackOrId) {
+  const track = typeof trackOrId === 'object' && trackOrId !== null ? trackOrId : getOfflineTrack(trackOrId);
+  if (!track) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0 };
+
+  const now = Date.now();
+  const expiresAt = track.licenseExpiresAt || ((track.downloadedAt || now) + OFFLINE_LICENSE_DURATION_MS);
+  const diffMs = expiresAt - now;
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+  const isExpired = diffMs <= 0;
+
+  return {
+    isValid: !isExpired,
+    daysRemaining,
+    isExpired,
+    expiresAt,
+    lastOnlineValidation: track.lastOnlineValidation || track.downloadedAt || now,
+  };
+}
+
+/**
+ * Renueva el período de 30 días para todas las canciones offline si el dispositivo está en línea
+ */
+export function renewAllMusicOfflineLicenses() {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return false;
+  }
+
+  const list = getOfflineTracks();
+  if (!list || list.length === 0) return true;
+
+  let hasChanged = false;
+  const now = Date.now();
+  const updated = list.map((track) => {
+    const lastCheck = track.lastOnlineValidation || 0;
+    // Renovar si no tiene fecha, si está vencida, o si pasaron más de 6 horas desde la última comprobación
+    if (!track.licenseExpiresAt || (now - lastCheck) > 6 * 60 * 60 * 1000 || track.licenseExpiresAt < now) {
+      hasChanged = true;
+      return {
+        ...track,
+        licenseExpiresAt: now + OFFLINE_LICENSE_DURATION_MS,
+        lastOnlineValidation: now,
+      };
+    }
+    return track;
+  });
+
+  if (hasChanged) {
+    saveOfflineTracks(updated);
+    console.log('[musicOfflineService] Licencias offline de música renovadas por 30 días.');
+  }
+  return true;
+}
+
 /**
  * Obtiene la lista de canciones guardadas para Modo Offline
  */
@@ -298,6 +358,8 @@ export async function downloadTrackOffline(track, onProgress = null) {
       sizeFormatted: formatBytes(finalSizeBytes),
       storageType: storageType,
       downloadedAt: Date.now(),
+      licenseExpiresAt: Date.now() + OFFLINE_LICENSE_DURATION_MS,
+      lastOnlineValidation: Date.now(),
       isOffline: true
     };
 
@@ -419,6 +481,23 @@ export async function getOfflinePlaybackUrls(trackId) {
   const track = getOfflineTrack(trackId);
   if (!track) {
     throw new Error('Canción no encontrada en almacenamiento offline.');
+  }
+
+  // Validación de Licencia Offline de 30 días
+  const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+  if (isOnline) {
+    // Si el usuario tiene conexión a internet, renovar período de 30 días de forma transparente
+    const now = Date.now();
+    track.licenseExpiresAt = now + OFFLINE_LICENSE_DURATION_MS;
+    track.lastOnlineValidation = now;
+    const list = getOfflineTracks().map((t) => String(t.id) === String(trackId) ? track : t);
+    saveOfflineTracks(list);
+  } else {
+    // Si está offline, comprobar si los 30 días siguen vigentes
+    const lic = getTrackLicenseInfo(track);
+    if (lic.isExpired) {
+      throw new Error('Tu licencia offline de 30 días ha caducado. Conecta el dispositivo a internet para renovar el acceso a esta canción.');
+    }
   }
 
   if (isNativeStorage() && track.storageType === 'native_sandbox') {

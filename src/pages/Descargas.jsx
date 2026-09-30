@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WifiOff, Play, Trash2, HardDrive, Film, Tv } from 'lucide-react';
+import { WifiOff, Play, Trash2, HardDrive, Film, Tv, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
 import {
   getDownloads,
   deleteDownload,
   getOfflinePlaybackUrl,
   getTotalStorageUsed,
   isNativeStorage,
+  getLicenseInfo,
+  renewAllOfflineLicenses,
 } from '../services/offlineStorage.js';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
 
@@ -18,8 +20,11 @@ export default function Descargas() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [totalStorage, setTotalStorage] = useState('0 MB');
 
-  // Cargar lista de descargas
+  // Cargar lista de descargas y validar renovación
   const refreshDownloads = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      renewAllOfflineLicenses();
+    }
     const list = getDownloads();
     setDownloads(list);
     setTotalStorage(getTotalStorageUsed());
@@ -40,6 +45,12 @@ export default function Descargas() {
 
   // Reproducir contenido sin conexión
   const handlePlayOffline = async (item) => {
+    const lic = getLicenseInfo(item);
+    if (lic.isExpired && typeof navigator !== 'undefined' && !navigator.onLine) {
+      alert('⚠️ Licencia Offline Caducada (30 días sin conexión)\n\nPara proteger los derechos del contenido, conecta tu dispositivo a internet para renovar el período de reproducción offline.');
+      return;
+    }
+
     try {
       setIsPlayingId(item.id);
       const playbackUrl = await getOfflinePlaybackUrl(item.id);
@@ -122,6 +133,10 @@ export default function Descargas() {
             <p className="text-gray-400 text-sm mt-1 max-w-xl">
               Disfruta de tus películas, series y contenido guardado sin conexión a internet ni consumo de datos móviles.
             </p>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold rounded-xl backdrop-blur-md mt-3">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Licencia offline: <strong>30 días válidos</strong>. Se renueva automáticamente cada vez que conectas a internet.</span>
+            </div>
           </div>
 
           {/* INDICADOR DE ESPACIO OCUPADO */}
@@ -219,31 +234,46 @@ export default function Descargas() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filteredDownloads.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white/[0.03] backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 flex flex-col justify-between hover:border-fuchsia-500/40 transition-all duration-300 shadow-xl group hover:-translate-y-1"
-              >
-                <div className="relative aspect-[2/3] bg-gray-950 overflow-hidden">
-                  <img
-                    src={item.poster || '/img/placeholder-thumbnail.png'}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                    onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
-                  />
+            {filteredDownloads.map((item) => {
+              const lic = getLicenseInfo(item);
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-white/[0.03] backdrop-blur-md rounded-2xl overflow-hidden border ${lic.isExpired ? 'border-red-500/40 hover:border-red-500/70' : 'border-white/10 hover:border-fuchsia-500/40'} flex flex-col justify-between transition-all duration-300 shadow-xl group hover:-translate-y-1`}
+                >
+                  <div className="relative aspect-[2/3] bg-gray-950 overflow-hidden">
+                    <img
+                      src={item.poster || '/img/placeholder-thumbnail.png'}
+                      alt={item.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      onError={(e) => { e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                    />
 
-                  {/* BADGE OFFLINE */}
-                  <div className="absolute top-2.5 left-2.5">
-                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow border bg-emerald-600/90 text-white border-emerald-400/30 flex items-center gap-1">
-                      <WifiOff className="w-2.5 h-2.5" /> Offline
-                    </span>
-                  </div>
+                    {/* BADGE OFFLINE */}
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow border bg-emerald-600/90 text-white border-emerald-400/30 flex items-center gap-1">
+                        <WifiOff className="w-2.5 h-2.5" /> Offline
+                      </span>
+                    </div>
 
-                  {/* TAMAÑO DEL ARCHIVO */}
-                  <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-300 border border-white/10 shadow">
-                    {item.sizeFormatted}
+                    {/* BADGE LICENCIA 30 DÍAS */}
+                    <div className="absolute top-2.5 right-2.5">
+                      {lic.isExpired ? (
+                        <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider backdrop-blur-md shadow border bg-red-600/90 text-white border-red-400/30 flex items-center gap-1">
+                          <AlertCircle className="w-2.5 h-2.5" /> Expirado
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-lg text-[9px] font-bold backdrop-blur-md shadow border bg-black/75 text-purple-200 border-white/15 flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5 text-fuchsia-400" /> {lic.daysRemaining}d
+                        </span>
+                      )}
+                    </div>
+
+                    {/* TAMAÑO DEL ARCHIVO */}
+                    <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-300 border border-white/10 shadow">
+                      {item.sizeFormatted}
+                    </div>
                   </div>
-                </div>
 
                 <div className="p-3.5 flex-1 flex flex-col justify-between">
                   <div>
@@ -259,10 +289,19 @@ export default function Descargas() {
                     <button
                       onClick={() => handlePlayOffline(item)}
                       disabled={isPlayingId === item.id}
-                      className="flex-1 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-[0_4px_15px_rgba(217,70,239,0.3)] flex items-center justify-center gap-1.5"
+                      className={`flex-1 ${lic.isExpired ? 'bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30' : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white shadow-[0_4px_15px_rgba(217,70,239,0.3)]'} active:scale-95 text-xs font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-1.5`}
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>{isPlayingId === item.id ? 'Abriendo...' : 'Reproducir'}</span>
+                      {lic.isExpired ? (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                          <span>Renovar Licencia</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{isPlayingId === item.id ? 'Abriendo...' : 'Reproducir'}</span>
+                        </>
+                      )}
                     </button>
 
                     <button
@@ -275,7 +314,8 @@ export default function Descargas() {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
 
