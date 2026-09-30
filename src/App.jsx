@@ -393,12 +393,12 @@ function App() {
     <>
       <style>{`
         :root {
-          --primary: 190 100% 50%;
+          --primary: 280 100% 65%;
           --secondary: 315 100% 60%;
         }
         
         .drop-shadow-glow-logo {
-          filter: drop-shadow(0 0 15px hsl(var(--secondary) / 0.4)) drop-shadow(0 0 8px hsl(var(--primary) / 0.3));
+          filter: drop-shadow(0 0 15px hsl(var(--secondary) / 0.4)) drop-shadow(0 0 8px hsl(var(--primary) / 0.4));
         }
 
         .rainbow-text {
@@ -498,16 +498,16 @@ function App() {
                     <span>❤️</span>
                     <span>Mi Lista</span>
                   </Link>
-                  <Link to="/musica" className="text-cyan-300 hover:text-white px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
-                    <Music className="w-4 h-4 text-cyan-400" />
+                  <Link to="/musica" className="text-fuchsia-400 hover:text-fuchsia-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
+                    <Music className="w-4 h-4 text-fuchsia-400" />
                     <span>TeamG Music ♪</span>
                   </Link>
-                  <Link to="/pedidos" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
+                  <Link to="/pedidos" className="text-pink-400 hover:text-pink-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
                     <span>📩</span>
                     <span>Pedidos</span>
                   </Link>
-                  <Link to="/offline" className="text-cyan-300 hover:text-white px-3 py-2 flex items-center gap-1.5 font-semibold" onClick={closeAllMenus}>
-                    <WifiOff className="w-4 h-4 text-cyan-400" />
+                  <Link to="/offline" className="text-purple-400 hover:text-purple-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
+                    <WifiOff className="w-4 h-4 text-purple-400" />
                     <span>Modo Offline</span>
                   </Link>
                 </nav>
@@ -666,7 +666,7 @@ function App() {
                       <p className="text-sm font-bold text-white truncate">
                         {activeProfile ? activeProfile.name : user?.username}
                       </p>
-                      <span className="inline-block mt-0.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
+                      <span className="inline-block mt-0.5 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-2.5 py-0.5 text-[10px] font-bold text-fuchsia-300">
                         {userPlanCaption}
                       </span>
                     </div>
@@ -735,15 +735,15 @@ function App() {
                   <Link to="/mi-lista" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span>❤️</span> Mi Lista
                   </Link>
-                  <Link to="/musica" className="flex items-center gap-3 text-cyan-300 hover:text-white px-3 py-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-base font-bold transition" onClick={closeAllMenus}>
-                    <Music className="w-5 h-5 text-cyan-400" />
+                  <Link to="/musica" className="flex items-center gap-3 text-fuchsia-300 hover:text-white px-3 py-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-400/25 text-base font-bold transition" onClick={closeAllMenus}>
+                    <Music className="w-5 h-5 text-fuchsia-400" />
                     <span>TeamG Music ♪</span>
                   </Link>
-                  <Link to="/pedidos" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
+                  <Link to="/pedidos" className="flex items-center gap-3 text-pink-300 hover:text-white px-3 py-3 rounded-xl bg-pink-500/10 border border-pink-400/25 text-base font-bold transition" onClick={closeAllMenus}>
                     <span>📩</span> Pedidos
                   </Link>
-                  <Link to="/offline" className="flex items-center gap-3 text-cyan-300 hover:text-white px-3 py-3 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-base font-bold transition" onClick={closeAllMenus}>
-                    <WifiOff className="w-5 h-5 text-cyan-400" />
+                  <Link to="/offline" className="flex items-center gap-3 text-purple-300 hover:text-white px-3 py-3 rounded-xl bg-purple-500/10 border border-purple-400/25 text-base font-bold transition" onClick={closeAllMenus}>
+                    <WifiOff className="w-5 h-5 text-purple-400" />
                     <span>Modo Offline</span>
                   </Link>
                   <Link to="/test-player" className="flex items-center gap-3 text-yellow-400 hover:text-yellow-300 px-3 py-3 rounded-xl border border-yellow-500/20 bg-yellow-500/5 text-base font-semibold transition" onClick={closeAllMenus}>

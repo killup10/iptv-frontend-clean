@@ -103,8 +103,8 @@ export default function Descargas() {
     <div className="min-h-screen text-white relative overflow-hidden bg-[#07090f]">
       {/* Fondo ambiental */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden select-none z-0" aria-hidden="true">
-        <div className="absolute -top-32 -left-32 w-[550px] h-[550px] bg-cyan-600/10 rounded-full blur-[140px]" />
-        <div className="absolute top-1/2 -right-32 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[160px]" />
+        <div className="absolute -top-32 -left-32 w-[550px] h-[550px] bg-fuchsia-600/15 rounded-full blur-[140px]" />
+        <div className="absolute top-1/2 -right-32 w-[600px] h-[600px] bg-purple-600/15 rounded-full blur-[160px]" />
         <div className="absolute inset-0 bg-gradient-to-b from-[#07090f]/80 via-[#07090f]/95 to-[#07090f]" />
       </div>
 
@@ -112,7 +112,7 @@ export default function Descargas() {
         {/* HEADER / TITULO */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-white/10 pb-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-500/10 border border-cyan-400/25 text-cyan-300 text-xs font-bold rounded-full mb-3 tracking-wide backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-300 text-xs font-bold rounded-full mb-3 tracking-wide backdrop-blur-md">
               <WifiOff className="w-3.5 h-3.5" />
               <span>Modo Offline</span>
             </div>
@@ -120,13 +120,13 @@ export default function Descargas() {
               Modo Offline
             </h1>
             <p className="text-gray-400 text-sm mt-1 max-w-xl">
-              Disfruta de tus películas y series sin conexión a internet ni consumo de datos móviles.
+              Disfruta de tus películas, series y contenido guardado sin conexión a internet ni consumo de datos móviles.
             </p>
           </div>
 
           {/* INDICADOR DE ESPACIO OCUPADO */}
           <div className="flex items-center gap-3.5 bg-white/[0.03] backdrop-blur-xl border border-white/10 px-5 py-3.5 rounded-2xl shadow-xl">
-            <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-400/20">
+            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/25">
               <HardDrive className="w-5 h-5" />
             </div>
             <div>
@@ -136,6 +136,32 @@ export default function Descargas() {
           </div>
         </div>
 
+        {/* BANNER INFORMATIVO: MODO OFFLINE EN MÚSICA */}
+        <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-fuchsia-950/40 via-purple-950/30 to-black/60 border border-fuchsia-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/30 text-fuchsia-300 flex items-center justify-center shrink-0">
+              <span className="text-lg">🎵</span>
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                ¿Buscas tu música guardada sin conexión?
+                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
+                  TeamG Music ♪
+                </span>
+              </h4>
+              <p className="text-xs text-gray-300 mt-0.5">
+                Tus canciones y playlists descargadas están disponibles de forma instantánea en la sección exclusiva de música.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/musica')}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-[0_0_15px_rgba(217,70,239,0.35)] shrink-0 self-start sm:self-auto"
+          >
+            Abrir TeamG Music ♪
+          </button>
+        </div>
+
         {/* PESTAÑAS DE FILTRO */}
         {downloads.length > 0 && (
           <div className="flex items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-2xl p-1.5 gap-1.5 w-max mb-8 shadow-inner">
@@ -143,7 +169,7 @@ export default function Descargas() {
               onClick={() => setActiveTab('todos')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'todos'
-                  ? 'bg-cyan-500 text-black shadow-[0_4px_15px_rgba(6,182,212,0.4)]'
+                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_4px_15px_rgba(168,85,247,0.4)]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -153,7 +179,7 @@ export default function Descargas() {
               onClick={() => setActiveTab('pelicula')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeTab === 'pelicula'
-                  ? 'bg-cyan-500 text-black shadow-[0_4px_15px_rgba(6,182,212,0.4)]'
+                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_4px_15px_rgba(168,85,247,0.4)]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -164,7 +190,7 @@ export default function Descargas() {
               onClick={() => setActiveTab('serie')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeTab === 'serie'
-                  ? 'bg-cyan-500 text-black shadow-[0_4px_15px_rgba(6,182,212,0.4)]'
+                  ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_4px_15px_rgba(168,85,247,0.4)]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -177,16 +203,16 @@ export default function Descargas() {
         {/* LISTADO DE CONTENIDOS GUARDADOS */}
         {downloads.length === 0 ? (
           <div className="py-20 text-center bg-white/[0.02] backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl max-w-lg mx-auto p-8">
-            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 text-cyan-400 flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
+            <div className="w-16 h-16 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
               <WifiOff className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">No tienes contenidos guardados</h3>
+            <h3 className="text-xl font-bold text-white mb-2">No tienes películas o series guardadas</h3>
             <p className="text-gray-400 text-xs leading-relaxed mb-6">
-              Abre los detalles de cualquier película o episodio y pulsa <strong>"Guardar en Modo Offline"</strong> para verla sin internet en cualquier momento.
+              Abre los detalles de cualquier película o episodio y pulsa <strong>"Guardar en Modo Offline"</strong> para disfrutarlo sin internet ni gastar tus datos en cualquier momento.
             </p>
             <button
               onClick={() => navigate('/peliculas')}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs px-6 py-3 rounded-xl transition shadow-[0_4px_15px_rgba(6,182,212,0.35)]"
+              className="bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold text-xs px-6 py-3 rounded-xl transition shadow-[0_4px_20px_rgba(217,70,239,0.35)]"
             >
               Explorar Catálogo VOD
             </button>
@@ -196,7 +222,7 @@ export default function Descargas() {
             {filteredDownloads.map((item) => (
               <div
                 key={item.id}
-                className="bg-white/[0.03] backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 flex flex-col justify-between hover:border-cyan-400/40 transition-all duration-300 shadow-xl group hover:-translate-y-1"
+                className="bg-white/[0.03] backdrop-blur-md rounded-2xl overflow-hidden border border-white/10 flex flex-col justify-between hover:border-fuchsia-500/40 transition-all duration-300 shadow-xl group hover:-translate-y-1"
               >
                 <div className="relative aspect-[2/3] bg-gray-950 overflow-hidden">
                   <img
@@ -214,7 +240,7 @@ export default function Descargas() {
                   </div>
 
                   {/* TAMAÑO DEL ARCHIVO */}
-                  <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold text-cyan-300 border border-white/10 shadow">
+                  <div className="absolute bottom-2.5 right-2.5 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-bold text-purple-300 border border-white/10 shadow">
                     {item.sizeFormatted}
                   </div>
                 </div>
@@ -233,7 +259,7 @@ export default function Descargas() {
                     <button
                       onClick={() => handlePlayOffline(item)}
                       disabled={isPlayingId === item.id}
-                      className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-[0_4px_15px_rgba(6,182,212,0.25)] flex items-center justify-center gap-1.5"
+                      className="flex-1 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 active:scale-95 text-white text-xs font-bold py-2.5 rounded-xl transition shadow-[0_4px_15px_rgba(217,70,239,0.3)] flex items-center justify-center gap-1.5"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
                       <span>{isPlayingId === item.id ? 'Abriendo...' : 'Reproducir'}</span>

@@ -44,6 +44,13 @@ import {
   Calendar,
   Clock,
   CreditCard,
+  Music,
+  WifiOff,
+  Mic,
+  Radio,
+  Headphones,
+  Film,
+  HardDrive,
 } from "lucide-react";
 import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
@@ -160,7 +167,7 @@ const CATALOG_SHOWCASE_DATA = [
     id: "cine2026",
     categoryLabel: "Cine 4K VOD",
     categoryTitle: "Estrenos de Cine 2026",
-    badgeColor: "cyan",
+    badgeColor: "purple",
     items: [
       {
         title: "Avatar: Fuego y Cenizas",
@@ -247,7 +254,7 @@ const CATALOG_SHOWCASE_DATA = [
     id: "series",
     categoryLabel: "Series & Animes",
     categoryTitle: "Series, Animes & KDramas",
-    badgeColor: "cyan",
+    badgeColor: "purple",
     items: [
       {
         title: "Stranger Things 5",
@@ -344,7 +351,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
   }, [group.items.length, isHovered]);
 
   const currentItem = group.items[currentIndex] || group.items[0];
-  const isCyan = group.badgeColor === "cyan";
+  const isPurple = group.badgeColor === "purple";
 
   return (
     <div
@@ -352,7 +359,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
       onMouseLeave={() => setIsHovered(false)}
       onClick={onSelectPlanes}
       className={`relative group overflow-hidden rounded-3xl border border-white/10 bg-[#080814] h-[360px] cursor-pointer transition-all duration-300 transform hover:-translate-y-2 hover:shadow-[0_16px_40px_rgba(0,0,0,0.8)] ${
-        isCyan ? "hover:border-[#00F0FF]/50" : "hover:border-fuchsia-400/50"
+        isPurple ? "hover:border-purple-500/50" : "hover:border-fuchsia-400/50"
       }`}
       style={{ transform: "translateZ(0)" }}
     >
@@ -376,8 +383,8 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
       <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
         <span
           className={`text-[9px] px-2.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider backdrop-blur-md ${
-            isCyan
-              ? "bg-[#00F0FF]/25 text-[#00F0FF] border border-[#00F0FF]/40 shadow-[0_0_12px_rgba(0,240,255,0.3)]"
+            isPurple
+              ? "bg-purple-500/25 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
               : "bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-500/40 shadow-[0_0_12px_rgba(217,70,239,0.3)]"
           }`}
         >
@@ -392,8 +399,8 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
         <div
           className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md shadow-2xl transition-transform duration-300 group-hover:scale-110 ${
-            isCyan
-              ? "bg-[#00F0FF]/90 text-black shadow-[0_0_25px_rgba(0,240,255,0.6)]"
+            isPurple
+              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_25px_rgba(168,85,247,0.6)]"
               : "bg-fuchsia-500/90 text-white shadow-[0_0_25px_rgba(217,70,239,0.6)]"
           }`}
         >
@@ -404,7 +411,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
       <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end z-10 bg-gradient-to-t from-black via-black/80 to-transparent pt-12">
         {currentItem.channelName && (
           <div className="inline-flex items-center gap-1.5 mb-1 bg-black/70 border border-white/15 px-2 py-0.5 rounded-lg w-max">
-            <Tv className="w-3 h-3 text-[#00F0FF]" />
+            <Tv className="w-3 h-3 text-fuchsia-400" />
             <span className="text-[10px] font-black text-white uppercase tracking-wider">
               {currentItem.channelName}
             </span>
@@ -416,8 +423,8 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
             className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
               currentItem.tag.includes("VIVO")
                 ? "bg-red-600/90 text-white animate-pulse"
-                : isCyan
-                ? "bg-[#00F0FF]/20 text-[#00F0FF]"
+                : isPurple
+                ? "bg-purple-500/20 text-purple-300"
                 : "bg-fuchsia-500/20 text-fuchsia-300"
             }`}
           >
@@ -428,7 +435,7 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
           </span>
         </div>
 
-        <h4 className="text-sm font-extrabold text-white group-hover:text-[#00F0FF] transition-colors duration-200 truncate">
+        <h4 className="text-sm font-extrabold text-white group-hover:text-fuchsia-300 transition-colors duration-200 truncate">
           {currentItem.title}
         </h4>
 
@@ -443,8 +450,8 @@ function ShowcaseColumnCard({ group, initialIndex = 0, onSelectPlanes }) {
               }}
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 dotIdx === currentIndex
-                  ? isCyan
-                    ? "w-5 bg-[#00F0FF]"
+                  ? isPurple
+                    ? "w-5 bg-purple-400"
                     : "w-5 bg-fuchsia-400"
                   : "w-1.5 bg-white/20 hover:bg-white/40"
               }`}
@@ -734,7 +741,7 @@ function LandingPage() {
     {
       id: "gplay",
       name: "G Play",
-      icon: <PlayCircle className="w-4 h-4 text-cyan-400" strokeWidth={2} />,
+      icon: <PlayCircle className="w-4 h-4 text-purple-400" strokeWidth={2} />,
       priceMonthly: 12,
       priceYearly: 70,
       devices: {
@@ -748,14 +755,14 @@ function LandingPage() {
         "Transmisión sin anuncios",
       ],
       badge: "Esencial",
-      color: "hover:border-cyan-500/30 hover:shadow-[0_0_35px_rgba(6,182,212,0.15)]",
+      color: "hover:border-purple-500/30 hover:shadow-[0_0_35px_rgba(168,85,247,0.15)]",
       btnColor: "bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold",
       group: "iniciales",
     },
     {
       id: "estandar",
       name: "Estándar",
-      icon: <Laptop className="w-4 h-4 text-cyan-400" strokeWidth={2} />,
+      icon: <Laptop className="w-4 h-4 text-purple-400" strokeWidth={2} />,
       priceMonthly: 15,
       priceYearly: 90,
       devices: {
@@ -769,7 +776,7 @@ function LandingPage() {
         "Acceso multisección ilimitado",
       ],
       badge: "Popular",
-      color: "hover:border-cyan-500/30 hover:shadow-[0_0_35px_rgba(6,182,212,0.15)]",
+      color: "hover:border-purple-500/30 hover:shadow-[0_0_35px_rgba(168,85,247,0.15)]",
       btnColor: "bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold",
       group: "iniciales",
     },
@@ -798,7 +805,7 @@ function LandingPage() {
     {
       id: "cinefilo",
       name: "Cinéfilo",
-      icon: <Star className="w-4 h-4 text-cyan-400" strokeWidth={2} />,
+      icon: <Star className="w-4 h-4 text-purple-400" strokeWidth={2} />,
       priceMonthly: 18,
       priceYearly: 120,
       devices: {
@@ -812,14 +819,14 @@ function LandingPage() {
         "Series, Animes, Novelas y Kids",
       ],
       badge: "Cine Completo",
-      color: "hover:border-cyan-500/30 hover:shadow-[0_0_35px_rgba(6,182,212,0.15)]",
+      color: "hover:border-purple-500/30 hover:shadow-[0_0_35px_rgba(168,85,247,0.15)]",
       btnColor: "bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold",
       group: "recomendados",
     },
     {
       id: "premium",
       name: "Premium VIP",
-      icon: <Sparkles className="w-4 h-4 text-cyan-400" strokeWidth={2} />,
+      icon: <Sparkles className="w-4 h-4 text-fuchsia-400" strokeWidth={2} />,
       priceMonthly: 25,
       priceYearly: 180,
       devices: {
@@ -835,8 +842,8 @@ function LandingPage() {
         "Colección Dragon Ball Completa",
       ],
       badge: "VIP - Acceso Total",
-      color: "border-cyan-400/50 shadow-[0_0_50px_rgba(34,211,238,0.18)] hover:border-cyan-300 ring-1 ring-cyan-400/30",
-      btnColor: "bg-gradient-to-r from-cyan-400 via-cyan-500 to-indigo-600 hover:opacity-95 text-black font-extrabold shadow-[0_4px_25px_rgba(34,211,238,0.35)]",
+      color: "border-fuchsia-500/50 shadow-[0_0_50px_rgba(217,70,239,0.25)] hover:border-fuchsia-400 ring-1 ring-fuchsia-400/30",
+      btnColor: "bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:opacity-95 text-white font-extrabold shadow-[0_4px_25px_rgba(217,70,239,0.35)]",
       highlighted: true,
       isPremium: true,
       group: "recomendados",
@@ -871,7 +878,7 @@ function LandingPage() {
         .font-outfit { font-family: 'Outfit', sans-serif; }
 
         .capcut-accent-gradient {
-          background: linear-gradient(135deg, #00F0FF 0%, #00B2FF 50%, #7000FF 100%);
+          background: linear-gradient(135deg, #FF2E93 0%, #D946EF 45%, #8B5CF6 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
@@ -890,7 +897,7 @@ function LandingPage() {
           transform: translateZ(0);
         }
         .capcut-card-bg:hover {
-          border-color: rgba(0, 240, 255, 0.4);
+          border-color: rgba(217, 70, 239, 0.4);
         }
 
         .perspective-mockup {
@@ -917,8 +924,8 @@ function LandingPage() {
           animation-play-state: paused;
         }
 
-        .ambient-glow-cyan {
-          background: radial-gradient(circle, rgba(0, 240, 255, 0.12) 0%, transparent 70%);
+        .ambient-glow-purple {
+          background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 70%);
         }
         .ambient-glow-fuchsia {
           background: radial-gradient(circle, rgba(217, 70, 239, 0.10) 0%, transparent 70%);
@@ -936,7 +943,7 @@ function LandingPage() {
       <div 
         className="absolute top-[20%] right-[-10%] w-[55vw] h-[55vw] rounded-full pointer-events-none z-0 opacity-80"
         style={{
-          background: 'radial-gradient(circle, rgba(0, 240, 255, 0.14) 0%, rgba(0, 240, 255, 0.03) 45%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(168, 85, 247, 0.14) 0%, rgba(168, 85, 247, 0.03) 45%, transparent 70%)',
           transform: 'translateZ(0)'
         }}
       />
@@ -948,19 +955,22 @@ function LandingPage() {
       <header className="w-full z-50 sticky top-4 max-w-6xl mx-auto px-4">
         <div className="mx-auto px-6 py-3.5 rounded-full capcut-glass-nav border border-white/10 flex items-center justify-between shadow-[0_16px_50px_rgba(0,0,0,0.8)]">
           <div className="flex items-center gap-3">
-            <img src="./logo-teamg.png" alt="TeamG Play Logo" className="h-8 drop-shadow-[0_0_12px_rgba(0,240,255,0.5)]" />
-            <span className="font-outfit font-black text-sm tracking-wider text-white">TEAMG <span className="text-[#00F0FF]">PLAY</span></span>
+            <img src="./logo-teamg.png" alt="TeamG Play Logo" className="h-8 drop-shadow-[0_0_12px_rgba(217,70,239,0.5)]" />
+            <span className="font-outfit font-black text-sm tracking-wider text-white">TEAMG <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-pink-500">PLAY</span></span>
           </div>
 
           <nav className="hidden md:flex items-center gap-7 text-[12px] font-semibold text-slate-300">
-            <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-[#00F0FF] transition-colors duration-200">Características</button>
-            <button onClick={() => scrollToSection("buscador-canales")} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors duration-200 flex items-center gap-1 font-bold">
+            <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-fuchsia-400 transition-colors duration-200">Características</button>
+            <button onClick={() => scrollToSection("buscador-canales")} className="hover:text-fuchsia-300 text-fuchsia-400 transition-colors duration-200 flex items-center gap-1 font-bold">
               <Search className="w-3.5 h-3.5" /> Canales (+360)
             </button>
-            <button onClick={() => scrollToSection("deportes-vivo")} className="hover:text-[#00F0FF] transition-colors duration-200">Deportes</button>
-            <button onClick={() => scrollToSection("catalogo")} className="hover:text-[#00F0FF] transition-colors duration-200">Catálogo VOD</button>
-            <button onClick={() => scrollToSection("planes")} className="hover:text-[#00F0FF] transition-colors duration-200">Planes y Precios</button>
-            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-cyan-300 transition-colors duration-200 flex items-center gap-1.5 font-bold">
+            <button onClick={() => scrollToSection("deportes-vivo")} className="hover:text-fuchsia-400 transition-colors duration-200">Deportes</button>
+            <button onClick={() => scrollToSection("catalogo")} className="hover:text-fuchsia-400 transition-colors duration-200">Catálogo VOD</button>
+            <button onClick={() => scrollToSection("novedades")} className="hover:text-pink-300 text-pink-400 transition-colors duration-200 flex items-center gap-1 font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-pink-400" /> Novedades 2026
+            </button>
+            <button onClick={() => scrollToSection("planes")} className="hover:text-fuchsia-400 transition-colors duration-200">Planes y Precios</button>
+            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-purple-300 text-purple-400 transition-colors duration-200 flex items-center gap-1.5 font-bold">
               <Download className="w-3.5 h-3.5" /> Apps TV
             </button>
           </nav>
@@ -974,7 +984,7 @@ function LandingPage() {
             </Link>
             <button
               onClick={() => scrollToSection("planes")}
-              className="hidden sm:inline-flex px-5 py-2 rounded-full bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-extrabold text-xs transition-all duration-300 shadow-[0_0_20px_rgba(0,240,255,0.4)] active:scale-95"
+              className="hidden sm:inline-flex px-5 py-2 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-extrabold text-xs transition-all duration-300 shadow-[0_0_20px_rgba(217,70,239,0.4)] active:scale-95"
             >
               Probar Gratis
             </button>
@@ -987,8 +997,8 @@ function LandingPage() {
         
         {/* Left Text Column */}
         <div className="flex-1 text-left flex flex-col items-start">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-cyan-400/30 text-[10px] font-extrabold uppercase tracking-widest text-[#00F0FF] mb-6 shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-[#00F0FF]" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/30 text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-300 mb-6 shadow-inner">
+            <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
             Streaming Ultra Fluido • Canales en Full HD
           </div>
 
@@ -1004,7 +1014,7 @@ function LandingPage() {
           <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto mb-10">
             <button
               onClick={() => scrollToSection("buscador-canales")}
-              className="px-8 py-4 rounded-full bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(0,240,255,0.5)] flex items-center gap-3"
+              className="px-8 py-4 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-black text-xs uppercase tracking-wider transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(217,70,239,0.5)] flex items-center gap-3"
             >
               <Search className="w-4 h-4 stroke-[2.5]" />
               Ver Grilla & Canales
@@ -1012,9 +1022,9 @@ function LandingPage() {
 
             <button
               onClick={() => setIsGrillaModalOpen(true)}
-              className="px-7 py-4 rounded-full bg-white/5 border border-cyan-400/30 hover:bg-cyan-500/15 text-cyan-300 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2 hover:border-[#00F0FF]/50"
+              className="px-7 py-4 rounded-full bg-white/5 border border-fuchsia-500/30 hover:bg-fuchsia-500/15 text-fuchsia-300 font-bold text-xs uppercase tracking-wider transition-all active:scale-95 flex items-center gap-2 hover:border-fuchsia-400/50"
             >
-              <ImageIcon className="w-4 h-4 text-cyan-400" />
+              <ImageIcon className="w-4 h-4 text-fuchsia-400" />
               Grilla Completa HD
             </button>
           </div>
@@ -1026,7 +1036,7 @@ function LandingPage() {
               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Canales en Vivo Full HD</p>
             </div>
             <div>
-              <p className="text-xl sm:text-2xl font-outfit font-black text-[#00F0FF]">4K & 60 FPS</p>
+              <p className="text-xl sm:text-2xl font-outfit font-black text-purple-400">4K & 60 FPS</p>
               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Especial Cine 2026 VOD</p>
             </div>
             <div>
@@ -1050,7 +1060,7 @@ function LandingPage() {
               
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/60 backdrop-blur-md border border-white/15 p-3 rounded-2xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 flex items-center justify-center text-[#00F0FF]">
+                  <div className="w-8 h-8 rounded-full bg-fuchsia-500/20 border border-fuchsia-500/40 flex items-center justify-center text-fuchsia-400">
                     <Play className="w-4 h-4 fill-current ml-0.5" />
                   </div>
                   <div>
@@ -1071,31 +1081,31 @@ function LandingPage() {
           <p className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-slate-400">Señales Deportivas y Entretenimiento Incluido</p>
         </div>
         <div className="flex w-[200%] gap-12 items-center animate-marquee select-none whitespace-nowrap">
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">LIGA 1 MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">LIGA 1 MAX</span>
           <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DSPORTS (DIRECTV)</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">ESPN PREMIUM</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">FOX SPORTS</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">FOX SPORTS</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">HBO MAX</span>
           <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DISNEY+</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">AMÉRICA TV HD</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">ATV HD</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">ATV HD</span>
 
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">LIGA 1 MAX</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">LIGA 1 MAX</span>
           <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DSPORTS (DIRECTV)</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">ESPN PREMIUM</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">FOX SPORTS</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">FOX SPORTS</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">HBO MAX</span>
           <span className="text-sm font-outfit font-black tracking-widest text-fuchsia-400 mx-4">DISNEY+</span>
           <span className="text-sm font-outfit font-black tracking-widest text-slate-300 mx-4">AMÉRICA TV HD</span>
-          <span className="text-sm font-outfit font-black tracking-widest text-[#00F0FF] mx-4">ATV HD</span>
+          <span className="text-sm font-outfit font-black tracking-widest text-purple-400 mx-4">ATV HD</span>
         </div>
       </section>
 
       {/* EXPLORADOR Y BUSCADOR INTERACTIVO DE CANALES */}
       <section id="buscador-canales" className="w-full max-w-6xl mx-auto px-6 py-24 z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[10px] font-extrabold uppercase tracking-widest text-[#00F0FF] mb-3">
-            <Tv className="w-3.5 h-3.5 text-[#00F0FF]" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/30 text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400 mb-3">
+            <Tv className="w-3.5 h-3.5 text-fuchsia-400" />
             Catálogo Completo y Transparente
           </div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
@@ -1107,15 +1117,15 @@ function LandingPage() {
         </div>
 
         {/* Action Banner: View & Download Full HD Channel Grid Poster */}
-        <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black/80 border border-[#00F0FF]/40 shadow-[0_0_40px_rgba(0,240,255,0.15)] flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="mb-10 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-fuchsia-950/40 via-purple-950/30 to-black/80 border border-fuchsia-500/40 shadow-[0_0_40px_rgba(217,70,239,0.18)] flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="p-4 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]">
+            <div className="p-4 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/40 text-fuchsia-400">
               <ImageIcon className="w-8 h-8" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-outfit font-black text-xl text-white">Grilla Oficial de Canales TeamG Play</h3>
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00F0FF] text-black">
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white">
                   Póster HD
                 </span>
               </div>
@@ -1128,7 +1138,7 @@ function LandingPage() {
           <div className="flex items-center gap-3 w-full md:w-auto">
             <button
               onClick={() => setIsGrillaModalOpen(true)}
-              className="flex-1 md:flex-none px-6 py-3.5 rounded-2xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,240,255,0.4)] flex items-center justify-center gap-2"
+              className="flex-1 md:flex-none px-6 py-3.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(217,70,239,0.4)] flex items-center justify-center gap-2"
             >
               <Eye className="w-4 h-4 stroke-[2.5]" />
               Ver Imagen HD
@@ -1147,7 +1157,7 @@ function LandingPage() {
 
         {/* Search Input Bar */}
         <div className="relative max-w-2xl mx-auto mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#00F0FF]" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
           <input
             type="text"
             placeholder="Buscar canal en vivo (ej: Liga 1 Max, ESPN, HBO, Cartoon, América TV)..."
@@ -1156,7 +1166,7 @@ function LandingPage() {
               setChannelSearchTerm(e.target.value);
               setVisibleChannelsCount(24);
             }}
-            className="w-full pl-12 pr-10 py-4 rounded-2xl bg-black/60 border border-white/15 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-[#00F0FF] focus:ring-1 focus:ring-[#00F0FF] shadow-inner transition-all"
+            className="w-full pl-12 pr-10 py-4 rounded-2xl bg-black/60 border border-white/15 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 shadow-inner transition-all"
           />
           {channelSearchTerm && (
             <button
@@ -1179,7 +1189,7 @@ function LandingPage() {
               }}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 ${
                 selectedChannelCategory === cat
-                  ? "bg-[#00F0FF] text-black shadow-[0_0_15px_rgba(0,240,255,0.4)] scale-105"
+                  ? "bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_0_15px_rgba(217,70,239,0.4)] scale-105"
                   : "bg-white/5 border border-white/10 text-slate-300 hover:text-white hover:bg-white/10"
               }`}
             >
@@ -1191,7 +1201,7 @@ function LandingPage() {
         {/* Results Counter */}
         <div className="flex items-center justify-between mb-6 text-xs text-slate-400 font-semibold px-2">
           <span>
-            Mostrando <strong className="text-[#00F0FF]">{Math.min(visibleChannelsCount, filteredChannels.length)}</strong> de <strong className="text-white">{filteredChannels.length}</strong> canales
+            Mostrando <strong className="text-fuchsia-400">{Math.min(visibleChannelsCount, filteredChannels.length)}</strong> de <strong className="text-white">{filteredChannels.length}</strong> canales
             {selectedChannelCategory !== "Todos" && ` en "${selectedChannelCategory}"`}
           </span>
           <span className="text-emerald-400 flex items-center gap-1 font-bold">
@@ -1205,11 +1215,11 @@ function LandingPage() {
             <div
               key={channel.name + idx}
               onClick={() => handleInquireChannel(channel.name)}
-              className="group p-4 rounded-2xl bg-[#080816] border border-white/10 hover:border-[#00F0FF]/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.2)] transition-all duration-200 flex flex-col items-center justify-between text-center cursor-pointer relative overflow-hidden"
+              className="group p-4 rounded-2xl bg-[#080816] border border-white/10 hover:border-fuchsia-500/50 hover:shadow-[0_0_20px_rgba(217,70,239,0.2)] transition-all duration-200 flex flex-col items-center justify-between text-center cursor-pointer relative overflow-hidden"
             >
               {/* Quality Label Top */}
               <div className="w-full flex items-center justify-between mb-2">
-                <span className="text-[8px] font-black uppercase tracking-wider text-[#00F0FF] bg-[#00F0FF]/10 px-1.5 py-0.5 rounded">
+                <span className="text-[8px] font-black uppercase tracking-wider text-purple-300 bg-purple-500/15 px-1.5 py-0.5 rounded">
                   FHD 1080p
                 </span>
                 <span className="text-[8px] text-slate-400 font-medium truncate max-w-[80px]">
@@ -1231,12 +1241,12 @@ function LandingPage() {
                     }}
                   />
                 ) : (
-                  <Tv className="w-7 h-7 text-[#00F0FF]/80" />
+                  <Tv className="w-7 h-7 text-fuchsia-400/80" />
                 )}
               </div>
 
               {/* Channel Name */}
-              <h4 className="font-outfit font-extrabold text-xs text-white group-hover:text-[#00F0FF] transition-colors truncate w-full mt-1">
+              <h4 className="font-outfit font-extrabold text-xs text-white group-hover:text-fuchsia-300 transition-colors truncate w-full mt-1">
                 {channel.name}
               </h4>
 
@@ -1254,7 +1264,7 @@ function LandingPage() {
           <div className="mt-10 text-center">
             <button
               onClick={() => setVisibleChannelsCount((prev) => prev + 24)}
-              className="px-8 py-3 rounded-full bg-white/10 hover:bg-[#00F0FF] hover:text-black text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-95 border border-white/15"
+              className="px-8 py-3 rounded-full bg-white/10 hover:bg-gradient-to-r hover:from-fuchsia-600 hover:to-purple-600 hover:text-white hover:border-fuchsia-500/50 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 active:scale-95 border border-white/15"
             >
               Cargar Más Canales ({filteredChannels.length - visibleChannelsCount} restantes) ➔
             </button>
@@ -1336,7 +1346,7 @@ function LandingPage() {
                       ) : (
                         <div
                           className="w-full h-full rounded-xl flex items-center justify-center font-outfit font-black text-xs text-white"
-                          style={{ backgroundColor: match.homeColor || '#00F0FF33' }}
+                          style={{ backgroundColor: match.homeColor || '#a855f733' }}
                         >
                           {match.homeShort || match.homeTeam.substring(0, 3).toUpperCase()}
                         </div>
@@ -1351,7 +1361,7 @@ function LandingPage() {
                   </div>
 
                   {/* VS Badge */}
-                  <div className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black text-[#00F0FF]">
+                  <div className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-black text-purple-400">
                     VS
                   </div>
 
@@ -1387,7 +1397,7 @@ function LandingPage() {
                 {/* Tournament & Time Footer */}
                 <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-                    <Clock className="w-4 h-4 text-[#00F0FF]" />
+                    <Clock className="w-4 h-4 text-purple-400" />
                     <span>{match.dateLabel ? `${match.dateLabel} • ${match.timeLabel}` : (match.time || match.timeLabel)}</span>
                   </div>
 
@@ -1405,7 +1415,7 @@ function LandingPage() {
       {/* BENTO GRID FEATURES SECTION */}
       <section id="caracteristicas" className="w-full max-w-6xl mx-auto px-6 py-24 border-t border-white/10 z-10">
         <div className="mb-16 text-center md:text-left max-w-2xl">
-          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-[#00F0FF] mb-3">Edición Potente & Interfaz Inteligente</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-3">Edición Potente & Interfaz Inteligente</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
             Diseñado para la máxima fluidez
           </h2>
@@ -1419,10 +1429,10 @@ function LandingPage() {
           
           {/* Card 1: PIP Simulator (col-span-2) */}
           <div className="md:col-span-2 rounded-3xl capcut-card-bg p-8 flex flex-col justify-between relative overflow-hidden transition-all duration-300 group">
-            <div className="absolute top-0 right-0 w-72 h-72 ambient-glow-cyan pointer-events-none" />
+            <div className="absolute top-0 right-0 w-72 h-72 ambient-glow-purple pointer-events-none" />
             
             <div>
-              <span className="text-[9px] bg-[#00F0FF]/15 border border-[#00F0FF]/30 text-[#00F0FF] font-black px-3 py-1 rounded-full uppercase tracking-wider mb-6 inline-block">
+              <span className="text-[9px] bg-purple-500/15 border border-purple-500/30 text-purple-300 font-black px-3 py-1 rounded-full uppercase tracking-wider mb-6 inline-block">
                 Exclusivo PC & Web
               </span>
               <h3 className="text-2xl font-outfit font-bold mb-3 text-white">Reproductor Flotante PiP (Picture-in-Picture)</h3>
@@ -1434,7 +1444,7 @@ function LandingPage() {
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button
                 onClick={() => setSimulatedPip(true)}
-                className="px-6 py-3 rounded-full bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-extrabold text-xs uppercase tracking-wider active:scale-95 transition-all shadow-[0_0_20px_rgba(0,240,255,0.3)] flex items-center gap-2"
+                className="px-6 py-3 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-extrabold text-xs uppercase tracking-wider active:scale-95 transition-all shadow-[0_0_20px_rgba(217,70,239,0.35)] flex items-center gap-2"
               >
                 <Move className="w-4 h-4" />
                 Probar Demo PiP Interactivo
@@ -1455,14 +1465,14 @@ function LandingPage() {
               </p>
             </div>
             <div className="mt-6 flex flex-col gap-2">
-              <div className="text-xs font-semibold text-[#00F0FF]">
+              <div className="text-xs font-semibold text-purple-400">
                 Compatible con TV Box, Xiaomi, Chromecast, JVC & Android TV.
               </div>
               <button
                 onClick={() => setIsAppsModalOpen(true)}
-                className="inline-flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-[#00F0FF] transition-colors pt-2 border-t border-white/10"
+                className="inline-flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-fuchsia-400 transition-colors pt-2 border-t border-white/10"
               >
-                <Download className="w-3.5 h-3.5 text-[#00F0FF]" /> Descargar APK TV o Código Downloader (3895210) ➔
+                <Download className="w-3.5 h-3.5 text-fuchsia-400" /> Descargar APK TV o Código Downloader (3895210) ➔
               </button>
             </div>
           </div>
@@ -1501,7 +1511,7 @@ function LandingPage() {
                 </p>
               </div>
             </div>
-            <div className="mt-6 text-xs font-semibold text-[#00F0FF]">
+            <div className="mt-6 text-xs font-semibold text-purple-400">
               Actualización constante sin cobros adicionales por nuevo contenido.
             </div>
           </div>
@@ -1524,10 +1534,165 @@ function LandingPage() {
         <CatalogShowcaseGrid onSelectPlanes={() => scrollToSection("planes")} />
       </section>
 
+      {/* SECCIÓN ESPECIAL NOVEDADES 2026: MÚSICA, OFFLINE & PEDIDOS */}
+      <section id="novedades" className="w-full max-w-6xl mx-auto px-6 py-24 border-t border-white/10 z-10">
+        <div className="mb-14 text-center max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/30 text-[10px] font-extrabold uppercase tracking-widest text-fuchsia-400 mb-3 shadow-inner">
+            <Sparkles className="w-3.5 h-3.5 text-fuchsia-400" />
+            Novedades Exclusivas 2026 • Innovación Total
+          </div>
+          <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-4 text-white">
+            Música, Modo Offline & Pedidos: <span className="capcut-accent-gradient">Todo Integrado</span>
+          </h2>
+          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Hemos llevado la experiencia de TeamG Play al siguiente nivel con tres nuevas herramientas diseñadas para darte libertad total de entretenimiento.
+          </p>
+        </div>
+
+        {/* 3 Showcase Feature Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* CARD 1: TEAMG MUSIC ♪ */}
+          <div className="rounded-3xl p-7 sm:p-8 bg-gradient-to-br from-fuchsia-950/40 via-[#130722] to-black/80 border border-fuchsia-500/30 flex flex-col justify-between shadow-[0_0_40px_rgba(217,70,239,0.12)] hover:border-fuchsia-400/60 transition-all duration-300 group">
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30 flex items-center gap-1.5">
+                  <Music className="w-3.5 h-3.5 text-fuchsia-400" /> TeamG Music ♪
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 bg-black/60 px-2.5 py-1 rounded-full border border-white/10">
+                  +100M Canciones
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-outfit font-black text-white mb-3 group-hover:text-fuchsia-300 transition-colors">
+                Streaming en Alta Fidelidad con Búsqueda por Voz
+              </h3>
+              
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6">
+                Escucha tus artistas favoritos, álbumes y radios en vivo sin cortes comerciales ni cobros extra.
+              </p>
+
+              <ul className="space-y-3 mb-8 text-xs text-slate-200">
+                <li className="flex items-start gap-2.5">
+                  <Mic className="w-4 h-4 text-fuchsia-400 shrink-0 mt-0.5" />
+                  <span><strong>Búsqueda por Voz:</strong> Presiona el micrófono y pide cualquier canción o artista hablando al instante.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <Headphones className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                  <span><strong>Playlists Comunitarias:</strong> Disfruta de listas públicas (Top 50 Global, Salsa, Pop, Reggaeton) o crea las tuyas.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <Play className="w-4 h-4 text-pink-400 shrink-0 mt-0.5" />
+                  <span><strong>Segundo Plano Real:</strong> Sigue escuchando con la pantalla apagada o app minimizada sin interrupciones.</span>
+                </li>
+              </ul>
+            </div>
+
+            <Link
+              to="/musica"
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-extrabold text-xs uppercase tracking-wider text-center transition-all shadow-[0_0_20px_rgba(217,70,239,0.35)] flex items-center justify-center gap-2 active:scale-95"
+            >
+              <Music className="w-4 h-4" /> Probar TeamG Music ♪
+            </Link>
+          </div>
+
+          {/* CARD 2: MODO OFFLINE DUAL */}
+          <div className="rounded-3xl p-7 sm:p-8 bg-gradient-to-br from-purple-950/40 via-[#110724] to-black/80 border border-purple-500/30 flex flex-col justify-between shadow-[0_0_40px_rgba(168,85,247,0.12)] hover:border-purple-400/60 transition-all duration-300 group">
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                  <WifiOff className="w-3.5 h-3.5 text-purple-400" /> Modo Offline Dual
+                </span>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                  Cero Datos
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-outfit font-black text-white mb-3 group-hover:text-purple-300 transition-colors">
+                Descarga Cine, Series y Música Sin Conexión
+              </h3>
+              
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6">
+                Guarda tu contenido preferido en tu dispositivo y disfrútalo en vuelos, carreteras o donde no tengas señal.
+              </p>
+
+              <ul className="space-y-3 mb-8 text-xs text-slate-200">
+                <li className="flex items-start gap-2.5">
+                  <Film className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                  <span><strong>Cine & Series Offline:</strong> Descarga estrenos 2026 y capítulos con calidad Full HD en memoria local.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <Music className="w-4 h-4 text-fuchsia-400 shrink-0 mt-0.5" />
+                  <span><strong>Música Sin Internet:</strong> Descarga temas individuales o álbumes enteros para escucharlos offline.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <HardDrive className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Zero Buffering:</strong> Reproducción instantánea desde el almacenamiento sin consumir tu paquete de megas.</span>
+                </li>
+              </ul>
+            </div>
+
+            <Link
+              to="/offline"
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs uppercase tracking-wider text-center transition-all shadow-[0_0_20px_rgba(168,85,247,0.35)] flex items-center justify-center gap-2 active:scale-95"
+            >
+              <WifiOff className="w-4 h-4" /> Conocer Modo Offline
+            </Link>
+          </div>
+
+          {/* CARD 3: SISTEMA DE PEDIDOS */}
+          <div className="rounded-3xl p-7 sm:p-8 bg-gradient-to-br from-pink-950/40 via-[#1a081a] to-black/80 border border-pink-500/30 flex flex-col justify-between shadow-[0_0_40px_rgba(236,72,153,0.12)] hover:border-pink-400/60 transition-all duration-300 group">
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <span className="text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-pink-400" /> Pedidos de Contenido
+                </span>
+                <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/30">
+                  Respuesta 24-48h
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-outfit font-black text-white mb-3 group-hover:text-pink-300 transition-colors">
+                ¿No encuentras una película o serie? ¡La subimos!
+              </h3>
+              
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mb-6">
+                Construimos el catálogo contigo. Si buscas un dorama, anime, novela o estreno ausente, pídelo directamente.
+              </p>
+
+              <ul className="space-y-3 mb-8 text-xs text-slate-200">
+                <li className="flex items-start gap-2.5">
+                  <Star className="w-4 h-4 text-pink-400 shrink-0 mt-0.5" />
+                  <span><strong>Todo el Entretenimiento:</strong> Películas taquilleras, K-Dramas coreanos, animes doblados y novelas completas.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span><strong>Subida Rápida:</strong> Nuestro equipo procesa y aloja el título solicitado en 24h a 48h en alta definición.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Atención Directa WhatsApp:</strong> Petición con 1 solo clic y aviso personalizado cuando tu pedido esté disponible.</span>
+                </li>
+              </ul>
+            </div>
+
+            <a
+              href="https://wa.me/51912194777?text=Hola%20TeamG%20Play,%20deseo%20hacer%20un%20pedido%20de%20contenido%20para%20el%20cat%C3%A1logo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-extrabold text-xs uppercase tracking-wider text-center transition-all shadow-[0_0_20px_rgba(236,72,153,0.35)] flex items-center justify-center gap-2 active:scale-95"
+            >
+              <MessageCircle className="w-4 h-4" /> Solicitar Contenido por WhatsApp
+            </a>
+          </div>
+
+        </div>
+      </section>
+
       {/* PLANES Y PRECIOS SECTION */}
       <section id="planes" className="w-full max-w-6xl mx-auto px-6 py-28 border-t border-white/10 z-10">
         <div className="text-center mb-16 flex flex-col items-center">
-          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-[#00F0FF] mb-3">Planes Sin Contrato</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-3">Planes Sin Contrato</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-6 text-white">
             Elige el plan ideal para ti
           </h2>
@@ -1540,13 +1705,13 @@ function LandingPage() {
             <div className="p-1 rounded-full bg-black/60 border border-white/15 inline-flex items-center">
               <button
                 onClick={() => setBillingCycle("mensual")}
-                className={`px-6 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-wider transition-all ${billingCycle === "mensual" ? "bg-[#00F0FF] text-black shadow-[0_0_20px_rgba(0,240,255,0.4)]" : "text-slate-400 hover:text-white"}`}
+                className={`px-6 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-wider transition-all ${billingCycle === "mensual" ? "bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]" : "text-slate-400 hover:text-white"}`}
               >
                 Mensual
               </button>
               <button
                 onClick={() => setBillingCycle("anual")}
-                className={`px-6 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-wider transition-all flex items-center gap-2 ${billingCycle === "anual" ? "bg-[#00F0FF] text-black shadow-[0_0_20px_rgba(0,240,255,0.4)]" : "text-slate-400 hover:text-white"}`}
+                className={`px-6 py-2.5 rounded-full text-xs font-extrabold uppercase tracking-wider transition-all flex items-center gap-2 ${billingCycle === "anual" ? "bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]" : "text-slate-400 hover:text-white"}`}
               >
                 Anual
                 <span className="text-[9px] bg-black/30 text-white px-2 py-0.5 rounded font-black">Ahorro</span>
@@ -1579,16 +1744,16 @@ function LandingPage() {
             return (
               <div
                 key={plan.id}
-                className={`flex-1 rounded-3xl capcut-card-bg p-8 flex flex-col justify-between relative overflow-hidden transition-all duration-300 ${plan.highlighted ? "border-[#00F0FF]/50 ring-1 ring-[#00F0FF]/30 scale-[1.02]" : ""}`}
+                className={`flex-1 rounded-3xl capcut-card-bg p-8 flex flex-col justify-between relative overflow-hidden transition-all duration-300 ${plan.highlighted ? "border-fuchsia-500/50 ring-1 ring-fuchsia-500/30 scale-[1.02]" : ""}`}
               >
                 {plan.isPremium && (
-                  <div className="absolute top-0 right-0 w-40 h-40 ambient-glow-cyan pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-40 h-40 ambient-glow-purple pointer-events-none" />
                 )}
 
                 <div>
                   <div className="h-7 mb-4">
                     {plan.badge ? (
-                      <span className="text-[9px] uppercase tracking-widest font-black text-[#00F0FF] bg-[#00F0FF]/15 border border-[#00F0FF]/30 px-3 py-1 rounded-full">
+                      <span className="text-[9px] uppercase tracking-widest font-black text-fuchsia-300 bg-fuchsia-500/15 border border-fuchsia-500/30 px-3 py-1 rounded-full">
                         {plan.badge}
                       </span>
                     ) : (
@@ -1613,7 +1778,7 @@ function LandingPage() {
                       <span className="text-slate-400 text-xs font-bold">/{billingCycle === "mensual" ? "mes" : "año"}</span>
                     </div>
 
-                    <span className="text-[10px] text-[#00F0FF] font-bold tracking-wider block mt-2 uppercase">
+                    <span className="text-[10px] text-purple-300 font-bold tracking-wider block mt-2 uppercase">
                       {billingCycle === "mensual" ? plan.devices.mensual : plan.devices.anual}
                     </span>
                   </div>
@@ -1623,7 +1788,7 @@ function LandingPage() {
                   <ul className="space-y-3.5 mb-8">
                     {plan.features.map((feat, idx) => (
                       <li key={idx} className="flex gap-2.5 text-xs text-slate-300 font-normal leading-relaxed">
-                        <Check className="w-4 h-4 text-[#00F0FF] shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <Check className="w-4 h-4 text-fuchsia-400 shrink-0 mt-0.5" strokeWidth={2.5} />
                         <span>{feat}</span>
                       </li>
                     ))}
@@ -1645,7 +1810,7 @@ function LandingPage() {
         {/* PAYMENT METHODS BANNER */}
         <div className="max-w-4xl mx-auto p-6 sm:p-8 rounded-3xl bg-black/60 border border-white/15 backdrop-blur-md flex flex-col items-center text-center">
           <div className="flex items-center gap-2 mb-2">
-            <CreditCard className="w-4 h-4 text-[#00F0FF]" />
+            <CreditCard className="w-4 h-4 text-fuchsia-400" />
             <h4 className="font-outfit font-black text-base text-white uppercase tracking-wider">
               Medios de Pago Aceptados
             </h4>
@@ -1685,7 +1850,7 @@ function LandingPage() {
       {/* TESTIMONIALS SECTION */}
       <section id="testimonios" className="w-full max-w-6xl mx-auto px-6 py-28 border-t border-white/10 z-10">
         <div className="mb-16 text-center">
-          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-[#00F0FF] mb-2">Opiniones</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-2">Opiniones</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-3 text-white">
             Lo que dicen nuestros usuarios
           </h2>
@@ -1698,7 +1863,7 @@ function LandingPage() {
               "Buscaba una plataforma para ver fútbol peruano sin cortes. Con el Plan Sports puedo ver Liga 1 Max y DSports. La estabilidad es impecable."
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#00F0FF]/20 border border-[#00F0FF]/40 flex items-center justify-center font-bold text-xs text-[#00F0FF]">
+              <div className="w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center font-bold text-xs text-purple-300">
                 JR
               </div>
               <div>
@@ -1743,7 +1908,7 @@ function LandingPage() {
       {/* FAQ SECTION */}
       <section id="faq" className="w-full max-w-4xl mx-auto px-6 py-28 border-t border-white/10 z-10">
         <div className="text-center mb-16">
-          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-[#00F0FF] mb-2">Preguntas Frecuentes</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] font-extrabold text-fuchsia-400 mb-2">Preguntas Frecuentes</div>
           <h2 className="text-3xl sm:text-5xl font-outfit font-extrabold tracking-tight mb-3 text-white">
             ¿Tienes dudas? Te ayudamos
           </h2>
@@ -1754,7 +1919,7 @@ function LandingPage() {
           <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 0 ? null : 0)}>
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white">¿Cómo obtengo mi acceso después de realizar el pago?</h3>
-              <ChevronRight className={`w-5 h-5 text-[#00F0FF] transition-transform ${activeFaq === 0 ? "rotate-90" : ""}`} />
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 0 ? "rotate-90" : ""}`} />
             </div>
             {activeFaq === 0 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
@@ -1766,7 +1931,7 @@ function LandingPage() {
           <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 1 ? null : 1)}>
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white">¿En qué dispositivos puedo usar la aplicación?</h3>
-              <ChevronRight className={`w-5 h-5 text-[#00F0FF] transition-transform ${activeFaq === 1 ? "rotate-90" : ""}`} />
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 1 ? "rotate-90" : ""}`} />
             </div>
             {activeFaq === 1 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
@@ -1778,11 +1943,47 @@ function LandingPage() {
           <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 2 ? null : 2)}>
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white">¿Qué resolución y calidad tienen los canales y el cine?</h3>
-              <ChevronRight className={`w-5 h-5 text-[#00F0FF] transition-transform ${activeFaq === 2 ? "rotate-90" : ""}`} />
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 2 ? "rotate-90" : ""}`} />
             </div>
             {activeFaq === 2 && (
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
                 Todos los más de 360 canales de televisión en vivo se transmiten en <strong>Full HD (1080p)</strong> garantizando fluidez y estabilidad sin cortes. Adicionalmente, contamos con secciones especiales de Cine VOD de estreno 2026 y Series en <strong>4K Ultra HD y 60 FPS</strong>.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 3 ? null : 3)}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">¿Cómo funciona el Modo Offline para películas, series y música?</h3>
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 3 ? "rotate-90" : ""}`} />
+            </div>
+            {activeFaq === 3 && (
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
+                Puedes descargar películas, episodios de series y tus canciones o playlists de <strong>TeamG Music ♪</strong> directamente al almacenamiento interno de tu móvil o PC. Así podrás reproducirlos sin conexión a internet ni gastar megas de tu plan móvil.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 4 ? null : 4)}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">¿Cómo puedo pedir una película, dorama, anime o serie?</h3>
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 4 ? "rotate-90" : ""}`} />
+            </div>
+            {activeFaq === 4 && (
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
+                Solo ingresa a la sección <strong>Pedidos</strong> o escríbenos directamente a nuestro WhatsApp Oficial con el nombre de lo que buscas. Nuestro equipo lo incorpora al catálogo VOD en 24h a 48h con la máxima calidad y opciones de audio/subtítulos.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl capcut-card-bg overflow-hidden p-6 cursor-pointer" onClick={() => setActiveFaq(activeFaq === 5 ? null : 5)}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">¿Qué incluye la nueva sección TeamG Music ♪?</h3>
+              <ChevronRight className={`w-5 h-5 text-purple-400 transition-transform ${activeFaq === 5 ? "rotate-90" : ""}`} />
+            </div>
+            {activeFaq === 5 && (
+              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed mt-3 pt-3 border-t border-white/10 font-normal">
+                Acceso ilimitado a más de 100 millones de canciones sin anuncios, emisoras de radio en vivo, búsqueda por voz con micrófono, listas comunitarias curadas y reproducción continua en segundo plano incluso con la pantalla apagada.
               </p>
             )}
           </div>
@@ -1800,11 +2001,12 @@ function LandingPage() {
           <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-400">
             <button onClick={() => scrollToSection("caracteristicas")} className="hover:text-white transition-colors">Características</button>
             <button onClick={() => scrollToSection("buscador-canales")} className="hover:text-white transition-colors">Canales</button>
+            <button onClick={() => scrollToSection("novedades")} className="hover:text-pink-300 text-pink-400 font-bold transition-colors">Música, Offline & Pedidos</button>
             <button onClick={() => scrollToSection("planes")} className="hover:text-white transition-colors">Precios</button>
-            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-[#00F0FF] text-[#00F0FF] transition-colors flex items-center gap-1 font-bold">
+            <button onClick={() => setIsAppsModalOpen(true)} className="hover:text-purple-300 text-purple-400 transition-colors flex items-center gap-1 font-bold">
               <Download className="w-3.5 h-3.5" /> Descargar Apps
             </button>
-            <Link to="/login" className="hover:text-white text-[#00F0FF] font-bold">Iniciar Sesión</Link>
+            <Link to="/login" className="hover:text-white text-fuchsia-400 font-bold">Iniciar Sesión</Link>
           </div>
         </div>
       </footer>
@@ -1831,12 +2033,12 @@ function LandingPage() {
       {/* MODAL: FULL HD CHANNEL GRID POSTER LIGHTBOX */}
       {isGrillaModalOpen && (
         <div className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-          <div className="relative w-full max-w-4xl bg-[#08081a] border border-cyan-500/40 rounded-3xl p-6 shadow-[0_0_60px_rgba(0,240,255,0.3)] text-white flex flex-col max-h-[90vh]">
+          <div className="relative w-full max-w-4xl bg-[#08081a] border border-fuchsia-500/40 rounded-3xl p-6 shadow-[0_0_60px_rgba(168,85,247,0.3)] text-white flex flex-col max-h-[90vh]">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[#00F0FF]/15 text-[#00F0FF]">
+                <div className="p-2.5 rounded-xl bg-fuchsia-500/15 text-fuchsia-400">
                   <ImageIcon className="w-5 h-5" />
                 </div>
                 <div>
@@ -1849,7 +2051,7 @@ function LandingPage() {
                 <a
                   href={grillaPoster}
                   download="TeamG_Grilla_Oficial_Canales.png"
-                  className="px-4 py-2 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-[0_0_20px_rgba(217,70,239,0.35)]"
                 >
                   <Download className="w-4 h-4" />
                   Descargar Imagen
@@ -1889,7 +2091,7 @@ function LandingPage() {
       {/* APPS & TV DOWNLOADS MODAL */}
       {isAppsModalOpen && (
         <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-          <div className="relative w-full max-w-2xl bg-[#08081a] border border-cyan-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(0,240,255,0.25)] text-white">
+          <div className="relative w-full max-w-2xl bg-[#08081a] border border-fuchsia-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_60px_rgba(168,85,247,0.25)] text-white">
             
             {/* Close Button */}
             <button
@@ -1901,7 +2103,7 @@ function LandingPage() {
 
             {/* Modal Header */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#00F0FF]/10 border border-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-extrabold uppercase tracking-widest mb-3">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/30 text-fuchsia-400 text-[11px] font-extrabold uppercase tracking-widest mb-3">
                 <Download className="w-3.5 h-3.5" /> Centro de Descargas Oficial
               </div>
               <h2 className="text-2xl sm:text-3xl font-outfit font-black tracking-tight text-white">
@@ -1916,16 +2118,16 @@ function LandingPage() {
             <div className="grid grid-cols-1 gap-4">
               
               {/* Option 1: Smart TV & TV Box (Featured) */}
-              <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-purple-950/20 to-black/60 border-2 border-[#00F0FF]/50 relative overflow-hidden shadow-lg">
+              <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-fuchsia-950/40 via-purple-950/30 to-black/60 border-2 border-fuchsia-500/50 relative overflow-hidden shadow-lg">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/40 text-[#00F0FF]">
+                    <div className="p-3 rounded-2xl bg-fuchsia-500/15 border border-fuchsia-500/40 text-fuchsia-400">
                       <Tv className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-outfit font-black text-lg text-white">Smart TV / TV Box</h3>
-                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#00F0FF] text-black">
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white">
                           Recomendado TV
                         </span>
                       </div>
@@ -1943,7 +2145,7 @@ function LandingPage() {
                       href="https://teamg.store/teamgplay2TV.apk"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 py-3 px-5 rounded-xl bg-[#00F0FF] hover:bg-[#33F3FF] text-black font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(0,240,255,0.4)] flex items-center justify-center gap-2"
+                      className="flex-1 py-3 px-5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-[0_0_25px_rgba(217,70,239,0.4)] flex items-center justify-center gap-2"
                     >
                       <Download className="w-4 h-4 stroke-[2.5]" />
                       Descargar APK Smart TV
@@ -1963,7 +2165,7 @@ function LandingPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
-                      <span className="font-mono text-lg sm:text-xl font-black text-[#00F0FF] tracking-wider px-3 py-1 rounded-lg bg-[#00F0FF]/10 border border-[#00F0FF]/30">
+                      <span className="font-mono text-lg sm:text-xl font-black text-fuchsia-300 tracking-wider px-3 py-1 rounded-lg bg-fuchsia-500/10 border border-fuchsia-500/30">
                         3895210
                       </span>
                       <button
@@ -2030,7 +2232,7 @@ function LandingPage() {
             {/* Fast Install Guide Footer */}
             <div className="mt-6 p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center">
               <p className="text-[11px] text-slate-400">
-                💡 <strong className="text-slate-300">¿Cómo usar el código Downloader en Smart TV?</strong> Abre la app <span className="text-orange-400 font-bold">Downloader</span> en tu televisor, escribe <strong className="text-[#00F0FF] font-mono">3895210</strong>, presiona <strong className="text-white">Go</strong> y la instalación iniciará sola.
+                💡 <strong className="text-slate-300">¿Cómo usar el código Downloader en Smart TV?</strong> Abre la app <span className="text-orange-400 font-bold">Downloader</span> en tu televisor, escribe <strong className="text-fuchsia-400 font-mono">3895210</strong>, presiona <strong className="text-white">Go</strong> y la instalación iniciará sola.
               </p>
             </div>
 
@@ -2050,7 +2252,7 @@ function LandingPage() {
             width: pipSize === "small" ? "320px" : pipSize === "large" ? "640px" : "460px",
             height: pipSize === "small" ? "200px" : pipSize === "large" ? "380px" : "280px",
           }}
-          className="rounded-3xl bg-[#070716] border border-[#00F0FF]/50 shadow-[0_20px_60px_rgba(0,240,255,0.4)] z-[9999] overflow-hidden flex flex-col transition-shadow duration-300"
+          className="rounded-3xl bg-[#070716] border border-fuchsia-500/50 shadow-[0_20px_60px_rgba(168,85,247,0.35)] z-[9999] overflow-hidden flex flex-col transition-shadow duration-300"
         >
           {/* Draggable Header Bar */}
           <div
@@ -2059,8 +2261,8 @@ function LandingPage() {
             className="bg-[#0b0b24] px-4 py-2.5 flex items-center justify-between border-b border-white/10 cursor-move select-none"
           >
             <div className="flex items-center gap-2">
-              <GripHorizontal className="w-4 h-4 text-[#00F0FF] cursor-grab active:cursor-grabbing" />
-              <span className="text-[10px] uppercase font-black text-[#00F0FF] tracking-wider flex items-center gap-1.5">
+              <GripHorizontal className="w-4 h-4 text-fuchsia-400 cursor-grab active:cursor-grabbing" />
+              <span className="text-[10px] uppercase font-black text-fuchsia-300 tracking-wider flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Reproductor PIP (Arrastrar & Redimensionar)
               </span>
@@ -2071,21 +2273,21 @@ function LandingPage() {
               <div className="flex items-center bg-black/60 rounded-lg p-0.5 border border-white/10 text-[9px] font-bold">
                 <button
                   onClick={() => setPipSize("small")}
-                  className={`px-1.5 py-0.5 rounded ${pipSize === "small" ? "bg-[#00F0FF] text-black" : "text-slate-400 hover:text-white"}`}
+                  className={`px-1.5 py-0.5 rounded ${pipSize === "small" ? "bg-fuchsia-600 text-white" : "text-slate-400 hover:text-white"}`}
                   title="Tamaño Pequeño"
                 >
                   S
                 </button>
                 <button
                   onClick={() => setPipSize("medium")}
-                  className={`px-1.5 py-0.5 rounded ${pipSize === "medium" ? "bg-[#00F0FF] text-black" : "text-slate-400 hover:text-white"}`}
+                  className={`px-1.5 py-0.5 rounded ${pipSize === "medium" ? "bg-fuchsia-600 text-white" : "text-slate-400 hover:text-white"}`}
                   title="Tamaño Mediano"
                 >
                   M
                 </button>
                 <button
                   onClick={() => setPipSize("large")}
-                  className={`px-1.5 py-0.5 rounded ${pipSize === "large" ? "bg-[#00F0FF] text-black" : "text-slate-400 hover:text-white"}`}
+                  className={`px-1.5 py-0.5 rounded ${pipSize === "large" ? "bg-fuchsia-600 text-white" : "text-slate-400 hover:text-white"}`}
                   title="Tamaño Grande"
                 >
                   L
@@ -2094,7 +2296,7 @@ function LandingPage() {
 
               <button
                 onClick={togglePipFullscreen}
-                className="p-1 rounded bg-white/10 hover:bg-[#00F0FF] hover:text-black transition text-white"
+                className="p-1 rounded bg-white/10 hover:bg-fuchsia-600 hover:text-white transition text-white"
                 title="Pantalla Completa"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -2124,7 +2326,7 @@ function LandingPage() {
 
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-2.5 flex items-center justify-between no-drag opacity-90 group-hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-1.5">
-                <span className="px-2.5 py-0.5 rounded bg-[#00F0FF] text-black font-extrabold text-[10px] tracking-wide">
+                <span className="px-2.5 py-0.5 rounded bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white font-extrabold text-[10px] tracking-wide">
                   Demo TeamG Play
                 </span>
               </div>
@@ -2146,7 +2348,7 @@ function LandingPage() {
                 </button>
                 <button
                   onClick={togglePipFullscreen}
-                  className="p-1 rounded bg-black/60 hover:bg-[#00F0FF] hover:text-black text-white transition"
+                  className="p-1 rounded bg-black/60 hover:bg-fuchsia-600 hover:text-white text-white transition"
                   title="Pantalla Completa"
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
