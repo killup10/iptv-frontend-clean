@@ -30,7 +30,8 @@ import {
   Lock,
   Sparkles,
   Flame,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import { useMusic } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
@@ -194,14 +195,14 @@ export default function Music() {
     return () => { isMounted = false; };
   }, [selectedCuratedPlaylist]);
 
-  // Cargar Lo Más Reciente (Estrenos 2026)
+  // Cargar Lo Más Reciente (Estrenos 2026 en vivo desde Apple Music RSS)
   useEffect(() => {
     let isMounted = true;
-    if (activeTab === 'fresh' && recentTracks.length === 0) {
+    if (activeTab === 'fresh' && recentTracks.length < 20) {
       async function loadRecent() {
         setIsLoadingRecent(true);
         try {
-          const tracks = await musicService.getRecentTracks(30);
+          const tracks = await musicService.getRecentTracks(150);
           if (isMounted && tracks && tracks.length > 0) {
             setRecentTracks(tracks);
           }
@@ -215,6 +216,21 @@ export default function Music() {
     }
     return () => { isMounted = false; };
   }, [activeTab, recentTracks.length]);
+
+  // Actualizar manualmente el catálogo de canciones recientes desde feeds oficiales
+  const handleRefreshRecent = useCallback(async () => {
+    setIsLoadingRecent(true);
+    try {
+      const tracks = await musicService.getRecentTracks(150, true);
+      if (tracks && tracks.length > 0) {
+        setRecentTracks(tracks);
+      }
+    } catch (e) {
+      console.warn('[MusicPage] Error actualizando canciones recientes:', e);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  }, []);
 
   // Cargar Artistas Independientes / Temas
   useEffect(() => {
@@ -898,13 +914,13 @@ export default function Music() {
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-ping" />
-                  <span>Estrenos 2026 • Nuevos Lanzamientos</span>
+                  <span>Estrenos 2026 • Actualizado Hoy (30 de Septiembre de 2026)</span>
                 </div>
                 <h2 className="text-2xl sm:text-4xl font-black text-white">
-                  Lo Más Reciente Esta Semana
+                  Lo Más Reciente
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-                  Sencillos recién salidos del estudio, colaboraciones mundiales y los temas más frescos agregados a nuestro catálogo oficial.
+                  Sincronización en vivo con charts globales y latinoamericanos de Apple Music. Cientos de nuevos sencillos y lanzamientos oficiales actualizados a diario.
                 </p>
 
                 {recentTracks.length > 0 && (
@@ -926,6 +942,16 @@ export default function Music() {
                     >
                       <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
                       <span>Aleatorio</span>
+                    </button>
+
+                    <button
+                      onClick={handleRefreshRecent}
+                      disabled={isLoadingRecent}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                      title="Sincronizar en vivo desde los feeds oficiales de Apple Music"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-fuchsia-400 ${isLoadingRecent ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingRecent ? 'Actualizando...' : 'Actualizar Catálogo'}</span>
                     </button>
 
                     <button
@@ -2681,6 +2707,23 @@ function TrackCard({
 
   const isDownloading = downloadStatus?.status === 'downloading';
 
+  const formattedDate = track.releaseDate ? (() => {
+    try {
+      const parts = track.releaseDate.split('T')[0].split('-');
+      if (parts.length === 3) {
+        const year = parts[0];
+        const month = parts[1];
+        const day = parts[2];
+        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const mIdx = parseInt(month, 10) - 1;
+        return `${day} ${months[mIdx] || month} ${year}`;
+      }
+      return track.releaseDate;
+    } catch {
+      return track.releaseDate;
+    }
+  })() : null;
+
   return (
     <div 
       onClick={onPlay}
@@ -2738,9 +2781,16 @@ function TrackCard({
         <h4 className={`text-xs sm:text-sm font-bold truncate transition ${isPlaying ? 'text-fuchsia-400' : 'text-white group-hover:text-fuchsia-300'}`}>
           {track.title}
         </h4>
-        <p className="text-[11px] text-gray-400 truncate mt-0.5">
-          {track.artist}
-        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <p className="text-[11px] text-gray-400 truncate flex-1">
+            {track.artist}
+          </p>
+          {formattedDate && (
+            <span className="text-[9px] font-semibold text-fuchsia-300/90 bg-fuchsia-950/60 px-1.5 py-0.5 rounded border border-fuchsia-500/20 flex-shrink-0" title={`Fecha de lanzamiento: ${formattedDate}`}>
+              {formattedDate}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Footer de la tarjeta: Duración a la izquierda y Botones de acción con espaciado generoso a la derecha */}

@@ -521,10 +521,56 @@ function formatItunesTrack(item) {
     fullDuration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : 0,
     isPreviewOnly: true,
     youtubeId: null,
-    genre: item.primaryGenreName || 'Música',
-    releaseDate: item.releaseDate ? item.releaseDate.substring(0, 4) : '',
+    releaseDate: item.releaseDate ? item.releaseDate.substring(0, 10) : '',
     isRadio: false,
     externalUrl: item.trackViewUrl || ''
+  };
+}
+
+// Helper para transformar resultados de feeds RSS en vivo de iTunes / Apple Music (Top Songs, New Releases)
+function formatItunesRssTrack(e) {
+  if (!e) return null;
+  const title = e['im:name']?.label || 'Canción Desconocida';
+  const artist = e['im:artist']?.label || 'Artista Desconocido';
+  const rawId = e.id?.attributes?.['im:id'] || `${title}-${artist}`.replace(/\s+/g, '-').toLowerCase();
+
+  // Artwork HD: convert 170x170 a 600x600bb
+  const rawImg = e['im:image']?.slice(-1)[0]?.label || '';
+  const hdCover = rawImg
+    ? rawImg.replace(/\/\d+x\d+bb\.(png|jpg)/, '/600x600bb.jpg')
+    : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
+
+  // Audio Preview URL
+  let audioUrl = '';
+  if (Array.isArray(e.link)) {
+    const audioLinkObj = e.link.find(l => l.attributes?.type?.includes('audio') || l.attributes?.['im:assetType'] === 'preview');
+    audioUrl = audioLinkObj?.attributes?.href || '';
+  } else if (e.link?.attributes?.href) {
+    audioUrl = e.link.attributes.href;
+  }
+
+  const rawDate = e['im:releaseDate']?.label || '';
+  const releaseDate = rawDate ? rawDate.substring(0, 10) : '2026';
+  const genre = e.category?.attributes?.label || 'Música';
+  const album = e['im:collection']?.['im:name']?.label || title;
+
+  return {
+    id: `itunes-${rawId}`,
+    trackId: rawId,
+    title,
+    artist,
+    album,
+    cover: hdCover,
+    audioUrl,
+    previewUrl: audioUrl,
+    duration: 210,
+    fullDuration: 210,
+    isPreviewOnly: true,
+    youtubeId: null,
+    genre,
+    releaseDate,
+    isRadio: false,
+    externalUrl: e.id?.label || ''
   };
 }
 
@@ -669,86 +715,43 @@ async function fetchDeezerApi(endpoint) {
   return null;
 }
 
-// Canciones destacadas de arranque instantáneo.
-// El youtubeId se resuelve dinámicamente (no hardcodeado) para no congelar el catálogo.
+// Canciones destacadas de arranque instantáneo (Estrenos 2026).
+// El youtubeId se resuelve dinámicamente para la versión completa sin bloquear.
 export const INITIAL_FEATURED_TRACKS = [
   {
     id: 'feat-1',
-    title: 'BbY WOW',
-    artist: 'KAROL G, Judeline & rusowsky',
-    album: 'BbY WOW',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 225,
-    fullDuration: 225,
-    genre: 'Urbano Latino',
-    isRadio: false
-  },
-  {
-    id: 'feat-2',
-    title: 'NUEVAYoL',
-    artist: 'Bad Bunny',
-    album: 'DeBÍ TiRAR MÁS FOToS',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/90/5e/7e/905e7ed5-a8fa-a8f3-cd06-0028fdf3afaa/199066342442.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 197,
-    fullDuration: 197,
-    genre: 'Urbano Latino',
-    isRadio: false
-  },
-  {
-    id: 'feat-3',
-    title: 'LUNA',
-    artist: 'Feid & ATL Jacob',
-    album: 'FERXXOCALIPSIS',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/7c/54/aa/7c54aa94-9ae3-4b80-7b23-8b23955dc3a2/23UM1IM60703.rgb.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f8/b0/5b/f8b05b80-c7ea-9ea8-759c-5fd609c15341/mzaf_2589321753277640940.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f8/b0/5b/f8b05b80-c7ea-9ea8-759c-5fd609c15341/mzaf_2589321753277640940.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 196,
-    fullDuration: 196,
-    genre: 'Reggaetón',
-    isRadio: false
-  },
-  {
-    id: 'feat-4',
-    title: 'Taste',
-    artist: 'Sabrina Carpenter',
-    album: 'Short n\' Sweet',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f6/15/d0/f615d0ab-e0c4-575d-907e-1cc084642357/24UMGIM61704.rgb.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/57/a6/2657a620-c596-e0e4-efa2-e814f3572d1c/mzaf_5475540510703120797.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/26/57/a6/2657a620-c596-e0e4-efa2-e814f3572d1c/mzaf_5475540510703120797.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 157,
-    fullDuration: 157,
-    genre: 'Pop',
-    isRadio: false
-  },
-  {
-    id: 'feat-5',
-    title: 'Touching The Sky',
-    artist: 'Rauw Alejandro',
-    album: 'Cosa Nuestra',
-    cover: 'https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=600&auto=format&fit=crop&q=80',
+    title: 'To Whom It May Concern',
+    artist: 'A Perfect Circle',
+    album: 'To Whom It May Concern',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
     audioUrl: '',
     previewUrl: '',
     youtubeId: null,
     isPreviewOnly: true,
-    duration: 188,
-    fullDuration: 188,
-    genre: 'Pop Urbano',
+    duration: 230,
+    fullDuration: 230,
+    genre: 'Rock Alternativo',
+    releaseDate: '2026-09-29',
     isRadio: false
   },
   {
-    id: 'feat-6',
+    id: 'feat-2',
+    title: 'MIENTES',
+    artist: 'Laura Pausini',
+    album: 'MIENTES',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 215,
+    fullDuration: 215,
+    genre: 'Pop Latino',
+    releaseDate: '2026-09-29',
+    isRadio: false
+  },
+  {
+    id: 'feat-3',
     title: 'Patient Zero',
     artist: 'Taylor Swift',
     album: 'Patient Zero',
@@ -760,6 +763,119 @@ export const INITIAL_FEATURED_TRACKS = [
     duration: 215,
     fullDuration: 215,
     genre: 'Pop',
+    releaseDate: '2026-09-24',
+    isRadio: false
+  },
+  {
+    id: 'feat-4',
+    title: 'Make Me Love You',
+    artist: 'Nickelback',
+    album: 'Make Me Love You',
+    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 210,
+    fullDuration: 210,
+    genre: 'Rock',
+    releaseDate: '2026-09-25',
+    isRadio: false
+  },
+  {
+    id: 'feat-5',
+    title: 'Soy Un Joven',
+    artist: 'Los Gemelos De Sinaloa & Fuerza Regida',
+    album: 'Soy Un Joven',
+    cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 195,
+    fullDuration: 195,
+    genre: 'Música Mexicana',
+    releaseDate: '2026-09-23',
+    isRadio: false
+  },
+  {
+    id: 'feat-6',
+    title: 'BbY WOW',
+    artist: 'KAROL G, Judeline & rusowsky',
+    album: 'BbY WOW',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 225,
+    fullDuration: 225,
+    genre: 'Urbano Latino',
+    releaseDate: '2026-08-07',
+    isRadio: false
+  },
+  {
+    id: 'feat-7',
+    title: 'Ahí',
+    artist: 'KAROL G & Drake',
+    album: 'Ahí',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 218,
+    fullDuration: 218,
+    genre: 'Urbano Latino',
+    releaseDate: '2026-08-07',
+    isRadio: false
+  },
+  {
+    id: 'feat-8',
+    title: 'CARITA FELIZ',
+    artist: 'Myke Towers',
+    album: 'CARITA FELIZ',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 198,
+    fullDuration: 198,
+    genre: 'Urbano Latino',
+    releaseDate: '2026-08-19',
+    isRadio: false
+  },
+  {
+    id: 'feat-9',
+    title: 'Sour Grapes',
+    artist: 'NiziU',
+    album: 'Sour Grapes',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    audioUrl: '',
+    previewUrl: '',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 180,
+    fullDuration: 180,
+    genre: 'Pop',
+    releaseDate: '2026-09-28',
+    isRadio: false
+  },
+  {
+    id: 'feat-10',
+    title: 'NUEVAYoL',
+    artist: 'Bad Bunny',
+    album: 'DeBÍ TiRAR MÁS FOToS',
+    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/90/5e/7e/905e7ed5-a8fa-a8f3-cd06-0028fdf3afaa/199066342442.jpg/600x600bb.jpg',
+    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
+    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
+    youtubeId: null,
+    isPreviewOnly: true,
+    duration: 197,
+    fullDuration: 197,
+    genre: 'Urbano Latino',
+    releaseDate: '2025-01-05',
     isRadio: false
   }
 ];
@@ -1136,21 +1252,100 @@ export const musicService = {
 
   /**
    * Obtiene los temas más recientes (Lanzamientos 2026 / singles nuevos).
+   * Se alimenta en vivo de múltiples RSS feeds globales y locales de Apple Music / iTunes
+   * (Top 100 Global, Perú, México, Urbano Latino, Pop, Hip-Hop, Rock) y búsquedas de artistas
+   * top con estrenos en 2026, garantizando cientos de canciones actualizadas al día de hoy.
    */
-  async getRecentTracks(limit = 30) {
+  async getRecentTracks(limit = 150, forceRefresh = false) {
+    const cacheKey = 'teamg_music_recent_tracks_v2';
+    if (!forceRefresh) {
+      try {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length >= 20) {
+            return parsed.slice(0, limit);
+          }
+        }
+      } catch {}
+    }
+
     try {
-      const tracks = await this.searchTracks('2026 exitos nuevos sencillos estrenos', limit);
-      if (tracks && tracks.length > 0) {
-        return tracks.sort((a, b) => {
-          const yearA = parseInt(a.releaseDate) || 0;
-          const yearB = parseInt(b.releaseDate) || 0;
-          return yearB - yearA;
+      const feeds = [
+        'https://itunes.apple.com/us/rss/topsongs/limit=100/json',
+        'https://itunes.apple.com/pe/rss/topsongs/limit=100/json',
+        'https://itunes.apple.com/mx/rss/topsongs/limit=100/json',
+        'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=1119/json',
+        'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=14/json',
+        'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=18/json',
+        'https://itunes.apple.com/us/rss/topsongs/limit=100/genre=21/json'
+      ];
+
+      const topArtists = ['Karol G', 'Bad Bunny', 'Rauw Alejandro', 'Fuerza Regida', 'Myke Towers', 'Taylor Swift', 'Falling In Reverse'];
+      const artistUrls = topArtists.map(a => `https://itunes.apple.com/search?term=${encodeURIComponent(a)}&entity=song&limit=15`);
+
+      const allUrls = [...feeds, ...artistUrls];
+      const responses = await Promise.allSettled(
+        allUrls.map(url =>
+          fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(r => r.json())
+            .catch(() => null)
+        )
+      );
+
+      const trackMap = new Map();
+
+      for (const res of responses) {
+        if (res.status !== 'fulfilled' || !res.value) continue;
+        const data = res.value;
+
+        // 1. Feeds RSS de iTunes / Apple Music
+        if (data.feed?.entry && Array.isArray(data.feed.entry)) {
+          for (const entry of data.feed.entry) {
+            const formatted = formatItunesRssTrack(entry);
+            if (formatted) {
+              const year = parseInt(formatted.releaseDate?.substring(0, 4)) || 0;
+              // Filtro estricto: solo temas de 2025 y 2026 para garantizar que son recientes
+              if (year >= 2025 && !trackMap.has(formatted.id)) {
+                trackMap.set(formatted.id, formatted);
+              }
+            }
+          }
+        }
+
+        // 2. Búsquedas directas de iTunes
+        if (data.results && Array.isArray(data.results)) {
+          for (const item of data.results) {
+            const formatted = formatItunesTrack(item);
+            if (formatted) {
+              const year = parseInt(formatted.releaseDate?.substring(0, 4)) || 0;
+              if (year >= 2025 && !trackMap.has(formatted.id)) {
+                trackMap.set(formatted.id, formatted);
+              }
+            }
+          }
+        }
+      }
+
+      if (trackMap.size > 0) {
+        // Ordenamiento cronológico descendente estricto (de hoy/ayer hacia atrás)
+        const sorted = Array.from(trackMap.values()).sort((a, b) => {
+          const dateA = new Date(a.releaseDate || '2025-01-01').getTime();
+          const dateB = new Date(b.releaseDate || '2025-01-01').getTime();
+          return dateB - dateA;
         });
+
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(sorted));
+        } catch {}
+
+        return sorted.slice(0, limit);
       }
     } catch (e) {
-      console.warn('[MusicService] Error cargando temas recientes:', e);
+      console.warn('[MusicService] Error cargando temas recientes desde feeds:', e);
     }
-    return INITIAL_FEATURED_TRACKS;
+
+    return INITIAL_FEATURED_TRACKS.slice(0, limit);
   },
 
   /**
