@@ -22,12 +22,13 @@ import {
   Loader2,
   Check,
   Download,
-  DownloadCloud
+  DownloadCloud,
+  Disc3
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { isPremiumUser } from '../../utils/planAccess.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ReactPlayer from 'react-player/youtube';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
 
@@ -40,6 +41,7 @@ function formatTime(seconds) {
 
 export default function GlobalMusicPlayer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     currentTrack,
     isPlaying,
@@ -88,6 +90,36 @@ export default function GlobalMusicPlayer() {
   const [seekVal, setSeekVal] = useState(0);
 
   if (!isPremium || !currentTrack) return null;
+
+  const handleGoToArtist = (e) => {
+    if (e) e.stopPropagation();
+    if (isExpandedPlayer) setIsExpandedPlayer(false);
+
+    const artistName = currentTrack?.artist;
+    const artistId = currentTrack?.artistId;
+    if (!artistName) return;
+
+    const pathname = location?.pathname || '';
+    const isAlreadyOnMusic = pathname.includes('musica') || pathname.includes('music');
+
+    if (!isAlreadyOnMusic) {
+      navigate('/musica', {
+        state: {
+          openArtist: artistName,
+          openArtistId: artistId
+        }
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      if (typeof window.__teamgOpenArtist === 'function') {
+        window.__teamgOpenArtist(artistName, artistId);
+      }
+      window.dispatchEvent(new CustomEvent('teamg:open-artist', {
+        detail: { name: artistName, id: artistId }
+      }));
+    }
+  };
 
   const isFav = isFavorite(currentTrack.id);
   const isDownloaded = isTrackDownloaded(currentTrack.id);
@@ -173,13 +205,7 @@ export default function GlobalMusicPlayer() {
               ) : (
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate('/music');
-                    window.dispatchEvent(new CustomEvent('teamg:open-artist', {
-                      detail: { name: currentTrack.artist, id: currentTrack.artistId }
-                    }));
-                  }}
+                  onClick={handleGoToArtist}
                   className="text-[11px] text-gray-400 hover:text-fuchsia-300 hover:underline truncate block text-left transition cursor-pointer"
                   title={`Ver discografía y álbumes de ${currentTrack.artist}`}
                 >
@@ -534,21 +560,25 @@ export default function GlobalMusicPlayer() {
                   {currentTrack.artist}
                 </p>
               ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsExpandedPlayer(false);
-                    navigate('/music');
-                    window.dispatchEvent(new CustomEvent('teamg:open-artist', {
-                      detail: { name: currentTrack.artist, id: currentTrack.artistId }
-                    }));
-                  }}
-                  className="text-lg text-gray-300 hover:text-fuchsia-400 hover:underline font-medium mb-3 transition cursor-pointer text-center md:text-left"
-                  title={`Ver discografía y álbumes de ${currentTrack.artist}`}
-                >
-                  {currentTrack.artist}
-                </button>
+                <div className="flex flex-col sm:flex-row items-center md:items-start gap-2.5 mb-4">
+                  <button
+                    type="button"
+                    onClick={handleGoToArtist}
+                    className="text-lg sm:text-xl font-bold text-gray-200 hover:text-fuchsia-400 hover:underline transition cursor-pointer text-center md:text-left"
+                    title={`Ver discografía y álbumes de ${currentTrack.artist}`}
+                  >
+                    {currentTrack.artist}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGoToArtist}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-400/30 text-[11px] font-semibold transition cursor-pointer active:scale-95 shadow-sm"
+                    title={`Ver todos los álbumes y canciones de ${currentTrack.artist}`}
+                  >
+                    <Disc3 className="w-3.5 h-3.5 text-fuchsia-400" />
+                    <span>Ver Discografía</span>
+                  </button>
+                </div>
               )}
               {!currentTrack.isRadio && (
                 <div className="flex items-center gap-2 mb-4">

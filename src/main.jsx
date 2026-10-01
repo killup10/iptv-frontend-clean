@@ -242,6 +242,16 @@ const router = createHashRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: "music",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Music />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
 
       {
         path: "bulk-upload",

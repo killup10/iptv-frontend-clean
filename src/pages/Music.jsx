@@ -35,7 +35,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusic } from '../context/MusicContext.jsx';
@@ -79,7 +79,22 @@ export default function Music() {
 
   const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isPremium = isPremiumUser(user);
+
+  // Fecha de hoy dinámica en español (ej. "1 de Octubre de 2026")
+  const todayLabel = useMemo(() => {
+    try {
+      const now = new Date();
+      const day = now.getDate();
+      const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const month = months[now.getMonth()];
+      const year = now.getFullYear();
+      return `${day} de ${month} de ${year}`;
+    } catch {
+      return 'Hoy';
+    }
+  }, []);
 
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'fresh' | 'community' | 'indie' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
@@ -535,6 +550,15 @@ export default function Music() {
       window.__teamgOpenArtist = null;
     };
   }, [handleOpenArtist]);
+
+  useEffect(() => {
+    if (location.state?.openArtist) {
+      handleOpenArtist(location.state.openArtist, location.state.openArtistId);
+      try {
+        window.history.replaceState({}, document.title);
+      } catch {}
+    }
+  }, [location.state, handleOpenArtist]);
 
   // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
   const handleMusicBack = useCallback(() => {
@@ -1497,6 +1521,7 @@ export default function Music() {
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                   />
                 ))}
               </div>
@@ -1516,13 +1541,15 @@ export default function Music() {
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-ping" />
-                  <span>Estrenos 2026 • Actualizado Hoy (30 de Septiembre de 2026)</span>
+                  <span>Estrenos {new Date().getFullYear()} • Actualizado Hoy ({todayLabel})</span>
                 </div>
                 <h2 className="text-2xl sm:text-4xl font-black text-white">
                   Lo Más Reciente
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-                  Sincronización en vivo con charts globales y latinoamericanos de Apple Music. Cientos de nuevos sencillos y lanzamientos oficiales actualizados a diario.
+                  {recentTracks.length > 0
+                    ? `Sincronización oficial con Apple Music. ${recentTracks.length} estrenos y lanzamientos organizados cronológicamente desde los más recientes de hoy hacia atrás.`
+                    : 'Sincronización en vivo con charts globales y latinoamericanos de Apple Music. Cientos de nuevos sencillos y lanzamientos oficiales actualizados a diario.'}
                 </p>
 
                 {recentTracks.length > 0 && (
@@ -1607,6 +1634,7 @@ export default function Music() {
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                   />
                 ))}
               </div>
@@ -1737,6 +1765,7 @@ export default function Music() {
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                        onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
                   </div>
@@ -2084,6 +2113,7 @@ export default function Music() {
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                     />
                   ))}
                 </div>
@@ -2156,6 +2186,7 @@ export default function Music() {
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                     />
                   ))}
                 </div>
@@ -2303,6 +2334,7 @@ export default function Music() {
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                   />
                 ))}
               </div>
@@ -2433,6 +2465,7 @@ export default function Music() {
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                        onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
                   </div>
@@ -2626,6 +2659,7 @@ export default function Music() {
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                        onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
                   </div>
@@ -2995,6 +3029,7 @@ export default function Music() {
                             isFav={isFavorite(track.id)}
                             onToggleFav={() => toggleFavorite(track)}
                             onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                            onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                           />
                         ))}
                       </div>
@@ -3184,6 +3219,7 @@ export default function Music() {
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                     />
                   ))}
                 </div>
@@ -3297,6 +3333,7 @@ export default function Music() {
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
                     isDownloaded={true}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                   />
                 ))}
               </div>

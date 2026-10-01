@@ -1339,8 +1339,19 @@ export const musicService = {
     try {
       // 1. Si no tenemos el ID, buscar el artista en Deezer
       if (!resolvedId && cleanName) {
-        const searchData = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(cleanName)}&limit=15`);
-        const list = (searchData?.data || []).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
+        let searchData = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(cleanName)}&limit=15`);
+        let list = (searchData?.data || []).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
+        
+        // Si no hubo resultados y contiene colaboraciones (feat, ft, &, ,), intentar con el artista principal
+        if (list.length === 0 && (cleanName.includes(',') || cleanName.includes('&') || /feat|ft\./i.test(cleanName))) {
+          const primaryName = cleanName.split(/[,&]|\bfeat\.?|\bft\.?/i)[0].trim();
+          if (primaryName) {
+            const fallbackData = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(primaryName)}&limit=15`);
+            if (fallbackData?.data?.length > 0) {
+              list = fallbackData.data.sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
+            }
+          }
+        }
         
         // Priorizar coincidencia exacta de nombre o caso especial (ej: Zen peruano ID 209349377)
         if (cleanName.toLowerCase() === 'zen') {
@@ -1616,7 +1627,8 @@ export const musicService = {
    * top con estrenos en 2026, garantizando cientos de canciones actualizadas al día de hoy.
    */
   async getRecentTracks(limit = 150, forceRefresh = false) {
-    const cacheKey = 'teamg_music_recent_tracks_v5';
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const cacheKey = `teamg_music_recent_tracks_${todayStr}`;
     if (!forceRefresh) {
       try {
         const cached = sessionStorage.getItem(cacheKey);
