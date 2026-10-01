@@ -134,8 +134,7 @@ class BackgroundPlaybackService {
       // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia y reproducir con ExoPlayer
       if (Capacitor.isNativePlatform() && NativeMusicPlayback) {
         const rawAudio = mediaInfo.streamUrl || mediaInfo.audioUrl || '';
-        const isPreview = rawAudio.includes('apple-assets-us-std') || rawAudio.includes('AudioPreview');
-        const safeAudioUrl = isPreview ? '' : rawAudio;
+        const safeAudioUrl = rawAudio;
 
         NativeMusicPlayback.updatePlayback({
           title: mediaInfo.title || 'TeamG Play',
@@ -167,8 +166,7 @@ class BackgroundPlaybackService {
 
     if (Capacitor.isNativePlatform() && NativeMusicPlayback && mediaInfo) {
       const rawAudio = mediaInfo.streamUrl || mediaInfo.audioUrl || '';
-      const isPreview = rawAudio.includes('apple-assets-us-std') || rawAudio.includes('AudioPreview');
-      const safeAudioUrl = isPreview ? '' : rawAudio;
+      const safeAudioUrl = rawAudio;
 
       NativeMusicPlayback.updatePlayback({
         title: mediaInfo.title || 'TeamG Play',

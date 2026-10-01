@@ -475,6 +475,10 @@ export function MusicProvider({ children }) {
   useEffect(() => {
     const onVideoPlay = (e) => {
       if (e.target && e.target.tagName === 'VIDEO') {
+        // Ignorar videos que pertenecen al reproductor musical de TeamG Play (modo video)
+        if (e.target.closest('#teamg-music-video-player') || e.target.closest('.teamg-music-video-container')) {
+          return;
+        }
         if (audioRef.current && !audioRef.current.paused) {
           audioRef.current.pause();
         }

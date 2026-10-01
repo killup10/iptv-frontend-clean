@@ -1520,13 +1520,29 @@ export const musicService = {
       }
 
       // Álbum en Deezer:
-      const data = await fetchDeezerApi(`/album/${albumId}/tracks?limit=100`);
-      if (data?.data && Array.isArray(data.data)) {
-        return data.data.map((t, idx) => ({
+      const [albumData, tracksData] = await Promise.all([
+        fetchDeezerApi(`/album/${albumId}`).catch(() => null),
+        fetchDeezerApi(`/album/${albumId}/tracks?limit=100`).catch(() => null)
+      ]);
+
+      const albumCover = albumData?.cover_xl || albumData?.cover_big || albumData?.cover_medium || '';
+      const actualTracks = tracksData?.data || albumData?.tracks?.data || [];
+
+      if (Array.isArray(actualTracks) && actualTracks.length > 0) {
+        return actualTracks.map((t, idx) => ({
           ...formatDeezerTrack(t),
+          album: albumData?.title || albumTitle || t.album?.title,
+          cover: albumCover || formatDeezerTrack(t).cover,
           trackNumber: t.track_position || idx + 1,
           artist: t.artist?.name || artistName,
         })).filter(Boolean);
+      }
+
+      // Si Deezer no devolvió canciones, fallback a búsqueda en iTunes
+      if (albumTitle && artistName) {
+        const query = `${albumTitle} ${artistName}`.trim();
+        const tracks = await this.searchItunesOnly(query, 50);
+        return tracks.filter(t => t.album?.toLowerCase().includes(albumTitle.toLowerCase()));
       }
     } catch (e) {
       console.error('[MusicService] Error obteniendo canciones del álbum:', e);
@@ -1700,6 +1716,19 @@ export const musicService = {
           }
         }
       }
+
+      // 3. Enriquecer con Deezer Chart oficial para estrenos globales frescos
+      try {
+        const deezerChart = await fetchDeezerApi('/chart/0/tracks?limit=100');
+        if (deezerChart?.data && Array.isArray(deezerChart.data)) {
+          for (const item of deezerChart.data) {
+            const formatted = formatDeezerTrack(item);
+            if (formatted && !trackMap.has(formatted.id)) {
+              trackMap.set(formatted.id, formatted);
+            }
+          }
+        }
+      } catch {}
 
       if (trackMap.size > 0) {
         // Ordenamiento cronológico descendente estricto (de hoy/ayer hacia atrás)

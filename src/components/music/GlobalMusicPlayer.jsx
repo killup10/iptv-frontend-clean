@@ -1,5 +1,5 @@
 // src/components/music/GlobalMusicPlayer.jsx
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Play, 
   Pause, 
@@ -25,7 +25,8 @@ import {
   DownloadCloud,
   Disc3,
   ChevronDown,
-  Video
+  Video,
+  Mic2
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -33,12 +34,82 @@ import { isPremiumUser } from '../../utils/planAccess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactPlayer from 'react-player/youtube';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
+import { musicService } from '../../services/musicService.js';
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+// Parser de letras sincronizadas formato LRC [mm:ss.xx]
+function parseLrc(lrcText) {
+  if (!lrcText || typeof lrcText !== 'string') return null;
+  const lines = lrcText.split('\n');
+  const result = [];
+  const regex = /\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\](.*)/;
+
+  for (const line of lines) {
+    const match = regex.exec(line.trim());
+    if (match) {
+      const mins = parseInt(match[1], 10);
+      const secs = parseFloat(match[2]);
+      const time = mins * 60 + secs;
+      const text = match[3].trim();
+      if (text) {
+        result.push({ time, text });
+      }
+    }
+  }
+  return result.length > 0 ? result : null;
+}
+
+// Consulta de letras en tiempo real a LRCLIB (0% consumo de backend Render / API pública gratuita)
+async function fetchLyricsFromLrcLib(artist, title) {
+  if (!artist || !title) return null;
+  const cleanTitle = title
+    .replace(/\s*[\(\[](feat|ft|with|remix|version|remastered|deluxe|official|video)[\s\S]*?[\)\]]/gi, '')
+    .trim();
+  const cleanArtist = artist.split(/[,&]|\bfeat\.?|\bft\.?/i)[0].trim();
+
+  // 1. Intento por parámetros exactos
+  try {
+    const url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.syncedLyrics || data.plainLyrics)) {
+        return {
+          syncedLyrics: parseLrc(data.syncedLyrics),
+          plainLyrics: data.plainLyrics || '',
+          isSynced: Boolean(data.syncedLyrics)
+        };
+      }
+    }
+  } catch {}
+
+  // 2. Búsqueda libre fallback
+  try {
+    const query = `${cleanArtist} ${cleanTitle}`;
+    const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+    const res = await fetch(searchUrl);
+    if (res.ok) {
+      const results = await res.json();
+      if (Array.isArray(results) && results.length > 0) {
+        const found = results.find(r => r.syncedLyrics) || results[0];
+        if (found && (found.syncedLyrics || found.plainLyrics)) {
+          return {
+            syncedLyrics: parseLrc(found.syncedLyrics),
+            plainLyrics: found.plainLyrics || '',
+            isSynced: Boolean(found.syncedLyrics)
+          };
+        }
+      }
+    }
+  } catch {}
+
+  return null;
 }
 
 export default function GlobalMusicPlayer() {
@@ -87,11 +158,94 @@ export default function GlobalMusicPlayer() {
   const { user } = useAuth();
   const isPremium = isPremiumUser(user);
 
+  // Estados de control - TODOS LOS HOOKS DECLARADOS INCONDICIONALMENTE AL INICIO
   const [showQueueDrawer, setShowQueueDrawer] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
+  const [gestureToast, setGestureToast] = useState('');
+  const [isVideoMode, setIsVideoMode] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [lyricsData, setLyricsData] = useState(null);
+  const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
 
+  // Referencias para gestos y sincronización
+  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
+  const toastTimeoutRef = useRef(null);
+  const lyricsContainerRef = useRef(null);
+
+  // Efecto: Cargar letra oficial cuando cambia la canción (0% consumo en Render)
+  useEffect(() => {
+    if (!currentTrack || currentTrack.isRadio) {
+      setLyricsData(null);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingLyrics(true);
+    fetchLyricsFromLrcLib(currentTrack.artist, currentTrack.title).then((res) => {
+      if (!cancelled) {
+        setLyricsData(res);
+        setIsLoadingLyrics(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setLyricsData(null);
+        setIsLoadingLyrics(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrack?.artist, currentTrack?.title, currentTrack?.isRadio]);
+
+  // Efecto: Si el usuario apaga la pantalla o minimiza en modo video, conmutar a audio nativo de fondo
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isVideoMode) {
+        console.log('[GlobalMusicPlayer] Pantalla apagada en modo video -> Volviendo a audio nativo de fondo');
+        setIsVideoMode(false);
+        if (audioRef.current) {
+          audioRef.current.currentTime = currentTime;
+          audioRef.current.play().catch(() => {});
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isVideoMode, currentTime, audioRef]);
+
+  // Cálculo de línea de letra activa según currentTime
+  const activeLyricIdx = useMemo(() => {
+    if (!lyricsData?.syncedLyrics || lyricsData.syncedLyrics.length === 0) return -1;
+    for (let i = lyricsData.syncedLyrics.length - 1; i >= 0; i--) {
+      if (currentTime >= lyricsData.syncedLyrics[i].time) {
+        return i;
+      }
+    }
+    return 0;
+  }, [currentTime, lyricsData]);
+
+  // Auto-scroll suave de letra sincronizada
+  useEffect(() => {
+    if (!showLyrics || !lyricsContainerRef.current) return;
+    const activeEl = lyricsContainerRef.current.querySelector('[data-active="true"]');
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeLyricIdx, showLyrics]);
+
+  // RETORNO TEMPRANO SEGURO: Después de que todos los hooks se registraron
   if (!isPremium || !currentTrack) return null;
+
+  const showGestureToast = (msg) => {
+    setGestureToast(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setGestureToast('');
+    }, 1300);
+  };
 
   const handleGoToArtist = (e) => {
     if (e) e.stopPropagation();
@@ -123,21 +277,45 @@ export default function GlobalMusicPlayer() {
     }
   };
 
-  const [gestureToast, setGestureToast] = useState('');
-  const [isVideoMode, setIsVideoMode] = useState(false);
-  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
-  const toastTimeoutRef = useRef(null);
+  const handleToggleVideoMode = async () => {
+    if (!currentTrack) return;
+    // Si no tiene youtubeId resuelto aún, buscarlo en vivo
+    if (!currentTrack.youtubeId && !isVideoMode) {
+      showGestureToast('🔍 Buscando video oficial...');
+      try {
+        const yid = await musicService.getYouTubeId(currentTrack.artist, currentTrack.title);
+        if (yid) {
+          currentTrack.youtubeId = yid;
+        } else {
+          showGestureToast('Video oficial no disponible');
+          return;
+        }
+      } catch {
+        showGestureToast('Video oficial no disponible');
+        return;
+      }
+    }
 
-  const showGestureToast = (msg) => {
-    setGestureToast(msg);
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    toastTimeoutRef.current = setTimeout(() => {
-      setGestureToast('');
-    }, 1300);
+    if (!isVideoMode) {
+      setIsVideoMode(true);
+      setShowLyrics(false);
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+      showGestureToast('🎬 Modo Video Oficial');
+    } else {
+      setIsVideoMode(false);
+      if (audioRef.current) {
+        audioRef.current.currentTime = currentTime;
+        audioRef.current.play().catch(() => {});
+      }
+      showGestureToast('🎵 Modo Audio');
+    }
   };
 
   const handleTouchStart = (e) => {
     if (!e.touches || e.touches.length === 0) return;
+    if (e.target.closest('button, input, [role="button"], a, select, textarea, .custom-scrollbar')) return;
     touchStartRef.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
@@ -147,18 +325,20 @@ export default function GlobalMusicPlayer() {
 
   const handleTouchEnd = (e) => {
     if (!e.changedTouches || e.changedTouches.length === 0) return;
+    if (!touchStartRef.current.time) return;
     const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
     const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
     const elapsed = Date.now() - touchStartRef.current.time;
+    touchStartRef.current = { x: 0, y: 0, time: 0 };
 
-    // Ignorar toques prolongados (> 800ms)
-    if (elapsed > 800) return;
+    // Permitir gestos de hasta 1200ms
+    if (elapsed > 1200) return;
 
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // Gesto vertical dominante (umbral 50px)
-    if (absY > 50 && absY > absX * 1.25) {
+    // Gesto vertical dominante (umbral 40px)
+    if (absY > 40 && absY > absX * 1.1) {
       if (deltaY > 0) {
         // Deslizar hacia abajo: siguiente canción
         if (!currentTrack.isRadio) {
@@ -175,10 +355,18 @@ export default function GlobalMusicPlayer() {
       return;
     }
 
-    // Gesto horizontal hacia la derecha: ver al artista tipo TikTok
-    if (absX > 50 && absX > absY * 1.25 && deltaX > 0) {
+    // Gesto horizontal hacia la derecha: ver al artista tipo TikTok (umbral 40px)
+    if (absX > 40 && absX > absY * 1.1 && deltaX > 0) {
       showGestureToast(`👤 ${currentTrack.artist || 'Discografía'}`);
       handleGoToArtist();
+      return;
+    }
+
+    // Gesto horizontal hacia la izquierda: alternar letra de la canción
+    if (absX > 40 && absX > absY * 1.1 && deltaX < 0) {
+      setShowLyrics(prev => !prev);
+      showGestureToast(!showLyrics ? '🎤 Letra' : '🎵 Carátula');
+      return;
     }
   };
 
@@ -577,9 +765,7 @@ export default function GlobalMusicPlayer() {
       {/* MODAL FULLSCREEN / NOW PLAYING EXPANDIDO CON ENCUADRE PROFESIONAL Y GESTOS TÁCTILES */}
       {isExpandedPlayer && (
         <div 
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className="fixed inset-0 z-[99999] bg-gradient-to-b from-[#180e2b] via-[#0d0716] to-[#05020a] flex flex-col justify-between pt-6 sm:pt-10 pb-8 sm:pb-12 px-5 sm:px-12 select-none overflow-hidden touch-pan-y animate-in fade-in duration-300"
+          className="fixed inset-0 z-[99999] bg-gradient-to-b from-[#180e2b] via-[#0d0716] to-[#05020a] flex flex-col justify-between pt-6 sm:pt-10 pb-8 sm:pb-12 px-5 sm:px-12 select-none overflow-hidden animate-in fade-in duration-300"
         >
           {/* Toast flotante de retroalimentación de gestos (tipo TikTok / Spotify) */}
           {gestureToast && (
@@ -611,7 +797,7 @@ export default function GlobalMusicPlayer() {
             {currentTrack.youtubeId && !currentTrack.isRadio ? (
               <button
                 type="button"
-                onClick={() => setIsVideoMode(prev => !prev)}
+                onClick={handleToggleVideoMode}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
                   isVideoMode
                     ? 'bg-fuchsia-500 text-white border-fuchsia-400 shadow-lg shadow-fuchsia-500/30'
@@ -627,22 +813,37 @@ export default function GlobalMusicPlayer() {
             )}
           </div>
 
-          {/* Cuerpo Central: Carátula / Video + Título + Acciones */}
+          {/* Cuerpo Central: Carátula / Video / Letras + Título + Acciones */}
           <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full px-2 gap-4 sm:gap-6">
             
-            {/* Visualizador: Carátula o Video Musical */}
-            <div className="relative group w-full flex items-center justify-center">
+            {/* Visualizador Central con soporte de gestos táctiles directos */}
+            <div 
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              style={{ touchAction: 'none' }}
+              className="relative group w-full flex items-center justify-center min-h-[220px] sm:min-h-[280px]"
+            >
+              {/* VISTA 1: MODO VIDEO MUSICAL OFICIAL */}
               {isVideoMode && currentTrack.youtubeId ? (
-                <div className="relative w-full aspect-video max-h-[34vh] rounded-3xl overflow-hidden shadow-2xl border border-fuchsia-500/40 bg-black">
+                <div id="teamg-music-video-player" className="teamg-music-video-container relative w-full aspect-video max-h-[34vh] rounded-3xl overflow-hidden shadow-2xl border border-fuchsia-500/40 bg-black">
                   <ReactPlayer
-                    ref={ytPlayerRef}
                     url={`https://www.youtube.com/watch?v=${currentTrack.youtubeId}`}
                     playing={isPlaying}
                     volume={isMuted ? 0 : volume}
                     controls={true}
                     width="100%"
                     height="100%"
-                    onPlay={() => setIsPlaying(true)}
+                    onReady={(player) => {
+                      if (currentTime > 0) {
+                        try { player.seekTo(currentTime, 'seconds'); } catch {}
+                      }
+                    }}
+                    onPlay={() => {
+                      setIsPlaying(true);
+                      if (audioRef?.current && !audioRef.current.paused) {
+                        audioRef.current.pause();
+                      }
+                    }}
                     onPause={() => setIsPlaying(false)}
                     onEnded={nextTrack}
                     progressInterval={250}
@@ -660,19 +861,80 @@ export default function GlobalMusicPlayer() {
                           autoplay: 1,
                           controls: 1,
                           modestbranding: 1,
-                          playsinline: 1
+                          playsinline: 1,
+                          start: Math.floor(currentTime || 0)
                         }
                       }
                     }}
                   />
                 </div>
+              ) : showLyrics ? (
+                /* VISTA 2: LETRA EN TIEMPO REAL (SINCRONIZADA O TEXTO PLANO) */
+                <div 
+                  ref={lyricsContainerRef}
+                  className="relative w-full max-w-md h-64 sm:h-72 md:h-80 rounded-3xl overflow-y-auto px-4 py-6 bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 shadow-2xl flex flex-col items-center text-center space-y-4 custom-scrollbar select-text"
+                  style={{ touchAction: 'pan-y' }}
+                >
+                  <div className="sticky top-0 z-10 w-full pb-2 mb-2 border-b border-white/10 flex items-center justify-between text-xs text-fuchsia-300 font-bold bg-black/40 backdrop-blur-md px-2 rounded-lg">
+                    <span className="flex items-center gap-1.5">
+                      <Mic2 className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <span>{lyricsData?.isSynced ? 'Letra Sincronizada' : 'Letra Oficial'}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowLyrics(false)}
+                      className="text-gray-400 hover:text-white p-1 rounded-md"
+                      title="Volver a carátula"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {isLoadingLyrics ? (
+                    <div className="flex flex-col items-center justify-center my-auto text-gray-400 gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-fuchsia-400" />
+                      <span className="text-xs">Buscando letra oficial...</span>
+                    </div>
+                  ) : lyricsData?.syncedLyrics ? (
+                    lyricsData.syncedLyrics.map((line, idx) => {
+                      const isActive = idx === activeLyricIdx;
+                      return (
+                        <p
+                          key={`lrc-${idx}`}
+                          data-active={isActive ? 'true' : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            seekTo(line.time);
+                          }}
+                          className={`w-full py-1.5 px-3 rounded-xl transition-all duration-300 cursor-pointer font-bold ${
+                            isActive
+                              ? 'text-white text-base sm:text-lg scale-105 bg-fuchsia-500/25 border border-fuchsia-500/40 text-fuchsia-200 shadow-md'
+                              : 'text-gray-400/80 hover:text-white text-xs sm:text-sm hover:bg-white/5'
+                          }`}
+                        >
+                          {line.text}
+                        </p>
+                      );
+                    })
+                  ) : lyricsData?.plainLyrics ? (
+                    <div className="whitespace-pre-line text-xs sm:text-sm text-gray-200 leading-relaxed font-medium px-2">
+                      {lyricsData.plainLyrics}
+                    </div>
+                  ) : (
+                    <div className="my-auto text-gray-400 text-xs flex flex-col items-center gap-2">
+                      <Mic2 className="w-8 h-8 text-gray-600" />
+                      <span>No se encontró la letra oficial de esta pista</span>
+                    </div>
+                  )}
+                </div>
               ) : (
+                /* VISTA 3: CARÁTULA HD CON GLOW AMBIENTAL */
                 <>
                   <div className="absolute -inset-2 bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none" />
                   <img 
                     src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'} 
                     alt={currentTrack.title}
-                    className="relative w-56 h-56 max-h-[30vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-2xl border border-white/15 transition-transform duration-500 hover:scale-[1.02]"
+                    className="relative w-56 h-56 max-h-[30vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-2xl border border-white/15 transition-transform duration-500 hover:scale-[1.02] pointer-events-none"
                   />
                 </>
               )}
@@ -725,6 +987,50 @@ export default function GlobalMusicPlayer() {
                   <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500 text-pink-500' : ''}`} />
                   <span>{isFav ? 'Favorita' : 'Guardar'}</span>
                 </button>
+
+                {/* Letra de la canción (0% servidor Render) */}
+                {!currentTrack.isRadio && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowLyrics(prev => !prev);
+                      if (isVideoMode) setIsVideoMode(false);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition cursor-pointer active:scale-95 ${
+                      showLyrics 
+                        ? 'border-fuchsia-400 bg-fuchsia-500/20 text-fuchsia-300 shadow-md shadow-fuchsia-500/20' 
+                        : 'border-white/10 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={showLyrics ? 'Ocultar letra' : 'Ver letra oficial'}
+                  >
+                    <Mic2 className="w-3.5 h-3.5 text-fuchsia-400" />
+                    <span>Letra</span>
+                    {lyricsData?.isSynced && (
+                      <span className="text-[9px] px-1.5 py-0.2 bg-fuchsia-500 text-white rounded-full font-bold">SYNC</span>
+                    )}
+                  </button>
+                )}
+
+                {/* Botón Video Musical */}
+                {!currentTrack.isRadio && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleVideoMode();
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition cursor-pointer active:scale-95 ${
+                      isVideoMode
+                        ? 'border-fuchsia-400 bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/30'
+                        : 'border-white/10 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    title={isVideoMode ? 'Volver a modo audio' : 'Ver video musical oficial'}
+                  >
+                    <Video className="w-3.5 h-3.5 text-fuchsia-300" />
+                    <span>{isVideoMode ? 'Audio' : 'Video'}</span>
+                  </button>
+                )}
 
                 {/* Añadir a Playlist */}
                 {!currentTrack.isRadio && (
@@ -780,7 +1086,7 @@ export default function GlobalMusicPlayer() {
 
               {/* Guía visual sutil de gestos táctiles */}
               <p className="text-[11px] text-gray-400/80 font-medium tracking-wide pt-1">
-                Desliza <span className="text-fuchsia-300 font-bold">↓</span> siguiente • Desliza <span className="text-fuchsia-300 font-bold">→</span> ver artista
+                Desliza <span className="text-fuchsia-300 font-bold">↓</span> siguiente • <span className="text-fuchsia-300 font-bold">↑</span> anterior • <span className="text-fuchsia-300 font-bold">→</span> ver artista • <span className="text-fuchsia-300 font-bold">←</span> letra
               </p>
             </div>
           </div>
