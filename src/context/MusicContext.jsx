@@ -161,12 +161,7 @@ export function MusicProvider({ children }) {
       const track = currentTrackRef.current;
       // En modo YouTube el iframe maneja el fin (su onEnded avanza solo).
       if (track?.youtubeId && playbackModeRef.current === 'youtube') return;
-      // Preview de 30s terminado pero la completa viene en camino: NO saltar.
-      if (track?.youtubeId && !fullStreamRef.current) {
-        console.log('[MusicContext] Preview finalizado; versión completa en camino.');
-        return;
-      }
-      // Fin real (radio no llega aquí; preview sin completa o stream completo):
+      // Fin de la pista (canción terminada): avanzar a la siguiente para que nunca deje de sonar
       if (repeatModeRef.current === 'one') {
         audio.currentTime = 0;
         audio.play().catch(console.warn);
@@ -455,7 +450,7 @@ export function MusicProvider({ children }) {
     }
   }, []);
 
-  // Regreso honesto al preview de 30s solo en caso de falla extrema
+  // Regreso honesto al preview / audio alternativo en caso de falla extrema
   const fallbackToPreview = useCallback(() => {
     const track = currentTrackRef.current;
     const audio = audioRef.current;
@@ -463,14 +458,41 @@ export function MusicProvider({ children }) {
     setPlaybackMode('native');
     setAudioQuality('preview-fallback');
     setIsLoadingAudio(false);
-    if (track && audio && track.audioUrl) {
+    const urlToPlay = track?.previewUrl || track?.audioUrl || track?.streamUrl;
+    if (track && audio && urlToPlay) {
       try {
-        audio.src = track.audioUrl;
-        audio.muted = false;
-        audio.load();
-        audio.play().catch(() => {});
+        if (audio.src !== urlToPlay) {
+          audio.src = urlToPlay;
+          audio.muted = false;
+          audio.load();
+        }
+        audio.play().catch(console.warn);
       } catch {}
     }
+  }, []);
+
+  // Pausar música automáticamente si el usuario reproduce una película, serie o canal de TV en TeamG Play
+  useEffect(() => {
+    const onVideoPlay = (e) => {
+      if (e.target && e.target.tagName === 'VIDEO') {
+        if (audioRef.current && !audioRef.current.paused) {
+          audioRef.current.pause();
+        }
+        setIsPlaying(false);
+      }
+    };
+    const onTeamgVideoPlay = () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+    };
+    document.addEventListener('play', onVideoPlay, true);
+    window.addEventListener('teamg:video-play', onTeamgVideoPlay);
+    return () => {
+      document.removeEventListener('play', onVideoPlay, true);
+      window.removeEventListener('teamg:video-play', onTeamgVideoPlay);
+    };
   }, []);
 
   // Prefetch de la versión completa de la siguiente pista en segundo plano
@@ -631,13 +653,25 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    // Caso 3: Pista sin youtubeId resuelto todavía -> RESOLVER Y REPRODUCIR DIRECTAMENTE LA COMPLETA
-    // (🚫 ELIMINADO EL PREVIEW DE 30 SEGUNDOS: la canción arranca directamente completa)
+    // Caso 3: Pista sin youtubeId resuelto todavía -> REPRODUCCIÓN INMEDIATA (CERO SILENCIO TRAS BÚSQUEDA)
     setCurrentTrack(safeTrack);
     setIsPlaying(true);
     setDuration(safeTrack.fullDuration || safeTrack.duration || 210);
-    setAudioQuality('loading-full');
     setIsLoadingAudio(true);
+
+    // Arrancar audio de inmediato si hay preview disponible para que empiece a sonar sin demoras
+    const immediateAudio = safeTrack.previewUrl || safeTrack.audioUrl;
+    if (immediateAudio && audio) {
+      try {
+        audio.src = immediateAudio;
+        audio.muted = Capacitor.isNativePlatform();
+        audio.currentTime = 0;
+        audio.play().catch(console.warn);
+        setAudioQuality('preview-instant');
+      } catch {}
+    } else {
+      setAudioQuality('loading-full');
+    }
 
     try {
       let ytId = await musicService.getYouTubeId(safeTrack.artist, safeTrack.title);
@@ -665,11 +699,17 @@ export function MusicProvider({ children }) {
         const currentQueue = activeQueue || [];
         const idx = currentQueue.findIndex(t => t.id === safeTrack.id);
         prefetchNextFullVersion(currentQueue, idx);
-        await loadFullAudio(safeTrack, ytId);
+        await loadFullAudio(enriched, ytId);
       } else {
-        console.warn('[MusicContext] Sin versión completa resuelta');
+        console.warn('[MusicContext] Sin versión completa resuelta, manteniendo audio');
         if (currentTrackRef.current?.id === safeTrack.id) {
-          if (safeTrack.audioUrl) {
+          const fallbackUrl = safeTrack.previewUrl || safeTrack.audioUrl;
+          if (fallbackUrl && audio) {
+            if (audio.paused) {
+              audio.src = fallbackUrl;
+              audio.muted = false;
+              audio.play().catch(console.warn);
+            }
             setAudioQuality('preview-fallback');
           } else {
             setPlaybackMode('youtube');
@@ -679,7 +719,13 @@ export function MusicProvider({ children }) {
     } catch (err) {
       console.warn('[MusicContext] Error resolviendo canción completa:', err);
       if (currentTrackRef.current?.id === safeTrack.id) {
-        if (safeTrack.audioUrl) {
+        const fallbackUrl = safeTrack.previewUrl || safeTrack.audioUrl;
+        if (fallbackUrl && audio) {
+          if (audio.paused) {
+            audio.src = fallbackUrl;
+            audio.muted = false;
+            audio.play().catch(console.warn);
+          }
           setAudioQuality('preview-fallback');
         } else {
           setPlaybackMode('youtube');

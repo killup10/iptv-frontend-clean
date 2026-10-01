@@ -1,5 +1,5 @@
 // src/components/music/GlobalMusicPlayer.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Play, 
   Pause, 
@@ -23,7 +23,9 @@ import {
   Check,
   Download,
   DownloadCloud,
-  Disc3
+  Disc3,
+  ChevronDown,
+  Video
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -118,6 +120,65 @@ export default function GlobalMusicPlayer() {
       window.dispatchEvent(new CustomEvent('teamg:open-artist', {
         detail: { name: artistName, id: artistId }
       }));
+    }
+  };
+
+  const [gestureToast, setGestureToast] = useState('');
+  const [isVideoMode, setIsVideoMode] = useState(false);
+  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
+  const toastTimeoutRef = useRef(null);
+
+  const showGestureToast = (msg) => {
+    setGestureToast(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setGestureToast('');
+    }, 1300);
+  };
+
+  const handleTouchStart = (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now()
+    };
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
+    const elapsed = Date.now() - touchStartRef.current.time;
+
+    // Ignorar toques prolongados (> 800ms)
+    if (elapsed > 800) return;
+
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // Gesto vertical dominante (umbral 50px)
+    if (absY > 50 && absY > absX * 1.25) {
+      if (deltaY > 0) {
+        // Deslizar hacia abajo: siguiente canción
+        if (!currentTrack.isRadio) {
+          showGestureToast('⏭️ Siguiente canción');
+          nextTrack();
+        }
+      } else {
+        // Deslizar hacia arriba: canción anterior
+        if (!currentTrack.isRadio) {
+          showGestureToast('⏮️ Canción anterior');
+          prevTrack();
+        }
+      }
+      return;
+    }
+
+    // Gesto horizontal hacia la derecha: ver al artista tipo TikTok
+    if (absX > 50 && absX > absY * 1.25 && deltaX > 0) {
+      showGestureToast(`👤 ${currentTrack.artist || 'Discografía'}`);
+      handleGoToArtist();
     }
   };
 
@@ -513,144 +574,219 @@ export default function GlobalMusicPlayer() {
         </div>
       )}
 
-      {/* MODAL FULLSCREEN / NOW PLAYING EXPANDIDO */}
+      {/* MODAL FULLSCREEN / NOW PLAYING EXPANDIDO CON ENCUADRE PROFESIONAL Y GESTOS TÁCTILES */}
       {isExpandedPlayer && (
-        <div className="fixed inset-0 z-[99999] bg-gradient-to-b from-[#180e2b] via-[#0d0716] to-[#05020a] flex flex-col justify-between p-6 sm:p-12 animate-in fade-in duration-300">
-          
-          {/* Header del Modal */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 flex items-center justify-center">
-                <Music className="w-4 h-4 text-fuchsia-400" />
-              </div>
-              <span className="text-xs uppercase tracking-widest text-gray-400 font-bold">
-                {currentTrack.isRadio ? 'Radio en Vivo' : 'Reproduciendo de TeamG Music'}
-              </span>
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="fixed inset-0 z-[99999] bg-gradient-to-b from-[#180e2b] via-[#0d0716] to-[#05020a] flex flex-col justify-between pt-6 sm:pt-10 pb-8 sm:pb-12 px-5 sm:px-12 select-none overflow-hidden touch-pan-y animate-in fade-in duration-300"
+        >
+          {/* Toast flotante de retroalimentación de gestos (tipo TikTok / Spotify) */}
+          {gestureToast && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-full bg-black/85 backdrop-blur-md border border-fuchsia-500/50 text-white font-bold text-xs shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <span>{gestureToast}</span>
             </div>
+          )}
 
+          {/* Header del Modal */}
+          <div className="flex items-center justify-between gap-4">
             <button
               onClick={() => setIsExpandedPlayer(false)}
-              className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition"
-              title="Minimizar vista"
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-gray-200 hover:text-white transition cursor-pointer active:scale-90"
+              title="Minimizar reproductor"
             >
-              <Minimize2 className="w-5 h-5" />
+              <ChevronDown className="w-6 h-6" />
             </button>
-          </div>
 
-          {/* Cuerpo Central: Carátula gigante & Título */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 my-auto max-w-5xl mx-auto w-full">
-            <div className="relative group">
-              <div className="absolute -inset-4 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-purple-600 rounded-3xl blur-2xl opacity-40 group-hover:opacity-60 transition duration-700 animate-pulse" />
-              <img 
-                src={currentTrack.cover} 
-                alt={currentTrack.title}
-                className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-2xl object-cover shadow-2xl border border-white/15"
-              />
+            <div className="flex flex-col items-center min-w-0">
+              <span className="text-[10px] sm:text-xs uppercase tracking-widest text-fuchsia-300/80 font-bold truncate">
+                {currentTrack.isRadio ? 'Radio en Vivo' : 'Reproduciendo de TeamG Music'}
+              </span>
+              <span className="text-xs text-gray-300 font-semibold truncate max-w-[200px] sm:max-w-xs">
+                {currentTrack.album || currentTrack.artist || 'TeamG Play'}
+              </span>
             </div>
 
-            <div className="flex flex-col items-center md:items-start text-center md:text-left max-w-md">
-              <span className="text-xs font-bold text-fuchsia-400 tracking-wider uppercase mb-2">
-                {currentTrack.album || currentTrack.genre || 'TeamG Play Music'}
-              </span>
-              <h2 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
-                {currentTrack.title}
-              </h2>
-              {currentTrack.isRadio ? (
-                <p className="text-lg text-gray-300 font-medium mb-3">
-                  {currentTrack.artist}
-                </p>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-center md:items-start gap-2.5 mb-4">
-                  <button
-                    type="button"
-                    onClick={handleGoToArtist}
-                    className="text-lg sm:text-xl font-bold text-gray-200 hover:text-fuchsia-400 hover:underline transition cursor-pointer text-center md:text-left"
-                    title={`Ver discografía y álbumes de ${currentTrack.artist}`}
-                  >
-                    {currentTrack.artist}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleGoToArtist}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/25 text-fuchsia-300 border border-fuchsia-400/30 text-[11px] font-semibold transition cursor-pointer active:scale-95 shadow-sm"
-                    title={`Ver todos los álbumes y canciones de ${currentTrack.artist}`}
-                  >
-                    <Disc3 className="w-3.5 h-3.5 text-fuchsia-400" />
-                    <span>Ver Discografía</span>
-                  </button>
-                </div>
-              )}
-              {!currentTrack.isRadio && (
-                <div className="flex items-center gap-2 mb-4">
-                  {currentTrack.genre && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30">
-                      {currentTrack.genre}
-                    </span>
-                  )}
-                  {currentTrack.releaseDate && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 text-gray-300">
-                      {currentTrack.releaseDate}
-                    </span>
-                  )}
-                </div>
-              )}
+            {/* Toggle Modo Video (0% consumo de Render: stream directo de YouTube) */}
+            {currentTrack.youtubeId && !currentTrack.isRadio ? (
+              <button
+                type="button"
+                onClick={() => setIsVideoMode(prev => !prev)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                  isVideoMode
+                    ? 'bg-fuchsia-500 text-white border-fuchsia-400 shadow-lg shadow-fuchsia-500/30'
+                    : 'bg-white/10 text-gray-300 border-white/15 hover:bg-white/15 hover:text-white'
+                }`}
+                title={isVideoMode ? 'Volver a carátula de audio' : 'Ver video musical oficial'}
+              >
+                <Video className="w-3.5 h-3.5" />
+                <span className="text-[11px]">{isVideoMode ? 'Audio' : 'Video'}</span>
+              </button>
+            ) : (
+              <div className="w-8 h-8" />
+            )}
+          </div>
 
-              <div className="flex items-center gap-2">
+          {/* Cuerpo Central: Carátula / Video + Título + Acciones */}
+          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full px-2 gap-4 sm:gap-6">
+            
+            {/* Visualizador: Carátula o Video Musical */}
+            <div className="relative group w-full flex items-center justify-center">
+              {isVideoMode && currentTrack.youtubeId ? (
+                <div className="relative w-full aspect-video max-h-[34vh] rounded-3xl overflow-hidden shadow-2xl border border-fuchsia-500/40 bg-black">
+                  <ReactPlayer
+                    ref={ytPlayerRef}
+                    url={`https://www.youtube.com/watch?v=${currentTrack.youtubeId}`}
+                    playing={isPlaying}
+                    volume={isMuted ? 0 : volume}
+                    controls={true}
+                    width="100%"
+                    height="100%"
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={nextTrack}
+                    progressInterval={250}
+                    onProgress={(p) => {
+                      if (!isSeeking && p.playedSeconds !== undefined) {
+                        setCurrentTime(p.playedSeconds);
+                      }
+                    }}
+                    onDuration={(dur) => {
+                      if (dur && dur > 0) setDuration(dur);
+                    }}
+                    config={{
+                      youtube: {
+                        playerVars: {
+                          autoplay: 1,
+                          controls: 1,
+                          modestbranding: 1,
+                          playsinline: 1
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="absolute -inset-2 bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none" />
+                  <img 
+                    src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'} 
+                    alt={currentTrack.title}
+                    className="relative w-56 h-56 max-h-[30vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-2xl border border-white/15 transition-transform duration-500 hover:scale-[1.02]"
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Metadatos: Título, Artista y Pestañas */}
+            <div className="w-full flex flex-col items-center text-center space-y-2">
+              <div className="w-full">
+                <h2 className="text-xl sm:text-3xl font-black text-white leading-tight truncate px-2" title={currentTrack.title}>
+                  {currentTrack.title}
+                </h2>
+
+                {currentTrack.isRadio ? (
+                  <p className="text-sm sm:text-base text-gray-300 font-medium mt-1">
+                    {currentTrack.artist}
+                  </p>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={handleGoToArtist}
+                      className="inline-flex items-center gap-1.5 text-sm sm:text-lg font-bold text-gray-300 hover:text-fuchsia-300 hover:underline transition cursor-pointer"
+                      title={`Ver discografía y álbumes de ${currentTrack.artist}`}
+                    >
+                      <span>{currentTrack.artist}</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-fuchsia-300 hover:bg-fuchsia-500/30 transition">
+                        <Disc3 className="w-3 h-3 text-fuchsia-400" />
+                        Discografía
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Barra de Acciones Elegante y Compacta */}
+              <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                {/* Me Gusta */}
                 <button
-                  onClick={() => toggleFavorite(currentTrack)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full border transition ${
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(currentTrack);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition cursor-pointer active:scale-95 ${
                     isFav 
                       ? 'border-pink-500/50 bg-pink-500/20 text-pink-300' 
-                      : 'border-white/15 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
+                      : 'border-white/10 bg-white/5 text-gray-300 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <Heart className={`w-4 h-4 ${isFav ? 'fill-pink-500 text-pink-500' : ''}`} />
-                  <span className="text-xs font-semibold">{isFav ? 'En Mis Me Gusta' : 'Guardar'}</span>
+                  <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-pink-500 text-pink-500' : ''}`} />
+                  <span>{isFav ? 'Favorita' : 'Guardar'}</span>
                 </button>
 
+                {/* Añadir a Playlist */}
                 {!currentTrack.isRadio && (
                   <button
-                    onClick={() => openAddToPlaylistModal(currentTrack)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 hover:bg-fuchsia-500/20 transition cursor-pointer"
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAddToPlaylistModal(currentTrack);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300 hover:bg-fuchsia-500/20 text-xs font-semibold transition cursor-pointer active:scale-95"
                   >
-                    <ListPlus className="w-4 h-4" />
-                    <span className="text-xs font-semibold">Añadir a Playlist</span>
+                    <ListPlus className="w-3.5 h-3.5" />
+                    <span>Playlist</span>
                   </button>
                 )}
 
-                {/* Botón Descarga Modo Offline en pantalla completa */}
+                {/* Modo Offline */}
                 {!currentTrack.isRadio && (
                   isDownloaded ? (
                     <button
-                      onClick={() => deleteOfflineTrack(currentTrack.id)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 transition cursor-pointer"
-                      title="Canción descargada en tu dispositivo. Toca para borrar archivo"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteOfflineTrack(currentTrack.id);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-300 text-xs font-semibold transition cursor-pointer active:scale-95"
+                      title="Descargada en Modo Offline. Toca para borrar archivo"
                     >
-                      <Check className="w-4 h-4 stroke-[2.5] text-emerald-400" />
-                      <span className="text-xs font-semibold">Descargada (Offline)</span>
+                      <Check className="w-3.5 h-3.5 stroke-[2.5] text-emerald-400" />
+                      <span>Offline</span>
                     </button>
                   ) : isDownloading ? (
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300">
-                      <Loader2 className="w-4 h-4 animate-spin text-fuchsia-400" />
-                      <span className="text-xs font-semibold">Descargando {dlStatus?.progress || 0}%</span>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-fuchsia-500/40 bg-fuchsia-500/15 text-fuchsia-300 text-xs font-semibold">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-fuchsia-400" />
+                      <span>{dlStatus?.progress || 0}%</span>
                     </div>
                   ) : (
                     <button
-                      onClick={() => downloadTrack(currentTrack)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/15 bg-white/5 text-gray-300 hover:text-fuchsia-300 hover:border-fuchsia-400/40 hover:bg-white/10 transition cursor-pointer"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadTrack(currentTrack);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-gray-300 hover:text-fuchsia-300 hover:bg-white/10 text-xs font-semibold transition cursor-pointer active:scale-95"
                       title="Descargar para escuchar sin internet (Modo Offline)"
                     >
-                      <Download className="w-4 h-4 text-fuchsia-400" />
-                      <span className="text-xs font-semibold">Descargar Offline</span>
+                      <Download className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <span>Descargar</span>
                     </button>
                   )
                 )}
               </div>
+
+              {/* Guía visual sutil de gestos táctiles */}
+              <p className="text-[11px] text-gray-400/80 font-medium tracking-wide pt-1">
+                Desliza <span className="text-fuchsia-300 font-bold">↓</span> siguiente • Desliza <span className="text-fuchsia-300 font-bold">→</span> ver artista
+              </p>
             </div>
           </div>
 
-          {/* Controles Expandidos Inferiores */}
-          <div className="max-w-2xl mx-auto w-full flex flex-col gap-4">
+          {/* Controles Expandidos Inferiores con Espaciado Generoso Anticolisión */}
+          <div className="max-w-xl mx-auto w-full flex flex-col gap-3 pb-2 sm:pb-0">
             {/* Barra de progreso */}
             {!currentTrack.isRadio && (
               <div className="w-full flex items-center gap-3 text-xs text-gray-400">
@@ -666,51 +802,61 @@ export default function GlobalMusicPlayer() {
                   onChange={handleSeekChange}
                   onMouseUp={handleSeekMouseUp}
                   onTouchEnd={handleSeekMouseUp}
-                  className="w-full h-2 bg-white/15 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  className="w-full h-1.5 bg-white/15 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
                 />
                 <span className="w-10 font-mono">{formatTime(duration || currentTrack.fullDuration || currentTrack.duration || 210)}</span>
               </div>
             )}
 
-            {/* Botones de control en grande */}
-            <div className="flex items-center justify-center gap-8">
+            {/* Botones de control con tamaño ergonómico */}
+            <div className="flex items-center justify-between sm:justify-center sm:gap-10 px-4 sm:px-0">
               <button
+                type="button"
                 onClick={toggleShuffle}
-                className={`p-2 transition ${isShuffle ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
+                className={`p-2 transition cursor-pointer active:scale-90 ${isShuffle ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
+                title="Modo aleatorio"
               >
                 <Shuffle className="w-5 h-5" />
               </button>
 
               <button
+                type="button"
                 onClick={prevTrack}
                 disabled={currentTrack.isRadio}
-                className="p-2 text-gray-300 hover:text-white disabled:opacity-30 transition"
+                className="p-2 text-gray-300 hover:text-white disabled:opacity-30 transition cursor-pointer active:scale-90"
+                title="Canción anterior"
               >
                 <SkipBack className="w-7 h-7" />
               </button>
 
               <button
+                type="button"
                 onClick={togglePlay}
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition"
+                className="w-16 h-16 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-fuchsia-500/30 hover:scale-105 active:scale-95 transition cursor-pointer"
+                title={isPlaying ? 'Pausar' : 'Reproducir'}
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 fill-white text-white" />
+                  <Pause className="w-7 h-7 fill-white text-white" />
                 ) : (
-                  <Play className="w-8 h-8 fill-white text-white ml-1" />
+                  <Play className="w-7 h-7 fill-white text-white ml-0.5" />
                 )}
               </button>
 
               <button
+                type="button"
                 onClick={nextTrack}
                 disabled={currentTrack.isRadio}
-                className="p-2 text-gray-300 hover:text-white disabled:opacity-30 transition"
+                className="p-2 text-gray-300 hover:text-white disabled:opacity-30 transition cursor-pointer active:scale-90"
+                title="Siguiente canción"
               >
                 <SkipForward className="w-7 h-7" />
               </button>
 
               <button
+                type="button"
                 onClick={toggleRepeat}
-                className={`p-2 transition ${repeatMode !== 'off' ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
+                className={`p-2 transition cursor-pointer active:scale-90 ${repeatMode !== 'off' ? 'text-fuchsia-400' : 'text-gray-500 hover:text-white'}`}
+                title={repeatMode === 'one' ? 'Repitiendo una canción' : 'Repetir'}
               >
                 {repeatMode === 'one' ? <Repeat1 className="w-5 h-5" /> : <Repeat className="w-5 h-5" />}
               </button>
