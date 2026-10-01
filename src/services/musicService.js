@@ -509,6 +509,8 @@ function formatItunesTrack(item) {
   return {
     id: `itunes-${item.trackId || Math.random().toString(36).substring(7)}`,
     trackId: item.trackId,
+    artistId: item.artistId || null,
+    albumId: item.collectionId || null,
     title: item.trackName || item.collectionName || 'Canción Desconocida',
     artist: item.artistName || 'Artista Desconocido',
     album: item.collectionName || 'Sencillo',
@@ -597,8 +599,11 @@ function formatDeezerTrack(item) {
   return {
     id: `deezer-${item.id}`,
     trackId: item.id,
+    artistId: item.artist?.id || null,
+    albumId: item.album?.id || null,
     title: item.title || 'Canción Desconocida',
     artist: item.artist?.name || 'Artista Desconocido',
+    artistPicture: item.artist?.picture_big || item.artist?.picture_medium || '',
     album: item.album?.title || item.title || 'Sencillo',
     cover,
     audioUrl: item.preview || '',
@@ -622,19 +627,25 @@ function scoreTrackRelevance(track, query) {
   const words = qClean.split(/\s+/).filter(w => w.length > 1);
   const title = (track.title || '').toLowerCase();
   const artist = (track.artist || '').toLowerCase();
-  const full = `${title} ${artist}`;
 
   let score = 0;
+  // Boost masivo si el ARTISTA coincide con la búsqueda (ej: buscar "Zen" o "Libido")
+  if (artist === qClean) score += 1200;
+  else if (artist.startsWith(qClean + ' ') || artist.endsWith(' ' + qClean)) score += 700;
+  else if (artist.includes(qClean)) score += 350;
+
+  // Coincidencias en el título de la canción
   if (title === qClean) score += 500;
-  if (title.includes(qClean)) score += 300;
+  else if (title.startsWith(qClean)) score += 300;
+  else if (title.includes(qClean)) score += 150;
 
   let matchedWords = 0;
   for (const w of words) {
-    if (title.includes(w)) {
-      score += 50;
+    if (artist.includes(w)) {
+      score += 60;
       matchedWords++;
-    } else if (artist.includes(w)) {
-      score += 20;
+    } else if (title.includes(w)) {
+      score += 40;
       matchedWords++;
     }
   }
@@ -1152,21 +1163,57 @@ export const musicService = {
   },
 
   /**
-   * Busca cualquier canción, artista o álbum en tiempo real.
-   * Consulta Deezer e iTunes en paralelo para cobertura total de artistas y novedades
-   * (asegurando que temas recientes como "Joseph" de Falling In Reverse aparezcan de inmediato).
+   * Busca cualquier canción, artista o álbum en tiempo real sin límite artificial de 30.
+   * Consulta Deezer e iTunes en paralelo para cobertura exhaustiva,
+   * detecta artistas coincidentes e impulsa sus temas más emblemáticos al inicio.
    */
-  async searchTracks(query, limit = 30) {
+  async searchTracks(query, limit = 150) {
     if (!query || query.trim().length === 0) return [];
     const cleanQuery = query.trim();
+    const lowerQuery = cleanQuery.toLowerCase();
 
-    // Consultamos iTunes y Deezer en paralelo (iTunes tiene fechas oficiales de lanzamiento 100% reales)
-    const [itunesTracks, deezerData] = await Promise.all([
-      this.searchItunesOnly(cleanQuery, limit).catch(() => []),
-      fetchDeezerApi(`/search?q=${encodeURIComponent(cleanQuery)}&limit=${limit}`).catch(() => null)
+    // 1) En paralelo: iTunes (hasta 200), Deezer Search (hasta 100) y Deezer Artists
+    const [itunesTracks, deezerData, artistData] = await Promise.all([
+      this.searchItunesOnly(cleanQuery, Math.min(200, Math.max(100, limit))).catch(() => []),
+      fetchDeezerApi(`/search?q=${encodeURIComponent(cleanQuery)}&limit=${Math.min(100, limit)}`).catch(() => null),
+      fetchDeezerApi(`/search/artist?q=${encodeURIComponent(cleanQuery)}&limit=10`).catch(() => null)
     ]);
 
     const deezerTracks = (deezerData?.data || []).map(formatDeezerTrack).filter(Boolean);
+    const matchingArtists = (artistData?.data || []).map(a => ({
+      id: a.id,
+      name: a.name,
+      picture: a.picture_big || a.picture_medium || a.picture || '',
+      pictureSmall: a.picture_small || a.picture_medium || '',
+      fans: a.nb_fan || 0,
+      albumsCount: a.nb_album || 0
+    }));
+
+    // 2) Si un artista coincide directamente con la búsqueda (ej: "Zen" o "Libido"),
+    // obtener sus canciones top para asegurar que sus mayores éxitos estén incluidos al inicio
+    let artistTopTracks = [];
+    const directArtist = matchingArtists.find(a => a.name.toLowerCase() === lowerQuery);
+    if (directArtist) {
+      try {
+        const topRes = await fetchDeezerApi(`/artist/${directArtist.id}/top?limit=30`);
+        artistTopTracks = (topRes?.data || []).map(formatDeezerTrack).filter(Boolean);
+      } catch {}
+    }
+
+    // Caso especial "zen" (agrupación de rock peruana consolidada id: 15435 / 209349377)
+    if (lowerQuery === 'zen') {
+      try {
+        const [zen1, zen2] = await Promise.all([
+          fetchDeezerApi(`/artist/15435/top?limit=30`).catch(() => null),
+          fetchDeezerApi(`/artist/209349377/top?limit=30`).catch(() => null)
+        ]);
+        const zTracks = [
+          ...((zen1?.data || []).map(formatDeezerTrack).filter(Boolean)),
+          ...((zen2?.data || []).map(formatDeezerTrack).filter(Boolean))
+        ];
+        artistTopTracks = [...artistTopTracks, ...zTracks];
+      } catch {}
+    }
 
     // Mapa de canciones de iTunes indexadas para cruzamiento de fechas reales oficiales
     const itunesMap = new Map();
@@ -1180,7 +1227,17 @@ export const musicService = {
     const seen = new Set();
     const merged = [];
 
-    // 1) Priorizar canciones de iTunes primero (metadatos oficiales y año real verificado)
+    // Priorizar canciones top del artista coincidente
+    for (const track of artistTopTracks) {
+      if (!track || !track.title || !track.artist) continue;
+      const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(track);
+      }
+    }
+
+    // Priorizar canciones de iTunes (metadatos oficiales y año real verificado)
     for (const track of itunesTracks) {
       if (!track || !track.title || !track.artist) continue;
       const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1190,13 +1247,12 @@ export const musicService = {
       }
     }
 
-    // 2) Complementar con canciones de Deezer (para estrenos o temas que no estén indexados en iTunes)
+    // Complementar con canciones de Deezer
     for (const track of deezerTracks) {
       if (!track || !track.title || !track.artist) continue;
       const key = `${track.title}_${track.artist}`.toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!seen.has(key)) {
         seen.add(key);
-        // Si Deezer no tenía fecha pero iTunes sí la tenía registrada:
         const itMatch = itunesMap.get(key);
         if (itMatch && itMatch.releaseDate && (!track.releaseDate || track.releaseDate === '2026')) {
           track.releaseDate = itMatch.releaseDate;
@@ -1205,8 +1261,7 @@ export const musicService = {
       }
     }
 
-    // Si la búsqueda coincide con "Joseph" o "Falling In Reverse", asegurar que el nuevo single 2026 esté presente
-    const lowerQuery = cleanQuery.toLowerCase();
+    // Estreno Falling In Reverse
     if (lowerQuery.includes('joseph') || lowerQuery.includes('falling in reverse') || lowerQuery.includes('ronnie radke')) {
       const alreadyHas = merged.some(t => t.id === JOSEPH_FIR_TRACK.id || (t.title?.toLowerCase().includes('joseph') && t.artist?.toLowerCase().includes('falling in reverse')));
       if (!alreadyHas) {
@@ -1216,7 +1271,256 @@ export const musicService = {
 
     // Ordenar por relevancia exacta según la consulta
     merged.sort((a, b) => scoreTrackRelevance(b, cleanQuery) - scoreTrackRelevance(a, cleanQuery));
-    return merged.slice(0, limit);
+    
+    const finalResults = merged.slice(0, Math.max(limit, 100));
+    finalResults.matchedArtists = matchingArtists;
+    return finalResults;
+  },
+
+  /**
+   * Busca artistas coincidentes en tiempo real.
+   */
+  async searchArtists(query, limit = 8) {
+    if (!query || !query.trim()) return [];
+    try {
+      const clean = query.trim().toLowerCase();
+      const data = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(clean)}&limit=15`);
+      let list = data?.data && Array.isArray(data.data) ? [...data.data] : [];
+
+      // Si busca "zen", asegurar que la banda de rock peruana ZEN (ID 209349377) esté incluida
+      if (clean === 'zen' && !list.some(a => a.id === 209349377)) {
+        try {
+          const zenDirect = await fetchDeezerApi('/artist/209349377');
+          if (zenDirect && zenDirect.id) {
+            list.unshift(zenDirect);
+          }
+        } catch {}
+      }
+
+      // Filtrar coincidencias semánticas reales
+      list = list.filter(a => {
+        const n = (a.name || '').toLowerCase();
+        return n.includes(clean) || clean.includes(n);
+      });
+
+      // Ordenar: Coincidencia exacta de nombre primero, luego por cantidad de fans
+      list.sort((a, b) => {
+        const aExact = (a.name || '').toLowerCase() === clean ? 1 : 0;
+        const bExact = (b.name || '').toLowerCase() === clean ? 1 : 0;
+        if (aExact !== bExact) return bExact - aExact;
+        return (b.nb_fan || 0) - (a.nb_fan || 0);
+      });
+
+      return list.slice(0, limit).map(a => ({
+        id: a.id,
+        name: a.name,
+        picture: a.picture_big || a.picture_medium || a.picture || '',
+        pictureSmall: a.picture_small || a.picture_medium || '',
+        fans: a.nb_fan || 0,
+        albumsCount: a.nb_album || 0,
+        link: a.link || ''
+      }));
+    } catch (e) {
+      console.warn('[MusicService] Error buscando artistas:', e);
+    }
+    return [];
+  },
+
+  /**
+   * Obtiene la información completa de un artista, sus canciones populares y álbumes.
+   */
+  async getArtistDetails(artistName, artistId = null) {
+    if (!artistName && !artistId) return null;
+    const cleanName = (artistName || '').trim();
+
+    let resolvedId = artistId;
+    let artistInfo = null;
+
+    try {
+      // 1. Si no tenemos el ID, buscar el artista en Deezer
+      if (!resolvedId && cleanName) {
+        const searchData = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(cleanName)}&limit=15`);
+        const list = (searchData?.data || []).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
+        
+        // Priorizar coincidencia exacta de nombre o caso especial (ej: Zen peruano ID 209349377)
+        if (cleanName.toLowerCase() === 'zen') {
+          artistInfo = list.find(a => a.id === 209349377) || list.find(a => a.name.toLowerCase() === 'zen') || list[0];
+        } else {
+          artistInfo = list.find(a => a.name.toLowerCase() === cleanName.toLowerCase()) || list[0];
+        }
+
+        if (artistInfo) {
+          resolvedId = artistInfo.id;
+        }
+      }
+
+      let deezerTopTracks = [];
+      let deezerAlbums = [];
+
+      // 2. Consultar detalles, top tracks y álbumes en Deezer
+      if (resolvedId) {
+        const [infoRes, topRes, albRes] = await Promise.all([
+          !artistInfo ? fetchDeezerApi(`/artist/${resolvedId}`).catch(() => null) : Promise.resolve(artistInfo),
+          fetchDeezerApi(`/artist/${resolvedId}/top?limit=50`).catch(() => null),
+          fetchDeezerApi(`/artist/${resolvedId}/albums?limit=50`).catch(() => null)
+        ]);
+        artistInfo = infoRes || artistInfo;
+        deezerTopTracks = (topRes?.data || []).map(formatDeezerTrack).filter(Boolean);
+        deezerAlbums = albRes?.data || [];
+      }
+
+      // Si es "Zen", consolidar también las pistas de la entrada alternativa de Deezer
+      if (cleanName.toLowerCase() === 'zen') {
+        try {
+          const extraZen = await fetchDeezerApi(`/artist/209349377/top?limit=30`);
+          const extraTracks = (extraZen?.data || []).map(formatDeezerTrack).filter(Boolean);
+          const existingTitles = new Set(deezerTopTracks.map(t => t.title.toLowerCase().replace(/[^a-z0-9]/g, '')));
+          for (const et of extraTracks) {
+            const k = et.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!existingTitles.has(k)) {
+              existingTitles.add(k);
+              deezerTopTracks.push(et);
+            }
+          }
+        } catch {}
+      }
+
+      // 3. Consultar iTunes en paralelo para complementar discografía y metadatos oficiales
+      let itunesTracks = [];
+      if (cleanName) {
+        itunesTracks = await this.searchItunesOnly(cleanName, 100);
+      }
+
+      // Merge de canciones más populares
+      const seenTitles = new Set();
+      const topTracks = [];
+
+      for (const track of deezerTopTracks) {
+        if (!track || !track.title) continue;
+        const key = track.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          topTracks.push(track);
+        }
+      }
+
+      for (const track of itunesTracks) {
+        if (!track || !track.title) continue;
+        const key = track.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          topTracks.push(track);
+        }
+      }
+
+      // 4. Formatear álbumes verificados
+      const albumsMap = new Map();
+
+      // Primero: Extraer álbumes genuinos vinculados directamente a las canciones top del artista
+      for (const track of deezerTopTracks) {
+        if (!track || !track.album || !track.albumId) continue;
+        const key = track.album.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!albumsMap.has(key)) {
+          albumsMap.set(key, {
+            id: track.albumId,
+            title: track.album,
+            cover: track.cover || artistInfo?.picture_big,
+            releaseDate: track.releaseDate ? track.releaseDate.substring(0, 4) : '',
+            trackCount: 0,
+            source: 'deezer'
+          });
+        }
+      }
+
+      // Segundo: Álbumes del endpoint de Deezer (filtrando ruido si es Zen)
+      for (const alb of deezerAlbums) {
+        if (!alb || !alb.title) continue;
+        const albTitleLower = alb.title.toLowerCase();
+        if (cleanName.toLowerCase() === 'zen') {
+          // Filtrar álbumes genéricos de meditación / spa
+          if (albTitleLower.includes('meditation') || albTitleLower.includes('peace') || albTitleLower.includes('soothing') || albTitleLower.includes('lullabye') || albTitleLower.includes('tranquility')) {
+            continue;
+          }
+        }
+        const key = albTitleLower.replace(/[^a-z0-9]/g, '');
+        if (!albumsMap.has(key)) {
+          albumsMap.set(key, {
+            id: alb.id,
+            title: alb.title,
+            cover: alb.cover_big || alb.cover_medium || alb.cover || artistInfo?.picture_big,
+            releaseDate: alb.release_date ? alb.release_date.substring(0, 4) : '',
+            trackCount: alb.nb_tracks || 0,
+            fans: alb.fans || 0,
+            source: 'deezer'
+          });
+        }
+      }
+
+      // Tercero: Complementar con álbumes detectados en iTunes
+      for (const it of itunesTracks) {
+        if (!it.album || it.album === 'Sencillo') continue;
+        const itTitleLower = it.album.toLowerCase();
+        if (cleanName.toLowerCase() === 'zen') {
+          if (itTitleLower.includes('meditation') || itTitleLower.includes('peace') || itTitleLower.includes('soothing')) {
+            continue;
+          }
+        }
+        const key = itTitleLower.replace(/[^a-z0-9]/g, '');
+        if (!albumsMap.has(key)) {
+          albumsMap.set(key, {
+            id: `itunes_album_${key}`,
+            title: it.album,
+            cover: it.cover,
+            releaseDate: it.releaseDate ? it.releaseDate.substring(0, 4) : '',
+            trackCount: 1,
+            source: 'itunes'
+          });
+        }
+      }
+
+      const albums = Array.from(albumsMap.values());
+
+      return {
+        id: resolvedId || `artist_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+        name: artistInfo?.name || cleanName,
+        picture: artistInfo?.picture_xl || artistInfo?.picture_big || artistInfo?.picture_medium || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+        fans: artistInfo?.nb_fan || 0,
+        albumsCount: albums.length,
+        topTracks,
+        albums
+      };
+    } catch (err) {
+      console.error('[MusicService] Error en getArtistDetails:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Obtiene las canciones de un álbum específico.
+   */
+  async getAlbumTracks(albumId, albumTitle = '', artistName = '') {
+    if (!albumId) return [];
+    try {
+      if (String(albumId).startsWith('itunes_album_') || isNaN(Number(albumId))) {
+        // Álbum indexado desde iTunes: buscar canciones del álbum
+        const query = `${albumTitle} ${artistName}`.trim();
+        const tracks = await this.searchItunesOnly(query, 50);
+        return tracks.filter(t => t.album?.toLowerCase().includes(albumTitle.toLowerCase()));
+      }
+
+      // Álbum en Deezer:
+      const data = await fetchDeezerApi(`/album/${albumId}/tracks?limit=100`);
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data.map((t, idx) => ({
+          ...formatDeezerTrack(t),
+          trackNumber: t.track_position || idx + 1,
+          artist: t.artist?.name || artistName,
+        })).filter(Boolean);
+      }
+    } catch (e) {
+      console.error('[MusicService] Error obteniendo canciones del álbum:', e);
+    }
+    return [];
   },
 
   /**

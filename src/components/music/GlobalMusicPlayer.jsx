@@ -27,6 +27,7 @@ import {
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { isPremiumUser } from '../../utils/planAccess.js';
+import { useNavigate } from 'react-router-dom';
 import ReactPlayer from 'react-player/youtube';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
 
@@ -38,6 +39,7 @@ function formatTime(seconds) {
 }
 
 export default function GlobalMusicPlayer() {
+  const navigate = useNavigate();
   const {
     currentTrack,
     isPlaying,
@@ -164,9 +166,26 @@ export default function GlobalMusicPlayer() {
               <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-fuchsia-400 transition">
                 {currentTrack.title}
               </h4>
-              <p className="text-[11px] text-gray-400 truncate">
-                {currentTrack.artist}
-              </p>
+              {currentTrack.isRadio ? (
+                <p className="text-[11px] text-gray-400 truncate">
+                  {currentTrack.artist}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate('/music');
+                    window.dispatchEvent(new CustomEvent('teamg:open-artist', {
+                      detail: { name: currentTrack.artist, id: currentTrack.artistId }
+                    }));
+                  }}
+                  className="text-[11px] text-gray-400 hover:text-fuchsia-300 hover:underline truncate block text-left transition cursor-pointer"
+                  title={`Ver discografía y álbumes de ${currentTrack.artist}`}
+                >
+                  {currentTrack.artist}
+                </button>
+              )}
             </div>
 
             {/* Acciones en Desktop */}
@@ -510,9 +529,27 @@ export default function GlobalMusicPlayer() {
               <h2 className="text-2xl sm:text-4xl font-black text-white mb-2 leading-tight">
                 {currentTrack.title}
               </h2>
-              <p className="text-lg text-gray-300 font-medium mb-3">
-                {currentTrack.artist}
-              </p>
+              {currentTrack.isRadio ? (
+                <p className="text-lg text-gray-300 font-medium mb-3">
+                  {currentTrack.artist}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsExpandedPlayer(false);
+                    navigate('/music');
+                    window.dispatchEvent(new CustomEvent('teamg:open-artist', {
+                      detail: { name: currentTrack.artist, id: currentTrack.artistId }
+                    }));
+                  }}
+                  className="text-lg text-gray-300 hover:text-fuchsia-400 hover:underline font-medium mb-3 transition cursor-pointer text-center md:text-left"
+                  title={`Ver discografía y álbumes de ${currentTrack.artist}`}
+                >
+                  {currentTrack.artist}
+                </button>
+              )}
               {!currentTrack.isRadio && (
                 <div className="flex items-center gap-2 mb-4">
                   {currentTrack.genre && (

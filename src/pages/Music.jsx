@@ -115,6 +115,11 @@ export default function Music() {
   const [selectedCuratedPlaylist, setSelectedCuratedPlaylist] = useState(null);
   const [curatedPlaylistTracks, setCuratedPlaylistTracks] = useState([]);
   const [isLoadingCuratedTracks, setIsLoadingCuratedTracks] = useState(false);
+  const [selectedArtistDetail, setSelectedArtistDetail] = useState(null);
+  const [isLoadingArtist, setIsLoadingArtist] = useState(false);
+  const [selectedAlbumDetail, setSelectedAlbumDetail] = useState(null);
+  const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
+  const [searchResultsArtists, setSearchResultsArtists] = useState([]);
 
   // Playlists públicas unificadas (servidor + usuario actual)
   const combinedPublicPlaylists = useMemo(() => {
@@ -341,6 +346,7 @@ export default function Music() {
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
+      setSearchResultsArtists([]);
       setIsSearching(false);
       return;
     }
@@ -348,8 +354,9 @@ export default function Music() {
     setIsSearching(true);
     const timeout = setTimeout(async () => {
       try {
-        const results = await musicService.searchTracks(searchQuery, 30);
+        const results = await musicService.searchTracks(searchQuery, 150);
         setSearchResults(results);
+        setSearchResultsArtists(results.matchedArtists || []);
         if (results && results.length > 0) {
           saveRecentSearch(searchQuery);
         }
@@ -471,6 +478,8 @@ export default function Music() {
     if (newTab === activeTab) return;
     setTabHistory(prev => [...prev.slice(-10), activeTab]);
     setActiveTab(newTab);
+    setSelectedArtistDetail(null);
+    setSelectedAlbumDetail(null);
     if (newTab !== 'playlists' && newTab !== 'community') {
       setSelectedPlaylistId(null);
       setSelectedCuratedPlaylist(null);
@@ -479,6 +488,53 @@ export default function Music() {
       setSelectedIndieArtist(null);
     }
   }, [activeTab]);
+
+  const handleOpenArtist = useCallback(async (artistName, artistId = null) => {
+    if (!artistName && !artistId) return;
+    setIsLoadingArtist(true);
+    setSelectedAlbumDetail(null);
+    try {
+      const details = await musicService.getArtistDetails(artistName, artistId);
+      if (details) {
+        setSelectedArtistDetail(details);
+      }
+    } catch (e) {
+      console.warn('[MusicPage] Error abriendo detalles del artista:', e);
+    } finally {
+      setIsLoadingArtist(false);
+    }
+  }, []);
+
+  const handleOpenAlbum = useCallback(async (album) => {
+    if (!album) return;
+    setIsLoadingAlbum(true);
+    try {
+      const tracks = await musicService.getAlbumTracks(album.id, album.title, selectedArtistDetail?.name || '');
+      setSelectedAlbumDetail({
+        ...album,
+        artist: selectedArtistDetail?.name || album.artist || '',
+        tracks: tracks || []
+      });
+    } catch (e) {
+      console.warn('[MusicPage] Error abriendo álbum:', e);
+    } finally {
+      setIsLoadingAlbum(false);
+    }
+  }, [selectedArtistDetail?.name]);
+
+  useEffect(() => {
+    const onOpenArtistEvent = (e) => {
+      if (e.detail?.name || e.detail?.id) {
+        handleOpenArtist(e.detail.name, e.detail.id);
+      }
+    };
+    window.addEventListener('teamg:open-artist', onOpenArtistEvent);
+    window.__teamgOpenArtist = (name, id) => handleOpenArtist(name, id);
+    return () => {
+      window.removeEventListener('teamg:open-artist', onOpenArtistEvent);
+      window.__teamgOpenArtist = null;
+    };
+  }, [handleOpenArtist]);
 
   // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
   const handleMusicBack = useCallback(() => {
@@ -490,6 +546,16 @@ export default function Music() {
     // 0. Si el reproductor expandido (pantalla completa) está abierto, cerrarlo
     if (isExpandedPlayer) {
       setIsExpandedPlayer(false);
+      return true;
+    }
+    // 0.05 Si está viendo un álbum en detalle
+    if (selectedAlbumDetail) {
+      setSelectedAlbumDetail(null);
+      return true;
+    }
+    // 0.08 Si está viendo un artista en detalle
+    if (selectedArtistDetail) {
+      setSelectedArtistDetail(null);
       return true;
     }
     // 0.1 Si está viendo un artista independiente en detalle
@@ -527,7 +593,7 @@ export default function Music() {
     }
     // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
     return false;
-  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
+  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedAlbumDetail, selectedArtistDetail, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
 
   useEffect(() => {
     window.__musicBackHandler = handleMusicBack;
@@ -787,7 +853,11 @@ export default function Music() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (selectedArtistDetail) setSelectedArtistDetail(null);
+                if (selectedAlbumDetail) setSelectedAlbumDetail(null);
+              }}
               placeholder={isVoiceListening ? "🎙️ Escuchando... Di una canción o artista" : "Buscar por canción, artista, álbum o tema..."}
               className={`w-full pl-11 pr-24 py-3.5 bg-white/[0.05] border rounded-2xl text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 backdrop-blur-md transition shadow-inner ${
                 isVoiceListening
@@ -892,7 +962,7 @@ export default function Music() {
         </div>
 
         {/* Pestañas de Navegación estilo Píldoras con Nuevas Categorías */}
-        {!searchQuery && (
+        {!searchQuery && !selectedArtistDetail && !selectedAlbumDetail && !isLoadingArtist && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             {/* 1. Top Éxitos */}
             <button
@@ -1015,13 +1085,391 @@ export default function Music() {
 
         {/* 3. VISTA SEGÚN PESTAÑA O BÚSQUEDA */}
 
-        {/* CASO A: BÚSQUEDA EN VIVO */}
-        {searchQuery && (
-          <div className="space-y-4 animate-in fade-in">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <span>Resultados para "{searchQuery}"</span>
-              <span className="text-xs text-gray-400 font-normal">({searchResults.length} canciones encontradas)</span>
-            </h2>
+        {/* CASO: CARGANDO DETALLE DE ARTISTA */}
+        {isLoadingArtist ? (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-400 gap-3 animate-in fade-in">
+            <Loader2 className="w-10 h-10 text-fuchsia-400 animate-spin" />
+            <span className="text-sm font-semibold text-white">Cargando perfil del artista, discografía y canciones...</span>
+          </div>
+        ) : selectedAlbumDetail ? (
+          /* CASO: VISTA DETALLE DEL ÁLBUM */
+          <div className="space-y-6 animate-in fade-in">
+            {/* Botón Volver */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedAlbumDetail(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver {selectedArtistDetail ? `a ${selectedArtistDetail.name}` : ''}</span>
+              </button>
+            </div>
+
+            {/* Banner de Álbum */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-indigo-950/40 border border-purple-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+              <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                <img 
+                  src={selectedAlbumDetail.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80'} 
+                  alt={selectedAlbumDetail.title} 
+                  className="w-full h-full object-cover" 
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80';
+                  }}
+                />
+              </div>
+
+              <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-400/40 text-purple-300 text-[10px] font-bold tracking-wider uppercase">
+                  <Disc3 className="w-3 h-3 text-purple-400" />
+                  <span>Álbum {selectedAlbumDetail.releaseDate ? `• ${selectedAlbumDetail.releaseDate}` : ''}</span>
+                </span>
+
+                <h1 className="text-2xl sm:text-4xl font-black text-white">
+                  {selectedAlbumDetail.title}
+                </h1>
+
+                {selectedAlbumDetail.artist && (
+                  <p 
+                    onClick={() => {
+                      if (selectedArtistDetail) {
+                        setSelectedAlbumDetail(null);
+                      } else {
+                        handleOpenArtist(selectedAlbumDetail.artist);
+                      }
+                    }}
+                    className="text-sm font-semibold text-fuchsia-300 hover:underline cursor-pointer inline-block"
+                  >
+                    {selectedAlbumDetail.artist}
+                  </p>
+                )}
+
+                <p className="text-xs text-gray-400">
+                  {selectedAlbumDetail.tracks?.length || 0} canciones
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                  {selectedAlbumDetail.tracks?.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => playTrack(selectedAlbumDetail.tracks[0], selectedAlbumDetail.tracks)}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
+                      >
+                        <Play className="w-4 h-4 fill-white" />
+                        <span>Reproducir Álbum</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const shuffled = [...selectedAlbumDetail.tracks].sort(() => Math.random() - 0.5);
+                          playTrack(shuffled[0], shuffled);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
+                        <span>Aleatorio</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => downloadPlaylist({
+                          id: `album_${selectedAlbumDetail.id}`,
+                          name: selectedAlbumDetail.title,
+                          tracks: selectedAlbumDetail.tracks
+                        })}
+                        disabled={isDownloadingPlaylistId === `album_${selectedAlbumDetail.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                      >
+                        {isDownloadingPlaylistId === `album_${selectedAlbumDetail.id}` ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                            <span>Descargando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Descargar Álbum ({selectedAlbumDetail.tracks.length})</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Pistas del Álbum */}
+            {isLoadingAlbum ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
+                <span className="text-xs">Cargando pistas del álbum...</span>
+              </div>
+            ) : selectedAlbumDetail.tracks?.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <Disc3 className="w-12 h-12 mx-auto mb-3 opacity-40 text-purple-400" />
+                <p className="text-base font-semibold">No se encontraron pistas disponibles para este álbum</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {selectedAlbumDetail.tracks.map((track, idx) => (
+                  <TrackCard 
+                    key={`album-track-${track.id}-${idx}`}
+                    track={track} 
+                    queue={selectedAlbumDetail.tracks}
+                    index={track.trackNumber || idx + 1}
+                    isPlaying={isPlaying && currentTrack?.id === track.id}
+                    onPlay={() => playTrack(track, selectedAlbumDetail.tracks)}
+                    isFav={isFavorite(track.id)}
+                    onToggleFav={() => toggleFavorite(track)}
+                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                    isDownloaded={isTrackDownloaded(track.id)}
+                    downloadStatus={activeDownloadsMap[track.id]}
+                    onDownload={() => downloadTrack(track)}
+                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : selectedArtistDetail ? (
+          /* CASO: VISTA DETALLE DEL ARTISTA */
+          <div className="space-y-6 animate-in fade-in">
+            {/* Botón Volver */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedArtistDetail(null)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver</span>
+              </button>
+            </div>
+
+            {/* Banner del Artista */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-[#1a0e28] to-purple-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 sm:gap-8 shadow-2xl">
+              <div className="w-32 h-32 sm:w-44 sm:h-44 rounded-full overflow-hidden bg-black/60 border-2 border-fuchsia-400/40 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                <img 
+                  src={selectedArtistDetail.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80'} 
+                  alt={selectedArtistDetail.name} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
+                  }}
+                />
+              </div>
+
+              <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-300 text-[10px] font-bold tracking-wider uppercase">
+                  <Sparkles className="w-3 h-3 text-fuchsia-400" />
+                  <span>Artista Verificado</span>
+                </div>
+
+                <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+                  {selectedArtistDetail.name}
+                </h1>
+
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs text-gray-300">
+                  {selectedArtistDetail.fans > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-fuchsia-400" />
+                      <span>{Number(selectedArtistDetail.fans).toLocaleString()} oyentes / seguidores</span>
+                    </span>
+                  )}
+                  {selectedArtistDetail.albums && selectedArtistDetail.albums.length > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Disc3 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>{selectedArtistDetail.albums.length} álbumes</span>
+                    </span>
+                  )}
+                  {selectedArtistDetail.topTracks && selectedArtistDetail.topTracks.length > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Music2 className="w-3.5 h-3.5 text-pink-400" />
+                      <span>{selectedArtistDetail.topTracks.length} canciones populares</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Botones de acción */}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                  {selectedArtistDetail.topTracks?.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => playTrack(selectedArtistDetail.topTracks[0], selectedArtistDetail.topTracks)}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
+                      >
+                        <Play className="w-4 h-4 fill-white" />
+                        <span>Reproducir Éxitos</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const shuffled = [...selectedArtistDetail.topTracks].sort(() => Math.random() - 0.5);
+                          playTrack(shuffled[0], shuffled);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
+                        <span>Aleatorio</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => downloadPlaylist({
+                          id: `artist_${selectedArtistDetail.id}`,
+                          name: `Éxitos de ${selectedArtistDetail.name}`,
+                          tracks: selectedArtistDetail.topTracks
+                        })}
+                        disabled={isDownloadingPlaylistId === `artist_${selectedArtistDetail.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
+                      >
+                        {isDownloadingPlaylistId === `artist_${selectedArtistDetail.id}` ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                            <span>Descargando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Descargar Todo ({selectedArtistDetail.topTracks.length})</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* SECCIÓN 1: Canciones Populares */}
+            {selectedArtistDetail.topTracks?.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-fuchsia-400" />
+                  <span>Canciones Populares de {selectedArtistDetail.name}</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {selectedArtistDetail.topTracks.map((track, idx) => (
+                    <TrackCard 
+                      key={`artist-track-${track.id}-${idx}`}
+                      track={track} 
+                      queue={selectedArtistDetail.topTracks}
+                      isPlaying={isPlaying && currentTrack?.id === track.id}
+                      onPlay={() => playTrack(track, selectedArtistDetail.topTracks)}
+                      isFav={isFavorite(track.id)}
+                      onToggleFav={() => toggleFavorite(track)}
+                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                      isDownloaded={isTrackDownloaded(track.id)}
+                      downloadStatus={activeDownloadsMap[track.id]}
+                      onDownload={() => downloadTrack(track)}
+                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN 2: Álbumes y Discografía */}
+            {selectedArtistDetail.albums?.length > 0 && (
+              <div className="space-y-4 pt-4">
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <Disc3 className="w-5 h-5 text-purple-400" />
+                  <span>Álbumes y Discografía ({selectedArtistDetail.albums.length})</span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {selectedArtistDetail.albums.map((album) => (
+                    <div
+                      key={`album-${album.id}`}
+                      onClick={() => handleOpenAlbum(album)}
+                      className="group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-purple-500/40 transition duration-300 flex flex-col cursor-pointer active:scale-[0.98]"
+                    >
+                      <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
+                        <img 
+                          src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+                          alt={album.title} 
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
+                          <span className="text-[11px] font-bold text-fuchsia-300 flex items-center gap-1">
+                            <Disc3 className="w-3.5 h-3.5" />
+                            <span>Ver Álbum</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-300 truncate transition">
+                          {album.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
+                          {album.releaseDate && <span>{album.releaseDate}</span>}
+                          {album.trackCount > 0 && <span>• {album.trackCount} canciones</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* CASO A: BÚSQUEDA EN VIVO */}
+            {searchQuery && (
+              <div className="space-y-4 animate-in fade-in">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <span>Resultados para "{searchQuery}"</span>
+                  <span className="text-xs text-gray-400 font-normal">({searchResults.length} canciones encontradas)</span>
+                </h2>
+
+                {/* Artistas Relacionados */}
+                {searchResultsArtists.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="w-4 h-4 text-fuchsia-400" />
+                      <h3 className="text-sm font-bold text-gray-200 uppercase tracking-wider">
+                        Artistas Relacionados
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                      {searchResultsArtists.map((artist) => (
+                        <button
+                          key={`artist-match-${artist.id}`}
+                          type="button"
+                          onClick={() => handleOpenArtist(artist.name, artist.id)}
+                          className="group flex flex-col items-center p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 transition text-center cursor-pointer active:scale-95"
+                        >
+                          <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden mb-2 bg-black/40 border-2 border-white/10 group-hover:border-fuchsia-400/80 transition shadow-lg flex-shrink-0">
+                            <img
+                              src={artist.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80'}
+                              alt={artist.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80';
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 truncate w-full">
+                            {artist.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 mt-0.5">
+                            {artist.fans ? `${Number(artist.fans).toLocaleString()} fans` : 'Artista'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
             {isSearching ? (
               <div className="flex items-center justify-center py-20">
@@ -2855,6 +3303,8 @@ export default function Music() {
             )}
           </div>
         )}
+          </>
+        )}
 
       </div>
     </div>
@@ -2875,7 +3325,8 @@ function TrackCard({
   isDownloaded,
   downloadStatus,
   onDownload,
-  onDeleteOffline
+  onDeleteOffline,
+  onArtistClick
 }) {
   const rawSecs = track.fullDuration || track.duration || 210;
   const durationLabel = track.isRadio
@@ -2975,9 +3426,27 @@ function TrackCard({
           {track.title}
         </h4>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <p className="text-[11px] text-gray-400 truncate flex-1">
-            {track.artist}
-          </p>
+          {track.isRadio ? (
+            <p className="text-[11px] text-gray-400 truncate flex-1">
+              {track.artist}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onArtistClick) {
+                  onArtistClick(track.artist, track.artistId);
+                } else if (window.__teamgOpenArtist) {
+                  window.__teamgOpenArtist(track.artist, track.artistId);
+                }
+              }}
+              className="text-[11px] text-gray-400 hover:text-fuchsia-300 hover:underline truncate flex-1 text-left transition cursor-pointer"
+              title={`Ver discografía y álbumes de ${track.artist}`}
+            >
+              {track.artist}
+            </button>
+          )}
           {formattedDate && (
             <span className="text-[9px] font-semibold text-fuchsia-300/90 bg-fuchsia-950/60 px-1.5 py-0.5 rounded border border-fuchsia-500/20 flex-shrink-0" title={`Fecha de lanzamiento: ${formattedDate}`}>
               {formattedDate}
