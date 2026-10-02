@@ -110,7 +110,7 @@ export default function Music() {
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [chartRegion, setChartRegion] = useState('global');
-  const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
+  const [topTracks, setTopTracks] = useState([]);
   const [recentTracks, setRecentTracks] = useState([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(false);
   const [independentArtists, setIndependentArtists] = useState(INDEPENDENT_ARTISTS);
@@ -180,11 +180,10 @@ export default function Music() {
     let isMounted = true;
     async function loadTop() {
       setIsLoadingTop(true);
+      setTopTracks([]);
       try {
         const tracks = await musicService.getTopTracks(chartRegion);
-        if (isMounted && tracks && tracks.length > 0) {
-          setTopTracks(tracks);
-        }
+        if (isMounted) setTopTracks(Array.isArray(tracks) ? tracks : []);
       } catch (err) {
         console.warn('[MusicPage] Error cargando Top Tracks:', err);
       } finally {
@@ -671,6 +670,21 @@ export default function Music() {
       playTrack(topTracks[randomIdx], topTracks);
     }
   };
+
+  // Refrescar Top Éxitos forzando actualización sin caché obsoleta
+  const handleRefreshTop = useCallback(async () => {
+    setIsLoadingTop(true);
+    try {
+      const tracks = await musicService.getTopTracks(chartRegion, true);
+      if (Array.isArray(tracks)) {
+        setTopTracks(tracks);
+      }
+    } catch (err) {
+      console.warn('[MusicPage] Error refrescando Top Tracks:', err);
+    } finally {
+      setIsLoadingTop(false);
+    }
+  }, [chartRegion]);
 
   const selectedPlaylist = useMemo(() => {
     if (!selectedPlaylistId) return null;
@@ -3284,20 +3298,51 @@ export default function Music() {
 
             {/* SECCIÓN PRINCIPAL: LO MÁS ESCUCHADO */}
             <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-fuchsia-400" />
-                    <span>{chartRegion === 'PE' ? 'Top Perú' : chartRegion === 'global' ? 'Top Global' : 'Top Latino'}</span>
+                    <TrendingUp className="w-5 h-5 text-fuchsia-400 flex-shrink-0" />
+                    <span>{chartRegion === 'PE' ? 'Top Perú' : chartRegion === 'global' ? 'Top Global' : 'Top Latino · México'}</span>
                   </h2>
-                  <p className="text-xs text-gray-400">{chartRegion === "PE" ? "Lo más escuchado en Perú" : chartRegion === "global" ? "Tendencias globales" : "Tendencias latinas"} · actualización diaria</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {chartRegion === 'PE' 
+                      ? 'Ranking oficial de canciones más escuchadas en Perú' 
+                      : chartRegion === 'global' 
+                        ? 'Éxitos mundiales y tendencias del momento en tiempo real' 
+                        : 'Ranking oficial de canciones más escuchadas en México y Latinoamérica'}
+                  </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={handleRefreshTop}
+                  disabled={isLoadingTop}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-xs font-semibold text-gray-300 hover:text-white border border-white/10 transition cursor-pointer active:scale-95 disabled:opacity-50 flex-shrink-0 shadow-sm"
+                  title="Actualizar ranking con los últimos éxitos mundiales"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-fuchsia-400 ${isLoadingTop ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">Actualizar</span>
+                </button>
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Región del ranking">
-                {[['global','Global'],['PE','Perú'],['MX','Latino · México']].map(([id,label])=>(
-                  <button key={id} onClick={()=>setChartRegion(id)} aria-pressed={chartRegion===id}
-                    className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition ${chartRegion===id?'bg-fuchsia-500 text-white':'bg-white/5 text-gray-300 hover:bg-white/10'}`}>{label}</button>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" aria-label="Región del ranking">
+                {[
+                  ['global', 'Top Global'],
+                  ['PE', 'Top Perú'],
+                  ['MX', 'Top Latino · México']
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setChartRegion(id)}
+                    aria-pressed={chartRegion === id}
+                    className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition cursor-pointer active:scale-95 ${
+                      chartRegion === id
+                        ? 'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white shadow-md shadow-fuchsia-500/25 ring-1 ring-fuchsia-400/50'
+                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
               {isLoadingTop ? (
@@ -3306,6 +3351,7 @@ export default function Music() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+                  {topTracks.length === 0 && <p className="col-span-full py-12 text-center text-gray-400">No se pudo cargar el ranking. Intenta nuevamente cuando tengas conexión.</p>}
                   {topTracks.map((track, idx) => (
                     <TrackCard 
                       key={track.id} 

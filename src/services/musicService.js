@@ -1118,43 +1118,71 @@ export const musicService = {
    * Top de éxitos frescos (vía backend; sin el RSS deprecado de Apple).
    * country: 'global' | 'latin' | 'PE' | 'US' | 'ES' | 'MX'
    */
-  async getTopTracks(country = 'global') {
-    const cacheKey = 'teamg_music_chart_v3_'+String(country).toLowerCase();
+  async getTopTracks(country = 'global', forceRefresh = false) {
+    const normCountry = String(country || 'global').toLowerCase();
+    const cacheKey = 'teamg_music_chart_v6_' + normCountry;
+
+    // Purgar cachés obsoletas de versiones anteriores (Deezer chart 0 antiguo)
     try {
-      const cached=JSON.parse(localStorage.getItem(cacheKey)||'null');
-      if(cached && Date.now()-cached.ts<3600000 && cached.tracks.length) return cached.tracks;
+      localStorage.removeItem('teamg_music_top_cached');
+      localStorage.removeItem('teamg_music_chart_v3_global');
+      localStorage.removeItem('teamg_music_chart_v4_global');
+      localStorage.removeItem('teamg_music_chart_v3_pe');
+      localStorage.removeItem('teamg_music_chart_v3_mx');
     } catch {}
-    if(country==='global') {
+
+    if (!forceRefresh) {
       try {
-        const chart=await fetchDeezerApi('/chart/0/tracks?limit=100');
-        if(chart?.data?.length) {
-          const tracks=chart.data.map(formatDeezerTrack).filter(Boolean).map(t=>({...t,chartSource:'Deezer · Global'}));
-          localStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),tracks}));
-          return tracks;
+        const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+        if (cached && Date.now() - cached.ts < 3600000 && Array.isArray(cached.tracks) && cached.tracks.length > 0) {
+          return cached.tracks;
         }
       } catch {}
     }
-    // 1) Backend vía axiosInstance (incluye headers x-app-version: 1.5.12 y puente Electron)
-    try {
-      const res = await axiosInstance.get('/api/music/charts', {
-        params: { country },
-        timeout: 10000
-      });
-      if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
-        const mapped = res.data.tracks.map(normalizeBackendTrack).filter(Boolean);
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(),tracks:mapped}));
-        } catch {}
-        return mapped;
+
+    if (normCountry === 'global') {
+      const regions = ['US', 'GB', 'MX', 'ES', 'PE'];
+      const lists = await Promise.all(regions.map(r => this.getTopTracks(r, forceRefresh).catch(() => [])));
+      const validLists = lists.filter(l => Array.isArray(l) && l.length > 0);
+
+      if (validLists.length === 0) {
+        return await this.getTopTracks('US', forceRefresh);
       }
-    } catch (err) {
-      console.warn('[MusicService] Backend charts no disponible, usando feed oficial Apple v2:', err?.message);
+
+      const combined = new Map();
+      const identity = v => String(v || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      validLists.forEach(list => {
+        const seen = new Set();
+        list.forEach((track, index) => {
+          const key = identity(track.title) + '::' + identity(track.artist);
+          if (seen.has(key)) return;
+          seen.add(key);
+          const entry = combined.get(key) || { track, score: 0 };
+          entry.score += 1 / (index + 1);
+          combined.set(key, entry);
+        });
+      });
+
+      const tracks = [...combined.values()]
+        .sort((a, b) => b.score - a.score)
+        .map(({ track }) => ({ ...track, chartSource: 'Top Global' }))
+        .filter(t => {
+          const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
+          if (year > 0 && year < 2023) return false;
+          return true;
+        })
+        .slice(0, 100);
+
+      if (tracks.length > 0) {
+        try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks })); } catch {}
+        return tracks;
+      }
+      return await this.getTopTracks('US', forceRefresh);
     }
 
-    // 2) Fallback directo al feed oficial de Apple Music Most-Played con lookup de previews instantáneos
+    // 1) Feed oficial más reproducido de Apple Music para el país solicitado
     try {
-      const key = String(country || 'global').toLowerCase();
-      const feedCountry = ['pe', 'es', 'mx', 'us'].includes(key) ? key : (key === 'latin' ? 'pe' : 'us');
+      const feedCountry = ['pe', 'es', 'mx', 'us', 'gb', 'br'].includes(normCountry) ? normCountry : (normCountry === 'latin' ? 'pe' : 'us');
       const data = await itunesJson(`https://rss.marketingtools.apple.com/api/v2/${feedCountry}/music/most-played/100/songs.json`);
       if (data) {
         const results = data?.feed?.results || [];
@@ -1162,12 +1190,11 @@ export const musicService = {
           const ids = results.map((r) => r.id).filter(Boolean);
           const lookupMap = new Map();
           try {
-            const lRes = await fetch(
+            const lData = await itunesJson(
               `https://itunes.apple.com/lookup?id=${ids.join(',')}&country=${feedCountry.toUpperCase()}`
             );
-            if (lRes.ok) {
-              const lData = await lRes.json();
-              (lData.results || []).forEach((item) => {
+            if (lData && Array.isArray(lData.results)) {
+              lData.results.forEach((item) => {
                 if (item.trackId) lookupMap.set(String(item.trackId), item);
               });
             }
@@ -1203,20 +1230,48 @@ export const musicService = {
               isRadio: false,
               externalUrl: item.url || '',
             };
+          }).filter((t) => {
+            if (!t || !t.title) return false;
+            const lower = t.title.toLowerCase();
+            if (lower.includes('sonido de lluvia') || lower.includes('lluvia para dormir') || lower.includes('white noise') || lower.includes('ruido blanco')) return false;
+            const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
+            if (year > 0 && year < 2023) return false;
+            return true;
           });
 
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify({ts:Date.now(),tracks:mapped}));
-          } catch {}
-
-          return mapped;
+          if (mapped.length > 0) {
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks: mapped }));
+            } catch {}
+            return mapped;
+          }
         }
       }
     } catch (err) {
       console.warn('[MusicService] Fallback RSS Apple falló:', err);
     }
 
-    // Si no hay conexión (offline), cargar la última caché persistida de éxitos
+    // 2) Si no hay respuesta directa, intentar backend oficial
+    try {
+      const res = await axiosInstance.get('/api/music/charts', {
+        params: { country: normCountry },
+        timeout: 6000
+      });
+      if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
+        const clean = res.data.tracks.map(normalizeBackendTrack).filter(t => {
+          if (!t || !t.title) return false;
+          const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
+          if (year > 0 && year < 2023) return false;
+          return true;
+        });
+        if (clean.length > 0) {
+          try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks: clean })); } catch {}
+          return clean;
+        }
+      }
+    } catch {}
+
+    // 3) Caché persistida previa
     try {
       const offlineCached = localStorage.getItem(cacheKey);
       if (offlineCached) {
@@ -1225,7 +1280,7 @@ export const musicService = {
       }
     } catch {}
 
-    return INITIAL_FEATURED_TRACKS;
+    return [];
   },
 
   /**
