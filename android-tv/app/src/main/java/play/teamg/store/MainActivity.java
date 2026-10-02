@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(VideoPlayerPlugin.class);
     registerPlugin(PermissionManager.class);
     registerPlugin(AppUpdatePlugin.class);
+    registerPlugin(MusicPlaybackPlugin.class);
     super.onCreate(savedInstanceState);
 
     // Configurar WebChromeClient para manejar pantalla completa y permisos

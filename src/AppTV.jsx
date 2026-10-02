@@ -12,9 +12,11 @@ import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowse
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
 import axiosInstance from "./utils/axiosInstance.js";
+import { useMusic } from "./context/MusicContext.jsx";
 
 const HOME_BACK_ROUTES = new Set([
   '/live-tv',
+  '/musica',
   '/peliculas',
   '/series',
   '/animes',
@@ -43,6 +45,13 @@ function AppTV() {
   const navigate = useNavigate();
   const isWatchPage = location.pathname.startsWith('/watch');
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const { isPlaying, togglePlay } = useMusic();
+
+  useEffect(() => {
+    if (isWatchPage && isPlaying) {
+      togglePlay();
+    }
+  }, [isWatchPage, isPlaying, togglePlay]);
   
   const [updateInfo, setUpdateInfo] = useState({ isOpen: false, latestVersion: '', notes: '', downloadUrl: '', force: false });
 

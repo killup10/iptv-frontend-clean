@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { MusicProvider } from './context/MusicContext.jsx';
 import AppTV from './AppTV.jsx';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
@@ -17,6 +18,7 @@ import TVCollectionsPage from './pages/TVCollectionsPage.jsx';
 import TVMyListPage from './pages/TVMyListPage.jsx';
 import TVMoviesPage from './pages/TVMoviesPage.jsx';
 import TVKidsPage from './pages/TVKidsPage.jsx';
+import TVMusicPage from './pages/TVMusicPage.jsx';
 import Profiles from './pages/Profiles.jsx';
 import Settings from './pages/Settings.jsx';
 import './index.css';
@@ -24,7 +26,8 @@ import './index.css';
 function TVApp() {
   return (
     <AuthProvider>
-      <HashRouter>
+      <MusicProvider>
+        <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -42,6 +45,7 @@ function TVApp() {
             <Route index element={<Home />} />
             <Route path="tv" element={<Navigate to="/live-tv" replace />} />
             <Route path="live-tv" element={<TVLiveTV />} />
+            <Route path="musica" element={<TVMusicPage />} />
             <Route
               path="peliculas"
               element={<TVMoviesPage />}
@@ -89,6 +93,7 @@ function TVApp() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </HashRouter>
+      </MusicProvider>
     </AuthProvider>
   );
 }

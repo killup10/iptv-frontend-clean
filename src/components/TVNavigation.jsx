@@ -22,6 +22,7 @@ export default function TVNavigation() {
     { key: 'search', action: 'search', label: 'Buscar', icon: 'search' },
     { key: 'home', path: '/', label: 'Inicio', icon: 'home' },
     { key: 'live', path: '/live-tv', label: 'TV en vivo', icon: 'live' },
+    { key: 'music', path: '/musica', label: 'TeamG Music', icon: 'music' },
     { key: 'movies', path: '/peliculas', label: 'Películas', icon: 'movies' },
     { key: 'series', path: '/series', label: 'Series', icon: 'series' },
     { key: 'animes', path: '/animes', label: 'Animes', icon: 'animes' },
@@ -193,6 +194,14 @@ export default function TVNavigation() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
             <polyline points="17 2 12 7 7 2" />
+          </svg>
+        );
+      case 'music':
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
           </svg>
         );
       case 'trophy':
