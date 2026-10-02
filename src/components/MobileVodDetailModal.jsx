@@ -534,6 +534,25 @@ export default function MobileVodDetailModal({
     }
   };
 
+  const handleDownloadSeason = async () => {
+    let source=modalItem;
+    if(selectedSeasonEpisodes.some(chapter=>chapter && !(chapter.downloadUrl || chapter.url))) {
+      try { source=await fetchVideoById(itemId) || source; } catch { alert('No se pudieron cargar los episodios.');return; }
+    }
+    const season=getTVItemSeasons(source)?.[selectedSeasonIndex];
+    const chapters=season?.chapters || selectedSeasonEpisodes;
+    const transfers=chapters.map((chapter,index)=>{
+      if(!chapter)return null;
+      const number=getSafeEpisodeNumber(chapter,index);
+      return startDownload({id:`${source._id || source.id}_S${selectedSeasonNumber || 1}E${number}`,
+        videoId:source._id || source.id,title:`${title} - T${selectedSeasonNumber || 1} E${number}`,tipo:resolvedType,
+        videoUrl:chapter.downloadUrl || chapter.url || chapter.videoUrl || '',poster:posterImage,backdrop:backdropImage,year,
+        seasonNumber:selectedSeasonNumber,episodeNumber:number,episodeTitle:chapter.title || ''});
+    }).filter(Boolean);
+    const results=await Promise.allSettled(transfers);
+    const failures=results.filter(result=>result.status==='rejected');
+    if(failures.length)alert(`${failures.length} episodios no pudieron descargarse. Puedes reintentarlos en Modo Offline.`);
+  };
   return (
     <div className="fixed inset-0" style={{ zIndex: 100000 }}>
       <div
@@ -804,6 +823,10 @@ export default function MobileVodDetailModal({
                     {isSavingToMyList ? 'Guardando...' : 'Agregar a mi lista'}
                   </button>
 
+                  {hasEpisodesContent && selectedSeasonEpisodes.length>1 && <button type="button" onClick={handleDownloadSeason}
+                    className="inline-flex items-center justify-center gap-2 rounded-[22px] border border-cyan-300/20 bg-slate-900/60 px-5 py-4 text-base font-bold text-white">
+                    <WifiOff className="h-5 w-5 text-cyan-400"/>Descargar temporada
+                  </button>}
                   {/* BOTÓN MODO OFFLINE */}
                   {downloadedItem ? (
                     <button
@@ -814,7 +837,7 @@ export default function MobileVodDetailModal({
                       <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                       <span>Disponible en Modo Offline ({downloadedItem.sizeFormatted})</span>
                     </button>
-                  ) : downloadStatus && downloadStatus.status === 'downloading' ? (
+                  ) : downloadStatus && ['queued','downloading'].includes(downloadStatus.status) ? (
                     <div className="relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-[22px] border border-cyan-400/40 bg-cyan-950/50 px-5 py-4 text-base font-bold text-cyan-200">
                       <div
                         className="absolute inset-0 bg-cyan-500/25 transition-all duration-300"
@@ -822,7 +845,7 @@ export default function MobileVodDetailModal({
                       />
                       <span className="relative z-10 flex items-center gap-2">
                         <span className="animate-spin rounded-full h-4 w-4 border-2 border-cyan-400 border-t-transparent" />
-                        <span>Guardando Offline... {downloadStatus.progress}%</span>
+                        <span>{downloadStatus.status==='queued'?'En cola':downloadStatus.total>0?`Guardando Offline... ${downloadStatus.progress}%`:'Descargando...'}</span>
                       </span>
                     </div>
                   ) : (

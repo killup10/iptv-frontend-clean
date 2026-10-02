@@ -1,5 +1,6 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Capacitor } from '@capacitor/core';
+import { DownloadQueue } from './downloadQueue.js';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import axiosInstance from '../utils/axiosInstance.js';
 
 const STORAGE_KEY = 'teamg_offline_items';
@@ -8,6 +9,24 @@ const MAGIC_HEADER = 'TGPLAY_ENC_V1';
 
 // Mapa de descargas en curso: id -> { progress: number, status: 'downloading' | 'error' | 'completed' }
 const activeDownloads = new Map();
+const queue = new DownloadQueue(2);
+const NativeVodDownload = registerPlugin('VodDownload');
+let nativeProgressReady;
+function publishDownload(id, state) {
+  const previous=activeDownloads.get(id)||{};
+  const next={...previous,...state};activeDownloads.set(id,next);
+  window.dispatchEvent(new CustomEvent('teamg:offline-progress',{detail:{id,...next}}));
+}
+export function retryDownload(id){const item=activeDownloads.get(String(id))?.mediaItem;return item?startDownload(item):Promise.reject(new Error('Vuelve a abrir el detalle para reintentar.'));}
+export function getActiveDownloads(){return [...activeDownloads].map(([id,state])=>({id,...state}));}
+function nativeProgressListener(){
+  if(!nativeProgressReady)nativeProgressReady=NativeVodDownload.addListener('progress',event=>{
+    const id=String(event.id);if(!activeDownloads.has(id))return;
+    const bytes=Number(event.bytes)||0,total=Number(event.total)||0;
+    publishDownload(id,{status:'downloading',bytes,total,progress:total>0?Math.min(99,Math.round(bytes/total*100)):0});
+  }).catch(error=>{nativeProgressReady=null;throw error;});
+  return nativeProgressReady;
+}
 
 /**
  * Verifica si la plataforma es nativa (Android / iOS)
@@ -173,7 +192,7 @@ export function renewAllOfflineLicenses(user = null) {
 
   const updated = list.map((item) => {
     const lastCheck = item.lastOnlineValidation || 0;
-    if (!item.licenseExpiresAt || item.licenseExpiresAt < now || (now - lastCheck) > 6 * 60 * 60 * 1000 || item.licenseExpiresAt !== newExpiry) {
+    if (!item.licenseExpiresAt || item.licenseExpiresAt < now || (now - lastCheck) > 6 * 60 * 60 * 1000 || item.licenseExpiresAt > newExpiry) {
       hasChanged = true;
       return {
         ...item,
@@ -277,6 +296,11 @@ export async function resolveDirectVideoUrl(videoUrl) {
   if (!videoUrl || typeof videoUrl !== 'string') return null;
 
   let finalUrl = videoUrl.trim();
+  const apiOrigin=new URL(axiosInstance.defaults?.baseURL || 'https://api.teamg.store').origin;
+  if(finalUrl.startsWith('/api/'))finalUrl=new URL(finalUrl,apiOrigin).href;
+  if(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/api\//i.test(finalUrl)) {
+    const local=new URL(finalUrl);finalUrl=apiOrigin+local.pathname+local.search;
+  }
 
   // Si es una URL protegida de playback (/api/videos/playback/...)
   if (finalUrl.includes('/api/videos/playback/')) {
@@ -286,7 +310,7 @@ export async function resolveDirectVideoUrl(videoUrl) {
       const res = await axiosInstance.get(resolveUrl);
       if (res.data?.downloadUrl || res.data?.sourceUrl) {
         finalUrl = res.data.downloadUrl || res.data.sourceUrl;
-      }
+      } else throw new Error('El servidor no devolvió el enlace directo del video.');
     } catch (e) {
       console.error('[offlineStorage] Error resolviendo URL directa vía backend:', e?.message || e);
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -303,13 +327,20 @@ export async function resolveDirectVideoUrl(videoUrl) {
     finalUrl = finalUrl.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
   }
 
+  let parsed;try{parsed=new URL(finalUrl);}catch{throw new Error('El enlace de descarga del contenido no es válido.');}
+  if(!['https:','http:'].includes(parsed.protocol)||['localhost','127.0.0.1'].includes(parsed.hostname))throw new Error('El enlace de descarga no apunta al servidor de contenido. Abre el detalle nuevamente.');
   return finalUrl;
 }
 
 /**
  * Inicia la descarga protegida de un video (Película o Episodio)
  */
-export async function startDownload(mediaItem) {
+export function startDownload(mediaItem) {
+  if(!mediaItem?.id || !mediaItem?.videoUrl)return Promise.reject(new Error('Información de video incompleta para iniciar la descarga'));
+  const id=String(mediaItem.id);if(isDownloaded(id))return Promise.resolve(getDownloadedItem(id));
+  return queue.enqueue(id,async()=>{try{return await performDownload(mediaItem);}catch(error){publishDownload(id,{status:'error',error:error.message});throw error;}},()=>publishDownload(id,{title:mediaItem.title,mediaItem,progress:0,status:'queued',bytes:0,total:0}));
+}
+async function performDownload(mediaItem) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     throw new Error('Sin conexión a internet. Para descargar contenido offline debes conectarte a una red Wi-Fi o datos móviles.');
   }
@@ -325,26 +356,19 @@ export async function startDownload(mediaItem) {
     return;
   }
 
-  if (activeDownloads.has(itemId)) {
-    console.warn('[offlineStorage] Ya existe una descarga en curso para:', itemId);
-    return;
-  }
-
-  // Resolver la URL de descarga directa sin saltos de redirección
-  const directVideoUrl = await resolveDirectVideoUrl(mediaItem.videoUrl);
+  let directVideoUrl;
+  try { directVideoUrl=await resolveDirectVideoUrl(mediaItem.videoUrl); }
+  catch(error){publishDownload(itemId,{status:'error',error:error.message});throw error;}
   if (!directVideoUrl) {
     throw new Error('No se pudo obtener el enlace de descarga del video');
   }
 
   if (directVideoUrl.toLowerCase().includes('.m3u8')) {
+    publishDownload(itemId,{status:'error',error:'Este formato no permite descarga offline.'});
     throw new Error('Este contenido se emite en formato HLS en vivo y no está disponible para descarga offline.');
   }
 
-  // Notificar inicio de descarga
-  activeDownloads.set(itemId, { progress: 0, status: 'downloading', bytes: 0, total: 0 });
-  window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
-    detail: { id: itemId, progress: 0, status: 'downloading' }
-  }));
+  publishDownload(itemId,{title:mediaItem.title,status:'downloading',progress:0,bytes:0,total:0});
 
   let ext = '.mp4';
   const lowerUrl = directVideoUrl.toLowerCase();
@@ -369,38 +393,19 @@ export async function startDownload(mediaItem) {
         // La carpeta ya existía
       }
 
-      let progressSub = null;
-      try {
-        progressSub = await Filesystem.addListener('progress', (event) => {
-          const bytes = Number(event?.bytes ?? event?.bytesWritten ?? 0);
-          const total = Number(event?.contentLength ?? event?.total ?? 0);
-          if (total > 0) {
-            const pct = Math.min(99, Math.max(1, Math.round((bytes / total) * 100)));
-            activeDownloads.set(itemId, {
-              progress: pct,
-              status: 'downloading',
-              bytes,
-              total,
-            });
-            window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
-              detail: { id: itemId, progress: pct, status: 'downloading', bytes, total }
-            }));
-          }
-        });
-      } catch (subErr) {
-        console.warn('[offlineStorage] No se pudo vincular listener de progreso:', subErr);
-      }
-
-      console.log(`[offlineStorage] Descargando video en Sandbox Privado: ${mediaItem.title}`);
-      await Filesystem.downloadFile({
-        url: directVideoUrl,
-        path: relativeFilePath,
-        directory: Directory.Data,
-        progress: true,
-      });
-
-      if (progressSub && typeof progressSub.remove === 'function') {
-        progressSub.remove();
+      if(Capacitor.getPlatform()==='android') {
+        await nativeProgressListener();
+        await NativeVodDownload.download({id:itemId,url:directVideoUrl,path:relativeFilePath});
+      } else {
+        let subscription;
+        try {
+          subscription=await Filesystem.addListener('progress',event=>{
+            if(event.url!==directVideoUrl)return;
+            const bytes=Number(event.bytes)||0,total=Number(event.contentLength)||0;
+            publishDownload(itemId,{status:'downloading',bytes,total,progress:total>0?Math.min(99,Math.round(bytes/total*100)):0});
+          });
+          await Filesystem.downloadFile({url:directVideoUrl,path:relativeFilePath,directory:Directory.Data,progress:true,connectTimeout:20000,readTimeout:45000});
+        } finally {await subscription?.remove();}
       }
 
       // Obtener tamaño final del archivo descargado
@@ -460,42 +465,20 @@ export async function startDownload(mediaItem) {
         throw new Error(`Error HTTP al descargar: ${response.status}`);
       }
 
-      const contentLength = Number(response.headers.get('content-length')) || 0;
-      const reader = response.body.getReader();
-      const chunks = [];
-      let receivedBytes = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        receivedBytes += value.length;
-
-        if (contentLength > 0) {
-          const pct = Math.min(99, Math.round((receivedBytes / contentLength) * 100));
-          activeDownloads.set(itemId, {
-            progress: pct,
-            status: 'downloading',
-            bytes: receivedBytes,
-            total: contentLength
-          });
-          window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
-            detail: { id: itemId, progress: pct, status: 'downloading', bytes: receivedBytes, total: contentLength }
-          }));
-        }
-      }
-
-      if (receivedBytes < 100 * 1024) {
-        throw new Error('La descarga no pudo completarse correctamente (archivo incompleto o vacío).');
-      }
-
-      const mimeType = ext === '.mkv' ? 'video/x-matroska' : 'video/mp4';
-      const blob = new Blob(chunks, { type: mimeType });
-      
-      // Guardar en Cache API
-      const cache = await caches.open('teamg-offline-vod-v1');
-      const fakeUrl = `https://offline.teamg.store/vod/${safeFileName}`;
-      await cache.put(fakeUrl, new Response(blob));
+      const contentLength=Number(response.headers.get('content-length'))||0;
+      const mimeType=response.headers.get('content-type')||'video/mp4';
+      if(/text\/html|application\/json/i.test(mimeType))throw new Error('El enlace no devolvió un archivo de video.');
+      let receivedBytes=0,lastProgress=0;
+      const progressStream=new TransformStream({
+        transform(chunk,controller){
+          receivedBytes+=chunk.byteLength;controller.enqueue(chunk);
+          if(Date.now()-lastProgress>=500){lastProgress=Date.now();publishDownload(itemId,{status:'downloading',bytes:receivedBytes,total:contentLength,progress:contentLength>0?Math.min(99,Math.round(receivedBytes/contentLength*100)):0});}
+        },
+        flush(){if(receivedBytes<102400 || (contentLength>0 && receivedBytes!==contentLength))throw new Error('La conexión se interrumpió antes de completar el video.');}
+      });
+      const cache=await caches.open('teamg-offline-vod-v1');
+      const fakeUrl=`https://offline.teamg.store/vod/${safeFileName}`;
+      await cache.put(fakeUrl,new Response(response.body.pipeThrough(progressStream),{headers:{'Content-Type':mimeType}}));
 
       const downloadRecord = {
         id: itemId,
@@ -532,10 +515,8 @@ export async function startDownload(mediaItem) {
 
   } catch (error) {
     console.error('[offlineStorage] Error al procesar descarga:', error);
-    activeDownloads.delete(itemId);
-    window.dispatchEvent(new CustomEvent('teamg:offline-progress', {
-      detail: { id: itemId, progress: 0, status: 'error', error: error.message }
-    }));
+    if(isNativeStorage()){try{await Filesystem.deleteFile({path:relativeFilePath,directory:Directory.Data});}catch{}}
+    publishDownload(itemId,{progress:0,status:'error',error:error.message});
     throw error;
   }
 }

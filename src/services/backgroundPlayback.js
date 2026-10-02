@@ -19,6 +19,7 @@ class BackgroundPlaybackService {
     this.mediaSession = null;
     this.wakeLock = null;
     this.isInitialized = false;
+    this.mediaRevision = 0;
   }
 
   async initialize() {

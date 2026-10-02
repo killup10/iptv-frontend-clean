@@ -1,0 +1,1 @@
+const response=await fetch('https://api.teamg.store/api/music/playlists/my',{headers:{'x-app-version':'1.5.13','x-client-platform':'android'},signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));console.log('Playlist endpoint:',response.status,data.code||data.error||'');

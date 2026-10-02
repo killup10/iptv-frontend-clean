@@ -24,6 +24,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(PermissionManager.class);
     registerPlugin(AppUpdatePlugin.class);
     registerPlugin(MusicPlaybackPlugin.class);
+    registerPlugin(VodDownloadPlugin.class);
     super.onCreate(savedInstanceState);
     
     // Permitir reproducción de audio en segundo plano sin bloquear gestos

@@ -47,8 +47,8 @@ public class MusicPlaybackPlugin extends Plugin {
             String coverUrl = call.getString("coverUrl", "");
             String audioUrl = call.getString("audioUrl", "");
             boolean isPlaying = call.getBoolean("isPlaying", true);
-            long duration = call.getLong("duration", 0L);
-            long position = call.getLong("position", 0L);
+            long duration = Math.round(call.getDouble("duration", 0.0));
+            long position = Math.round(call.getDouble("position", 0.0));
 
             Context context = getContext();
             Intent intent = new Intent(context, MusicPlaybackService.class);
@@ -76,7 +76,7 @@ public class MusicPlaybackPlugin extends Plugin {
     @PluginMethod
     public void seekTo(PluginCall call) {
         try {
-            long positionSeconds = call.getLong("position", 0L);
+            long positionSeconds = Math.round(call.getDouble("position", 0.0));
             Context context = getContext();
             Intent intent = new Intent(context, MusicPlaybackService.class);
             intent.setAction(MusicPlaybackService.ACTION_SEEK);
@@ -95,28 +95,31 @@ public class MusicPlaybackPlugin extends Plugin {
 
     @PluginMethod
     public void getPosition(PluginCall call) {
-        try {
-            JSObject ret = new JSObject();
-            long posSec = 0;
-            long durSec = 0;
-            boolean playing = MusicPlaybackService.isPlaying;
-            if (MusicPlaybackService.playerInstance != null) {
-                posSec = Math.max(0, MusicPlaybackService.playerInstance.getCurrentPosition() / 1000L);
-                long d = MusicPlaybackService.playerInstance.getDuration();
-                durSec = d > 0 ? (d / 1000L) : MusicPlaybackService.currentDuration;
-                playing = MusicPlaybackService.playerInstance.isPlaying();
-            } else {
-                posSec = MusicPlaybackService.currentPosition;
-                durSec = MusicPlaybackService.currentDuration;
+        getActivity().runOnUiThread(() -> {
+            try {
+                JSObject ret = new JSObject();
+                double posSec = 0;
+                double durSec = 0;
+                boolean playing = MusicPlaybackService.isPlaying;
+                if (MusicPlaybackService.playerInstance != null) {
+                    posSec = Math.max(0, MusicPlaybackService.playerInstance.getCurrentPosition() / 1000.0);
+                    long d = MusicPlaybackService.playerInstance.getDuration();
+                    durSec = d > 0 ? (d / 1000.0) : MusicPlaybackService.currentDuration;
+                    playing = MusicPlaybackService.playerInstance.isPlaying();
+                } else {
+                    posSec = MusicPlaybackService.currentPosition;
+                    durSec = MusicPlaybackService.currentDuration;
+                }
+                ret.put("position", posSec);
+                ret.put("duration", durSec);
+                ret.put("isPlaying", playing);
+                ret.put("audioUrl", MusicPlaybackService.currentAudioUrl);
+                call.resolve(ret);
+            } catch (Exception e) {
+                Log.e(TAG, "Error en getPosition", e);
+                call.reject("Error: " + e.getMessage());
             }
-            ret.put("position", posSec);
-            ret.put("duration", durSec);
-            ret.put("isPlaying", playing);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error en getPosition", e);
-            call.reject("Error: " + e.getMessage());
-        }
+        });
     }
 
     @PluginMethod

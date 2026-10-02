@@ -1,18 +1,32 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { backgroundPlaybackService } from '../services/backgroundPlayback.js';
 import { musicService } from '../services/musicService.js';
 import * as musicOfflineService from '../services/musicOfflineService.js';
+import { useAuth } from './AuthContext.jsx';
+import { PlaylistSync } from '../services/playlistSync.js';
 import { storage } from '../utils/storage.js';
 
 const MusicContext = createContext(null);
+const MusicLibraryContext = createContext(null);
 
 const STORAGE_FAVORITES_KEY = 'teamg_music_favorites';
 const STORAGE_PLAYLISTS_KEY = 'teamg_music_custom_playlists_v1';
 
 export function MusicProvider({ children }) {
+  const { user: accountUser } = useAuth();
+  const cloudPlaylistsRef = useRef(null);
+  const [playlistCloudStatus, setPlaylistCloudStatus] = useState('pending');
   const [currentTrack, setCurrentTrack] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setPlayingState] = useState(false);
+  const playIntentRef = useRef(false);
+  const transitionRef = useRef(false);
+  const playbackGenerationRef = useRef(0);
+  const setIsPlaying = useCallback(value => {
+    const playing = typeof value === 'function' ? value(playIntentRef.current) : value;
+    playIntentRef.current = playing;
+    setPlayingState(playing);
+  }, []);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(-1);
   const [volume, setVolumeState] = useState(0.85);
@@ -23,8 +37,7 @@ export function MusicProvider({ children }) {
   const [repeatMode, setRepeatMode] = useState('off'); // 'off' | 'all' | 'one'
   const [isExpandedPlayer, setIsExpandedPlayer] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  // Calidad de audio actual: 'radio' | 'preview' | 'loading-full' | 'full' | 'preview-fallback'
-  const [audioQuality, setAudioQuality] = useState('preview');
+  const [audioQuality, setAudioQuality] = useState('idle');
   // Motor de reproducción de la versión completa:
   // 'native'  = stream mp3/m4a directo en <audio> (progreso/seek reales, sin bloqueos de embed)
   // 'youtube' = iframe YouTube como respaldo (videos sin stream directo disponible)
@@ -84,6 +97,31 @@ export function MusicProvider({ children }) {
 
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
+  const officialVideoPlayerRef = useRef(null);
+  const [videoPlaybackActive, setVideoActive] = useState(false);
+  const videoPlaybackActiveRef = useRef(false);
+  const setVideoPlaybackActive = useCallback((active) => {
+    videoPlaybackActiveRef.current = active;
+    setVideoActive(active);
+  }, []);
+  useEffect(() => {
+    if (videoPlaybackActive) {
+      audioRef.current?.pause();
+      backgroundPlaybackService.pausePlayback();
+    } else if (currentTrackRef.current && !transitionRef.current && fullStreamRef.current) {
+      if (playbackModeRef.current === 'native') {
+        backgroundPlaybackService.updatePlaybackState(isPlaying, currentTrackRef.current, currentTime, duration);
+        backgroundPlaybackService.seekTo(currentTime);
+      }
+      if (playbackModeRef.current === 'native' && isPlaying) {
+        backgroundPlaybackService.resumePlayback();
+        if (audioRef.current) {
+          audioRef.current.currentTime = currentTime;
+          audioRef.current.play().catch(() => {});
+        }
+      }
+    }
+  }, [videoPlaybackActive]);
   const currentTrackRef = useRef(currentTrack);
   const repeatModeRef = useRef(repeatMode);
   const playbackModeRef = useRef(playbackMode);
@@ -116,35 +154,32 @@ export function MusicProvider({ children }) {
     audio.preload = 'auto';
     audioRef.current = audio;
 
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => {
-      // En móvil nativo, cuando la app se minimiza o se apaga la pantalla,
-      // el WebView de Android pausa automáticamente el elemento <audio> de HTML5.
-      // NO debemos pausar la app porque ExoPlayer sigue reproduciendo en segundo plano.
-      if (Capacitor.isNativePlatform() && document.hidden) {
-        console.log('[MusicContext] HTML5 <audio> pausado en background por WebView; ignorando');
-        return;
-      }
-      setIsPlaying(false);
+    const onPlay = () => {
+      if (playIntentRef.current && !transitionRef.current && !videoPlaybackActiveRef.current && playbackModeRef.current !== 'youtube' && !(Capacitor.isNativePlatform() && fullStreamRef.current)) setIsPlaying(true);
     };
+    // Buffering, source replacement and WebView suspension are not manual pauses.
+    const onPause = () => {};
     const onWaiting = () => setIsLoadingAudio(true);
     const onPlaying = () => setIsLoadingAudio(false);
     const onCanPlay = () => setIsLoadingAudio(false);
 
     const onTimeUpdate = () => {
-      if (audio && !audio.paused) {
+      if (audio && !videoPlaybackActiveRef.current && playbackModeRef.current !== 'youtube' && !(Capacitor.isNativePlatform() && fullStreamRef.current)) {
         setCurrentTime(audio.currentTime);
       }
     };
 
     const onLoadedMetadata = () => {
-      if (audio && !audio.paused) {
-        setDuration(audio.duration || 30);
+      if (transitionRef.current) return;
+      if (audio && Number.isFinite(audio.duration) && audio.duration > 0 && !(Capacitor.isNativePlatform() && fullStreamRef.current)) {
+        setDuration(audio.duration);
       }
       setIsLoadingAudio(false);
     };
 
     const onError = (e) => {
+      if (transitionRef.current || !audio.src) return;
+      if (Capacitor.isNativePlatform() && fullStreamRef.current) return;
       console.warn('[MusicContext] Error en audio nativo:', e);
       setIsLoadingAudio(false);
       const track = currentTrackRef.current;
@@ -152,12 +187,14 @@ export function MusicProvider({ children }) {
         console.warn('[MusicContext] Fallo de audio nativo, conmutando a YouTube iframe:', track.youtubeId);
         fullStreamRef.current = null;
         setPlaybackMode('youtube');
-      } else if (track?.audioUrl) {
-        fallbackToPreview();
+      } else {
+        handlePlaybackError();
       }
     };
 
     const onEnded = () => {
+      if (transitionRef.current || !playIntentRef.current) return;
+      if (Capacitor.isNativePlatform() && fullStreamRef.current) return;
       const track = currentTrackRef.current;
       // En modo YouTube el iframe maneja el fin (su onEnded avanza solo).
       if (track?.youtubeId && playbackModeRef.current === 'youtube') return;
@@ -194,6 +231,27 @@ export function MusicProvider({ children }) {
     };
   }, []);
 
+  // ExoPlayer is the authoritative clock when Android owns the full stream.
+  const seekPendingRef = useRef(0);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || playbackMode !== 'native' || !currentTrack) return;
+    let cancelled = false;
+    let timer;
+    const trackId = currentTrack.id;
+    const poll = async () => {
+      const started = Date.now();
+      const state = await backgroundPlaybackService.getNativePosition();
+      if (cancelled) return;
+      if (!videoPlaybackActiveRef.current && fullStreamRef.current && state?.audioUrl === fullStreamRef.current && currentTrackRef.current?.id === trackId && started >= seekPendingRef.current && Date.now() >= seekPendingRef.current) {
+        if (Number.isFinite(state?.position)) setCurrentTime(state.position);
+        if (state?.duration > 0) setDuration(state.duration);
+      }
+      timer = setTimeout(poll, 250);
+    };
+    poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [currentTrack?.id, playbackMode]);
+
   // Actualizar volumen del elemento audio nativo
   useEffect(() => {
     if (audioRef.current) {
@@ -210,56 +268,36 @@ export function MusicProvider({ children }) {
     }
   }, [favorites]);
 
-  // Guardar playlists personalizadas en localStorage
+  const syncWithCloud = useCallback(() => cloudPlaylistsRef.current?.flush({force:true}).catch(() => {}), []);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(customPlaylists));
-    } catch (e) {
-      console.warn('[MusicContext] No se pudo guardar playlists:', e);
-    }
-  }, [customPlaylists]);
-
-  // Sincronizar automáticamente playlists con el servidor si el usuario tiene sesión activa
-  const syncWithCloud = useCallback(async () => {
-    try {
-      const token = await storage.getItem('token');
-      if (!token) return;
-      const localPlaylists = customPlaylistsRef.current || [];
-      const remotePlaylists = await musicService.syncUserPlaylists(localPlaylists);
-      if (Array.isArray(remotePlaylists)) {
-        setCustomPlaylists(remotePlaylists);
-        try {
-          localStorage.setItem(STORAGE_PLAYLISTS_KEY, JSON.stringify(remotePlaylists));
-        } catch {}
-      }
-    } catch (e) {
-      console.warn('[MusicContext] Error en syncWithCloud:', e);
-    }
+    if (!accountUser?.username) return;
+    const controller = new PlaylistSync({
+      account: accountUser.username.trim().toLowerCase(), storage: localStorage, api: musicService,
+      onChange: items => { customPlaylistsRef.current=items;setCustomPlaylists(items); },
+      onStatus: setPlaylistCloudStatus
+    });
+    cloudPlaylistsRef.current=controller;
+    const sync=()=>controller.flush().catch(()=>{});
+    sync(); window.addEventListener('online',sync); window.addEventListener('focus',sync);
+    return ()=>{controller.close();if(cloudPlaylistsRef.current===controller)cloudPlaylistsRef.current=null;window.removeEventListener('online',sync);window.removeEventListener('focus',sync);};
+  }, [accountUser?.username]);
+  const commitPlaylists = useCallback((updater, dirtyIds=[], deletedIds=[]) => {
+    const next=updater(customPlaylistsRef.current);
+    customPlaylistsRef.current=next;setCustomPlaylists(next);
+    cloudPlaylistsRef.current?.update(next,dirtyIds,deletedIds);
   }, []);
-
-  useEffect(() => {
-    syncWithCloud();
-    const handleAuthChange = () => {
-      syncWithCloud();
-    };
-    window.addEventListener('storage', handleAuthChange);
-    window.addEventListener('teamg:auth-change', handleAuthChange);
-    return () => {
-      window.removeEventListener('storage', handleAuthChange);
-      window.removeEventListener('teamg:auth-change', handleAuthChange);
-    };
-  }, [syncWithCloud]);
 
   // Sincronizar posición y estado nativo cuando la app vuelve de segundo plano
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const onNativeResume = async () => {
+      if (videoPlaybackActiveRef.current) return;
       const state = await backgroundPlaybackService.getNativePosition();
-      if (state && typeof state.position === 'number') {
+      if (!transitionRef.current && state?.audioUrl === fullStreamRef.current && state && typeof state.position === 'number') {
         setCurrentTime(state.position);
         if (state.duration > 0) setDuration(state.duration);
-        if (typeof state.isPlaying === 'boolean') setIsPlaying(state.isPlaying);
-        if (audioRef.current && state.isPlaying) {
+        // Preserve the user's play intent through native buffering.
+        if (audioRef.current && playIntentRef.current && state.isPlaying) {
           try {
             audioRef.current.currentTime = state.position;
             audioRef.current.play().catch(() => {});
@@ -273,13 +311,14 @@ export function MusicProvider({ children }) {
 
   // Actualizar MediaSession y servicio nativo en cada cambio de canción
   useEffect(() => {
-    if (!currentTrack) return;
+    if (!currentTrack || videoPlaybackActiveRef.current) return;
 
     try {
       const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
       const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
 
       backgroundPlaybackService.startPlayback({
+        id: currentTrack.id,
         title: currentTrack.title,
         artist: currentTrack.artist,
         album: currentTrack.album || 'TeamG Music',
@@ -314,7 +353,7 @@ export function MusicProvider({ children }) {
     if ('mediaSession' in navigator && currentTrack) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
-    if (currentTrack) {
+    if (currentTrack && !videoPlaybackActiveRef.current) {
       const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
       const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
       backgroundPlaybackService.updatePlaybackState(isPlaying, {
@@ -342,21 +381,17 @@ export function MusicProvider({ children }) {
   // Escuchar eventos de BackgroundPlaybackService emitidos desde la barra de notificaciones del móvil y pantalla bloqueada
   useEffect(() => {
     const onBgPlay = () => {
-      const audio = audioRef.current;
-      if (audio && audio.paused) {
-        audio.play().catch(console.warn);
-      } else if (!isPlaying) {
-        togglePlayRef.current?.();
+      setIsPlaying(true);
+      if (transitionRef.current || videoPlaybackActiveRef.current) return;
+      if (playbackModeRef.current === 'native') {
+        backgroundPlaybackService.resumePlayback();
+        if (audioRef.current?.src) audioRef.current.play().catch(() => {});
       }
     };
-
     const onBgPause = () => {
-      const audio = audioRef.current;
-      if (audio && !audio.paused) {
-        audio.pause();
-      } else if (isPlaying) {
-        togglePlayRef.current?.();
-      }
+      setIsPlaying(false);
+      audioRef.current?.pause();
+      backgroundPlaybackService.pausePlayback();
     };
 
     const onBgToggle = () => togglePlayRef.current?.();
@@ -390,19 +425,22 @@ export function MusicProvider({ children }) {
   // Carga el stream COMPLETO (mp3/m4a directo) en el motor de reproducción.
   // Si no hay stream directo disponible, delega al iframe YouTube como respaldo seguro.
   const loadFullAudio = useCallback(async (track, ytId) => {
+    const generation = playbackGenerationRef.current;
     try {
       const url = await musicService.getFullAudioUrl(ytId);
-      if (currentTrackRef.current?.id !== track.id) {
+      if (generation !== playbackGenerationRef.current || currentTrackRef.current?.id !== track.id) {
         return;
       }
       if (!url) {
         console.warn('[MusicContext] Sin stream directo para', ytId, '-> conmutando a YouTube iframe');
+        transitionRef.current = false;
         setPlaybackMode('youtube');
         setAudioQuality('full');
         setIsLoadingAudio(false);
         return;
       }
 
+      transitionRef.current = false;
       fullStreamRef.current = url;
       const isNative = Capacitor.isNativePlatform();
 
@@ -420,84 +458,48 @@ export function MusicProvider({ children }) {
       setQueue(prev => prev.map(t => t.id === track.id ? { ...t, ...fullTrack } : t));
 
       // En Android nativo, ExoPlayer reproduce el audio en segundo plano (100% inmune a pantalla apagada)
-      backgroundPlaybackService.updatePlaybackState(true, fullTrack, 0, fullTrack.fullDuration);
+      if (!videoPlaybackActiveRef.current) backgroundPlaybackService.updatePlaybackState(playIntentRef.current, fullTrack, 0, fullTrack.fullDuration);
 
       const audio = audioRef.current;
-      if (audio) {
+      if (audio && !videoPlaybackActiveRef.current) {
         audio.src = url;
         audio.muted = isNative; // En móvil nativo silenciar web <audio> para evitar eco (suena por ExoPlayer)
-        await audio.play().catch((playErr) => {
+        let directFailed = false;
+        if (playIntentRef.current) await audio.play().catch((playErr) => {
+          directFailed = !isNative;
           console.warn('[MusicContext] audio.play() advertencia:', playErr);
           if (!isNative && currentTrackRef.current?.id === track.id) {
             setPlaybackMode('youtube');
           }
         });
+        if (directFailed) return;
       }
 
-      if (currentTrackRef.current?.id === track.id) {
+      if (generation === playbackGenerationRef.current && currentTrackRef.current?.id === track.id) {
         setAudioQuality('full');
         setPlaybackMode('native');
       }
     } catch (e) {
       console.warn('[MusicContext] Error en loadFullAudio, conmutando a YouTube iframe:', e);
-      if (currentTrackRef.current?.id === track.id) {
+      if (generation === playbackGenerationRef.current && currentTrackRef.current?.id === track.id) {
+        transitionRef.current = false;
         setPlaybackMode('youtube');
       }
     } finally {
-      if (currentTrackRef.current?.id === track.id) {
+      if (generation === playbackGenerationRef.current && currentTrackRef.current?.id === track.id) {
         setIsLoadingAudio(false);
       }
     }
   }, []);
 
-  // Regreso honesto al preview / audio alternativo en caso de falla extrema
-  const fallbackToPreview = useCallback(() => {
-    const track = currentTrackRef.current;
-    const audio = audioRef.current;
-    fullStreamRef.current = null;
-    setPlaybackMode('native');
-    setAudioQuality('preview-fallback');
+  const handlePlaybackError = useCallback(() => {
+    transitionRef.current = false;
     setIsLoadingAudio(false);
-    const urlToPlay = track?.previewUrl || track?.audioUrl || track?.streamUrl;
-    if (track && audio && urlToPlay) {
-      try {
-        if (audio.src !== urlToPlay) {
-          audio.src = urlToPlay;
-          audio.muted = false;
-          audio.load();
-        }
-        audio.play().catch(console.warn);
-      } catch {}
-    }
-  }, []);
-
-  // Pausar música automáticamente si el usuario reproduce una película, serie o canal de TV en TeamG Play
-  useEffect(() => {
-    const onVideoPlay = (e) => {
-      if (e.target && e.target.tagName === 'VIDEO') {
-        // Ignorar videos que pertenecen al reproductor musical de TeamG Play (modo video)
-        if (e.target.closest('#teamg-music-video-player') || e.target.closest('.teamg-music-video-container')) {
-          return;
-        }
-        if (audioRef.current && !audioRef.current.paused) {
-          audioRef.current.pause();
-        }
-        setIsPlaying(false);
-      }
-    };
-    const onTeamgVideoPlay = () => {
-      if (audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause();
-      }
-      setIsPlaying(false);
-    };
-    document.addEventListener('play', onVideoPlay, true);
-    window.addEventListener('teamg:video-play', onTeamgVideoPlay);
-    return () => {
-      document.removeEventListener('play', onVideoPlay, true);
-      window.removeEventListener('teamg:video-play', onTeamgVideoPlay);
-    };
-  }, []);
+    setAudioQuality('unavailable');
+    setIsPlaying(false);
+    audioRef.current?.pause();
+    backgroundPlaybackService.pausePlayback();
+  }, [setIsPlaying]);
 
   // Prefetch de la versión completa de la siguiente pista en segundo plano
   const prefetchNextFullVersion = useCallback((currentQueue, currentIdx) => {
@@ -505,9 +507,10 @@ export function MusicProvider({ children }) {
     const nextIdx = currentIdx + 1;
     if (nextIdx >= currentQueue.length) return;
     const next = currentQueue[nextIdx];
-    if (!next || next.isRadio || next.youtubeId || !next.title) return;
-    musicService.getYouTubeId(next.artist, next.title).then((ytId) => {
+    if (!next || next.isRadio || !next.title) return;
+    Promise.resolve(next.youtubeId || musicService.getYouTubeId(next.artist, next.title)).then((ytId) => {
       if (!ytId) return;
+      if (Capacitor.isNativePlatform()) musicService.getFullAudioUrl(ytId, { deviceOnly: true }).catch(() => {});
       setQueue((prev) => prev.map((t) => (
         t.id === next.id && !t.youtubeId
           ? { ...t, youtubeId: ytId, isPreviewOnly: false }
@@ -521,7 +524,14 @@ export function MusicProvider({ children }) {
     const audio = audioRef.current;
 
     // 1. Sincronización inmediata de ref para evitar condiciones de carrera al cambiar rápido de canción
+    const generation = ++playbackGenerationRef.current;
+    transitionRef.current = true;
     currentTrackRef.current = track;
+    setCurrentTrack(track);
+    setIsPlaying(true);
+    setIsLoadingAudio(true);
+    // Stop the previous native source before any metadata for the new track is sent.
+    backgroundPlaybackService.pausePlayback();
 
     // Actualizar cola
     let activeQueue = newQueue && Array.isArray(newQueue) ? newQueue : null;
@@ -550,22 +560,23 @@ export function MusicProvider({ children }) {
 
     // Detener cualquier audio previo de inmediato
     if (audio) {
-      try { audio.pause(); } catch {}
+      try { audio.pause(); audio.removeAttribute?.('src'); audio.src = ''; audio.load(); } catch {}
     }
 
-    // Sanitizar pista para evitar que el preview de 30s de iTunes se asigne como audioUrl a reproducir
-    const isPreview = (url) => url && (url.includes('apple-assets-us-std') || url.includes('AudioPreview'));
     const safeTrack = {
       ...track,
-      audioUrl: (!isPreview(track.audioUrl) ? track.audioUrl : null) || track.streamUrl || null,
-      previewUrl: track.previewUrl || track.audioUrl || null
+      audioUrl: track.streamUrl || (!track.isPreviewOnly && track.audioUrl !== track.previewUrl ? track.audioUrl : null),
+      previewUrl: null
     };
+    currentTrackRef.current = safeTrack;
+    setCurrentTrack(safeTrack);
 
     // Caso 0: Pista guardada en Modo Offline (reproducción local instantánea sin internet)
     if (musicOfflineService.isTrackOffline(track.id) || track.isOffline) {
       try {
         const offlineRecord = musicOfflineService.getOfflineTrack(track.id) || track;
         const urls = await musicOfflineService.getOfflinePlaybackUrls(track.id);
+        if (generation !== playbackGenerationRef.current) return;
         const isNative = Capacitor.isNativePlatform();
         const effectiveUrl = isNative ? urls.nativeUrl : urls.webUrl;
 
@@ -577,8 +588,9 @@ export function MusicProvider({ children }) {
           streamUrl: effectiveUrl
         };
 
+        currentTrackRef.current = offlineTrack;
+        transitionRef.current = false;
         setCurrentTrack(offlineTrack);
-        setIsPlaying(true);
         setIsLoadingAudio(false);
         setDuration(offlineTrack.fullDuration || offlineTrack.duration || 210);
         setAudioQuality('offline');
@@ -586,7 +598,7 @@ export function MusicProvider({ children }) {
         fullStreamRef.current = effectiveUrl;
 
         backgroundPlaybackService.updatePlaybackState(
-          true,
+          playIntentRef.current,
           offlineTrack,
           0,
           offlineTrack.fullDuration || offlineTrack.duration || 210
@@ -595,7 +607,7 @@ export function MusicProvider({ children }) {
         if (audio) {
           audio.src = urls.webUrl;
           audio.muted = isNative;
-          await audio.play().catch(console.warn);
+          if (playIntentRef.current) await audio.play().catch(console.warn);
         }
         return;
       } catch (offlineErr) {
@@ -613,6 +625,7 @@ export function MusicProvider({ children }) {
 
     // Caso 1: Estación de Radio en Vivo (siempre completa, sin límite)
     if (track.isRadio) {
+      transitionRef.current = false;
       const isNative = Capacitor.isNativePlatform();
       backgroundPlaybackService.updatePlaybackState(true, {
         ...track,
@@ -634,7 +647,7 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    // Caso 2: Pista con youtubeId ya resuelto -> stream COMPLETO directo (CERO preview)
+    // Pista resuelta: cargar exclusivamente la canción completa.
     if (safeTrack.youtubeId) {
       setCurrentTrack(safeTrack);
       setIsPlaying(true);
@@ -663,25 +676,15 @@ export function MusicProvider({ children }) {
     setDuration(safeTrack.fullDuration || safeTrack.duration || 210);
     setIsLoadingAudio(true);
 
-    // Arrancar audio de inmediato si hay preview disponible para que empiece a sonar sin demoras
-    const immediateAudio = safeTrack.previewUrl || safeTrack.audioUrl;
-    if (immediateAudio && audio) {
-      try {
-        audio.src = immediateAudio;
-        audio.muted = Capacitor.isNativePlatform();
-        audio.currentTime = 0;
-        audio.play().catch(console.warn);
-        setAudioQuality('preview-instant');
-      } catch {}
-    } else {
-      setAudioQuality('loading-full');
-    }
+    setAudioQuality('loading-full');
 
     try {
       let ytId = await musicService.getYouTubeId(safeTrack.artist, safeTrack.title);
+      if (generation !== playbackGenerationRef.current) return;
       if (!ytId && safeTrack.title) {
         ytId = await musicService.getYouTubeId('', safeTrack.title);
       }
+      if (generation !== playbackGenerationRef.current) return;
       if (ytId) {
         console.log('[MusicContext] Canción completa resuelta en YouTube:', ytId);
         const enriched = { ...safeTrack, youtubeId: ytId, isPreviewOnly: false };
@@ -704,43 +707,18 @@ export function MusicProvider({ children }) {
         const idx = currentQueue.findIndex(t => t.id === safeTrack.id);
         prefetchNextFullVersion(currentQueue, idx);
         await loadFullAudio(enriched, ytId);
-      } else {
-        console.warn('[MusicContext] Sin versión completa resuelta, manteniendo audio');
-        if (currentTrackRef.current?.id === safeTrack.id) {
-          const fallbackUrl = safeTrack.previewUrl || safeTrack.audioUrl;
-          if (fallbackUrl && audio) {
-            if (audio.paused) {
-              audio.src = fallbackUrl;
-              audio.muted = false;
-              audio.play().catch(console.warn);
-            }
-            setAudioQuality('preview-fallback');
-          } else {
-            setPlaybackMode('youtube');
-          }
-        }
+      } else if (generation === playbackGenerationRef.current) {
+        handlePlaybackError();
       }
     } catch (err) {
       console.warn('[MusicContext] Error resolviendo canción completa:', err);
-      if (currentTrackRef.current?.id === safeTrack.id) {
-        const fallbackUrl = safeTrack.previewUrl || safeTrack.audioUrl;
-        if (fallbackUrl && audio) {
-          if (audio.paused) {
-            audio.src = fallbackUrl;
-            audio.muted = false;
-            audio.play().catch(console.warn);
-          }
-          setAudioQuality('preview-fallback');
-        } else {
-          setPlaybackMode('youtube');
-        }
-      }
+      if (generation === playbackGenerationRef.current) handlePlaybackError();
     } finally {
       if (currentTrackRef.current?.id === safeTrack.id) {
         setIsLoadingAudio(false);
       }
     }
-  }, [prefetchNextFullVersion, loadFullAudio]);
+  }, [prefetchNextFullVersion, loadFullAudio, handlePlaybackError, setIsPlaying]);
 
   // Reproducir estación de radio
   const playRadio = useCallback((radio) => {
@@ -750,6 +728,8 @@ export function MusicProvider({ children }) {
   // Alternar Play / Pause
   const togglePlay = useCallback(() => {
     if (!currentTrack) return;
+    if (transitionRef.current) { setIsPlaying(prev => !prev); return; }
+    if (videoPlaybackActiveRef.current) { setIsPlaying(prev => !prev); return; }
 
     const audio = audioRef.current;
     const useYouTube = currentTrack.youtubeId && playbackMode === 'youtube';
@@ -788,12 +768,7 @@ export function MusicProvider({ children }) {
     } else {
       nextIdx = queueIndex + 1;
       if (nextIdx >= queue.length) {
-        if (repeatMode === 'all') {
-          nextIdx = 0;
-        } else {
-          setIsPlaying(false);
-          return;
-        }
+        nextIdx = 0;
       }
     }
 
@@ -805,18 +780,27 @@ export function MusicProvider({ children }) {
   }, [queue, queueIndex, isShuffle, repeatMode, playTrack]);
   handleNextRef.current = handleNext;
 
+  const clockRef = useRef({time:0,duration:0});
+  clockRef.current = {time:currentTime,duration};
   // Pista anterior
-  const handlePrev = useCallback(() => {
+  const handlePrev = useCallback((skipRestart = false) => {
+    if (skipRestart !== true && videoPlaybackActiveRef.current && clockRef.current.time > 3) {
+      officialVideoPlayerRef.current?.seekTo(0, 'seconds');
+      setCurrentTime(0);
+      return;
+    }
     const useYouTube = currentTrack?.youtubeId && playbackMode === 'youtube';
-    if (useYouTube && ytPlayerRef.current && currentTime > 3) {
+    if (skipRestart !== true && useYouTube && ytPlayerRef.current && clockRef.current.time > 3) {
       ytPlayerRef.current.seekTo(0, 'seconds');
       setCurrentTime(0);
       return;
     }
 
     const audio = audioRef.current;
-    if (!useYouTube && audio && audio.currentTime > 3) {
+    if (skipRestart !== true && !useYouTube && audio && clockRef.current.time > 3) {
       audio.currentTime = 0;
+      backgroundPlaybackService.seekTo(0);
+      setCurrentTime(0);
       return;
     }
 
@@ -832,15 +816,22 @@ export function MusicProvider({ children }) {
       setQueueIndex(prevIdx);
       playTrack(prevSong, queue);
     }
-  }, [queue, queueIndex, repeatMode, playTrack, currentTrack, currentTime, playbackMode]);
+  }, [queue, queueIndex, repeatMode, playTrack, currentTrack, playbackMode]);
   handlePrevRef.current = handlePrev;
 
   // Cambiar posición de la pista (Seek)
   const seekTo = useCallback((seconds) => {
     if (!Number.isFinite(seconds)) return;
-    const cleanSeconds = Math.max(0, seconds);
+    const cleanSeconds = Math.max(0, Math.min(seconds, duration > 0 ? duration : seconds));
+    seekPendingRef.current = Date.now() + 800;
+    if (videoPlaybackActiveRef.current) {
+      setCurrentTime(cleanSeconds);
+      officialVideoPlayerRef.current?.seekTo(cleanSeconds, 'seconds');
+      return;
+    }
     setCurrentTime(cleanSeconds);
-    backgroundPlaybackService.seekTo(cleanSeconds);
+    seekPendingRef.current = Date.now() + 600;
+    if (playbackMode === 'native') backgroundPlaybackService.seekTo(cleanSeconds);
 
     const useYouTube = currentTrack?.youtubeId && playbackMode === 'youtube';
     if (useYouTube && ytPlayerRef.current) {
@@ -850,7 +841,7 @@ export function MusicProvider({ children }) {
         audioRef.current.currentTime = cleanSeconds;
       } catch {}
     }
-  }, [currentTrack, playbackMode]);
+  }, [currentTrack, playbackMode, duration]);
 
   // Cambiar volumen
   const setVolume = useCallback((val) => {
@@ -898,122 +889,31 @@ export function MusicProvider({ children }) {
   }, [favorites]);
 
   // --- PLAYLISTS PERSONALIZADAS (CON SOPORTE PÚBLICA / PRIVADA Y SINCRONIZACIÓN EN LA NUBE) ---
-  const createPlaylist = useCallback((name, description = '', isPublic = false) => {
-    const trimmed = String(name || '').trim();
-    if (!trimmed) return null;
-    const newPlaylist = {
-      id: `pl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      name: trimmed,
-      description: description.trim(),
-      isPublic: Boolean(isPublic),
-      createdAt: Date.now(),
-      cover: '',
-      tracks: []
-    };
-    setCustomPlaylists(prev => [newPlaylist, ...prev]);
-    // Guardar en la nube en segundo plano
-    musicService.saveUserPlaylist(newPlaylist).catch(e => {
-      console.warn('[MusicContext] Error guardando playlist en la nube:', e);
-    });
-    return newPlaylist;
-  }, []);
-
-  const togglePlaylistPrivacy = useCallback((playlistId) => {
-    let nextStatus = false;
-    setCustomPlaylists(prev => prev.map(pl => {
-      if (pl.id === playlistId) {
-        nextStatus = !pl.isPublic;
-        return { ...pl, isPublic: nextStatus };
-      }
-      return pl;
-    }));
-    // Actualizar visibilidad en la nube
-    musicService.updateUserPlaylist(playlistId, { isPublic: nextStatus }).catch(() => {});
-  }, []);
-
-  const deletePlaylist = useCallback((playlistId) => {
-    setCustomPlaylists(prev => prev.filter(pl => pl.id !== playlistId));
-    // Eliminar en la nube
-    musicService.deleteUserPlaylist(playlistId).catch(() => {});
-  }, []);
-
-  const renamePlaylist = useCallback((playlistId, newName, newDescription = undefined, newIsPublic = undefined) => {
-    const trimmed = String(newName || '').trim();
-    if (!trimmed) return;
-    const updateData = { name: trimmed };
-    if (newDescription !== undefined) updateData.description = String(newDescription).trim();
-    if (newIsPublic !== undefined) updateData.isPublic = Boolean(newIsPublic);
-
-    setCustomPlaylists(prev => prev.map(pl => {
-      if (pl.id !== playlistId) return pl;
-      return {
-        ...pl,
-        ...updateData
-      };
-    }));
-    // Actualizar en la nube
-    musicService.updateUserPlaylist(playlistId, updateData).catch(() => {});
-  }, []);
-
-  const addTrackToPlaylist = useCallback((playlistId, track) => {
-    if (!track || !playlistId) return false;
-    let added = false;
-    let updatedTracks = [];
-    let updatedCover = '';
-    setCustomPlaylists(prev => prev.map(pl => {
-      if (pl.id !== playlistId) return pl;
-      const alreadyHas = pl.tracks.some(t => t.id === track.id);
-      if (alreadyHas) return pl;
-      added = true;
-      updatedTracks = [...pl.tracks, track];
-      updatedCover = pl.cover || track.cover || '';
-      return {
-        ...pl,
-        cover: updatedCover,
-        tracks: updatedTracks
-      };
-    }));
-    if (added) {
-      musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
-    }
-    return added;
-  }, []);
-
-  const removeTrackFromPlaylist = useCallback((playlistId, trackId) => {
-    let updatedTracks = [];
-    let updatedCover = '';
-    setCustomPlaylists(prev => prev.map(pl => {
-      if (pl.id !== playlistId) return pl;
-      updatedTracks = pl.tracks.filter(t => t.id !== trackId);
-      updatedCover = updatedTracks[0]?.cover || '';
-      return {
-        ...pl,
-        cover: updatedCover,
-        tracks: updatedTracks
-      };
-    }));
-    musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
-  }, []);
-
-  const toggleTrackInPlaylist = useCallback((playlistId, track) => {
-    if (!track || !playlistId) return;
-    let updatedTracks = [];
-    let updatedCover = '';
-    setCustomPlaylists(prev => prev.map(pl => {
-      if (pl.id !== playlistId) return pl;
-      const exists = pl.tracks.some(t => t.id === track.id);
-      updatedTracks = exists
-        ? pl.tracks.filter(t => t.id !== track.id)
-        : [...pl.tracks, track];
-      updatedCover = updatedTracks[0]?.cover || '';
-      return {
-        ...pl,
-        cover: updatedCover,
-        tracks: updatedTracks
-      };
-    }));
-    musicService.updateUserPlaylist(playlistId, { tracks: updatedTracks, cover: updatedCover }).catch(() => {});
-  }, []);
+  const createPlaylist = useCallback((name, description='', isPublic=false) => {
+    const clean=String(name||'').trim();if(!clean)return null;
+    const item={id:'pl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),name:clean,description:String(description).trim(),isPublic:Boolean(isPublic),createdAt:Date.now(),updatedAt:Date.now(),cover:'',tracks:[]};
+    commitPlaylists(list=>[item,...list],[item.id]);return item;
+  }, [commitPlaylists]);
+  const togglePlaylistPrivacy=useCallback(id=>{
+    commitPlaylists(list=>list.map(p=>p.id===id?{...p,isPublic:!p.isPublic,updatedAt:Date.now()}:p),[id]);
+  },[commitPlaylists]);
+  const deletePlaylist=useCallback(id=>commitPlaylists(list=>list.filter(p=>p.id!==id),[],[id]),[commitPlaylists]);
+  const renamePlaylist=useCallback((id,name,description,isPublic)=>{
+    const clean=String(name||'').trim();if(!clean)return;
+    commitPlaylists(list=>list.map(p=>p.id===id?{...p,name:clean,...(description!==undefined?{description:String(description).trim()}:{}),...(isPublic!==undefined?{isPublic:Boolean(isPublic)}:{}),updatedAt:Date.now()}:p),[id]);
+  },[commitPlaylists]);
+  const addTrackToPlaylist=useCallback((id,track)=>{
+    const item=customPlaylistsRef.current.find(p=>p.id===id);
+    if(!item||!track||item.tracks.some(t=>t.id===track.id))return false;
+    commitPlaylists(list=>list.map(p=>p.id===id?{...p,tracks:[...p.tracks,track],cover:p.cover||track.cover||'',updatedAt:Date.now()}:p),[id]);return true;
+  },[commitPlaylists]);
+  const removeTrackFromPlaylist=useCallback((id,trackId)=>{
+    commitPlaylists(list=>list.map(p=>{if(p.id!==id)return p;const tracks=p.tracks.filter(t=>t.id!==trackId);return {...p,tracks,cover:tracks[0]?.cover||'',updatedAt:Date.now()};}),[id]);
+  },[commitPlaylists]);
+  const toggleTrackInPlaylist=useCallback((id,track)=>{
+    if(!track)return;const item=customPlaylistsRef.current.find(p=>p.id===id);if(!item)return;
+    if(item.tracks.some(t=>t.id===track.id))removeTrackFromPlaylist(id,track.id);else addTrackToPlaylist(id,track);
+  },[addTrackToPlaylist,removeTrackFromPlaylist]);
 
   const isTrackInPlaylist = useCallback((playlistId, trackId) => {
     const pl = customPlaylists.find(p => p.id === playlistId);
@@ -1074,7 +974,7 @@ export function MusicProvider({ children }) {
     isLoadingAudio,
     audioQuality,
     playbackMode,
-    fallbackToPreview,
+    handlePlaybackError,
     queue,
     queueIndex,
     volume,
@@ -1085,6 +985,7 @@ export function MusicProvider({ children }) {
     repeatMode,
     favorites,
     customPlaylists,
+    playlistCloudStatus,
     playlistModalTrack,
     offlineTracks,
     activeDownloadsMap,
@@ -1127,13 +1028,24 @@ export function MusicProvider({ children }) {
     toggleFavorite,
     isFavorite,
     audioRef,
-    ytPlayerRef
+    ytPlayerRef,
+    officialVideoPlayerRef,
+    seekPendingRef,
+    playIntentRef,
+    setVideoPlaybackActive,
+    videoPlaybackActive
   };
 
+  const libraryValue = useMemo(() => {
+    const {currentTime: _time, duration: _duration, ...library} = value;
+    return library;
+  }, Object.values(value).filter((_, index) => !['currentTime','duration'].includes(Object.keys(value)[index])));
   return (
+    <MusicLibraryContext.Provider value={libraryValue}>
     <MusicContext.Provider value={value}>
       {children}
     </MusicContext.Provider>
+    </MusicLibraryContext.Provider>
   );
 }
 
@@ -1144,3 +1056,5 @@ export function useMusic() {
   }
   return context;
 }
+
+export function useMusicLibrary() { return useContext(MusicLibraryContext); }

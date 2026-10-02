@@ -1,0 +1,1 @@
+for (const host of ['rss.marketingtools.apple.com','rss.applemarketingtools.com']) { try { const r=await fetch('https://'+host+'/api/v2/pe/music/most-played/100/songs.json',{signal:AbortSignal.timeout(12000)});const data=await r.json();console.log(host,r.status,data.feed?.results?.length,data.feed?.updated); } catch(e){console.log(host,e.message);} }

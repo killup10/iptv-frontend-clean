@@ -125,7 +125,7 @@ public class MusicPlaybackService extends Service {
             player.addListener(new Player.Listener() {
                 @Override
                 public void onIsPlayingChanged(boolean isPlayingNow) {
-                    isPlaying = isPlayingNow;
+                    isPlaying = player != null && player.getPlayWhenReady();
                     manageWakeLock(isPlaying);
                     updateMediaSessionState();
                     updateNotification();
@@ -256,17 +256,17 @@ public class MusicPlaybackService extends Service {
                             }
                         }
                     } else if (player != null) {
-                        if (reqPlay && !player.isPlaying()) {
+                        if (reqPlay && !player.getPlayWhenReady()) {
                             player.play();
-                        } else if (!reqPlay && player.isPlaying()) {
+                        } else if (!reqPlay && player.getPlayWhenReady()) {
                             player.pause();
                         }
                     }
                 } else if (player != null) {
                     // Si no vino URL nueva pero cambió estado isPlaying
-                    if (reqPlay && !player.isPlaying()) {
+                    if (reqPlay && !player.getPlayWhenReady()) {
                         player.play();
-                    } else if (!reqPlay && player.isPlaying()) {
+                    } else if (!reqPlay && player.getPlayWhenReady()) {
                         player.pause();
                     }
                 }
@@ -520,6 +520,7 @@ public class MusicPlaybackService extends Service {
                 Bitmap bitmap = BitmapFactory.decodeStream(input);
                 if (bitmap != null) {
                     Bitmap scaled = Bitmap.createScaledBitmap(bitmap, 400, 400, true);
+                    if (!urlStr.equals(currentCoverUrl)) return;
                     currentCoverBitmap = scaled;
                     mainHandler.post(() -> {
                         updateMediaSessionState();

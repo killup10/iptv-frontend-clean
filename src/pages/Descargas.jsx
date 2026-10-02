@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { WifiOff, Play, Trash2, HardDrive, Film, Tv, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
 import {
   getDownloads,
+  getActiveDownloads,
+  retryDownload,
+  formatBytes,
   deleteDownload,
   getOfflinePlaybackUrl,
   getTotalStorageUsed,
@@ -15,6 +18,7 @@ import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
 export default function Descargas() {
   const navigate = useNavigate();
   const [downloads, setDownloads] = useState([]);
+  const [transfers, setTransfers] = useState(getActiveDownloads);
   const [activeTab, setActiveTab] = useState('todos'); // 'todos' | 'pelicula' | 'serie'
   const [isPlayingId, setIsPlayingId] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -22,24 +26,22 @@ export default function Descargas() {
 
   // Cargar lista de descargas y validar renovación
   const refreshDownloads = useCallback(() => {
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
-      renewAllOfflineLicenses();
-    }
     const list = getDownloads();
     setDownloads(list);
     setTotalStorage(getTotalStorageUsed());
   }, []);
 
   useEffect(() => {
+    renewAllOfflineLicenses();
     refreshDownloads();
-
+    const handleProgress = e => {setTransfers(getActiveDownloads());if(e.detail?.status==='completed')refreshDownloads();};
     const handleUpdate = () => refreshDownloads();
     window.addEventListener('teamg:offline-update', handleUpdate);
-    window.addEventListener('teamg:offline-progress', handleUpdate);
+    window.addEventListener('teamg:offline-progress', handleProgress);
 
     return () => {
       window.removeEventListener('teamg:offline-update', handleUpdate);
-      window.removeEventListener('teamg:offline-progress', handleUpdate);
+      window.removeEventListener('teamg:offline-progress', handleProgress);
     };
   }, [refreshDownloads]);
 
@@ -156,6 +158,17 @@ export default function Descargas() {
             </div>
           </div>
         </div>
+
+        {transfers.length>0 && <section className="mb-6 space-y-3" aria-label="Cola de descargas">
+          <h2 className="text-lg font-bold">Descargas en curso</h2>
+          <p className="text-xs text-gray-400">Dos descargas simultáneas; los demás episodios esperan su turno.</p>
+          {transfers.map(item=><div key={item.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="text-sm font-semibold break-words">{item.title || 'Contenido'}</p>
+            <p className="text-xs text-gray-300 mt-1">{item.status==='queued'?'En cola':item.status==='error'?item.error:item.total>0?item.progress+'% · '+formatBytes(item.bytes)+' / '+formatBytes(item.total):'Descargando · '+formatBytes(item.bytes)}</p>
+            {item.status==='error' && <button onClick={()=>retryDownload(item.id).catch(()=>{})} className="mt-2 text-sm text-cyan-300 underline">Reintentar</button>}
+            {item.status==='downloading' && item.total>0 && <progress aria-label={'Descarga de '+item.title} value={item.progress} max="100" className="w-full mt-2 accent-cyan-400"/>}
+          </div>)}
+        </section>}
 
         {/* BANNER INFORMATIVO: MODO OFFLINE EN MÚSICA */}
         <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-fuchsia-950/40 via-purple-950/30 to-black/60 border border-fuchsia-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">

@@ -1,5 +1,5 @@
 // src/pages/Music.jsx
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { 
   Play, 
   Pause, 
@@ -38,7 +38,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
-import { useMusic } from '../context/MusicContext.jsx';
+import { useMusicLibrary } from '../context/MusicContext.jsx';
 import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 import { getTrackLicenseInfo, renewAllMusicOfflineLicenses } from '../services/musicOfflineService.js';
@@ -56,6 +56,8 @@ export default function Music() {
     queue,
     queueIndex,
     customPlaylists,
+    playlistCloudStatus,
+    syncPlaylists,
     createPlaylist,
     deletePlaylist,
     renamePlaylist,
@@ -75,7 +77,7 @@ export default function Music() {
     clearAllOffline,
     isExpandedPlayer,
     setIsExpandedPlayer
-  } = useMusic();
+  } = useMusicLibrary();
 
   const { user, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -96,6 +98,8 @@ export default function Music() {
     }
   }, []);
 
+  const musicPageRef = useRef(null);
+  const [viewNavigation, setViewNavigation] = useState(0);
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'fresh' | 'community' | 'indie' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
@@ -105,6 +109,7 @@ export default function Music() {
   const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(false);
   const [editingPlaylistId, setEditingPlaylistId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [chartRegion, setChartRegion] = useState('global');
   const [topTracks, setTopTracks] = useState(INITIAL_FEATURED_TRACKS);
   const [recentTracks, setRecentTracks] = useState([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(false);
@@ -117,6 +122,7 @@ export default function Music() {
   const [selectedGenre, setSelectedGenre] = useState(GENRES[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searchFocused, setSearchFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState(() => {
     try {
       const saved = localStorage.getItem('teamg_music_recent_searches');
@@ -175,7 +181,7 @@ export default function Music() {
     async function loadTop() {
       setIsLoadingTop(true);
       try {
-        const tracks = await musicService.getTopTracks('global');
+        const tracks = await musicService.getTopTracks(chartRegion);
         if (isMounted && tracks && tracks.length > 0) {
           setTopTracks(tracks);
         }
@@ -187,16 +193,20 @@ export default function Music() {
     }
     loadTop();
     return () => { isMounted = false; };
-  }, []);
+  }, [chartRegion]);
 
+  const genreCacheRef = useRef(new Map());
   // Cargar canciones del género seleccionado
   useEffect(() => {
     let isMounted = true;
     async function loadGenreTracks() {
-      if (!selectedGenre) return;
+      if (!selectedGenre || activeTab !== 'genres') return;
+      const cached = genreCacheRef.current.get(selectedGenre.id);
+      if (cached) { setGenreTracks(cached); return; }
       setIsLoadingGenre(true);
       try {
         const results = await musicService.getTracksByGenre(selectedGenre.query, 24);
+        genreCacheRef.current.set(selectedGenre.id, results);
         if (isMounted) {
           setGenreTracks(results);
         }
@@ -208,7 +218,7 @@ export default function Music() {
     }
     loadGenreTracks();
     return () => { isMounted = false; };
-  }, [selectedGenre]);
+  }, [selectedGenre, activeTab]);
 
   // Cargar playlists curadas de la comunidad y tendencias + playlists públicas de usuarios
   useEffect(() => {
@@ -233,7 +243,7 @@ export default function Music() {
     }
     loadCurated();
     return () => { isMounted = false; };
-  }, [activeTab]);
+  }, []);
 
   // Cargar canciones de la playlist curada seleccionada
   useEffect(() => {
@@ -267,10 +277,11 @@ export default function Music() {
     return () => { isMounted = false; };
   }, [selectedCuratedPlaylist]);
 
-  // Cargar Lo Más Reciente (Estrenos 2026 en vivo desde Apple Music RSS)
+  const recentLoadedRef = useRef(false);
+  // Cargar lanzamientos recientes.
   useEffect(() => {
     let isMounted = true;
-    if (activeTab === 'fresh' && recentTracks.length < 20) {
+    if (activeTab === 'fresh' && !recentLoadedRef.current) {
       async function loadRecent() {
         setIsLoadingRecent(true);
         try {
@@ -281,13 +292,13 @@ export default function Music() {
         } catch (e) {
           console.warn('[MusicPage] Error cargando canciones recientes:', e);
         } finally {
-          if (isMounted) setIsLoadingRecent(false);
+          if (isMounted) { setIsLoadingRecent(false); recentLoadedRef.current = true; }
         }
       }
       loadRecent();
     }
     return () => { isMounted = false; };
-  }, [activeTab, recentTracks.length]);
+  }, [activeTab]);
 
   // Actualizar manualmente el catálogo de canciones recientes desde feeds oficiales
   const handleRefreshRecent = useCallback(async () => {
@@ -505,26 +516,38 @@ export default function Music() {
     }
   }, [activeTab]);
 
+  useLayoutEffect(() => {
+    // Reset both document scrolling and any layout-owned scrolling container before paint.
+    for (let element = musicPageRef.current; element; element = element.parentElement) {
+      if (element.scrollTop) element.scrollTop = 0;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [viewNavigation, activeTab, selectedAlbumDetail?.id]);
+  const artistOpenRequestRef = useRef(0);
   const handleOpenArtist = useCallback(async (artistName, artistId = null) => {
-    if (!artistName && !artistId) return;
-    setIsLoadingArtist(true);
+    if (!artistName) return;
+    setViewNavigation(value => value + 1);
+    const requestId = ++artistOpenRequestRef.current;
+    setIsLoadingArtist(false);
     setSelectedAlbumDetail(null);
     setArtistActiveTab('tracks');
     setSearchQuery('');
+    const cached = musicService.getCachedArtistDetails(artistName);
+    setSelectedArtistDetail(cached || { id: artistId || artistName, name: artistName,
+      picture: currentTrack?.artist === artistName ? currentTrack.cover : '', fans: 0, topTracks: [], albums: [], isLoading: true });
     try {
-      const details = await musicService.getArtistDetails(artistName, artistId);
-      if (details) {
-        setSelectedArtistDetail(details);
-      }
+      await musicService.getArtistDetails(artistName, artistId, details => {
+        if (artistOpenRequestRef.current === requestId) setSelectedArtistDetail(details);
+      });
     } catch (e) {
-      console.warn('[MusicPage] Error abriendo detalles del artista:', e);
-    } finally {
-      setIsLoadingArtist(false);
+      if (artistOpenRequestRef.current === requestId) setSelectedArtistDetail(previous => previous ? { ...previous, isLoading: false } : previous);
+      console.warn('[MusicPage] Error abriendo artista:', e);
     }
-  }, []);
+  }, [currentTrack?.artist, currentTrack?.cover]);
 
   const handleOpenAlbum = useCallback(async (album) => {
     if (!album) return;
+    setViewNavigation(value => value + 1);
     setIsLoadingAlbum(true);
     try {
       const tracks = await musicService.getAlbumTracks(album.id, album.title, selectedArtistDetail?.name || album.artist || '');
@@ -586,6 +609,7 @@ export default function Music() {
     }
     // 0.08 Si está viendo un artista en detalle
     if (selectedArtistDetail) {
+      artistOpenRequestRef.current += 1;
       setSelectedArtistDetail(null);
       return true;
     }
@@ -785,7 +809,7 @@ export default function Music() {
   }
 
   return (
-    <div className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
+    <div ref={musicPageRef} className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
       
       {/* 1. HERO BANNER PRINCIPAL (SOLO DESKTOP PARA MANTENER MÓVIL ÁGIL COMO SPOTIFY) */}
       <div className="hidden md:block relative pt-6 pb-8 px-4 sm:px-8 max-w-7xl mx-auto">
@@ -872,7 +896,7 @@ export default function Music() {
         )}
         
         {/* Input de Búsqueda */}
-        <div className="max-w-xl">
+        <div className="max-w-xl relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSearchFocused(false); }}>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               {isSearching ? (
@@ -884,7 +908,12 @@ export default function Music() {
             <input
               type="text"
               value={searchQuery}
+              aria-label="Buscar música"
+              aria-expanded={searchFocused && recentSearches.length > 0}
+              onFocus={() => setSearchFocused(true)}
+              onKeyDown={e => { if (e.key === 'Escape') setSearchFocused(false); }}
               onChange={(e) => {
+                artistOpenRequestRef.current++;
                 setSearchQuery(e.target.value);
                 if (selectedArtistDetail) setSelectedArtistDetail(null);
                 if (selectedAlbumDetail) setSelectedAlbumDetail(null);
@@ -950,8 +979,8 @@ export default function Music() {
           )}
 
           {/* Historial de búsquedas recientes */}
-          {!searchQuery && recentSearches.length > 0 && (
-            <div className="mt-3 space-y-1.5 animate-in fade-in">
+          {searchFocused && !searchQuery && recentSearches.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-30 mt-1 p-4 rounded-2xl bg-[#17131f] border border-white/15 shadow-xl space-y-3 max-h-64 overflow-y-auto" aria-label="Búsquedas recientes">
               <div className="flex items-center justify-between text-xs text-gray-400 px-1">
                 <div className="flex items-center gap-1.5 font-semibold text-gray-300">
                   <Clock className="w-3.5 h-3.5 text-fuchsia-400" />
@@ -971,9 +1000,9 @@ export default function Music() {
                     key={`${term}-${idx}`}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-fuchsia-400/40 text-xs text-gray-300 hover:text-white transition cursor-pointer group active:scale-95"
                   >
-                    <span onClick={() => setSearchQuery(term)} className="truncate max-w-[200px]">
+                    <button type="button" onClick={() => { artistOpenRequestRef.current++; setSearchQuery(term); setSelectedArtistDetail(null); setSelectedAlbumDetail(null); setSearchFocused(false); }} className="truncate max-w-[200px]">
                       {term}
-                    </span>
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1455,7 +1484,7 @@ export default function Music() {
               ) : (
                 <div className="text-center py-12 text-gray-400">
                   <Music2 className="w-10 h-10 mx-auto mb-2 opacity-30 text-fuchsia-400" />
-                  <p className="text-sm">No hay canciones populares indexadas</p>
+                  <p className="text-sm">{selectedArtistDetail.isLoading ? 'Cargando canciones…' : 'No hay canciones populares indexadas'}</p>
                 </div>
               )
             ) : (
@@ -1496,7 +1525,7 @@ export default function Music() {
                             {album.title}
                           </h4>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                            {album.releaseDate && <span>{album.releaseDate}</span>}
+                            {album.releaseDate && <span>{album.releaseDate.slice(0,4)}</span>}
                             {album.trackCount > 0 && <span>• {album.trackCount} canciones</span>}
                           </div>
                         </div>
@@ -1507,7 +1536,7 @@ export default function Music() {
               ) : (
                 <div className="text-center py-12 text-gray-400">
                   <Disc3 className="w-10 h-10 mx-auto mb-2 opacity-30 text-purple-400" />
-                  <p className="text-sm">No se encontraron álbumes para este artista</p>
+                  <p className="text-sm">{selectedArtistDetail.isLoading ? 'Cargando discografía…' : 'No se encontraron álbumes para este artista'}</p>
                 </div>
               )
             )}
@@ -1607,15 +1636,15 @@ export default function Music() {
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-ping" />
-                  <span>Estrenos y Lanzamientos 2026 • Actualizado en Vivo</span>
+                  <span>Lanzamientos recientes • Catálogo actualizado</span>
                 </div>
                 <h2 className="text-2xl sm:text-4xl font-black text-white">
                   Lo Más Reciente
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
                   {recentTracks.length > 0
-                    ? `Sincronización oficial con Apple Music y Deezer. ${recentTracks.length} nuevos sencillos y álbumes ordenados cronológicamente desde los estrenos de hoy y esta semana hacia atrás.`
-                    : 'Sincronización en vivo con charts globales y latinoamericanos de Apple Music. Cientos de nuevos sencillos y lanzamientos oficiales actualizados a diario.'}
+                    ? `${recentTracks.length} canciones de lanzamientos de los últimos 90 días. Catálogos de Perú, Estados Unidos, México, España y Reino Unido, ordenados por fecha.`
+                    : 'Lanzamientos de los últimos 90 días, con fechas de lanzamiento verificadas.'}
                 </p>
 
                 {recentTracks.length > 0 && (
@@ -1643,7 +1672,7 @@ export default function Music() {
                       onClick={handleRefreshRecent}
                       disabled={isLoadingRecent}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer active:scale-95 disabled:opacity-50"
-                      title="Sincronizar en vivo desde los feeds oficiales de Apple Music"
+                      title="Actualizar catálogo musical"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 text-fuchsia-400 ${isLoadingRecent ? 'animate-spin' : ''}`} />
                       <span>{isLoadingRecent ? 'Actualizando...' : 'Actualizar Catálogo'}</span>
@@ -2212,7 +2241,7 @@ export default function Music() {
                       {genre.name}
                     </h3>
                     
-                    {/* Imagen de carátula rotada estilo oficial Spotify */}
+                    {/* Carátula destacada */}
                     <div className="absolute -bottom-3 -right-3 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden shadow-2xl transform rotate-[22deg] group-hover:rotate-[15deg] group-hover:scale-105 transition-all duration-300 border border-black/20">
                       <img 
                         src={genre.cover} 
@@ -2742,7 +2771,8 @@ export default function Music() {
                       <span>Tus Listas de Reproducción</span>
                     </h2>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Crea y organiza tus propias colecciones de canciones personalizadas.
+                      {playlistCloudStatus==='synced'?'Tus playlists están sincronizadas con tu cuenta.':playlistCloudStatus==='error'?'Guardadas en este dispositivo. No se pudo sincronizar con tu cuenta.':playlistCloudStatus==='syncing'?'Sincronizando con tu cuenta…':'Cambios pendientes de sincronizar.'}
+                      {playlistCloudStatus==='error' && <button onClick={syncPlaylists} className="ml-2 text-fuchsia-300 underline">Reintentar</button>}
                     </p>
                   </div>
 
@@ -3002,7 +3032,7 @@ export default function Music() {
                           <span>Playlists Curadas & Tendencias Globales</span>
                         </h3>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          Listas temáticas con canciones y colaboraciones de múltiples artistas (estilo Spotify / Apple Music).
+                          Listas temáticas con canciones y colaboraciones de múltiples artistas.
                         </p>
                       </div>
 
@@ -3258,12 +3288,18 @@ export default function Music() {
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-fuchsia-400" />
-                    <span>Lo Más Escuchado Esta Semana</span>
+                    <span>{chartRegion === 'PE' ? 'Top Perú' : chartRegion === 'global' ? 'Top Global' : 'Top Latino'}</span>
                   </h2>
-                  <p className="text-xs text-gray-400">Tendencias musicales actualizadas minuto a minuto.</p>
+                  <p className="text-xs text-gray-400">{chartRegion === "PE" ? "Lo más escuchado en Perú" : chartRegion === "global" ? "Tendencias globales" : "Tendencias latinas"} · actualización diaria</p>
                 </div>
               </div>
 
+              <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Región del ranking">
+                {[['global','Global'],['PE','Perú'],['MX','Latino · México']].map(([id,label])=>(
+                  <button key={id} onClick={()=>setChartRegion(id)} aria-pressed={chartRegion===id}
+                    className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition ${chartRegion===id?'bg-fuchsia-500 text-white':'bg-white/5 text-gray-300 hover:bg-white/10'}`}>{label}</button>
+                ))}
+              </div>
               {isLoadingTop ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
@@ -3472,9 +3508,11 @@ function TrackCard({
       {/* Carátula */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
         <img 
-          src={track.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
+          src={track.cover?.replace(/600x600bb/g, '300x300bb').replace(/\/(1000|500)x\1-/g, '/300x300-') || '/logo-teamg.png'}
           alt={track.title} 
-          loading="lazy"
+          loading={!index || index <= 6 ? "eager" : "lazy"}
+          decoding="async"
+          onError={e => { e.currentTarget.onerror=null; e.currentTarget.src='/logo-teamg.png'; }}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
 
@@ -3525,7 +3563,7 @@ function TrackCard({
 
       {/* Título y Artista */}
       <div className="flex-1 min-w-0">
-        <h4 className={`text-xs sm:text-sm font-bold truncate transition ${isPlaying ? 'text-fuchsia-400' : 'text-white group-hover:text-fuchsia-300'}`}>
+        <h4 className={`text-xs sm:text-sm font-bold break-words leading-snug transition ${isPlaying ? 'text-fuchsia-400' : 'text-white group-hover:text-fuchsia-300'}`}>
           {track.title}
         </h4>
         <div className="flex items-center gap-1.5 mt-0.5">
