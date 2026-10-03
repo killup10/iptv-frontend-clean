@@ -72,6 +72,8 @@ export default function TVMusicPage() {
     isFavorite,
     favorites,
     customPlaylists,
+    saveAlbumAsPlaylist,
+    isAlbumSavedAsPlaylist,
     isLoadingAudio
   } = useMusic();
 
@@ -105,6 +107,7 @@ export default function TVMusicPage() {
   const [albumTracks, setAlbumTracks] = useState([]);
   const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
   const [albumDetailSubZone, setAlbumDetailSubZone] = useState('actions'); // 'actions' | 'songs'
+  const [focusedAlbumActionIndex, setFocusedAlbumActionIndex] = useState(0); // 0 = play, 1 = save playlist
   const [focusedAlbumSongIndex, setFocusedAlbumSongIndex] = useState(0);
 
   // Playlist Detail view
@@ -258,6 +261,7 @@ export default function TVMusicPage() {
     setIsLoadingAlbum(true);
     setFocusZone('album_detail');
     setAlbumDetailSubZone('actions');
+    setFocusedAlbumActionIndex(0);
     setFocusedAlbumSongIndex(0);
 
     try {
@@ -706,14 +710,22 @@ export default function TVMusicPage() {
       if (focusZone === 'album_detail') {
         if (albumDetailSubZone === 'actions') {
           if (action === 'ArrowLeft') {
-            focusTVNav();
+            if (focusedAlbumActionIndex > 0) {
+              setFocusedAlbumActionIndex(0);
+            } else {
+              focusTVNav();
+            }
+          } else if (action === 'ArrowRight') {
+            setFocusedAlbumActionIndex(1);
           } else if (action === 'ArrowDown') {
             if (albumTracks.length > 0) {
               setAlbumDetailSubZone('songs');
               setFocusedAlbumSongIndex(0);
             }
           } else if (action === 'Enter') {
-            if (albumTracks.length > 0) {
+            if (focusedAlbumActionIndex === 1) {
+              saveAlbumAsPlaylist({ ...selectedAlbum, tracks: albumTracks });
+            } else if (albumTracks.length > 0) {
               playTrack(albumTracks[0], albumTracks);
             }
           }
@@ -1181,7 +1193,7 @@ export default function TVMusicPage() {
               </p>
               <div className="flex items-center gap-4 mt-5">
                 <button
-                  data-tv-focused={focusZone === 'album_detail' && albumDetailSubZone === 'actions'}
+                  data-tv-focused={focusZone === 'album_detail' && albumDetailSubZone === 'actions' && focusedAlbumActionIndex === 0}
                   onClick={() => {
                     if (albumTracks.length > 0) {
                       playTrack(albumTracks[0], albumTracks);
@@ -1191,6 +1203,30 @@ export default function TVMusicPage() {
                 >
                   <Play className="w-5 h-5 fill-current" />
                   <span>Reproducir Álbum Completo</span>
+                </button>
+
+                <button
+                  data-tv-focused={focusZone === 'album_detail' && albumDetailSubZone === 'actions' && focusedAlbumActionIndex === 1}
+                  onClick={async () => {
+                    await saveAlbumAsPlaylist({ ...selectedAlbum, tracks: albumTracks });
+                  }}
+                  className={`tv-focus-btn flex items-center gap-2 px-6 py-3 rounded-full font-bold text-sm border transition ${
+                    isAlbumSavedAsPlaylist(selectedAlbum)
+                      ? 'bg-purple-600/40 text-purple-200 border-purple-500/50 shadow-lg shadow-purple-500/20'
+                      : 'bg-white/10 text-white border-white/20'
+                  }`}
+                >
+                  {isAlbumSavedAsPlaylist(selectedAlbum) ? (
+                    <>
+                      <Check className="w-4 h-4 text-purple-400" />
+                      <span>En tus Playlists</span>
+                    </>
+                  ) : (
+                    <>
+                      <ListMusic className="w-4 h-4 text-purple-300" />
+                      <span>Guardar como Playlist</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

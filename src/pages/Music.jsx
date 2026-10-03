@@ -59,6 +59,8 @@ export default function Music() {
     playlistCloudStatus,
     syncPlaylists,
     createPlaylist,
+    saveAlbumAsPlaylist,
+    isAlbumSavedAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     togglePlaylistPrivacy,
@@ -140,6 +142,7 @@ export default function Music() {
   const [isLoadingArtist, setIsLoadingArtist] = useState(false);
   const [selectedAlbumDetail, setSelectedAlbumDetail] = useState(null);
   const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
+  const [albumSavedToast, setAlbumSavedToast] = useState(false);
   const [searchResultsArtists, setSearchResultsArtists] = useState([]);
   const [artistActiveTab, setArtistActiveTab] = useState('tracks'); // 'tracks' | 'albums'
 
@@ -1285,6 +1288,34 @@ export default function Music() {
                       >
                         <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
                         <span>Aleatorio</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await saveAlbumAsPlaylist(selectedAlbumDetail);
+                          if (res) {
+                            setAlbumSavedToast(true);
+                            setTimeout(() => setAlbumSavedToast(false), 3000);
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border ${
+                          isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast
+                            ? 'bg-purple-600/30 text-purple-200 border-purple-500/40 hover:bg-purple-600/40'
+                            : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
+                        }`}
+                      >
+                        {isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-fuchsia-400" />
+                            <span>{albumSavedToast ? '¡Guardado en Playlists!' : 'En tus Playlists'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <ListPlus className="w-3.5 h-3.5 text-fuchsia-400" />
+                            <span>Guardar como Playlist</span>
+                          </>
+                        )}
                       </button>
 
                       <button

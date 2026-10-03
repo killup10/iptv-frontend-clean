@@ -354,4 +354,9 @@ class BackgroundPlaybackService {
 }
 
 export const backgroundPlaybackService = new BackgroundPlaybackService();
+if (typeof window !== 'undefined') {
+  backgroundPlaybackService.initialize().catch(err => {
+    console.warn('[BackgroundPlayback] Error auto-inicializando servicio:', err);
+  });
+}
 export default backgroundPlaybackService;

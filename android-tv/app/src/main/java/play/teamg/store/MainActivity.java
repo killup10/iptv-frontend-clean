@@ -23,8 +23,33 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(MusicPlaybackPlugin.class);
     super.onCreate(savedInstanceState);
 
+    // Permitir reproducción de audio sin bloqueo de gestos
+    if (bridge != null && bridge.getWebView() != null) {
+      bridge.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+    }
+
     // Configurar WebChromeClient para manejar pantalla completa y permisos
     setupWebChromeClient();
+  }
+
+  @Override
+  public void onPause() {
+    super.onPause();
+    if (MusicPlaybackService.isPlaybackActive()) {
+      if (bridge != null && bridge.getWebView() != null) {
+        bridge.getWebView().onResume();
+      }
+    }
+  }
+
+  @Override
+  public void onStop() {
+    super.onStop();
+    if (MusicPlaybackService.isPlaybackActive()) {
+      if (bridge != null && bridge.getWebView() != null) {
+        bridge.getWebView().onResume();
+      }
+    }
   }
 
   private void setupWebChromeClient() {

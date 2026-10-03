@@ -286,6 +286,7 @@ function createMainWindow() {
       nodeIntegration: false, 
       preload: path.join(__dirname, 'preload.cjs'),
       webSecurity: false,
+      backgroundThrottling: false,
     },
     show: false
   });

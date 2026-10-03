@@ -145,6 +145,9 @@ public class MusicPlaybackService extends Service {
                 @Override
                 public void onPlayerError(PlaybackException error) {
                     Log.e(TAG, "ExoPlayer error de reproducción: " + error.getMessage());
+                    mainHandler.postDelayed(() -> {
+                        MusicPlaybackPlugin.sendMediaAction("next");
+                    }, 500);
                 }
             });
         } catch (Exception e) {

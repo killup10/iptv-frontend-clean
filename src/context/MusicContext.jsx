@@ -28,7 +28,12 @@ export function MusicProvider({ children }) {
     setPlayingState(playing);
   }, []);
   const [queue, setQueue] = useState([]);
+  const queueRef = useRef([]);
+  queueRef.current = queue;
   const [queueIndex, setQueueIndex] = useState(-1);
+  const queueIndexRef = useRef(-1);
+  queueIndexRef.current = queueIndex;
+  const consecutiveErrorsRef = useRef(0);
   const [volume, setVolumeState] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -160,7 +165,10 @@ export function MusicProvider({ children }) {
     // Buffering, source replacement and WebView suspension are not manual pauses.
     const onPause = () => {};
     const onWaiting = () => setIsLoadingAudio(true);
-    const onPlaying = () => setIsLoadingAudio(false);
+    const onPlaying = () => {
+      consecutiveErrorsRef.current = 0;
+      setIsLoadingAudio(false);
+    };
     const onCanPlay = () => setIsLoadingAudio(false);
 
     const onTimeUpdate = () => {
@@ -476,6 +484,7 @@ export function MusicProvider({ children }) {
       }
 
       if (generation === playbackGenerationRef.current && currentTrackRef.current?.id === track.id) {
+        consecutiveErrorsRef.current = 0;
         setAudioQuality('full');
         setPlaybackMode('native');
       }
@@ -496,10 +505,24 @@ export function MusicProvider({ children }) {
     transitionRef.current = false;
     setIsLoadingAudio(false);
     setAudioQuality('unavailable');
+
+    const curQueue = queueRef.current.length > 0 ? queueRef.current : queue;
+    if (playIntentRef.current && curQueue.length > 1) {
+      if (consecutiveErrorsRef.current < Math.min(curQueue.length, 5)) {
+        consecutiveErrorsRef.current += 1;
+        console.warn(`[MusicContext] Canción no disponible (#${consecutiveErrorsRef.current}), avanzando automáticamente para mantener reproducción continua...`);
+        setTimeout(() => {
+          handleNextRef.current?.();
+        }, 400);
+        return;
+      }
+    }
+
+    consecutiveErrorsRef.current = 0;
     setIsPlaying(false);
     audioRef.current?.pause();
     backgroundPlaybackService.pausePlayback();
-  }, [setIsPlaying]);
+  }, [queue, setIsPlaying]);
 
   // Prefetch de la versión completa de la siguiente pista en segundo plano
   const prefetchNextFullVersion = useCallback((currentQueue, currentIdx) => {
@@ -760,24 +783,34 @@ export function MusicProvider({ children }) {
 
   // Siguiente pista
   const handleNext = useCallback(() => {
-    if (queue.length === 0) return;
+    const curQueue = queueRef.current.length > 0 ? queueRef.current : queue;
+    if (curQueue.length === 0) return;
 
-    let nextIdx;
-    if (isShuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length);
-    } else {
-      nextIdx = queueIndex + 1;
-      if (nextIdx >= queue.length) {
-        nextIdx = 0;
+    if (repeatModeRef.current === 'one') {
+      const cur = currentTrackRef.current || curQueue[queueIndexRef.current >= 0 ? queueIndexRef.current : 0];
+      if (cur) {
+        playTrack(cur, curQueue);
+        return;
       }
     }
 
-    const nextSong = queue[nextIdx];
+    let nextIdx;
+    if (isShuffle) {
+      nextIdx = Math.floor(Math.random() * curQueue.length);
+    } else {
+      const curIdx = queueIndexRef.current >= 0 ? queueIndexRef.current : queueIndex;
+      nextIdx = curIdx + 1;
+      if (nextIdx >= curQueue.length) {
+        nextIdx = 0; // Reproducción continua sin fin
+      }
+    }
+
+    const nextSong = curQueue[nextIdx];
     if (nextSong) {
       setQueueIndex(nextIdx);
-      playTrack(nextSong, queue);
+      playTrack(nextSong, curQueue);
     }
-  }, [queue, queueIndex, isShuffle, repeatMode, playTrack]);
+  }, [queue, queueIndex, isShuffle, playTrack]);
   handleNextRef.current = handleNext;
 
   const clockRef = useRef({time:0,duration:0});
@@ -889,11 +922,69 @@ export function MusicProvider({ children }) {
   }, [favorites]);
 
   // --- PLAYLISTS PERSONALIZADAS (CON SOPORTE PÚBLICA / PRIVADA Y SINCRONIZACIÓN EN LA NUBE) ---
-  const createPlaylist = useCallback((name, description='', isPublic=false) => {
+  const createPlaylist = useCallback((name, description='', isPublic=false, initialTracks=[]) => {
     const clean=String(name||'').trim();if(!clean)return null;
-    const item={id:'pl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),name:clean,description:String(description).trim(),isPublic:Boolean(isPublic),createdAt:Date.now(),updatedAt:Date.now(),cover:'',tracks:[]};
+    const tracks = Array.isArray(initialTracks) ? initialTracks : [];
+    const item={
+      id:'pl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      name:clean,
+      description:String(description).trim(),
+      isPublic:Boolean(isPublic),
+      createdAt:Date.now(),
+      updatedAt:Date.now(),
+      cover:tracks[0]?.cover || '',
+      tracks
+    };
     commitPlaylists(list=>[item,...list],[item.id]);return item;
   }, [commitPlaylists]);
+
+  const saveAlbumAsPlaylist = useCallback(async (album) => {
+    if (!album || !album.title) return null;
+    const albumTitle = String(album.title).trim();
+    const artistName = String(album.artist || '').trim();
+    const defaultName = artistName ? `${albumTitle} - ${artistName}` : albumTitle;
+
+    const existing = customPlaylistsRef.current.find(
+      p => p.name.toLowerCase() === defaultName.toLowerCase() || p.name.toLowerCase() === albumTitle.toLowerCase()
+    );
+    if (existing) {
+      return existing;
+    }
+
+    let tracks = Array.isArray(album.tracks) && album.tracks.length > 0 ? album.tracks : [];
+    if (tracks.length === 0 && album.id) {
+      try {
+        tracks = await musicService.getAlbumTracks(album.id, album.title, album.artist);
+      } catch (err) {
+        console.warn('[MusicContext] No se pudieron obtener pistas al guardar álbum:', err);
+      }
+    }
+
+    const cover = album.cover || tracks[0]?.cover || '';
+    const item = {
+      id: 'pl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      name: defaultName,
+      description: `Álbum guardado${artistName ? ` de ${artistName}` : ''}${album.releaseDate ? ` (${album.releaseDate})` : ''}`,
+      isPublic: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      cover: cover,
+      tracks: tracks
+    };
+
+    commitPlaylists(list => [item, ...list], [item.id]);
+    return item;
+  }, [commitPlaylists]);
+
+  const isAlbumSavedAsPlaylist = useCallback((album) => {
+    if (!album || !album.title) return false;
+    const albumTitle = String(album.title).trim().toLowerCase();
+    const artistName = String(album.artist || '').trim().toLowerCase();
+    const fullName = artistName ? `${albumTitle} - ${artistName}` : albumTitle;
+    return customPlaylists.some(
+      p => p.name.toLowerCase() === fullName || p.name.toLowerCase() === albumTitle
+    );
+  }, [customPlaylists]);
   const togglePlaylistPrivacy=useCallback(id=>{
     commitPlaylists(list=>list.map(p=>p.id===id?{...p,isPublic:!p.isPublic,updatedAt:Date.now()}:p),[id]);
   },[commitPlaylists]);
@@ -1000,6 +1091,8 @@ export function MusicProvider({ children }) {
     getOfflineTotalStorage: musicOfflineService.getTotalOfflineSize,
     getTrackLicenseInfo: musicOfflineService.getTrackLicenseInfo,
     createPlaylist,
+    saveAlbumAsPlaylist,
+    isAlbumSavedAsPlaylist,
     deletePlaylist,
     renamePlaylist,
     togglePlaylistPrivacy,
