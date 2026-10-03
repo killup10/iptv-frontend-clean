@@ -500,11 +500,27 @@ export default function Music() {
     };
   }, []);
 
+  const currentTrackRef = useRef(currentTrack);
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  const artistOpenRequestRef = useRef(0);
+  const activeArtistRequestIdRef = useRef(0);
+  const handledLocationArtistRef = useRef(null);
+
+  const closeArtistDetail = useCallback(() => {
+    artistOpenRequestRef.current += 1;
+    activeArtistRequestIdRef.current = 0;
+    setIsLoadingArtist(false);
+    setSelectedArtistDetail(null);
+  }, []);
+
   const navigateToTab = useCallback((newTab) => {
     if (newTab === activeTab) return;
     setTabHistory(prev => [...prev.slice(-10), activeTab]);
     setActiveTab(newTab);
-    setSelectedArtistDetail(null);
+    closeArtistDetail();
     setSelectedAlbumDetail(null);
     if (newTab !== 'playlists' && newTab !== 'community') {
       setSelectedPlaylistId(null);
@@ -513,7 +529,7 @@ export default function Music() {
     if (newTab !== 'indie') {
       setSelectedIndieArtist(null);
     }
-  }, [activeTab]);
+  }, [activeTab, closeArtistDetail]);
 
   useLayoutEffect(() => {
     // Reset both document scrolling and any layout-owned scrolling container before paint.
@@ -522,27 +538,40 @@ export default function Music() {
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [viewNavigation, activeTab, selectedAlbumDetail?.id]);
-  const artistOpenRequestRef = useRef(0);
+
   const handleOpenArtist = useCallback(async (artistName, artistId = null) => {
     if (!artistName) return;
     setViewNavigation(value => value + 1);
     const requestId = ++artistOpenRequestRef.current;
+    activeArtistRequestIdRef.current = requestId;
     setIsLoadingArtist(false);
     setSelectedAlbumDetail(null);
     setArtistActiveTab('tracks');
     setSearchQuery('');
     const cached = musicService.getCachedArtistDetails(artistName);
-    setSelectedArtistDetail(cached || { id: artistId || artistName, name: artistName,
-      picture: currentTrack?.artist === artistName ? currentTrack.cover : '', fans: 0, topTracks: [], albums: [], isLoading: true });
+    const fallbackPic = currentTrackRef.current?.artist === artistName ? currentTrackRef.current.cover : '';
+    setSelectedArtistDetail(cached || { 
+      id: artistId || artistName, 
+      name: artistName,
+      picture: fallbackPic, 
+      fans: 0, 
+      topTracks: [], 
+      albums: [], 
+      isLoading: true 
+    });
     try {
       await musicService.getArtistDetails(artistName, artistId, details => {
-        if (artistOpenRequestRef.current === requestId) setSelectedArtistDetail(details);
+        if (activeArtistRequestIdRef.current === requestId && artistOpenRequestRef.current === requestId) {
+          setSelectedArtistDetail(details);
+        }
       });
     } catch (e) {
-      if (artistOpenRequestRef.current === requestId) setSelectedArtistDetail(previous => previous ? { ...previous, isLoading: false } : previous);
+      if (activeArtistRequestIdRef.current === requestId && artistOpenRequestRef.current === requestId) {
+        setSelectedArtistDetail(previous => previous ? { ...previous, isLoading: false } : previous);
+      }
       console.warn('[MusicPage] Error abriendo artista:', e);
     }
-  }, [currentTrack?.artist, currentTrack?.cover]);
+  }, []);
 
   const handleOpenAlbum = useCallback(async (album) => {
     if (!album) return;
@@ -581,13 +610,18 @@ export default function Music() {
   }, [handleOpenArtist]);
 
   useEffect(() => {
-    if (location.state?.openArtist) {
-      handleOpenArtist(location.state.openArtist, location.state.openArtistId);
+    const targetArtist = location.state?.openArtist;
+    const targetArtistId = location.state?.openArtistId;
+    if (targetArtist && handledLocationArtistRef.current !== targetArtist) {
+      handledLocationArtistRef.current = targetArtist;
+      handleOpenArtist(targetArtist, targetArtistId);
       try {
-        window.history.replaceState({}, document.title);
+        navigate(location.pathname, { replace: true, state: {} });
       } catch {}
+    } else if (!targetArtist) {
+      handledLocationArtistRef.current = null;
     }
-  }, [location.state, handleOpenArtist]);
+  }, [location.state?.openArtist, location.state?.openArtistId, location.pathname, handleOpenArtist, navigate]);
 
   // Manejador inteligente de botón atrás: retrocede al nivel anterior dentro de Música antes de salir
   const handleMusicBack = useCallback(() => {
@@ -604,12 +638,14 @@ export default function Music() {
     // 0.05 Si está viendo un álbum en detalle
     if (selectedAlbumDetail) {
       setSelectedAlbumDetail(null);
+      if (selectedArtistDetail) {
+        setArtistActiveTab('albums');
+      }
       return true;
     }
     // 0.08 Si está viendo un artista en detalle
     if (selectedArtistDetail) {
-      artistOpenRequestRef.current += 1;
-      setSelectedArtistDetail(null);
+      closeArtistDetail();
       return true;
     }
     // 0.1 Si está viendo un artista independiente en detalle
@@ -647,7 +683,7 @@ export default function Music() {
     }
     // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
     return false;
-  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedAlbumDetail, selectedArtistDetail, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer]);
+  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedAlbumDetail, selectedArtistDetail, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer, closeArtistDetail]);
 
   useEffect(() => {
     window.__musicBackHandler = handleMusicBack;
@@ -1320,7 +1356,7 @@ export default function Music() {
             <div className="flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setSelectedArtistDetail(null)}
+                onClick={closeArtistDetail}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />

@@ -396,19 +396,21 @@ export default function GlobalMusicPlayer() {
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    if (absY > 40 && absY > absX * 1.1) {
+    if (absY > 70 && absY > absX * 1.2) {
       if (deltaY > 0) {
+        // Deslizar hacia abajo: Minimizar reproductor
+        setIsExpandedPlayer(false);
+        showGestureToast('Minimizado');
+      } else {
+        // Deslizar hacia arriba: Letra
         setIsVideoMode(false);
         setLargeVideo(false);
         setShowLyrics(true);
         showGestureToast('Letra');
-      } else {
-        setLargeVideo(false);
-        handleGoToArtist();
       }
       return;
     }
-    if (absX > 40 && absX > absY * 1.1 && !currentTrack.isRadio) {
+    if (absX > 70 && absX > absY * 1.2 && !currentTrack.isRadio) {
       if (deltaX < 0) {
         if (queueIndex < queue.length - 1 || repeatMode === 'all' || isShuffle) animateTrackGesture(-1, nextTrack);
         showGestureToast('Siguiente canción');
