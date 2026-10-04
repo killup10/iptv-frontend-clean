@@ -207,180 +207,246 @@ export const GENRES = [
 // Playlists curadas predeterminadas con selecciones de varios artistas y nombres temáticos
 export const DEFAULT_CURATED_PLAYLISTS = [
   {
-    id: 'curated_1290316405',
-    deezerId: 1290316405,
-    name: 'Chill Relax & Lo-Fi',
-    description: 'Vibras relajantes para descansar, estudiar o desconectar con melodías suaves.',
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
-    trackCount: 45,
+    id: 'curated_qobuz_qobuzissime',
+    name: '💎 Novedades de Alta Fidelidad',
+    query: 'qobuzissime hi res audiophile new releases 2026',
+    description: 'Nuevos lanzamientos destacados para escuchar con gran calidad de sonido.',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'TeamG Curators'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_1306931615',
-    deezerId: 1306931615,
-    name: 'Rock & Metal Essentials',
-    description: 'Himnos eternos de AC/DC, Falling In Reverse, Linkin Park, Metallica y más.',
+    id: 'curated_qobuz_gusto',
+    name: '✨ Álbumes Imprescindibles y Joyas Ocultas',
+    query: 'qobuz taste essential audiophile albums 2026',
+    description: 'El criterio audiófilo definitivo: álbumes indispensables con producción impecable, dinámica prístina y calidez analógica.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_qobuz_soundstage_jazz',
+    name: '🎷 Jazz y Acústico',
+    query: 'qobuz audiophile soundstage jazz miles coltrane krall chet baker bill evans',
+    description: 'Grabaciones de referencia para sistemas de alta fidelidad. Claridad cristalina en instrumentos acústicos y escenario sonoro tridimensional.',
+    cover: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_qobuz_classical_masters',
+    name: '🎻 Clásica Esencial',
+    query: 'qobuz classical masters beethoven mozart bach chopin philharmonic',
+    description: 'Las interpretaciones orquestales y solistas más conmovedoras del repertorio clásico, con la pureza tímbrica del master de estudio.',
+    cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_qobuz_french_touch',
+    name: '🍸 French Touch y Neo-Soul',
+    query: 'qobuz french touch l imperatrice justice air daft punk neo soul lounge',
+    description: 'Elegancia parisina, sintetizadores vintage, grooves orgánicos y chillout sofisticado.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_qobuz_hires_rock',
+    name: '🎸 Rock y Metal',
+    query: 'qobuz hi res rock metal pink floyd led zeppelin tool amon amarth mastodon',
+    description: 'Grabaciones de rock y metal sin compresión excesiva: rango dinámico amplio, pegada analógica real y guitarras vivas.',
     cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
     trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'TeamG Curators'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_178699142',
-    deezerId: 178699142,
-    name: 'Fuego Latino & Perreo',
-    description: 'Los temas más encendidos de reggaetón, dembow y música urbana global.',
+    id: 'curated_spotify_top50_global',
+    name: 'Éxitos Globales',
+    query: 'billboard hot 100 global top 50 hits 2026',
+    description: 'Los temas más reproducidos y virales del planeta en este momento. El pulso musical mundial.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_viva_latino',
+    name: '¡Viva Latino!',
+    query: 'reggaeton urbano exitos latinos 2026',
+    description: 'El pulso de la música latina. Todos los grandes estrenos de reggaetón, trap latino y pop urbano.',
     cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    trackCount: 60,
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'TeamG Curators'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_2045665684',
-    deezerId: 2045665684,
-    name: 'Salsa & Bachata de Oro',
-    description: 'Clásicos y éxitos románticos para bailar y disfrutar en toda fiesta.',
-    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    trackCount: 40,
-    isCurated: true,
-    isPublic: true,
-    creator: 'TeamG Curators'
-  },
-  {
-    id: 'curated_9590427822',
-    deezerId: 9590427822,
-    name: 'Deep House & Club Beats',
-    description: 'Electrónica envolvente, sintetizadores y ritmos nocturnos sin interrupciones.',
+    id: 'curated_apple_todays_hits',
+    name: 'Éxitos de Hoy',
+    query: 'todays hits top global 2026',
+    description: 'Canciones populares que están sonando en distintos países.',
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
     trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'TeamG Curators'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_867825522',
-    deezerId: 867825522,
-    name: '80s & 90s Retro Hits',
-    description: 'Nostalgia pura con las canciones que definieron dos generaciones doradas.',
-    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    trackCount: 55,
-    isCurated: true,
-    isPublic: true,
-    creator: 'TeamG Curators'
-  },
-  {
-    id: 'curated_lofi_coding',
-    name: '🎧 Lo-Fi Midnight Coding & Focus',
-    query: 'lofi hip hop chill beats study relax',
-    description: 'Beats instrumentales sin distracciones para programar, concentrarse y fluir de noche.',
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
-    trackCount: 40,
-    isCurated: true,
-    isPublic: true,
-    creator: 'DevCommunity'
-  },
-  {
-    id: 'curated_gym_beast',
-    name: '⚡ Modo Bestia Gym 200BPM',
-    query: 'workout hardstyle phonk motivation gym hits',
-    description: 'Phonk, hardstyle y ritmos pesados para romper récords personales en cada serie.',
-    cover: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
-    trackCount: 45,
-    isCurated: true,
-    isPublic: true,
-    creator: 'IronPumpers'
-  },
-  {
-    id: 'curated_perreo_2026',
-    name: '🔥 Perreo Sucio 2026 Sin Censura',
-    query: 'reggaeton perreo bellakeo 2026',
-    description: 'El reggaetón más oscuro, explícito y pegajoso que está reventando las discotecas.',
-    cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
+    id: 'curated_apple_alist_pop',
+    name: 'Pop Actual',
+    query: 'a list pop sabrina carpenter billie eilish dua lipa chappell roan taylor swift olivia rodrigo',
+    description: 'El pop estelar y contemporáneo más refinado de los mejores artistas globales.',
+    cover: 'https://images.unsplash.com/photo-1526478806334-5fd488fcaabc?w=600&auto=format&fit=crop&q=80',
     trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'DJ_Discoteca'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_costa_verde',
-    name: '🚗 Manejando de Noche por la Costa Verde',
-    query: 'synthwave night drive retro chill outrun',
-    description: 'Vistas al mar, luces de la ciudad y sintetizadores hipnóticos para manejar sin rumbo.',
+    id: 'curated_rap_caviar',
+    name: 'Hip Hop Global',
+    query: 'travis scott drake kendrick lamar future metro boomin hip hop 2026',
+    description: 'El club más influyente del hip-hop y rap internacional.',
     cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-    trackCount: 35,
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'LimaNocturna'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_emo_revival',
-    name: '🖤 Emo & Post-Hardcore Revival',
-    query: 'Falling In Reverse Pierce The Veil Bring Me The Horizon My Chemical Romance',
-    description: 'Gritos catárticos y riffs inolvidables con Falling In Reverse, PTV, BMTH y clásicos 2000s.',
+    id: 'curated_tidal_rock_masters',
+    name: 'Rock Esencial',
+    query: 'rock essentials linkin park metallica falling in reverse ac dc foo fighters guns n roses',
+    description: 'Sonido de alta definición: clásicos eternos e himnos del rock moderno y post-hardcore.',
     cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
-    trackCount: 42,
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'RonnieRadkeFan'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_chicha_cumbia',
-    name: '🍺 Chicha, Cumbia & Cerveza Helada',
-    query: 'cumbia villera chicha armonia 10 chacalon los shapis grupo 5',
-    description: 'Himnos populares de barrio, guitarra chichera y cumbia con sentimiento real.',
+    id: 'curated_mansion_reggaeton',
+    name: '🔥 Mansión Reggaetón 2026',
+    query: 'reggaeton perreo feid bad bunny myke towers rauw alejandro 2026',
+    description: 'Puro perreo, dembow y canciones que revientan las discotecas y fiestas.',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Curators'
+  },
+  {
+    id: 'curated_beast_mode',
+    name: '⚡ Energía para Entrenar',
+    query: 'workout beast mode gym phonk hardstyle motivation bass 2026',
+    description: 'Adrenalina pura, phonk y ritmos pesados para pulverizar tus marcas en el gimnasio.',
+    cover: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_tidal_electronic',
+    name: 'Club y Electrónica',
+    query: 'electronic club sessions anyma rufus du sol peggy gou fisher deep house edm',
+    description: 'Sesiones de festival, Melodic Techno & Deep House sin interrupciones.',
+    cover: 'https://images.unsplash.com/photo-1571266028243-3716f02d2d2e?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_salsa_bachata_oro',
+    name: 'Salsa y Bachata de Oro',
+    query: 'romeo santos aventura marc anthony hector lavoe grupo niche salsa bachata clasicos',
+    description: 'Clásicos inmortales y éxitos románticos para cantar y bailar con el alma.',
     cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    trackCount: 48,
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_lofi_midnight',
+    name: '🎧 Chill y Lo-Fi',
+    query: 'lofi hip hop chill beats study relax focus instrumentals',
+    description: 'Beats instrumentales suaves y relajantes para programar, concentrarse y fluir de noche.',
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'TeamG Music'
+  },
+  {
+    id: 'curated_cumbia_fiesta',
+    name: '🍺 Cumbia Fiesta & Barrio Monumental',
+    query: 'grupo 5 armonia 10 agua marina cumbia villera los shapis chicha',
+    description: 'Himnos populares de orquesta, guitarra chichera y cumbia con sentimiento real.',
+    cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
     creator: 'SaborPopular'
   },
   {
-    id: 'curated_gaming_night',
-    name: '🎮 Gaming Session / Tryhard 100%',
-    query: 'gaming edm dubstep electronic hype trap',
-    description: 'Adrenalina pura para rankear en Valorant, CS, Warzone o LoL sin perder los reflejos.',
-    cover: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80',
-    trackCount: 40,
+    id: 'curated_80s_90s_retro',
+    name: 'Clásicos de los 80 y 90',
+    query: '80s 90s classic pop rock michael jackson queen madonna hits',
+    description: 'Nostalgia pura con las canciones legendarias que marcaron dos épocas doradas.',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'ClutchGamer'
-  },
-  {
-    id: 'curated_madrugada',
-    name: '🌙 Melancolía de Madrugada (3:00 AM)',
-    query: 'sad indie acoustic slow melancholy emotional',
-    description: 'Para cuando no puedes dormir y los pensamientos se vuelven canciones.',
-    cover: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
-    trackCount: 38,
-    isCurated: true,
-    isPublic: true,
-    creator: 'InsomnioClub'
+    creator: 'TeamG Music'
   },
   {
     id: 'curated_indie_discovery',
-    name: '🌱 Descubrimiento Indie & Bedroom Pop',
+    name: '🌱 Indie y Bedroom Pop',
     query: 'The Marias Cuco Kevin Kaarl Ed Maverick Boy Pablo Men I Trust',
-    description: 'Joyas ocultas fuera de la radio comercial: guitarras soñadoras y producciones caseras íntimas.',
+    description: 'Guitarras soñadoras, producciones caseras íntimas y joyas fuera de la radio comercial.',
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    trackCount: 36,
+    trackCount: 50,
     isCurated: true,
     isPublic: true,
-    creator: 'IndieVibes'
+    creator: 'TeamG Music'
   },
   {
-    id: 'curated_acoustic_coffee',
-    name: '☕ Acoustic Sunday & Coffee Vibes',
-    query: 'acoustic guitar singer songwriter morning calm',
-    description: 'Guitarras de palo, voces cálidas y una taza de café en una mañana tranquila.',
-    cover: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&auto=format&fit=crop&q=80',
-    trackCount: 32,
+    id: 'curated_night_drive',
+    name: '🚗 Night Drive & Synthwave',
+    query: 'synthwave night drive retro electronic outrun kavinsky the midnight',
+    description: 'Vistas al mar, luces de la ciudad y sintetizadores hipnóticos para manejar de noche.',
+    cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
+    trackCount: 45,
     isCurated: true,
     isPublic: true,
-    creator: 'MorningMellow'
+    creator: 'LimaNocturna'
+  },
+  {
+    id: 'curated_gaming_hype',
+    name: '🎮 Gaming Session & Hype EDM',
+    query: 'gaming edm dubstep electronic hype trap valorant csgo',
+    description: 'Adrenalina pura para rankear en Valorant, CS, Warzone o LoL al 100%.',
+    cover: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80',
+    trackCount: 50,
+    isCurated: true,
+    isPublic: true,
+    creator: 'ClutchGamer'
   }
 ];
 
@@ -499,8 +565,7 @@ export const INDEPENDENT_ARTISTS = [
 ];
 
 // Helper para transformar resultados de iTunes a formato uniforme de TeamG Music.
-// NOTA: previewUrl de Apple = SOLO 30 segundos. Se usa como arranque instantáneo;
-// la versión COMPLETA llega vía youtubeId (resuelto por el backend).
+// La reproducción se resuelve siempre a la versión completa en el backend.
 function formatItunesTrack(item) {
   const rawCover = item.artworkUrl100 || item.artworkUrl60 || '';
   const hdCover = rawCover
@@ -518,11 +583,9 @@ function formatItunesTrack(item) {
     artist: item.artistName || 'Artista Desconocido',
     album: item.collectionName || 'Sencillo',
     cover: hdCover,
-    audioUrl: item.previewUrl || '',
-    previewUrl: item.previewUrl || '',
-    duration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : 30,
-    // La duración REAL (trackTimeMillis) es la de la canción completa;
-    // mientras solo haya preview, el reproductor muestra 0:30.
+    audioUrl: null,
+    previewUrl: null,
+    duration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : 0,
     fullDuration: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 1000) : 0,
     isPreviewOnly: true,
     youtubeId: null,
@@ -748,171 +811,7 @@ export const JOSEPH_FIR_TRACK = {
   isRadio: false
 };
 
-// Canciones destacadas de arranque instantáneo (Estrenos 2026).
-// El youtubeId se resuelve dinámicamente para la versión completa sin bloquear.
-export const INITIAL_FEATURED_TRACKS = [
-  JOSEPH_FIR_TRACK,
-  {
-    id: 'feat-1',
-    title: 'To Whom It May Concern',
-    artist: 'A Perfect Circle',
-    album: 'To Whom It May Concern',
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 230,
-    fullDuration: 230,
-    genre: 'Rock Alternativo',
-    releaseDate: '2026-09-29',
-    isRadio: false
-  },
-  {
-    id: 'feat-2',
-    title: 'MIENTES',
-    artist: 'Laura Pausini',
-    album: 'MIENTES',
-    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 215,
-    fullDuration: 215,
-    genre: 'Pop Latino',
-    releaseDate: '2026-09-29',
-    isRadio: false
-  },
-  {
-    id: 'feat-3',
-    title: 'Patient Zero',
-    artist: 'Taylor Swift',
-    album: 'Patient Zero',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a0/dd/fd/a0ddfd72-ee9e-f046-6466-a5dbefc696fa/26UM1IM21436.rgb.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/be/8c/0bbe8c0a-dc77-af41-97a5-c745cc43d38c/mzaf_11790447166833591507.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0b/be/8c/0bbe8c0a-dc77-af41-97a5-c745cc43d38c/mzaf_11790447166833591507.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 215,
-    fullDuration: 215,
-    genre: 'Pop',
-    releaseDate: '2026-09-24',
-    isRadio: false
-  },
-  {
-    id: 'feat-4',
-    title: 'Make Me Love You',
-    artist: 'Nickelback',
-    album: 'Make Me Love You',
-    cover: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 210,
-    fullDuration: 210,
-    genre: 'Rock',
-    releaseDate: '2026-09-25',
-    isRadio: false
-  },
-  {
-    id: 'feat-5',
-    title: 'Soy Un Joven',
-    artist: 'Los Gemelos De Sinaloa & Fuerza Regida',
-    album: 'Soy Un Joven',
-    cover: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 195,
-    fullDuration: 195,
-    genre: 'Música Mexicana',
-    releaseDate: '2026-09-23',
-    isRadio: false
-  },
-  {
-    id: 'feat-6',
-    title: 'BbY WOW',
-    artist: 'KAROL G, Judeline & rusowsky',
-    album: 'BbY WOW',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/f3/08/da/f308da3d-00cc-7682-7be9-87cb882f4ea5/mzaf_129115212197250565.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 225,
-    fullDuration: 225,
-    genre: 'Urbano Latino',
-    releaseDate: '2026-08-07',
-    isRadio: false
-  },
-  {
-    id: 'feat-7',
-    title: 'Ahí',
-    artist: 'KAROL G & Drake',
-    album: 'Ahí',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/66/b2/2b66b26c-ab23-faa1-c4ee-06fa2cce8f76/26UM1IM00558.rgb.jpg/600x600bb.jpg',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 218,
-    fullDuration: 218,
-    genre: 'Urbano Latino',
-    releaseDate: '2026-08-07',
-    isRadio: false
-  },
-  {
-    id: 'feat-8',
-    title: 'CARITA FELIZ',
-    artist: 'Myke Towers',
-    album: 'CARITA FELIZ',
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 198,
-    fullDuration: 198,
-    genre: 'Urbano Latino',
-    releaseDate: '2026-08-19',
-    isRadio: false
-  },
-  {
-    id: 'feat-9',
-    title: 'Sour Grapes',
-    artist: 'NiziU',
-    album: 'Sour Grapes',
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600&auto=format&fit=crop&q=80',
-    audioUrl: '',
-    previewUrl: '',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 180,
-    fullDuration: 180,
-    genre: 'Pop',
-    releaseDate: '2026-09-28',
-    isRadio: false
-  },
-  {
-    id: 'feat-10',
-    title: 'NUEVAYoL',
-    artist: 'Bad Bunny',
-    album: 'DeBÍ TiRAR MÁS FOToS',
-    cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/90/5e/7e/905e7ed5-a8fa-a8f3-cd06-0028fdf3afaa/199066342442.jpg/600x600bb.jpg',
-    audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
-    previewUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/2e/97/55/2e97555a-1ed3-9e07-de57-07e1213186c9/mzaf_7594924455925081680.plus.aac.p.m4a',
-    youtubeId: null,
-    isPreviewOnly: true,
-    duration: 197,
-    fullDuration: 197,
-    genre: 'Urbano Latino',
-    releaseDate: '2025-01-05',
-    isRadio: false
-  }
-];
+
 
 // ---------------------------------------------------------------------------
 // Caché local de youtubeId (memoria + localStorage, 7 días)
@@ -1113,14 +1012,54 @@ async function itunesJson(url) {
   return response.ok ? response.json() : null;
 }
 
+/**
+ * Separa de forma inteligente los artistas en colaboraciones
+ * Ej: "Quevedo & Elvis Crespo" -> ["Quevedo", "Elvis Crespo"]
+ * Ej: "Karol G, Shakira" -> ["Karol G", "Shakira"]
+ * Ej: "Rauw Alejandro feat. Lyanno" -> ["Rauw Alejandro", "Lyanno"]
+ */
+export function parseArtists(artistStr) {
+  if (!artistStr || typeof artistStr !== 'string') return [];
+  const raw = artistStr.trim();
+  if (!raw || raw === 'Artista Desconocido' || raw === 'Varios Artistas') return [raw];
+
+  const EXCLUSIONS = [
+    'ac/dc',
+    'simon & garfunkel',
+    'crosby, stills, nash & young',
+    'kool & the gang',
+    'earth, wind & fire',
+    'tom petty and the heartbreakers',
+    'florence + the machine',
+    'maroon 5',
+    'blink-182',
+    'twenty one pilots',
+    'guns n\' roses',
+    'iron & wine',
+    'hall & oates'
+  ];
+  if (EXCLUSIONS.includes(raw.toLowerCase())) {
+    return [raw];
+  }
+
+  const splitRegex = /\s+(?:&|feat\.?|ft\.?|featuring|with|x|\/)\s+|,\s*/i;
+  const parts = raw
+    .split(splitRegex)
+    .map(p => p.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(p => p && p.length > 1 && !/^(feat\.?|ft\.?|featuring)$/i.test(p));
+
+  return parts.length > 0 ? Array.from(new Set(parts)) : [raw];
+}
+
 export const musicService = {
+  parseArtists,
   /**
    * Top de éxitos frescos (vía backend; sin el RSS deprecado de Apple).
    * country: 'global' | 'latin' | 'PE' | 'US' | 'ES' | 'MX'
    */
   async getTopTracks(country = 'global', forceRefresh = false) {
     const normCountry = String(country || 'global').toLowerCase();
-    const cacheKey = 'teamg_music_chart_v6_' + normCountry;
+    const cacheKey = 'teamg_music_chart_v8_' + normCountry;
 
     // Purgar cachés obsoletas de versiones anteriores (Deezer chart 0 antiguo)
     try {
@@ -1145,9 +1084,9 @@ export const musicService = {
       const lists = await Promise.all(regions.map(r => this.getTopTracks(r, forceRefresh).catch(() => [])));
       const validLists = lists.filter(l => Array.isArray(l) && l.length > 0);
 
-      if (validLists.length === 0) {
-        return await this.getTopTracks('US', forceRefresh);
-      }
+      // The international view needs several live markets; never relabel one
+      // country's chart as a global ranking if the other feeds are unavailable.
+      if (validLists.length < 3) return [];
 
       const combined = new Map();
       const identity = v => String(v || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -1166,24 +1105,19 @@ export const musicService = {
       const tracks = [...combined.values()]
         .sort((a, b) => b.score - a.score)
         .map(({ track }) => ({ ...track, chartSource: 'Top Global' }))
-        .filter(t => {
-          const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
-          if (year > 0 && year < 2023) return false;
-          return true;
-        })
         .slice(0, 100);
 
       if (tracks.length > 0) {
         try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks })); } catch {}
         return tracks;
       }
-      return await this.getTopTracks('US', forceRefresh);
+      return [];
     }
 
     // 1) Feed oficial más reproducido de Apple Music para el país solicitado
     try {
       const feedCountry = ['pe', 'es', 'mx', 'us', 'gb', 'br'].includes(normCountry) ? normCountry : (normCountry === 'latin' ? 'pe' : 'us');
-      const data = await itunesJson(`https://rss.marketingtools.apple.com/api/v2/${feedCountry}/music/most-played/100/songs.json`);
+      const data = await itunesJson(`https://rss.applemarketingtools.com/api/v2/${feedCountry}/music/most-played/100/songs.json`);
       if (data) {
         const results = data?.feed?.results || [];
         if (results.length > 0) {
@@ -1206,7 +1140,6 @@ export const musicService = {
             const hdCover = rawCover
               ? rawCover.replace(/100x100bb/, '600x600bb')
               : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80';
-            const audioPreview = (lItem && lItem.previewUrl) || '';
             const trackDuration = lItem?.trackTimeMillis ? Math.round(lItem.trackTimeMillis / 1000) : 210;
 
             return {
@@ -1217,8 +1150,8 @@ export const musicService = {
               artist: (lItem && lItem.artistName) || item.artistName || 'Artista Desconocido',
               album: (lItem && lItem.collectionName) || item.name || 'Sencillo',
               cover: hdCover,
-              audioUrl: audioPreview,
-              previewUrl: audioPreview,
+              audioUrl: null,
+              previewUrl: null,
               duration: trackDuration,
               fullDuration: trackDuration,
               isPreviewOnly: true,
@@ -1234,8 +1167,6 @@ export const musicService = {
             if (!t || !t.title) return false;
             const lower = t.title.toLowerCase();
             if (lower.includes('sonido de lluvia') || lower.includes('lluvia para dormir') || lower.includes('white noise') || lower.includes('ruido blanco')) return false;
-            const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
-            if (year > 0 && year < 2023) return false;
             return true;
           });
 
@@ -1258,12 +1189,7 @@ export const musicService = {
         timeout: 6000
       });
       if (res.data?.tracks && Array.isArray(res.data.tracks) && res.data.tracks.length > 0) {
-        const clean = res.data.tracks.map(normalizeBackendTrack).filter(t => {
-          if (!t || !t.title) return false;
-          const year = parseInt(String(t.releaseDate || '').substring(0, 4), 10);
-          if (year > 0 && year < 2023) return false;
-          return true;
-        });
+        const clean = res.data.tracks.map(normalizeBackendTrack).filter(t => t && t.title);
         if (clean.length > 0) {
           try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks: clean })); } catch {}
           return clean;
@@ -1392,7 +1318,7 @@ export const musicService = {
 
     // Ordenar por relevancia exacta según la consulta
     merged.sort((a, b) => scoreTrackRelevance(b, cleanQuery) - scoreTrackRelevance(a, cleanQuery));
-    
+
     const finalResults = merged.slice(0, Math.max(limit, 100));
     finalResults.matchedArtists = matchingArtists;
     return finalResults;
@@ -1452,8 +1378,11 @@ export const musicService = {
    */
   getCachedArtistDetails(name) { return cachedArtist(name) || artistRequests.get(artistCacheKey(name))?.latest || null; },
   getArtistDetails(artistName, artistId = null, onUpdate = null) {
-    const cleanName = String(artistName || '').trim();
-    if (!cleanName) return Promise.resolve(null);
+    const rawClean = String(artistName || '').trim();
+    if (!rawClean) return Promise.resolve(null);
+    const artists = parseArtists(rawClean);
+    const cleanName = artists[0] || rawClean;
+    const collaborators = artists.slice(1);
     const cached = cachedArtist(cleanName);
     if (cached) { onUpdate?.(cached); return Promise.resolve(cached); }
     const key = artistCacheKey(cleanName);
@@ -1464,12 +1393,12 @@ export const musicService = {
       return request.promise;
     }
     const request = { listeners: new Set(onUpdate ? [onUpdate] : []), latest: null, promise: null };
-    const metadata = { id: `artist_${key}`, name: cleanName, picture: '', fans: 0 };
+    const metadata = { id: `artist_${key}`, name: cleanName, picture: '', fans: 0, collaborators };
     const tracks = new Map();
     const candidates = [];
     const publish = (loading) => {
       const albums = consolidateAlbums(candidates);
-      const details = { ...metadata, topTracks: [...tracks.values()], albums, albumsCount: albums.length, isLoading: loading };
+      const details = { ...metadata, topTracks: [...tracks.values()], albums, albumsCount: albums.length, isLoading: loading, collaborators };
       request.latest = details;
       for (const listener of request.listeners) listener(details);
       return details;
@@ -1480,8 +1409,8 @@ export const musicService = {
     } };
     const apple = async () => {
       const artists = await itunesJson(`${ITUNES_SEARCH_URL}?term=${encodeURIComponent(cleanName)}&entity=musicArtist&limit=10`);
-      const primaryKey = artistCacheKey(cleanName.split(/[,&]|\bfeat\.?|\bft\.?/i)[0]);
-      const artist = artists?.results?.find(a => artistCacheKey(a.artistName) === key) || artists?.results?.find(a => artistCacheKey(a.artistName) === primaryKey);
+      const primaryKey = artistCacheKey(cleanName);
+      const artist = artists?.results?.find(a => artistCacheKey(a.artistName) === key) || artists?.results?.find(a => artistCacheKey(a.artistName) === primaryKey) || artists?.results?.[0];
       if (!artist?.artistId) return;
       const resolvedArtistKey = artistCacheKey(artist.artistName);
       metadata.name = artist.artistName;
@@ -1490,22 +1419,37 @@ export const musicService = {
         itunesJson(`${ITUNES_SEARCH_URL}?term=${encodeURIComponent(cleanName)}&entity=song&limit=50`)
       ]);
       for (const album of (albums.status === 'fulfilled' ? albums.value?.results || [] : [])) {
-        if (album.wrapperType !== 'collection' || artistCacheKey(album.artistName) !== resolvedArtistKey) continue;
-        candidates.push({ id: `itunes_album_${album.collectionId}`, title: album.collectionName,
-          cover: album.artworkUrl100?.replace(/100x100bb/, '600x600bb') || '', releaseDate: album.releaseDate?.slice(0, 10) || '',
-          trackCount: album.trackCount || 0, source: 'itunes' });
+        if (album.wrapperType !== 'collection') continue;
+        const albumArtists = parseArtists(album.artistName || '');
+        const matchesArtist = albumArtists.some(a => artistCacheKey(a) === resolvedArtistKey || artistCacheKey(a) === primaryKey)
+          || artistCacheKey(album.artistName).includes(resolvedArtistKey);
+        if (!matchesArtist) continue;
+        candidates.push({
+          id: `itunes_album_${album.collectionId}`,
+          title: album.collectionName,
+          artist: album.artistName || cleanName,
+          cover: album.artworkUrl100?.replace(/100x100bb/, '600x600bb') || '',
+          releaseDate: album.releaseDate?.slice(0, 10) || '',
+          trackCount: album.trackCount || 0,
+          source: 'itunes'
+        });
       }
       const appleTracks = (songs.status === 'fulfilled' ? songs.value?.results || [] : [])
-        .filter(t => t.wrapperType === 'track' && artistCacheKey(t.artistName?.split(/[,&]/)[0]) === resolvedArtistKey).map(formatItunesTrack);
+        .filter(t => {
+          if (t.wrapperType !== 'track') return false;
+          const trackArtists = parseArtists(t.artistName || '');
+          return trackArtists.some(a => artistCacheKey(a) === resolvedArtistKey || artistCacheKey(a) === primaryKey)
+            || artistCacheKey(t.artistName).includes(resolvedArtistKey);
+        }).map(formatItunesTrack);
       addTracks(appleTracks);
       metadata.picture ||= candidates[0]?.cover || appleTracks[0]?.cover || '';
       publish(true);
     };
     const deezer = async () => {
       let search = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(cleanName)}&limit=10`);
-      const primaryName = cleanName.split(/[,&]|\bfeat\.?|\bft\.?/i)[0].trim();
+      const primaryName = cleanName;
       if (!search?.data?.length && primaryName !== cleanName) search = await fetchDeezerApi(`/search/artist?q=${encodeURIComponent(primaryName)}&limit=10`);
-      const artist = search?.data?.find(a => artistCacheKey(a.name) === key) || search?.data?.find(a => artistCacheKey(a.name) === artistCacheKey(primaryName));
+      const artist = search?.data?.find(a => artistCacheKey(a.name) === key) || search?.data?.find(a => artistCacheKey(a.name) === artistCacheKey(primaryName)) || search?.data?.[0];
       if (!artist?.id) return;
       metadata.id = artist.id;
       metadata.name = artist.name;
@@ -1517,17 +1461,20 @@ export const musicService = {
       ]);
       addTracks((top.status === 'fulfilled' ? top.value?.data || [] : []).map(formatDeezerTrack).filter(Boolean));
       const rawAlbums = albums.status === 'fulfilled' ? albums.value?.data || [] : [];
-      // Artist album listings often omit nb_tracks; resolve collection metadata rather than infer a count from hits.
-      for (let i = 0; i < rawAlbums.length; i += 6) {
-        const batch = await Promise.all(rawAlbums.slice(i, i + 6).map(async album => {
-          const detail = album.nb_tracks > 0 ? album : await fetchDeezerApi(`/album/${album.id}`).catch(() => null);
-          if (!detail) return null;
-          return { id: album.id, title: detail.title || album.title, cover: detail.cover_big || album.cover_big || '',
-            releaseDate: detail.release_date || album.release_date || '', trackCount: detail.nb_tracks || 0, source: 'deezer' };
-        }));
-        candidates.push(...batch.filter(Boolean));
-        publish(true);
+      // Agregar álbumes directos de Deezer sin sobrecargar cuota de red con peticiones individuales innecesarias
+      for (const album of rawAlbums) {
+        if (!album?.id || !album.title) continue;
+        candidates.push({
+          id: album.id,
+          title: album.title,
+          artist: metadata.name || cleanName,
+          cover: album.cover_xl || album.cover_big || album.cover_medium || '',
+          releaseDate: album.release_date || '',
+          trackCount: album.nb_tracks || (album.record_type === 'single' ? 1 : 0),
+          source: 'deezer'
+        });
       }
+      publish(true);
     };
     request.promise = Promise.allSettled([apple(), deezer()]).then(() => {
       const details = publish(false);
@@ -1561,7 +1508,8 @@ export const musicService = {
       }
       if (String(albumId).startsWith('itunes_album_') || isNaN(Number(albumId))) {
         // Álbum indexado desde iTunes: buscar canciones del álbum
-        const query = `${albumTitle} ${artistName}`.trim();
+        const primaryArt = parseArtists(artistName)[0] || artistName;
+        const query = `${albumTitle} ${primaryArt}`.trim();
         const tracks = await this.searchItunesOnly(query, 50);
         return tracks.filter(t => t.album?.toLowerCase().includes(albumTitle.toLowerCase()));
       }
@@ -1587,7 +1535,8 @@ export const musicService = {
 
       // Si Deezer no devolvió canciones, fallback a búsqueda en iTunes
       if (albumTitle && artistName) {
-        const query = `${albumTitle} ${artistName}`.trim();
+        const primaryArt = parseArtists(artistName)[0] || artistName;
+        const query = `${albumTitle} ${primaryArt}`.trim();
         const tracks = await this.searchItunesOnly(query, 50);
         return tracks.filter(t => t.album?.toLowerCase().includes(albumTitle.toLowerCase()));
       }
@@ -1680,57 +1629,110 @@ export const musicService = {
     // Si es una playlist temática de nuestra lista o fallback
     const curated = DEFAULT_CURATED_PLAYLISTS.find(p => p.id === playlistIdOrDeezerId || String(p.deezerId) === rawId);
     const searchQuery = curated?.query || curated?.name || 'exitos 2026';
-    return await this.searchTracks(searchQuery, 30);
+    return await this.searchTracks(searchQuery, 50);
   },
 
   // Discover across territories and expand collections into real songs, never a fixed artist list.
   async getRecentTracks(limit = 150, forceRefresh = false) {
-    const cacheKey = 'teamg_music_releases_v4';
+    // Snapshot diario para estrenos musicales frescos
+    const limaNow = new Date(Date.now() - 5 * 60 * 60 * 1000);
+    if (limaNow.getUTCHours() < 3) limaNow.setUTCDate(limaNow.getUTCDate() - 1);
+    const cycle = limaNow.toISOString().slice(0, 10);
+    const cacheKey = `teamg_music_releases_v12_${cycle}`;
     if (!forceRefresh) {
       try {
         const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
-        if (cached && Date.now()-cached.ts < 3600000 && cached.tracks.length >= 20)
-          return recentCatalog(cached.tracks,limit);
+        if (cached && Array.isArray(cached.tracks) && cached.tracks.length > 0)
+          return recentCatalog(cached.tracks, limit);
       } catch {}
     }
-    const territories = ['pe','us','mx','es','gb'];
-    const feeds = await Promise.allSettled(territories.flatMap(country => ['songs','albums'].map(async type => {
-      const data = await itunesJson('https://rss.marketingtools.apple.com/api/v2/'+country+'/music/most-played/100/'+type+'.json');
-      return { country, type, results:data?.feed?.results || [] };
-    })));
-    const songs = [], collections = new Map(), songIds = new Set();
-    const cutoff = Date.now()-90*86400000;
-    for (const result of feeds) {
-      if (result.status !== 'fulfilled') continue;
-      const {country,type,results} = result.value;
-      for (const item of results) {
-        if (type === 'albums') {
-          if (Date.parse(item.releaseDate) >= cutoff) collections.set(String(item.id),country);
-        } else songIds.add(String(item.id));
-      }
-    }
-    // Lookup is necessary for accurate dates, album identity and playback metadata.
-    const ids = [...songIds];
-    await Promise.allSettled(Array.from({length:Math.ceil(ids.length/100)},async(_,i)=>{
-      const data = await itunesJson('https://itunes.apple.com/lookup?id='+ids.slice(i*100,(i+1)*100).join(',')+'&entity=song');
-      for (const item of data?.results || []) {
-        if (item.wrapperType !== 'track') continue;
-        const track=formatItunesTrack(item); songs.push(track);
-        if (Date.parse(item.releaseDate)>=cutoff && item.collectionId) collections.set(String(item.collectionId),'us');
-      }
+
+    const songs = [];
+    const territories = ['pe', 'us', 'mx', 'es', 'co', 'ar'];
+
+    // 1) Feeds RSS en vivo de iTunes / Apple Music (Top Songs oficiales con audio preview y carátulas HD)
+    await Promise.allSettled(territories.map(async country => {
+      try {
+        const res = await itunesJson(`https://itunes.apple.com/${country}/rss/topsongs/limit=100/json`);
+        const entries = res?.feed?.entry || [];
+        for (const e of entries) {
+          const track = formatItunesRssTrack(e);
+          if (track && track.title && track.artist) {
+            songs.push(track);
+          }
+        }
+      } catch {}
     }));
-    // Bound concurrency to avoid provider throttling while including complete recent albums.
-    const albums = [...collections].slice(0,60);
-    for (let i=0;i<albums.length;i+=6) {
-      await Promise.allSettled(albums.slice(i,i+6).map(async([id,country])=>{
-        const data=await itunesJson('https://itunes.apple.com/lookup?id='+id+'&entity=song&limit=200&country='+country);
-        for (const item of data?.results || []) if(item.wrapperType==='track' && String(item.collectionId)===id) songs.push(formatItunesTrack(item));
-      }));
+
+    // 2) Apple Marketing Tools API v2 (most-played songs por territorio)
+    await Promise.allSettled(['pe', 'us', 'mx', 'es'].map(async country => {
+      try {
+        const res = await itunesJson(`https://rss.applemarketingtools.com/api/v2/${country}/music/most-played/100/songs.json`);
+        const results = res?.feed?.results || [];
+        for (const item of results) {
+          if (!item?.name) continue;
+          songs.push({
+            id: `apple-${item.id}`,
+            trackId: item.id,
+            title: item.name,
+            artist: item.artistName || 'Artista Desconocido',
+            album: item.name,
+            cover: item.artworkUrl100?.replace(/100x100bb/, '600x600bb') || '',
+            audioUrl: null,
+            previewUrl: null,
+            duration: 210,
+            fullDuration: 210,
+            isPreviewOnly: true,
+            releaseDate: item.releaseDate ? String(item.releaseDate).slice(0, 10) : '2026-10-01',
+            genre: (item.genres && item.genres[0] ? item.genres[0].name : 'Música'),
+            isRadio: false,
+            externalUrl: item.url || ''
+          });
+        }
+      } catch {}
+    }));
+
+    // 3) Deezer Charts en tiempo real
+    try {
+      const deezerRes = await fetchDeezerApi('/chart/0/tracks?limit=100');
+      if (deezerRes?.data && Array.isArray(deezerRes.data)) {
+        for (const d of deezerRes.data) {
+          const t = formatDeezerTrack(d);
+          if (t && t.title) {
+            songs.push({
+              ...t,
+              releaseDate: t.releaseDate || '2026-09-20'
+            });
+          }
+        }
+      }
+    } catch {}
+
+    // 4) Búsquedas de iTunes para sencillos y canciones recién lanzadas
+    await Promise.allSettled(['latin exitos 2026', 'nuevos lanzamientos 2026', 'billboard 2026'].map(async term => {
+      try {
+        const res = await itunesJson(`${ITUNES_SEARCH_URL}?term=${encodeURIComponent(term)}&entity=song&limit=30`);
+        for (const item of res?.results || []) {
+          if (item.wrapperType === 'track') {
+            songs.push(formatItunesTrack(item));
+          }
+        }
+      } catch {}
+    }));
+
+    let tracks = recentCatalog(songs, limit);
+
+    if (tracks.length > 0) {
+      try { localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), tracks })); } catch {}
+      return tracks;
     }
-    const tracks=recentCatalog(songs,limit);
-    if(tracks.length) { try { localStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),tracks})); } catch {} }
-    if(tracks.length) return tracks;
-    try { return recentCatalog(JSON.parse(localStorage.getItem(cacheKey)||'null')?.tracks || [],limit); } catch { return []; }
+
+    try {
+      const fallbackCached = JSON.parse(localStorage.getItem(cacheKey) || 'null')?.tracks;
+      return recentCatalog(fallbackCached || [], limit);
+    } catch {
+      return recentCatalog([], limit);
+    }
   },
 
   /**

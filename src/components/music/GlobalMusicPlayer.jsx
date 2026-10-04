@@ -1,22 +1,22 @@
 // src/components/music/GlobalMusicPlayer.jsx
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
-  Shuffle, 
-  Repeat, 
-  Repeat1, 
-  Volume2, 
-  Volume1, 
-  VolumeX, 
-  Heart, 
-  Maximize2, 
-  Minimize2, 
-  Music, 
-  Radio, 
-  ListMusic, 
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Heart,
+  Maximize2,
+  Minimize2,
+  Music,
+  Radio,
+  ListMusic,
   ListPlus,
   X,
   Loader2,
@@ -26,7 +26,8 @@ import {
   Disc3,
   ChevronDown,
   Video,
-  Mic2
+  Mic2,
+  MoreHorizontal
 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -34,7 +35,7 @@ import { isPremiumUser } from '../../utils/planAccess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactPlayer from 'react-player/youtube';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
-import { musicService } from '../../services/musicService.js';
+import { musicService, parseArtists } from '../../services/musicService.js';
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
@@ -112,13 +113,29 @@ async function fetchLyricsFromLrcLib(artist, title, trackDuration = 0) {
 }
 
 function PlayerAction({ icon: Icon, label, active = false, onClick, disabled = false, busy = false }) {
-  return <button type="button" onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={active}
-    className="group flex min-w-0 flex-col items-center gap-2 py-1 text-[10px] font-medium text-white/65 transition active:scale-95 disabled:opacity-50">
-    <span className={`grid h-11 w-11 place-items-center rounded-full transition duration-200 ${active ? 'bg-fuchsia-400 text-[#170d20] shadow-[0_4px_16px_rgba(217,70,239,0.22)]' : 'bg-white/10 text-white/90 group-hover:bg-white/20'}`}>
-      <Icon className={`h-5 w-5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.8} />
-    </span>
-    <span className={`w-full truncate text-center ${active ? 'text-fuchsia-200' : ''}`}>{label}</span>
-  </button>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={active}
+      className="group flex min-w-0 flex-col items-center gap-1.5 py-1 text-[10px] font-medium text-white/70 transition active:scale-95 disabled:opacity-50"
+    >
+      <span
+        className={`grid h-10 w-10 sm:h-11 sm:w-11 place-items-center rounded-full transition duration-200 ${
+          active
+            ? 'bg-fuchsia-400 text-[#170d20] shadow-[0_4px_16px_rgba(217,70,239,0.25)]'
+            : 'bg-white/10 text-white/90 group-hover:bg-white/20'
+        }`}
+      >
+        <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${busy ? 'animate-spin' : ''}`} strokeWidth={1.8} />
+      </span>
+      <span className={`w-full truncate text-center text-[10px] sm:text-[11px] ${active ? 'text-fuchsia-200 font-bold' : ''}`}>
+        {label}
+      </span>
+    </button>
+  );
 }
 
 export default function GlobalMusicPlayer() {
@@ -174,17 +191,16 @@ export default function GlobalMusicPlayer() {
 
   // Estados de control - TODOS LOS HOOKS DECLARADOS INCONDICIONALMENTE AL INICIO
   const [showQueueDrawer, setShowQueueDrawer] = useState(false);
+  const [showArtistPickerModal, setShowArtistPickerModal] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekVal, setSeekVal] = useState(0);
-  const [gestureToast, setGestureToast] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [isVideoMode, setIsVideoMode] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [lyricsData, setLyricsData] = useState(null);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
 
-  // Referencias para gestos y sincronización
-  const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
-  const toastTimeoutRef = useRef(null);
+  const statusTimeoutRef = useRef(null);
   const lyricsContainerRef = useRef(null);
   const videoPlayerRef = officialVideoPlayerRef;
   const [officialVideo, setOfficialVideo] = useState(null);
@@ -194,10 +210,7 @@ export default function GlobalMusicPlayer() {
   const requestedVideoTrackRef = useRef(null);
   const playbackTimeRef = useRef(currentTime);
   playbackTimeRef.current = currentTime;
-  const [gestureOffset, setGestureOffset] = useState({ x: 0, y: 0 });
-  const [gestureAnimating, setGestureAnimating] = useState(false);
-  const gestureTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(gestureTimerRef.current), []);
+  useEffect(() => () => clearTimeout(statusTimeoutRef.current), []);
   useEffect(() => {
     setVideoPlaybackActive(Boolean(isVideoMode && officialVideo && !videoError && isExpandedPlayer));
   }, [isVideoMode, officialVideo, videoError, isExpandedPlayer, setVideoPlaybackActive]);
@@ -208,13 +221,8 @@ export default function GlobalMusicPlayer() {
     setIsVideoMode(false);
     setVideoError('');
     setLargeVideo(false);
+    setShowArtistPickerModal(false);
   }, [currentTrack?.id]);
-
-  useEffect(() => {
-    if (isPremium && currentTrack?.artist && !currentTrack.isRadio) {
-      musicService.getArtistDetails(currentTrack.artist).catch(() => {});
-    }
-  }, [currentTrack?.artist, currentTrack?.isRadio, isPremium]);
 
   // Efecto: Cargar letra oficial cuando cambia la canción (0% consumo en Render)
   useEffect(() => {
@@ -276,6 +284,7 @@ export default function GlobalMusicPlayer() {
   }, [isExpandedPlayer, togglePlay, nextTrack, prevTrack, seekTo, currentTime, duration, currentTrack?.fullDuration]);
 
   // Cálculo de línea de letra activa según currentTime
+  // Cálculo de línea de letra activa según currentTime
   const activeLyricIdx = useMemo(() => {
     if (!lyricsData?.syncedLyrics || lyricsData.syncedLyrics.length === 0) return -1;
     for (let i = lyricsData.syncedLyrics.length - 1; i >= 0; i--) {
@@ -286,6 +295,12 @@ export default function GlobalMusicPlayer() {
     return 0;
   }, [currentTime, lyricsData]);
 
+  // Análisis incondicional de colaboradores para respetar el orden de los Hooks de React
+  const parsedTrackArtists = useMemo(() => {
+    if (!currentTrack?.artist || currentTrack.isRadio) return [];
+    return parseArtists(currentTrack.artist);
+  }, [currentTrack?.artist, currentTrack?.isRadio]);
+
   // Auto-scroll suave de letra sincronizada
   useEffect(() => {
     if (!showLyrics || !lyricsContainerRef.current) return;
@@ -295,23 +310,107 @@ export default function GlobalMusicPlayer() {
     }
   }, [activeLyricIdx, showLyrics]);
 
-  // RETORNO TEMPRANO SEGURO: Después de que todos los hooks se registraron
-  if (!isPremium || !currentTrack) return null;
+  // Referencia táctil para gestos móviles fluidos (Previo, Siguiente, Letra, Minimizar)
+  const touchStartRef = useRef(null);
 
-  const showGestureToast = (msg) => {
-    setGestureToast(msg);
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    toastTimeoutRef.current = setTimeout(() => {
-      setGestureToast('');
-    }, 1300);
+  const showStatusMessage = (msg) => {
+    setStatusMessage(msg);
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(''), 1800);
   };
 
-  const handleGoToArtist = (e) => {
-    if (e) e.stopPropagation();
-    if (isExpandedPlayer) setIsExpandedPlayer(false);
+  const handleTouchStart = (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    const target = e.target;
+    // Ignorar toques sobre sliders interactivos de progreso, botones o enlaces
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('button') || target.closest('input') || target.closest('a'))) {
+      touchStartRef.current = null;
+      return;
+    }
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now()
+    };
+  };
 
-    const artistName = currentTrack?.artist;
-    const artistId = currentTrack?.artistId;
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartRef.current) return;
+    const touch = e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0] : null;
+    if (!touch) {
+      touchStartRef.current = null;
+      return;
+    }
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const elapsed = Date.now() - touchStartRef.current.time;
+    touchStartRef.current = null;
+
+    if (elapsed > 1000) return; // Ignorar toques prolongados
+
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // 1. GESTO HORIZONTAL PREDOMINANTE: Izquierda = Siguiente canción, Derecha = Canción anterior
+    if (absX > 30 && absX > absY * 0.7) {
+      if (deltaX < 0) {
+        // Deslizar izquierda (←) -> Siguiente pista
+        if (!currentTrack?.isRadio) {
+          showStatusMessage('⏭ Siguiente canción');
+          nextTrack();
+        }
+      } else {
+        // Deslizar derecha (→) -> Canción anterior
+        if (!currentTrack?.isRadio) {
+          showStatusMessage('⏮ Canción anterior');
+          prevTrack();
+        }
+      }
+      return;
+    }
+
+    // 2. GESTO VERTICAL PREDOMINANTE:
+    if (absY > 40 && absY > absX * 0.7) {
+      if (deltaY > 0) {
+        // Deslizar hacia abajo: si está en letra/video, vuelve a carátula; si está en carátula, minimiza
+        if (showLyrics) {
+          setShowLyrics(false);
+          showStatusMessage('🎵 Carátula');
+        } else if (isVideoMode) {
+          setIsVideoMode(false);
+          setLargeVideo(false);
+          showStatusMessage('🎵 Carátula');
+        } else {
+          setIsExpandedPlayer(false);
+        }
+      } else {
+        // Deslizar hacia arriba: ver letra si está en modo carátula
+        if (!currentTrack?.isRadio && !showLyrics && !isVideoMode) {
+          setShowLyrics(true);
+          showStatusMessage('🎤 Letra Oficial');
+        }
+      }
+    }
+  };
+
+  const handleGoToArtist = (targetArtistOrEvent = null, e = null) => {
+    const isEv = targetArtistOrEvent && typeof targetArtistOrEvent.stopPropagation === 'function';
+    const ev = isEv ? targetArtistOrEvent : e;
+    if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+    const specificArtist = isEv ? null : targetArtistOrEvent;
+    if (isExpandedPlayer) setIsExpandedPlayer(false);
+    setShowArtistPickerModal(false);
+
+    const artistName = (typeof specificArtist === 'string' && specificArtist.trim())
+      ? specificArtist.trim()
+      : (parsedTrackArtists[0] || currentTrack?.artist);
+    const artistId = (typeof specificArtist === 'string' && specificArtist.trim() !== currentTrack?.artist)
+      ? null
+      : currentTrack?.artistId;
     if (!artistName) return;
 
     const pathname = location?.pathname || '';
@@ -329,9 +428,20 @@ export default function GlobalMusicPlayer() {
     if (typeof window !== 'undefined') {
       if (typeof window.__teamgOpenArtist === 'function') {
         window.__teamgOpenArtist(artistName, artistId);
-      } else window.dispatchEvent(new CustomEvent('teamg:open-artist', {
-        detail: { name: artistName, id: artistId }
-      }));
+      } else {
+        window.dispatchEvent(new CustomEvent('teamg:open-artist', {
+          detail: { name: artistName, id: artistId }
+        }));
+      }
+    }
+  };
+
+  const handleArtistButtonClick = () => {
+    if (currentTrack?.isRadio) return;
+    if (parsedTrackArtists.length > 1) {
+      setShowArtistPickerModal(true);
+    } else {
+      handleGoToArtist(parsedTrackArtists[0] || currentTrack?.artist);
     }
   };
 
@@ -344,82 +454,15 @@ export default function GlobalMusicPlayer() {
     const video = officialVideo || await musicService.getOfficialVideo(currentTrack.artist, currentTrack.title);
     if (requestedVideoTrackRef.current !== id) { setVideoLoading(false); return; }
     setVideoLoading(false);
-    if (!video) { showGestureToast('No hay videoclip oficial disponible'); return; }
+    if (!video) { showStatusMessage('No hay videoclip oficial disponible'); return; }
     setOfficialVideo(video);
     setShowLyrics(false);
     setIsVideoMode(true);
   };
 
-  const handleTouchStart = (e) => {
-    if (!e.touches || e.touches.length === 0) return;
-    touchStartRef.current.time = 0;
-    if (gestureAnimating || isSeeking || e.target.closest('button, input, [role="button"], a, select, textarea, .custom-scrollbar')) return;
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-      time: Date.now()
-    };
-  };
+  // RETORNO TEMPRANO SEGURO: Declarado incondicionalmente DESPUÉS de todos los hooks de React
+  if (!isPremium || !currentTrack) return null;
 
-  const handleTouchMove = (e) => {
-    if (!touchStartRef.current.time || e.touches.length !== 1) return;
-    const x = e.touches[0].clientX - touchStartRef.current.x;
-    const y = e.touches[0].clientY - touchStartRef.current.y;
-    setGestureOffset(Math.abs(y) > Math.abs(x) ? { x: 0, y } : { x, y: 0 });
-  };
-  const animateTrackGesture = (direction, action) => {
-    setGestureAnimating(true);
-    setGestureOffset({ x: direction * window.innerWidth, y: 0 });
-    gestureTimerRef.current = setTimeout(() => {
-      action();
-      setGestureOffset({ x: -direction * window.innerWidth, y: 0 });
-      setGestureAnimating(false);
-      gestureTimerRef.current = setTimeout(() => {
-        setGestureAnimating(true);
-        setGestureOffset({ x: 0, y: 0 });
-        gestureTimerRef.current = setTimeout(() => setGestureAnimating(false), 220);
-      }, 40);
-    }, 180);
-  };
-  const handleTouchEnd = (e) => {
-    setGestureOffset({ x: 0, y: 0 });
-    if (!e.changedTouches || e.changedTouches.length === 0) return;
-    if (!touchStartRef.current.time) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
-    const deltaY = e.changedTouches[0].clientY - touchStartRef.current.y;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    touchStartRef.current = { x: 0, y: 0, time: 0 };
-
-    // Permitir gestos de hasta 1200ms
-    if (elapsed > 2500) return;
-
-    const absX = Math.abs(deltaX);
-    const absY = Math.abs(deltaY);
-
-    if (absY > 70 && absY > absX * 1.2) {
-      if (deltaY > 0) {
-        // Deslizar hacia abajo: Minimizar reproductor
-        setIsExpandedPlayer(false);
-        showGestureToast('Minimizado');
-      } else {
-        // Deslizar hacia arriba: Letra
-        setIsVideoMode(false);
-        setLargeVideo(false);
-        setShowLyrics(true);
-        showGestureToast('Letra');
-      }
-      return;
-    }
-    if (absX > 70 && absX > absY * 1.2 && !currentTrack.isRadio) {
-      if (deltaX < 0) {
-        if (queueIndex < queue.length - 1 || repeatMode === 'all' || isShuffle) animateTrackGesture(-1, nextTrack);
-        showGestureToast('Siguiente canción');
-      } else {
-        if (queueIndex > 0 || repeatMode === 'all') animateTrackGesture(1, () => prevTrack(true));
-        showGestureToast('Canción anterior');
-      }
-    }
-  };
 
   const isFav = isFavorite(currentTrack.id);
   const isDownloaded = isTrackDownloaded(currentTrack.id);
@@ -428,10 +471,10 @@ export default function GlobalMusicPlayer() {
   const displayedTime = isSeeking ? seekVal : currentTime;
   const progressPercent = duration > 0 ? (displayedTime / duration) * 100 : 0;
 
-  const VolumeIcon = isMuted || volume === 0 
-    ? VolumeX 
-    : volume < 0.5 
-      ? Volume1 
+  const VolumeIcon = isMuted || volume === 0
+    ? VolumeX
+    : volume < 0.5
+      ? Volume1
       : Volume2;
 
   const handleSeekMouseDown = () => {
@@ -460,13 +503,13 @@ export default function GlobalMusicPlayer() {
   return (
     <>
       {/* BARRA INFERIOR / MINI-PLAYER ADAPTATIVO */}
-      <div 
+      <div
         className="fixed bottom-2 left-2 right-2 md:bottom-0 md:left-0 md:right-0 z-[99990] bg-[#0c0915]/95 backdrop-blur-2xl border border-white/10 md:border-b-0 md:border-x-0 md:border-t md:border-fuchsia-500/20 shadow-[0_10px_35px_rgba(0,0,0,0.85)] rounded-2xl md:rounded-none px-3 sm:px-6 py-2 transition-all duration-300"
       >
         {/* LÍNEA DE PROGRESO DISCRETA (EN MÓVIL: en el borde inferior de la píldora) */}
         {!currentTrack.isRadio && (
           <div className="md:hidden absolute bottom-0 left-2 right-2 h-[2.5px] bg-white/10 rounded-b-2xl overflow-hidden pointer-events-none">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-purple-600 transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
@@ -474,16 +517,16 @@ export default function GlobalMusicPlayer() {
         )}
 
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          
+
           {/* 1. INFO DE LA CANCIÓN / ARTISTA (Clic abre el reproductor completo) */}
-          <div 
+          <div
             onClick={() => setIsExpandedPlayer(true)}
             className="flex items-center gap-3 min-w-0 flex-1 md:w-1/4 md:flex-initial cursor-pointer group"
           >
             <div className="relative w-11 h-11 sm:w-13 sm:h-13 rounded-xl overflow-hidden flex-shrink-0 shadow-lg border border-white/10">
-              <img 
-                src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                alt={currentTrack.title} 
+              <img
+                src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                alt={currentTrack.title}
                 className={`w-full h-full object-cover transition-transform duration-500 ${isPlaying ? 'scale-105' : 'group-hover:scale-105'}`}
               />
               <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -525,8 +568,8 @@ export default function GlobalMusicPlayer() {
                   toggleFavorite(currentTrack);
                 }}
                 className={`p-1.5 rounded-full transition ${
-                  isFav 
-                    ? 'text-pink-500 hover:text-pink-400 scale-110' 
+                  isFav
+                    ? 'text-pink-500 hover:text-pink-400 scale-110'
                     : 'text-gray-400 hover:text-white'
                 }`}
                 title={isFav ? 'Quitar de Mis Me Gusta' : 'Guardar en Mis Me Gusta'}
@@ -727,7 +770,7 @@ export default function GlobalMusicPlayer() {
               </button>
 
               <div className="flex items-center gap-2 group">
-                <button 
+                <button
                   onClick={toggleMute}
                   className="text-gray-400 hover:text-white transition p-1"
                   title={isMuted ? 'Activar sonido' : 'Silenciar'}
@@ -785,14 +828,14 @@ export default function GlobalMusicPlayer() {
                     key={`${track.id}-${idx}`}
                     onClick={() => playTrack(track, queue)}
                     className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer transition ${
-                      isSelected 
-                        ? 'bg-gradient-to-r from-fuchsia-500/20 to-purple-500/20 border border-fuchsia-400/30 text-white' 
+                      isSelected
+                        ? 'bg-gradient-to-r from-fuchsia-500/20 to-purple-500/20 border border-fuchsia-400/30 text-white'
                         : 'hover:bg-white/5 text-gray-300'
                     }`}
                   >
-                    <img 
-                      src={track.cover} 
-                      alt={track.title} 
+                    <img
+                      src={track.cover}
+                      alt={track.title}
                       className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
                     />
                     <div className="min-w-0 flex-1">
@@ -816,24 +859,18 @@ export default function GlobalMusicPlayer() {
         </div>
       )}
 
-      {/* MODAL FULLSCREEN / NOW PLAYING EXPANDIDO CON ENCUADRE PROFESIONAL Y GESTOS TÁCTILES */}
+      {/* Reproductor ampliado */}
       {isExpandedPlayer && (
-        <div 
-          onPointerDown={e => {
-            if (!e.isPrimary || e.target.closest('button, input, a, select, textarea, .custom-scrollbar')) return;
-            handleTouchStart({ target: e.target, touches: [{ clientX: e.clientX, clientY: e.clientY }] });
-            if (touchStartRef.current.time) e.currentTarget.setPointerCapture(e.pointerId);
-          }}
-          onPointerMove={e => handleTouchMove({ touches: [{ clientX: e.clientX, clientY: e.clientY }] })}
-          onPointerUp={e => handleTouchEnd({ changedTouches: [{ clientX: e.clientX, clientY: e.clientY }] })}
-          onPointerCancel={() => { touchStartRef.current.time = 0; setGestureOffset({ x: 0, y: 0 }); }}
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           style={{ touchAction: 'none', paddingTop: 'max(24px, env(safe-area-inset-top))', paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}
           className="fixed inset-0 z-[99999] bg-gradient-to-b from-[#251b30] via-[#120f18] to-[#09080c] flex flex-col justify-between pt-6 sm:pt-10 pb-8 sm:pb-12 px-5 sm:px-12 select-none overflow-hidden animate-in fade-in duration-300"
         >
-          {/* Indicador de acción del gesto */}
-          {gestureToast && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-full bg-black/85 backdrop-blur-md border border-fuchsia-500/50 text-white font-bold text-xs shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-              <span>{gestureToast}</span>
+          {statusMessage && (
+            <div role="status" className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-full bg-black/90 border border-white/10 text-white text-xs">
+              <span>{statusMessage}</span>
             </div>
           )}
 
@@ -860,12 +897,14 @@ export default function GlobalMusicPlayer() {
           </div>
 
           {/* Cuerpo Central: Carátula / Video / Letras + Título + Acciones */}
-          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full px-2 gap-4 sm:gap-6"
-            style={{ touchAction: 'none', transform: largeVideo ? 'none' : `translate3d(${gestureOffset.x}px, ${gestureOffset.y}px, 0)`, transition: gestureAnimating ? 'transform 180ms ease-out' : 'none' }}
-          >
-            
+          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full px-2 gap-4 sm:gap-6">
+
             {/* Visualizador Central con soporte de gestos táctiles directos */}
-            <div 
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchCancel}
+              style={{ touchAction: 'none' }}
               className="relative group w-full flex items-center justify-center min-h-[220px] sm:min-h-[280px]"
             >
               {/* VISTA 1: MODO VIDEO MUSICAL OFICIAL */}
@@ -902,7 +941,7 @@ export default function GlobalMusicPlayer() {
                 </div>
               ) : showLyrics ? (
                 /* VISTA 2: LETRA EN TIEMPO REAL (SINCRONIZADA O TEXTO PLANO) */
-                <div 
+                <div
                   ref={lyricsContainerRef}
                   className="relative w-full max-w-md h-64 sm:h-72 md:h-80 rounded-3xl overflow-y-auto px-4 py-6 bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 shadow-2xl flex flex-col items-center text-center space-y-4 custom-scrollbar select-text"
                   style={{ touchAction: 'pan-y' }}
@@ -960,19 +999,19 @@ export default function GlobalMusicPlayer() {
                   )}
                 </div>
               ) : (
-                /* VISTA 3: CARÁTULA HD CON GLOW AMBIENTAL */
-                <>
+                /* VISTA: CARÁTULA HD CON GLOW AMBIENTAL */
+                <div className="relative flex items-center justify-center">
                   <div className="absolute -inset-2 bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none" />
-                  <img 
-                    src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'} 
+                  <img
+                    src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'}
                     alt={currentTrack.title}
                     className="relative w-64 h-64 max-h-[34vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-2xl border border-white/15 transition-transform duration-500 hover:scale-[1.02] pointer-events-none"
                   />
-                </>
+                </div>
               )}
             </div>
 
-            {/* Metadatos: Título, Artista y Pestañas */}
+            {/* Metadatos: Título, Artistas y Acciones */}
             <div className="w-full flex flex-col items-center text-center space-y-2">
               <div className="w-full">
                 <h2 className="text-xl sm:text-3xl font-black text-white leading-tight break-words px-2" title={currentTrack.title}>
@@ -984,30 +1023,87 @@ export default function GlobalMusicPlayer() {
                     {currentTrack.artist}
                   </p>
                 ) : (
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <button
-                      type="button"
-                      onClick={handleGoToArtist}
-                      className="max-w-full inline-flex items-center gap-1.5 text-sm sm:text-lg font-bold text-gray-300 hover:text-fuchsia-300 hover:underline transition cursor-pointer"
-                      title={`Ver discografía y álbumes de ${currentTrack.artist}`}
-                    >
-                      <span className="truncate">{currentTrack.artist}</span>
-
-                    </button>
+                  <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 mt-1 px-2">
+                    {parsedTrackArtists.length > 0 ? (
+                      parsedTrackArtists.map((artName, artIdx) => (
+                        <React.Fragment key={`parsed-art-${artName}-${artIdx}`}>
+                          {artIdx > 0 && <span className="text-gray-500 text-sm font-semibold">&</span>}
+                          <button
+                            type="button"
+                            onClick={(e) => handleGoToArtist(artName, e)}
+                            className="inline-flex items-center text-sm sm:text-base font-bold text-gray-300 hover:text-fuchsia-300 hover:underline transition cursor-pointer active:scale-95"
+                            title={`Ver discografía y álbumes de ${artName}`}
+                          >
+                            <span>{artName}</span>
+                          </button>
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => handleGoToArtist(currentTrack.artist, e)}
+                        className="inline-flex items-center text-sm sm:text-base font-bold text-gray-300 hover:text-fuchsia-300 hover:underline transition cursor-pointer active:scale-95"
+                        title={`Ver discografía y álbumes de ${currentTrack.artist}`}
+                      >
+                        <span>{currentTrack.artist}</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Compact icon controls with clear active states and a single visual hierarchy. */}
+              {/* Botonera de 6 acciones nítida, simétrica y original */}
               <div className="grid grid-cols-6 gap-1 w-full max-w-md pt-3" data-testid="music-actions">
-                <PlayerAction icon={Disc3} label="Artista" onClick={handleGoToArtist} />
-                <PlayerAction icon={Heart} label={isFav ? 'Guardada' : 'Guardar'} active={isFav} onClick={() => toggleFavorite(currentTrack)} />
-                <PlayerAction icon={Mic2} label="Letra" active={showLyrics} onClick={() => { setShowLyrics(v => !v); setIsVideoMode(false); setLargeVideo(false); }} disabled={currentTrack.isRadio} />
-                <PlayerAction icon={videoLoading ? Loader2 : Video} label={videoLoading ? 'Buscando' : isVideoMode ? 'Audio' : 'Videoclip'} active={isVideoMode} onClick={handleToggleVideoMode} disabled={currentTrack.isRadio || videoLoading} busy={videoLoading} />
-                <PlayerAction icon={ListPlus} label="Playlist" onClick={() => openAddToPlaylistModal(currentTrack)} disabled={currentTrack.isRadio} />
-                <PlayerAction icon={isDownloaded ? Check : isDownloading ? Loader2 : Download} label={isDownloaded ? 'Offline' : isDownloading ? `${dlStatus?.progress || 0}%` : 'Descargar'} active={isDownloaded} busy={isDownloading} disabled={currentTrack.isRadio || isDownloading} onClick={() => isDownloaded ? deleteOfflineTrack(currentTrack.id) : downloadTrack(currentTrack)} />
+                <PlayerAction
+                  icon={Disc3}
+                  label="Artista"
+                  onClick={handleArtistButtonClick}
+                  disabled={currentTrack.isRadio}
+                />
+                <PlayerAction
+                  icon={Heart}
+                  label={isFav ? 'Guardada' : 'Guardar'}
+                  active={isFav}
+                  onClick={() => toggleFavorite(currentTrack)}
+                />
+                <PlayerAction
+                  icon={Mic2}
+                  label="Letra"
+                  active={showLyrics}
+                  onClick={() => {
+                    setShowLyrics(v => !v);
+                    setIsVideoMode(false);
+                    setLargeVideo(false);
+                  }}
+                  disabled={currentTrack.isRadio}
+                />
+                <PlayerAction
+                  icon={videoLoading ? Loader2 : Video}
+                  label={videoLoading ? 'Buscando' : isVideoMode ? 'Audio' : 'Videoclip'}
+                  active={isVideoMode}
+                  onClick={handleToggleVideoMode}
+                  disabled={currentTrack.isRadio || videoLoading}
+                  busy={videoLoading}
+                />
+                <PlayerAction
+                  icon={ListPlus}
+                  label="Playlist"
+                  onClick={() => openAddToPlaylistModal(currentTrack)}
+                  disabled={currentTrack.isRadio}
+                />
+                <PlayerAction
+                  icon={isDownloaded ? Check : isDownloading ? Loader2 : Download}
+                  label={isDownloaded ? 'Offline' : isDownloading ? `${dlStatus?.progress || 0}%` : 'Descargar'}
+                  active={isDownloaded}
+                  busy={isDownloading}
+                  disabled={currentTrack.isRadio || isDownloading}
+                  onClick={() => isDownloaded ? deleteOfflineTrack(currentTrack.id) : downloadTrack(currentTrack)}
+                />
               </div>
-
+              {/* Guía visual de gestos táctiles fluidos */}
+              <p className="text-[11px] text-gray-400/80 font-medium tracking-wide pt-1 text-center select-none">
+                Desliza <span className="text-fuchsia-300 font-bold">←</span> siguiente • <span className="text-fuchsia-300 font-bold">→</span> anterior • <span className="text-fuchsia-300 font-bold">↓</span> minimizar
+              </p>
             </div>
           </div>
 
@@ -1088,13 +1184,65 @@ export default function GlobalMusicPlayer() {
               </button>
             </div>
           </div>
+
+          {/* Modal de selección cuando la pista tiene múltiples artistas colaboradores */}
+          {showArtistPickerModal && (
+            <div
+              className="fixed inset-0 z-[100000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+              onClick={() => setShowArtistPickerModal(false)}
+            >
+              <div
+                className="w-full max-w-sm rounded-3xl bg-[#1e1728] border border-white/15 p-5 shadow-2xl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <Disc3 className="w-5 h-5 text-fuchsia-400" />
+                    <h3 className="text-base font-bold text-white">Artistas de esta pista</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowArtistPickerModal(false)}
+                    className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-300">
+                  Esta canción es una colaboración. Selecciona el artista cuya discografía deseas explorar:
+                </p>
+
+                <div className="space-y-2">
+                  {parsedTrackArtists.map((artName) => (
+                    <button
+                      key={`picker-${artName}`}
+                      type="button"
+                      onClick={() => {
+                        setShowArtistPickerModal(false);
+                        handleGoToArtist(artName);
+                      }}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 hover:bg-fuchsia-500/25 border border-white/10 hover:border-fuchsia-400/40 text-left transition cursor-pointer group active:scale-[0.98]"
+                    >
+                      <span className="text-sm font-bold text-white group-hover:text-fuchsia-300">
+                        {artName}
+                      </span>
+                      <span className="text-xs text-gray-400 group-hover:text-fuchsia-300 font-semibold">
+                        Ver discografía →
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* REPRODUCTOR DE YOUTUBE (SOLO RESPALDO: cuando no hay stream directo).
           El motor principal es el <audio> nativo con mp3/m4a directo. */}
       {currentTrack?.youtubeId && playbackMode === 'youtube' && !videoPlaybackActive && (
-        <div 
+        <div
           className="fixed bottom-0 right-0 w-[300px] h-[200px] overflow-hidden pointer-events-none z-[10] opacity-5"
           aria-hidden="true"
         >

@@ -1,12 +1,12 @@
 // src/pages/Music.jsx
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
-import { 
-  Play, 
-  Pause, 
-  Search, 
-  Radio, 
-  Heart, 
-  Shuffle, 
+import {
+  Play,
+  Pause,
+  Search,
+  Radio,
+  Heart,
+  Shuffle,
   Volume2,
   Clock,
   Music2,
@@ -34,23 +34,39 @@ import {
   RefreshCw,
   ShieldCheck,
   AlertCircle,
+  Folder,
+  FolderDown,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusicLibrary } from '../context/MusicContext.jsx';
-import { musicService, LIVE_RADIOS, GENRES, INITIAL_FEATURED_TRACKS, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
+import { musicService, parseArtists, LIVE_RADIOS, GENRES, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 import { getTrackLicenseInfo, renewAllMusicOfflineLicenses } from '../services/musicOfflineService.js';
 
+function getLimaMusicCycle(now = new Date()) {
+  const lima = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+  if (lima.getUTCHours() < 3) lima.setUTCDate(lima.getUTCDate() - 1);
+  return lima.toISOString().slice(0, 10);
+}
+
+function msUntilLimaMusicRefresh(now = new Date()) {
+  const lima = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+  const target = new Date(lima);
+  target.setUTCHours(3, 0, 0, 0);
+  if (target <= lima) target.setUTCDate(target.getUTCDate() + 1);
+  return Math.max(1000, target.getTime() + 5 * 60 * 60 * 1000 - now.getTime());
+}
+
 export default function Music() {
-  const { 
-    currentTrack, 
-    isPlaying, 
-    playTrack, 
-    playRadio, 
-    togglePlay, 
-    toggleFavorite, 
+  const {
+    currentTrack,
+    isPlaying,
+    playTrack,
+    playRadio,
+    togglePlay,
+    toggleFavorite,
     isFavorite,
     favorites,
     queue,
@@ -67,11 +83,17 @@ export default function Music() {
     removeTrackFromPlaylist,
     openAddToPlaylistModal,
     offlineTracks,
+    downloadedAlbums,
     isTrackDownloaded,
     downloadTrack,
     deleteOfflineTrack,
+    deleteOfflineAlbum,
     downloadPlaylist,
     isPlaylistDownloaded,
+    downloadAlbum,
+    isAlbumDownloaded,
+    downloadingAlbumId,
+    albumDownloadProgress,
     activeDownloadsMap,
     isDownloadingPlaylistId,
     playlistDownloadProgress,
@@ -143,8 +165,62 @@ export default function Music() {
   const [selectedAlbumDetail, setSelectedAlbumDetail] = useState(null);
   const [isLoadingAlbum, setIsLoadingAlbum] = useState(false);
   const [albumSavedToast, setAlbumSavedToast] = useState(false);
+  const [albumDownloadedToast, setAlbumDownloadedToast] = useState(false);
   const [searchResultsArtists, setSearchResultsArtists] = useState([]);
   const [artistActiveTab, setArtistActiveTab] = useState('tracks'); // 'tracks' | 'albums'
+  const [offlineSubView, setOfflineSubView] = useState('albums'); // 'albums' | 'tracks'
+  const [selectedOfflineAlbum, setSelectedOfflineAlbum] = useState(null);
+
+  // Agrupación de pistas offline por Álbum (Carpetas de Álbumes Offline)
+  const offlineAlbumList = useMemo(() => {
+    const albumMap = new Map();
+
+    // 1. Incorporar álbumes registrados en downloadedAlbums
+    if (Array.isArray(downloadedAlbums)) {
+      downloadedAlbums.forEach(a => {
+        if (!a || (!a.title && !a.id)) return;
+        const key = String(a.title || a.id).trim().toLowerCase();
+        albumMap.set(key, {
+          id: a.id || key,
+          title: a.title || 'Álbum',
+          artist: a.artist || 'Varios Artistas',
+          cover: a.cover || '',
+          tracks: [],
+          totalBytes: 0,
+          downloadedAt: a.downloadedAt || Date.now()
+        });
+      });
+    }
+
+    // 2. Asociar canciones offline a sus respectivas carpetas de álbum
+    if (Array.isArray(offlineTracks)) {
+      offlineTracks.forEach(t => {
+        if (!t) return;
+        const rawAlbum = t.album || t.albumTitle || 'Sencillos Descargados';
+        const key = rawAlbum.trim().toLowerCase();
+        let albumEntry = albumMap.get(key);
+        if (!albumEntry) {
+          albumEntry = {
+            id: t.albumId || `offline-album-${key}`,
+            title: rawAlbum,
+            artist: t.artist || 'Varios Artistas',
+            cover: t.cover || '',
+            tracks: [],
+            totalBytes: 0,
+            downloadedAt: t.downloadedAt || Date.now()
+          };
+          albumMap.set(key, albumEntry);
+        }
+        if (!albumEntry.cover && t.cover) albumEntry.cover = t.cover;
+        if (albumEntry.artist === 'Varios Artistas' && t.artist) albumEntry.artist = t.artist;
+        albumEntry.tracks.push(t);
+        albumEntry.totalBytes += Number(t.sizeBytes || t.fileSizeBytes || 0);
+      });
+    }
+
+    // Retornar álbumes que tengan canciones offline
+    return Array.from(albumMap.values()).filter(a => a.tracks.length > 0);
+  }, [downloadedAlbums, offlineTracks]);
 
   // Playlists públicas unificadas (servidor + usuario actual)
   const combinedPublicPlaylists = useMemo(() => {
@@ -279,22 +355,21 @@ export default function Music() {
     return () => { isMounted = false; };
   }, [selectedCuratedPlaylist]);
 
-  const recentLoadedRef = useRef(false);
+  const recentLoadedCycleRef = useRef('');
   // Cargar lanzamientos recientes.
   useEffect(() => {
     let isMounted = true;
-    if (activeTab === 'fresh' && !recentLoadedRef.current) {
+    if (activeTab === 'fresh' && recentLoadedCycleRef.current !== getLimaMusicCycle()) {
+      const cycle = getLimaMusicCycle();
       async function loadRecent() {
         setIsLoadingRecent(true);
         try {
           const tracks = await musicService.getRecentTracks(150);
-          if (isMounted && tracks && tracks.length > 0) {
-            setRecentTracks(tracks);
-          }
+          if (isMounted) setRecentTracks(Array.isArray(tracks) ? tracks : []);
         } catch (e) {
           console.warn('[MusicPage] Error cargando canciones recientes:', e);
         } finally {
-          if (isMounted) { setIsLoadingRecent(false); recentLoadedRef.current = true; }
+          if (isMounted) { setIsLoadingRecent(false); recentLoadedCycleRef.current = cycle; }
         }
       }
       loadRecent();
@@ -310,12 +385,45 @@ export default function Music() {
       if (tracks && tracks.length > 0) {
         setRecentTracks(tracks);
       }
+      recentLoadedCycleRef.current = getLimaMusicCycle();
     } catch (e) {
       console.warn('[MusicPage] Error actualizando canciones recientes:', e);
     } finally {
       setIsLoadingRecent(false);
     }
   }, []);
+
+  // Actualiza los catálogos a las 03:00 de Lima mientras la app siga abierta.
+  // Si el sistema suspende el temporizador, al volver a primer plano detecta el nuevo ciclo.
+  useEffect(() => {
+    let timer;
+    let disposed = false;
+    let refreshing = false;
+    const refreshDaily = async () => {
+      if (disposed || refreshing) return;
+      refreshing = true;
+      clearTimeout(timer);
+      const cycle = getLimaMusicCycle();
+      const results = await Promise.allSettled([
+        musicService.getTopTracks(chartRegion, true),
+        ...(recentLoadedCycleRef.current || activeTab === 'fresh' ? [musicService.getRecentTracks(150, true)] : [])
+      ]);
+      if (disposed) return;
+      if (results[0].status === 'fulfilled') setTopTracks(results[0].value || []);
+      if (results[1]?.status === 'fulfilled') {
+        setRecentTracks(results[1].value || []);
+        recentLoadedCycleRef.current = cycle;
+      }
+      refreshing = false;
+      timer = setTimeout(refreshDaily, msUntilLimaMusicRefresh());
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible' && recentLoadedCycleRef.current && recentLoadedCycleRef.current !== getLimaMusicCycle()) refreshDaily();
+    };
+    timer = setTimeout(refreshDaily, msUntilLimaMusicRefresh());
+    document.addEventListener('visibilitychange', handleVisible);
+    return () => { disposed = true; clearTimeout(timer); document.removeEventListener('visibilitychange', handleVisible); };
+  }, [chartRegion, activeTab]);
 
   // Cargar Artistas Independientes / Temas
   useEffect(() => {
@@ -544,6 +652,9 @@ export default function Music() {
 
   const handleOpenArtist = useCallback(async (artistName, artistId = null) => {
     if (!artistName) return;
+    const parsed = parseArtists(artistName);
+    const resolvedName = parsed[0] || String(artistName).trim();
+    const collaborators = parsed.slice(1);
     setViewNavigation(value => value + 1);
     const requestId = ++artistOpenRequestRef.current;
     activeArtistRequestIdRef.current = requestId;
@@ -551,21 +662,23 @@ export default function Music() {
     setSelectedAlbumDetail(null);
     setArtistActiveTab('tracks');
     setSearchQuery('');
-    const cached = musicService.getCachedArtistDetails(artistName);
-    const fallbackPic = currentTrackRef.current?.artist === artistName ? currentTrackRef.current.cover : '';
-    setSelectedArtistDetail(cached || { 
-      id: artistId || artistName, 
-      name: artistName,
-      picture: fallbackPic, 
-      fans: 0, 
-      topTracks: [], 
-      albums: [], 
-      isLoading: true 
+    const cached = musicService.getCachedArtistDetails(resolvedName);
+    const fallbackPic = currentTrackRef.current?.artist === resolvedName ? currentTrackRef.current.cover : '';
+    setSelectedArtistDetail(cached || {
+      id: artistId || resolvedName,
+      name: resolvedName,
+      picture: fallbackPic,
+      fans: 0,
+      topTracks: [],
+      albums: [],
+      collaborators,
+      isLoading: true
     });
     try {
-      await musicService.getArtistDetails(artistName, artistId, details => {
+      await musicService.getArtistDetails(resolvedName, artistId, details => {
         if (activeArtistRequestIdRef.current === requestId && artistOpenRequestRef.current === requestId) {
-          setSelectedArtistDetail(details);
+          const finalCollabs = (details?.collaborators?.length) ? details.collaborators : collaborators;
+          setSelectedArtistDetail({ ...details, collaborators: finalCollabs });
         }
       });
     } catch (e) {
@@ -758,6 +871,20 @@ export default function Music() {
     return topTracks;
   }, [searchQuery, searchResults, activeTab, topTracks, recentTracks, indieTracks, genreTracks, favorites, queue, selectedPlaylist, selectedCuratedPlaylist, curatedPlaylistTracks]);
 
+  const recentReleaseGroups = useMemo(() => {
+    const groups = new Map();
+    const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const track of recentTracks) {
+      const key = `${normalize(track.artist)}:${track.albumId || normalize(track.album || track.title)}`;
+      const group = groups.get(key) || { key, artist: track.artist, album: track.album || track.title, cover: track.cover, releaseDate: track.releaseDate, tracks: [], firstTrack: track };
+      if (!group.tracks.some(item => normalize(item.title) === normalize(track.title))) group.tracks.push(track);
+      if (String(track.releaseDate || '') > String(group.releaseDate || '')) group.releaseDate = track.releaseDate;
+      groups.set(key, group);
+    }
+    return [...groups.values()].map(group => ({ ...group, isAlbum: group.tracks.length > 1 || (group.firstTrack.albumTrackCount || 0) > 1 }))
+      .sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')));
+  }, [recentTracks]);
+
   // Pantalla de carga mientras se sincroniza la sesión
   if (isLoadingAuth) {
     return (
@@ -863,11 +990,11 @@ export default function Music() {
 
   return (
     <div ref={musicPageRef} className="min-h-screen pb-32 text-white bg-gradient-to-b from-[#0a0614] via-[#090514] to-[#05020a]">
-      
+
       {/* 1. HERO BANNER PRINCIPAL (SOLO DESKTOP PARA MANTENER MÓVIL ÁGIL COMO SPOTIFY) */}
       <div className="hidden md:block relative pt-6 pb-8 px-4 sm:px-8 max-w-7xl mx-auto">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-purple-900/50 to-indigo-950/60 border border-fuchsia-500/20 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
-          
+
           {/* Luces y brillos de fondo */}
           <div className="absolute -top-24 -left-24 w-80 h-80 bg-fuchsia-600/30 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
@@ -908,9 +1035,9 @@ export default function Music() {
             {/* Carátula flotante ilustrativa del Top */}
             <div className="relative group hidden sm:block">
               <div className="w-44 h-44 sm:w-56 sm:h-56 rounded-2xl overflow-hidden shadow-2xl border border-white/20 transform rotate-2 group-hover:rotate-0 transition-transform duration-500">
-                <img 
-                  src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                  alt="Top 50 Cover" 
+                <img
+                  src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                  alt="Top 50 Cover"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
@@ -934,20 +1061,20 @@ export default function Music() {
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>
-                {selectedPlaylistId 
-                  ? 'Volver a Mis Listas' 
+                {selectedPlaylistId
+                  ? 'Volver a Mis Listas'
                   : selectedCuratedPlaylist
                     ? 'Volver a Playlists'
                     : selectedIndieArtist
                       ? 'Volver a Artistas Independientes'
-                      : searchQuery 
-                        ? 'Limpiar Búsqueda' 
+                      : searchQuery
+                        ? 'Limpiar Búsqueda'
                         : 'Atrás'}
               </span>
             </button>
           </div>
         )}
-        
+
         {/* Input de Búsqueda */}
         <div className="max-w-xl relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSearchFocused(false); }}>
           <div className="relative">
@@ -1021,9 +1148,9 @@ export default function Music() {
           {voiceError && (
             <div className="mt-2 flex items-center justify-between text-xs px-3.5 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300">
               <span>{voiceError}</span>
-              <button 
-                type="button" 
-                onClick={() => setVoiceError('')} 
+              <button
+                type="button"
+                onClick={() => setVoiceError('')}
                 className="ml-2 text-rose-400 hover:text-rose-200"
               >
                 ✕
@@ -1227,10 +1354,10 @@ export default function Music() {
             {/* Banner de Álbum */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-indigo-950/40 border border-purple-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
               <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
-                <img 
-                  src={selectedAlbumDetail.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80'} 
-                  alt={selectedAlbumDetail.title} 
-                  className="w-full h-full object-cover" 
+                <img
+                  src={selectedAlbumDetail.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80'}
+                  alt={selectedAlbumDetail.title}
+                  className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80';
                   }}
@@ -1248,7 +1375,7 @@ export default function Music() {
                 </h1>
 
                 {selectedAlbumDetail.artist && (
-                  <p 
+                  <p
                     onClick={() => {
                       if (selectedArtistDetail) {
                         setSelectedAlbumDetail(null);
@@ -1267,80 +1394,128 @@ export default function Music() {
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-                  {selectedAlbumDetail.tracks?.length > 0 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => playTrack(selectedAlbumDetail.tracks[0], selectedAlbumDetail.tracks)}
-                        className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
-                      >
-                        <Play className="w-4 h-4 fill-white" />
-                        <span>Reproducir Álbum</span>
-                      </button>
+                  <button
+                    type="button"
+                    disabled={isLoadingAlbum || !selectedAlbumDetail.tracks?.length}
+                    onClick={() => selectedAlbumDetail.tracks?.[0] && playTrack(selectedAlbumDetail.tracks[0], selectedAlbumDetail.tracks)}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
+                  >
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>Reproducir Álbum</span>
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const shuffled = [...selectedAlbumDetail.tracks].sort(() => Math.random() - 0.5);
-                          playTrack(shuffled[0], shuffled);
-                        }}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
-                      >
-                        <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
-                        <span>Aleatorio</span>
-                      </button>
+                  <button
+                    type="button"
+                    disabled={isLoadingAlbum || !selectedAlbumDetail.tracks?.length}
+                    onClick={() => {
+                      if (!selectedAlbumDetail.tracks?.length) return;
+                      const shuffled = [...selectedAlbumDetail.tracks].sort(() => Math.random() - 0.5);
+                      playTrack(shuffled[0], shuffled);
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                  >
+                    <Shuffle className="w-3.5 h-3.5 text-fuchsia-400" />
+                    <span>Aleatorio</span>
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const res = await saveAlbumAsPlaylist(selectedAlbumDetail);
-                          if (res) {
-                            setAlbumSavedToast(true);
-                            setTimeout(() => setAlbumSavedToast(false), 3000);
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border ${
-                          isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast
-                            ? 'bg-purple-600/30 text-purple-200 border-purple-500/40 hover:bg-purple-600/40'
-                            : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
-                        }`}
-                      >
-                        {isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-fuchsia-400" />
-                            <span>{albumSavedToast ? '¡Guardado en Playlists!' : 'En tus Playlists'}</span>
-                          </>
-                        ) : (
-                          <>
-                            <ListPlus className="w-3.5 h-3.5 text-fuchsia-400" />
-                            <span>Guardar como Playlist</span>
-                          </>
-                        )}
-                      </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await saveAlbumAsPlaylist(selectedAlbumDetail);
+                      if (res) {
+                        setAlbumSavedToast(true);
+                        setTimeout(() => setAlbumSavedToast(false), 3000);
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border ${
+                      isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast
+                        ? 'bg-purple-600/30 text-purple-200 border-purple-500/40 hover:bg-purple-600/40'
+                        : 'bg-white/10 hover:bg-white/15 text-white border-white/10'
+                    }`}
+                  >
+                    {isAlbumSavedAsPlaylist(selectedAlbumDetail) || albumSavedToast ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-fuchsia-400" />
+                        <span>{albumSavedToast ? '¡Guardado en Playlists!' : 'En tus Playlists'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ListPlus className="w-3.5 h-3.5 text-fuchsia-400" />
+                        <span>Guardar como Playlist</span>
+                      </>
+                    )}
+                  </button>
 
-                      <button
-                        type="button"
-                        onClick={() => downloadPlaylist({
-                          id: `album_${selectedAlbumDetail.id}`,
-                          name: selectedAlbumDetail.title,
-                          tracks: selectedAlbumDetail.tracks
-                        })}
-                        disabled={isDownloadingPlaylistId === `album_${selectedAlbumDetail.id}`}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer active:scale-95 shadow-sm"
-                      >
-                        {isDownloadingPlaylistId === `album_${selectedAlbumDetail.id}` ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                            <span>Descargando...</span>
-                          </>
-                        ) : (
-                          <>
-                            <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Descargar Álbum ({selectedAlbumDetail.tracks.length})</span>
-                          </>
-                        )}
-                      </button>
-                    </>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openAddToPlaylistModal({
+                        ...selectedAlbumDetail,
+                        isAlbum: true,
+                        tracks: selectedAlbumDetail.tracks || []
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border-cyan-500/30"
+                    title="Añadir todas las pistas de este álbum a una de tus playlists"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Añadir a Playlist</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isLoadingAlbum || !selectedAlbumDetail.tracks?.length || downloadingAlbumId === selectedAlbumDetail.id}
+                    onClick={async () => {
+                      if (isAlbumDownloaded(selectedAlbumDetail)) {
+                        const confirmRedownload = window.confirm?.(`El álbum "${selectedAlbumDetail.title}" ya está descargado. ¿Deseas volver a descargarlo para actualizar sus archivos?`) ?? true;
+                        if (!confirmRedownload) return;
+                      }
+                      await downloadAlbum(selectedAlbumDetail);
+                      setAlbumDownloadedToast(true);
+                      setTimeout(() => setAlbumDownloadedToast(false), 3500);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border ${
+                      isAlbumDownloaded(selectedAlbumDetail) || albumDownloadedToast
+                        ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50 hover:bg-emerald-500/35 ring-1 ring-emerald-500/30'
+                        : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30'
+                    }`}
+                  >
+                    {isAlbumDownloaded(selectedAlbumDetail) || albumDownloadedToast ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
+                        <span>{albumDownloadedToast ? '¡Álbum Descargado!' : 'Álbum Descargado (Toca para actualizar)'}</span>
+                      </>
+                    ) : downloadingAlbumId === selectedAlbumDetail.id ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                        <span>
+                          Descargando ({albumDownloadProgress?.current || 0}/{selectedAlbumDetail.tracks?.length || 0})...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <DownloadCloud className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Descargar Álbum ({selectedAlbumDetail.tracks?.length || 0})</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Botón Borrar Álbum Offline si ya está descargado */}
+                  {isAlbumDownloaded(selectedAlbumDetail) && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const confirmDel = window.confirm?.(`¿Deseas eliminar las canciones descargadas de "${selectedAlbumDetail.title}" de tu dispositivo?`) ?? true;
+                        if (confirmDel) {
+                          await deleteOfflineAlbum(selectedAlbumDetail);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer active:scale-95 shadow-sm border bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/30"
+                      title="Eliminar este álbum del almacenamiento offline de tu dispositivo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Borrar Offline</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1360,9 +1535,9 @@ export default function Music() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {selectedAlbumDetail.tracks.map((track, idx) => (
-                  <TrackCard 
+                  <TrackCard
                     key={`album-track-${track.id}-${idx}`}
-                    track={track} 
+                    track={track}
                     queue={selectedAlbumDetail.tracks}
                     index={track.trackNumber || idx + 1}
                     isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -1370,7 +1545,7 @@ export default function Music() {
                     isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                    isDownloaded={isTrackDownloaded(track.id)}
+                    isDownloaded={isTrackDownloaded(track)}
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -1398,9 +1573,9 @@ export default function Music() {
             {/* Banner del Artista */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-fuchsia-950/60 via-[#1a0e28] to-purple-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 sm:gap-8 shadow-2xl">
               <div className="w-32 h-32 sm:w-44 sm:h-44 rounded-full overflow-hidden bg-black/60 border-2 border-fuchsia-400/40 flex items-center justify-center flex-shrink-0 shadow-2xl">
-                <img 
-                  src={selectedArtistDetail.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80'} 
-                  alt={selectedArtistDetail.name} 
+                <img
+                  src={selectedArtistDetail.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80'}
+                  alt={selectedArtistDetail.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&auto=format&fit=crop&q=80';
@@ -1417,6 +1592,24 @@ export default function Music() {
                 <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
                   {selectedArtistDetail.name}
                 </h1>
+
+                {selectedArtistDetail.collaborators && selectedArtistDetail.collaborators.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
+                    <span className="text-xs text-gray-400 font-semibold">Colaborador(es):</span>
+                    {selectedArtistDetail.collaborators.map((collab, cIdx) => (
+                      <button
+                        key={`collab-${collab}-${cIdx}`}
+                        type="button"
+                        onClick={() => handleOpenArtist(collab)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-fuchsia-500/25 border border-white/15 hover:border-fuchsia-400/40 text-xs font-semibold text-gray-200 hover:text-white transition cursor-pointer active:scale-95 shadow-sm"
+                        title={`Ver discografía de ${collab}`}
+                      >
+                        <span>{collab}</span>
+                        <span className="text-[11px] text-fuchsia-300">→</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs text-gray-300">
                   {selectedArtistDetail.fans > 0 && (
@@ -1492,39 +1685,8 @@ export default function Music() {
               </div>
             </div>
 
-            {/* SELECTOR DE SUB-PESTAÑAS DEL ARTISTA: POPULARES VS ÁLBUMES */}
-            <div className="flex items-center gap-2 border-b border-white/10 pb-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setArtistActiveTab('tracks')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 ${
-                  artistActiveTab === 'tracks'
-                    ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg shadow-fuchsia-500/25'
-                    : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'
-                }`}
-              >
-                <Flame className="w-4 h-4 text-fuchsia-400" />
-                <span>Canciones Populares ({selectedArtistDetail.topTracks?.length || 0})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setArtistActiveTab('albums')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 ${
-                  artistActiveTab === 'albums'
-                    ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg shadow-fuchsia-500/25'
-                    : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10'
-                }`}
-              >
-                <Disc3 className="w-4 h-4 text-purple-400" />
-                <span>Álbumes y Discografía ({selectedArtistDetail.albums?.length || 0})</span>
-              </button>
-            </div>
-
-            {/* CONTENIDO SEGÚN SUB-PESTAÑA ACTIVA */}
-            {artistActiveTab === 'tracks' ? (
-              /* SECCIÓN 1: Canciones Populares */
-              selectedArtistDetail.topTracks?.length > 0 ? (
+            {/* SECCIÓN 1: Canciones Populares */}
+            {selectedArtistDetail.topTracks?.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xl font-black text-white flex items-center gap-2">
@@ -1544,9 +1706,9 @@ export default function Music() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {selectedArtistDetail.topTracks.map((track, idx) => (
-                      <TrackCard 
+                      <TrackCard
                         key={`artist-track-${track.id}-${idx}`}
-                        track={track} 
+                        track={track}
                         queue={selectedArtistDetail.topTracks}
                         isPlaying={isPlaying && currentTrack?.id === track.id}
                         onPlay={() => playTrack(track, selectedArtistDetail.topTracks)}
@@ -1562,64 +1724,130 @@ export default function Music() {
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-400">
-                  <Music2 className="w-10 h-10 mx-auto mb-2 opacity-30 text-fuchsia-400" />
-                  <p className="text-sm">{selectedArtistDetail.isLoading ? 'Cargando canciones…' : 'No hay canciones populares indexadas'}</p>
-                </div>
-              )
-            ) : (
-              /* SECCIÓN 2: Álbumes y Discografía */
-              selectedArtistDetail.albums?.length > 0 ? (
-                <div className="space-y-4">
+            )}
+
+            {/* SECCIÓN 2: Álbumes y Discografía */}
+            {selectedArtistDetail.albums?.length > 0 && (
+                <div className="space-y-4 pt-4 border-t border-white/5">
                   <h3 className="text-xl font-black text-white flex items-center gap-2">
                     <Disc3 className="w-5 h-5 text-purple-400" />
                     <span>Álbumes y Discografía ({selectedArtistDetail.albums.length})</span>
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {selectedArtistDetail.albums.map((album) => (
-                      <div
-                        key={`album-${album.id}`}
-                        onClick={() => handleOpenAlbum(album)}
-                        className="group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-purple-500/40 transition duration-300 flex flex-col cursor-pointer active:scale-[0.98]"
-                      >
-                        <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
-                          <img 
-                            src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                            alt={album.title} 
-                            loading="lazy"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            onError={(e) => {
-                              e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80';
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
-                            <span className="text-[11px] font-bold text-fuchsia-300 flex items-center gap-1">
-                              <Disc3 className="w-3.5 h-3.5" />
-                              <span>Ver Álbum</span>
-                            </span>
+                    {selectedArtistDetail.albums.map((album) => {
+                      const isDownloaded = isAlbumDownloaded({ ...album, artist: album.artist || selectedArtistDetail?.name });
+                      return (
+                        <div
+                          key={`album-${album.id}`}
+                          onClick={() => handleOpenAlbum(album)}
+                          className="group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-purple-500/40 transition duration-300 flex flex-col cursor-pointer active:scale-[0.98]"
+                        >
+                          <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
+                            <img
+                              src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                              alt={album.title}
+                              loading="lazy"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80';
+                              }}
+                            />
+                            {isDownloaded && (
+                              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600/90 text-white text-[10px] font-black flex items-center gap-1 shadow-lg backdrop-blur-sm border border-emerald-400/40 z-10">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                <span>Descargado</span>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
+                              <span className="text-[11px] font-bold text-fuchsia-300 flex items-center gap-1">
+                                <Disc3 className="w-3.5 h-3.5" />
+                                <span>Ver Álbum</span>
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-300 truncate transition">
-                            {album.title}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                            {album.releaseDate && <span>{album.releaseDate.slice(0,4)}</span>}
-                            {album.trackCount > 0 && <span>• {album.trackCount} canciones</span>}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-purple-300 truncate transition">
+                                {album.title}
+                              </h4>
+                              {isDownloaded && (
+                                <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-1 mt-1 text-[11px] text-gray-400">
+                              <div className="truncate">
+                                {album.releaseDate && <span>{album.releaseDate.slice(0,4)}</span>}
+                                {album.trackCount > 0 && <span> • {album.trackCount} canciones</span>}
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isDownloaded) {
+                                      const match = offlineAlbumList.find(a => (
+                                        (a.id && a.id === album.id) ||
+                                        String(a.title || '').trim().toLowerCase() === String(album.title || '').trim().toLowerCase()
+                                      ));
+                                      if (match) {
+                                        setSelectedOfflineAlbum(match);
+                                        setActiveTab('offline');
+                                        setOfflineSubView('albums');
+                                        return;
+                                      }
+                                    }
+                                    handleOpenAlbum(album);
+                                  }}
+                                  className={`p-1 rounded-md transition flex-shrink-0 ${
+                                    isDownloaded
+                                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                                      : 'bg-white/5 hover:bg-emerald-500/20 text-gray-400 hover:text-emerald-300'
+                                  }`}
+                                  title={isDownloaded ? "Álbum descargado (Toca para ver en Modo Offline)" : "Ver y descargar álbum completo"}
+                                >
+                                  {isDownloaded ? <Check className="w-3.5 h-3.5 stroke-[2.5]" /> : <DownloadCloud className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openAddToPlaylistModal({
+                                      ...album,
+                                      artist: selectedArtistDetail?.name || album.artist || '',
+                                      isAlbum: true
+                                    });
+                                  }}
+                                  className="p-1 rounded-md bg-white/5 hover:bg-cyan-500/20 text-gray-400 hover:text-cyan-300 transition flex-shrink-0"
+                                  title="Añadir álbum a una playlist"
+                                >
+                                  <ListPlus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-400">
-                  <Disc3 className="w-10 h-10 mx-auto mb-2 opacity-30 text-purple-400" />
-                  <p className="text-sm">{selectedArtistDetail.isLoading ? 'Cargando discografía…' : 'No se encontraron álbumes para este artista'}</p>
-                </div>
-              )
+            )}
+
+            {(!selectedArtistDetail.topTracks?.length && !selectedArtistDetail.albums?.length) && (
+              <div className="text-center py-16 text-gray-400">
+                {selectedArtistDetail.isLoading ? (
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
+                    <span className="text-xs">Indexando catálogo y álbumes del artista...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Music2 className="w-10 h-10 mx-auto mb-2 opacity-30 text-fuchsia-400" />
+                    <p className="text-sm font-semibold text-white">No hay canciones ni álbumes disponibles</p>
+                    <p className="text-xs text-gray-500 mt-1">Intenta buscar por título de canción o verificar la conexión.</p>
+                  </>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -1684,9 +1912,9 @@ export default function Music() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {searchResults.map((track) => (
-                  <TrackCard 
-                    key={track.id} 
-                    track={track} 
+                  <TrackCard
+                    key={track.id}
+                    track={track}
                     queue={searchResults}
                     isPlaying={isPlaying && currentTrack?.id === track.id}
                     onPlay={() => playTrack(track, searchResults)}
@@ -1717,15 +1945,15 @@ export default function Music() {
               <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-ping" />
-                  <span>Lanzamientos recientes • Catálogo actualizado</span>
+                  <span>Estrenos recientes</span>
                 </div>
                 <h2 className="text-2xl sm:text-4xl font-black text-white">
-                  Lo Más Reciente
+                  Estrenos recientes
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
                   {recentTracks.length > 0
-                    ? `${recentTracks.length} canciones de lanzamientos de los últimos 90 días. Catálogos de Perú, Estados Unidos, México, España y Reino Unido, ordenados por fecha.`
-                    : 'Lanzamientos de los últimos 90 días, con fechas de lanzamiento verificadas.'}
+                    ? `${recentReleaseGroups.length} lanzamientos con fecha reciente en los catálogos consultados.`
+                    : 'Singles y álbumes con fecha reciente disponible en los catálogos consultados.'}
                 </p>
 
                 {recentTracks.length > 0 && (
@@ -1785,33 +2013,60 @@ export default function Music() {
             {isLoadingRecent ? (
               <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
                 <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
-                <span className="text-xs">Sincronizando los lanzamientos más recientes de 2026...</span>
+                <span className="text-xs">Sincronizando los nuevos lanzamientos...</span>
               </div>
             ) : recentTracks.length === 0 ? (
               <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-white/5 rounded-3xl p-8">
                 <Disc3 className="w-12 h-12 mx-auto mb-3 text-fuchsia-400/40" />
-                <p className="text-base font-semibold text-white">No se pudieron cargar los estrenos</p>
-                <p className="text-xs text-gray-500 mt-1">Verifica tu conexión a internet o intenta nuevamente.</p>
+                <p className="text-base font-semibold text-white">Sincronizando estrenos recientes</p>
+                <p className="text-xs text-gray-500 mt-1">Los catálogos están actualizándose. Puedes volver a consultar en cualquier momento.</p>
+                <button
+                  type="button"
+                  onClick={handleRefreshRecent}
+                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg transition cursor-pointer active:scale-95"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Sincronizar ahora</span>
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {recentTracks.map((track, idx) => (
-                  <TrackCard 
-                    key={`fresh-${track.id}-${idx}`} 
-                    track={track} 
-                    queue={recentTracks}
-                    index={idx + 1}
-                    isPlaying={isPlaying && currentTrack?.id === track.id}
-                    onPlay={() => playTrack(track, recentTracks)}
-                    isFav={isFavorite(track.id)}
-                    onToggleFav={() => toggleFavorite(track)}
-                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                    isDownloaded={isTrackDownloaded(track.id)}
-                    downloadStatus={activeDownloadsMap[track.id]}
-                    onDownload={() => downloadTrack(track)}
-                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
-                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
-                  />
+                {recentReleaseGroups.map((release, idx) => (
+                  <article key={`fresh-${release.key}`} className="group min-w-0 rounded-2xl border border-white/[0.08] bg-[#121019] p-3 transition-colors hover:border-fuchsia-400/30">
+                    <button type="button" onClick={() => playTrack(release.tracks[0], release.tracks)} className="block w-full text-left" aria-label={`Reproducir ${release.album} de ${release.artist}`}>
+                      <div className="relative aspect-square overflow-hidden rounded-xl bg-white/5">
+                        <img src={release.cover || release.firstTrack.cover} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+                        <span className="absolute left-2 top-2 rounded-md bg-black/75 px-2 py-1 text-[10px] font-semibold text-white">{release.isAlbum ? 'ÁLBUM' : 'SENCILLO'}</span>
+                        <span className="absolute right-2 top-2 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white">{release.tracks.length} {release.tracks.length === 1 ? 'canción' : 'canciones'}</span>
+                      </div>
+                      <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold text-white">{release.album}</h3>
+                    </button>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-gray-400">
+                      {parseArtists(release.artist).map((art, aIdx) => (
+                        <React.Fragment key={`rel-art-${release.key}-${art}-${aIdx}`}>
+                          {aIdx > 0 && <span className="text-gray-600 font-normal">&</span>}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenArtist(art);
+                            }}
+                            className="hover:text-white hover:underline transition truncate text-left"
+                            title={`Ver discografía de ${art}`}
+                          >
+                            {art}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/[0.08] pt-2 text-[11px] text-gray-400">
+                      <span>{release.releaseDate ? new Date(`${release.releaseDate}T12:00:00`).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Fecha no disponible'}</span>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => playTrack(release.tracks[0], release.tracks)} className="rounded-full p-2 text-white hover:bg-white/10" aria-label="Reproducir lanzamiento"><Play className="h-4 w-4 fill-current" /></button>
+                        <button type="button" onClick={() => openAddToPlaylistModal(release.tracks[0])} className="rounded-full p-2 text-gray-300 hover:bg-white/10" aria-label="Añadir a playlist"><ListPlus className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
@@ -1836,10 +2091,10 @@ export default function Music() {
                 {/* Banner de la Playlist Curada */}
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-fuchsia-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
                   <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
-                    <img 
-                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                      alt={selectedCuratedPlaylist.name} 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                      alt={selectedCuratedPlaylist.name}
+                      className="w-full h-full object-cover"
                     />
                   </div>
 
@@ -1858,7 +2113,7 @@ export default function Music() {
                     </p>
 
                     <p className="text-xs text-gray-400">
-                      {curatedPlaylistTracks.length > 0 
+                      {curatedPlaylistTracks.length > 0
                         ? `${curatedPlaylistTracks.length} canciones • ${Math.round(curatedPlaylistTracks.reduce((acc, t) => acc + (t.duration || 210), 0) / 60)} min`
                         : `${selectedCuratedPlaylist.trackCount || 50} canciones seleccionadas`}
                     </p>
@@ -1927,9 +2182,9 @@ export default function Music() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {curatedPlaylistTracks.map((track, idx) => (
-                      <TrackCard 
-                        key={`curated-track-${track.id}-${idx}`} 
-                        track={track} 
+                      <TrackCard
+                        key={`curated-track-${track.id}-${idx}`}
+                        track={track}
                         queue={curatedPlaylistTracks}
                         index={idx + 1}
                         isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -2089,15 +2344,15 @@ export default function Music() {
                           className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
                         >
                           <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
-                            <img 
-                              src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                              alt={pl.name} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            <img
+                              src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                              alt={pl.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
                             <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md">
                               TENDENCIA
                             </div>
-                            <div 
+                            <div
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 setSelectedCuratedPlaylist(pl);
@@ -2254,8 +2509,8 @@ export default function Music() {
               <h3 className="text-base font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                 <span>
-                  {selectedIndieArtist 
-                    ? `Canciones de ${selectedIndieArtist.name}` 
+                  {selectedIndieArtist
+                    ? `Canciones de ${selectedIndieArtist.name}`
                     : 'Colección de Artistas Independientes Recomendados'}
                 </span>
                 <span className="text-xs text-gray-400 font-normal">({indieTracks.length} canciones)</span>
@@ -2275,9 +2530,9 @@ export default function Music() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {indieTracks.map((track, idx) => (
-                    <TrackCard 
-                      key={`indie-${track.id}-${idx}`} 
-                      track={track} 
+                    <TrackCard
+                      key={`indie-${track.id}-${idx}`}
+                      track={track}
                       queue={indieTracks}
                       index={idx + 1}
                       isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -2310,8 +2565,8 @@ export default function Music() {
                     onClick={() => setSelectedGenre(genre)}
                     style={{ background: genre.bg }}
                     className={`group relative overflow-hidden rounded-2xl p-5 h-36 sm:h-44 text-left transition-all duration-300 transform hover:scale-[1.02] shadow-lg cursor-pointer ${
-                      isSelected 
-                        ? 'ring-2 ring-white shadow-2xl scale-[1.02]' 
+                      isSelected
+                        ? 'ring-2 ring-white shadow-2xl scale-[1.02]'
                         : 'hover:shadow-2xl hover:brightness-105'
                     }`}
                   >
@@ -2321,12 +2576,12 @@ export default function Music() {
                     <h3 className="text-xl sm:text-2xl font-black text-white leading-tight pr-14 drop-shadow-sm">
                       {genre.name}
                     </h3>
-                    
+
                     {/* Carátula destacada */}
                     <div className="absolute -bottom-3 -right-3 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden shadow-2xl transform rotate-[22deg] group-hover:rotate-[15deg] group-hover:scale-105 transition-all duration-300 border border-black/20">
-                      <img 
-                        src={genre.cover} 
-                        alt={genre.name} 
+                      <img
+                        src={genre.cover}
+                        alt={genre.name}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -2349,9 +2604,9 @@ export default function Music() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                   {genreTracks.map((track) => (
-                    <TrackCard 
-                      key={track.id} 
-                      track={track} 
+                    <TrackCard
+                      key={track.id}
+                      track={track}
                       queue={genreTracks}
                       isPlaying={isPlaying && currentTrack?.id === track.id}
                       onPlay={() => playTrack(track, genreTracks)}
@@ -2398,8 +2653,8 @@ export default function Music() {
                     }`}
                   >
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 shadow-lg border border-white/10">
-                      <img 
-                        src={radio.cover} 
+                      <img
+                        src={radio.cover}
                         alt={radio.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition"
                       />
@@ -2422,7 +2677,7 @@ export default function Music() {
                       <p className="text-xs text-gray-400 truncate">{radio.artist}</p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         if (isSelected) {
@@ -2497,9 +2752,9 @@ export default function Music() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {favorites.map((track) => (
-                  <TrackCard 
-                    key={track.id} 
-                    track={track} 
+                  <TrackCard
+                    key={track.id}
+                    track={track}
                     queue={favorites}
                     isPlaying={isPlaying && currentTrack?.id === track.id}
                     onPlay={() => playTrack(track, favorites)}
@@ -2536,10 +2791,10 @@ export default function Music() {
                 {/* Banner de la Playlist Curada */}
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/60 via-[#181028] to-fuchsia-950/40 border border-fuchsia-500/20 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
                   <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
-                    <img 
-                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                      alt={selectedCuratedPlaylist.name} 
-                      className="w-full h-full object-cover" 
+                    <img
+                      src={selectedCuratedPlaylist.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                      alt={selectedCuratedPlaylist.name}
+                      className="w-full h-full object-cover"
                     />
                   </div>
 
@@ -2558,7 +2813,7 @@ export default function Music() {
                     </p>
 
                     <p className="text-xs text-gray-400">
-                      {curatedPlaylistTracks.length > 0 
+                      {curatedPlaylistTracks.length > 0
                         ? `${curatedPlaylistTracks.length} canciones • ${Math.round(curatedPlaylistTracks.reduce((acc, t) => acc + (t.duration || 210), 0) / 60)} min`
                         : `${selectedCuratedPlaylist.trackCount || 50} canciones seleccionadas`}
                     </p>
@@ -2627,9 +2882,9 @@ export default function Music() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {curatedPlaylistTracks.map((track, idx) => (
-                      <TrackCard 
-                        key={`${track.id}-${idx}`} 
-                        track={track} 
+                      <TrackCard
+                        key={`${track.id}-${idx}`}
+                        track={track}
                         queue={curatedPlaylistTracks}
                         index={idx + 1}
                         isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -2663,10 +2918,10 @@ export default function Music() {
                   {/* Carátula de la Playlist */}
                   <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
                     {selectedPlaylist.cover ? (
-                      <img 
-                        src={selectedPlaylist.cover} 
-                        alt={selectedPlaylist.name} 
-                        className="w-full h-full object-cover" 
+                      <img
+                        src={selectedPlaylist.cover}
+                        alt={selectedPlaylist.name}
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <ListMusic className="w-16 h-16 text-fuchsia-400 opacity-60" />
@@ -2820,9 +3075,9 @@ export default function Music() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {selectedPlaylist.tracks.map((track, idx) => (
-                      <TrackCard 
-                        key={`${track.id}-${idx}`} 
-                        track={track} 
+                      <TrackCard
+                        key={`${track.id}-${idx}`}
+                        track={track}
                         queue={selectedPlaylist.tracks}
                         index={idx + 1}
                         isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -2986,10 +3241,10 @@ export default function Music() {
                           {/* Carátula */}
                           <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
                             {pl.cover ? (
-                              <img 
-                                src={pl.cover} 
-                                alt={pl.name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                              <img
+                                src={pl.cover}
+                                alt={pl.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               />
                             ) : (
                               <div className="flex flex-col items-center justify-center text-gray-500">
@@ -3026,7 +3281,7 @@ export default function Music() {
 
                             {/* Botón flotante Play si tiene canciones */}
                             {pl.tracks.length > 0 && (
-                              <div 
+                              <div
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   playTrack(pl.tracks[0], pl.tracks);
@@ -3125,15 +3380,15 @@ export default function Music() {
                             className="group relative overflow-hidden rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/50 transition duration-300 flex flex-col cursor-pointer min-h-[230px]"
                           >
                             <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-3 bg-black/50 border border-white/10 flex items-center justify-center">
-                              <img 
-                                src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                                alt={pl.name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                              <img
+                                src={pl.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                                alt={pl.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                               />
                               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-[9px] font-bold text-fuchsia-300 backdrop-blur-md">
                                 TENDENCIA
                               </div>
-                              <div 
+                              <div
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   setSelectedCuratedPlaylist(pl);
@@ -3196,9 +3451,9 @@ export default function Music() {
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {queue.map((track, idx) => (
-                          <TrackCard 
-                            key={`${track.id}-${idx}`} 
-                            track={track} 
+                          <TrackCard
+                            key={`${track.id}-${idx}`}
+                            track={track}
                             queue={queue}
                             index={idx + 1}
                             isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -3221,16 +3476,16 @@ export default function Music() {
         {/* CASO E: TOP 50 ÉXITOS (DEFAULT) */}
         {!searchQuery && activeTab === 'top' && (
           <div className="space-y-6 sm:space-y-8 animate-in fade-in">
-            
+
             {/* GRILLA DE ACCESO RÁPIDO ESTILO BENTO (2 COLUMNAS EN MÓVIL, 3 EN DESKTOP) */}
             <div className="space-y-2.5">
               <h3 className="text-xs uppercase tracking-widest font-bold text-gray-400">
                 Acceso Rápido
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
-                
+
                 {/* 1. Tus Me Gusta */}
-                <div 
+                <div
                   onClick={() => setActiveTab('favorites')}
                   className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-pink-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
@@ -3248,14 +3503,14 @@ export default function Music() {
                 </div>
 
                 {/* 2. Top 50 Global */}
-                <div 
+                <div
                   onClick={handlePlayAllTop}
                   className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-fuchsia-500/40 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
                   <div className="relative w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-purple-950">
-                    <img 
-                      src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'} 
-                      alt="Top 50" 
+                    <img
+                      src={topTracks[0]?.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                      alt="Top 50"
                       className="w-full h-full object-cover group-hover:scale-105 transition"
                     />
                     <div className="absolute top-1 left-1 bg-gradient-to-r from-fuchsia-500 to-purple-600 text-[8px] font-black text-white px-1 rounded shadow">
@@ -3273,7 +3528,7 @@ export default function Music() {
                 </div>
 
                 {/* 3. Radio en Vivo */}
-                <div 
+                <div
                   onClick={() => playRadio(LIVE_RADIOS[0])}
                   className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-red-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
@@ -3293,7 +3548,7 @@ export default function Music() {
                 </div>
 
                 {/* 4. Reggaetón Hits */}
-                <div 
+                <div
                   onClick={() => {
                     const reggaeton = GENRES.find(g => g.id === 'reggaeton');
                     if (reggaeton) setSelectedGenre(reggaeton);
@@ -3302,9 +3557,9 @@ export default function Music() {
                   className="group relative flex items-center gap-2.5 sm:gap-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/5 hover:border-pink-500/30 rounded-xl overflow-hidden cursor-pointer transition active:scale-[0.98] shadow-sm"
                 >
                   <div className="w-12 h-12 sm:w-14 sm:h-14 overflow-hidden flex-shrink-0 bg-pink-900">
-                    <img 
-                      src={GENRES[0]?.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80'} 
-                      alt="Reggaetón" 
+                    <img
+                      src={GENRES[0]?.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80'}
+                      alt="Reggaetón"
                       className="w-full h-full object-cover group-hover:scale-105 transition"
                     />
                   </div>
@@ -3319,7 +3574,7 @@ export default function Music() {
                 </div>
 
                 {/* 5. Modo Offline */}
-                <div 
+                <div
                   onClick={() => {
                     setActiveTab('offline');
                     setSelectedPlaylistId(null);
@@ -3340,7 +3595,7 @@ export default function Music() {
                 </div>
 
                 {/* 6. Listas Propias */}
-                <div 
+                <div
                   onClick={() => {
                     setActiveTab('playlists');
                     setSelectedPlaylistId(null);
@@ -3367,16 +3622,16 @@ export default function Music() {
             <div className="space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-fuchsia-400 flex-shrink-0" />
-                    <span>{chartRegion === 'PE' ? 'Top Perú' : chartRegion === 'global' ? 'Top Global' : 'Top Latino · México'}</span>
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-fuchsia-400 flex-shrink-0" />
+                  <span>{chartRegion === 'PE' ? 'Tendencias · Perú' : chartRegion === 'global' ? 'Tendencias internacionales' : 'Tendencias · México'}</span>
                   </h2>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {chartRegion === 'PE' 
-                      ? 'Ranking oficial de canciones más escuchadas en Perú' 
-                      : chartRegion === 'global' 
-                        ? 'Éxitos mundiales y tendencias del momento en tiempo real' 
-                        : 'Ranking oficial de canciones más escuchadas en México y Latinoamérica'}
+                    {chartRegion === 'PE'
+                      ? 'Canciones más escuchadas en el ranking de Perú'
+                      : chartRegion === 'global'
+                        ? 'Ranking combinado de canciones populares en varios países.'
+                        : 'Canciones más escuchadas en el ranking de México'}
                   </p>
                 </div>
 
@@ -3394,9 +3649,9 @@ export default function Music() {
 
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" aria-label="Región del ranking">
                 {[
-                  ['global', 'Top Global'],
-                  ['PE', 'Top Perú'],
-                  ['MX', 'Top Latino · México']
+                  ['global', 'Internacional'],
+                  ['PE', 'Perú'],
+                  ['MX', 'México']
                 ].map(([id, label]) => (
                   <button
                     key={id}
@@ -3420,9 +3675,9 @@ export default function Music() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                   {topTracks.length === 0 && <p className="col-span-full py-12 text-center text-gray-400">No se pudo cargar el ranking. Intenta nuevamente cuando tengas conexión.</p>}
                   {topTracks.map((track, idx) => (
-                    <TrackCard 
-                      key={track.id} 
-                      track={track} 
+                    <TrackCard
+                      key={track.id}
+                      track={track}
                       queue={topTracks}
                       index={idx + 1}
                       isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -3516,14 +3771,45 @@ export default function Music() {
               </div>
             </div>
 
-            {/* Listado de pistas offline */}
+            {/* Sub-navegación Modo Offline: Carpetas de Álbumes vs Todas las Canciones */}
+            {offlineTracks.length > 0 && !selectedOfflineAlbum && (
+              <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setOfflineSubView('albums')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
+                    offlineSubView === 'albums'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5'
+                  }`}
+                >
+                  <Folder className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Carpetas de Álbumes ({offlineAlbumList.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOfflineSubView('tracks')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
+                    offlineSubView === 'tracks'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5'
+                  }`}
+                >
+                  <Music2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Todas las Canciones ({offlineTracks.length})</span>
+                </button>
+              </div>
+            )}
+
+            {/* Listado de pistas o Carpetas Offline */}
             {offlineTracks.length === 0 ? (
               <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-emerald-500/20 rounded-3xl p-8 space-y-4">
                 <DownloadCloud className="w-14 h-14 mx-auto text-emerald-400/40 animate-pulse" />
                 <div className="space-y-1">
                   <h3 className="text-lg font-bold text-white">No tienes canciones descargadas todavía</h3>
                   <p className="text-xs text-gray-400 max-w-md mx-auto">
-                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-emerald-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Playlist" para escuchar tu música favorita sin conexión a internet.
+                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-emerald-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Álbum" para escuchar tu música organizada en carpetas sin conexión a internet.
                   </p>
                 </div>
                 <button
@@ -3533,12 +3819,192 @@ export default function Music() {
                   Explorar Top Éxitos
                 </button>
               </div>
+            ) : selectedOfflineAlbum ? (
+              /* VISTA DE DETALLE: CARPETA DE ÁLBUM OFFLINE */
+              <div className="space-y-6 animate-in fade-in">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOfflineAlbum(null)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Volver a Carpetas Offline</span>
+                </button>
+
+                {/* Banner de la Carpeta de Álbum Offline */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950/60 via-[#0a231c] to-teal-950/40 border border-emerald-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
+                    <img
+                      src={selectedOfflineAlbum.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                      alt={selectedOfflineAlbum.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600/90 text-white text-[10px] font-bold flex items-center gap-1 shadow-md">
+                      <Folder className="w-3 h-3" />
+                      <span>Carpeta Álbum</span>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[10px] font-bold tracking-wider uppercase">
+                      <HardDrive className="w-3 h-3 text-emerald-400" />
+                      <span>Álbum Guardado en Dispositivo</span>
+                    </span>
+
+                    <h2 className="text-2xl sm:text-4xl font-black text-white truncate">
+                      {selectedOfflineAlbum.title}
+                    </h2>
+
+                    <p className="text-sm font-semibold text-emerald-300">
+                      {selectedOfflineAlbum.artist}
+                    </p>
+
+                    <p className="text-xs text-gray-400">
+                      {selectedOfflineAlbum.tracks.length} canciones descargadas • Organizado en carpeta local
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedOfflineAlbum.tracks.length > 0) {
+                            playTrack(selectedOfflineAlbum.tracks[0], selectedOfflineAlbum.tracks);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-black" />
+                        <span>Reproducir Álbum ({selectedOfflineAlbum.tracks.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedOfflineAlbum.tracks.length > 0) {
+                            const shuffled = [...selectedOfflineAlbum.tracks].sort(() => Math.random() - 0.5);
+                            playTrack(shuffled[0], shuffled);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
+                      >
+                        <Shuffle className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Aleatorio</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`¿Seguro que deseas eliminar el álbum "${selectedOfflineAlbum.title}" del almacenamiento offline?`)) {
+                            deleteOfflineAlbum(selectedOfflineAlbum);
+                            setSelectedOfflineAlbum(null);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold text-xs border border-red-500/30 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar Álbum</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Canciones del Álbum Ordenadas */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {selectedOfflineAlbum.tracks.map((track, idx) => (
+                    <TrackCard
+                      key={`offline-album-track-${track.id}-${idx}`}
+                      track={track}
+                      queue={selectedOfflineAlbum.tracks}
+                      index={track.trackNumber || idx + 1}
+                      isPlaying={isPlaying && currentTrack?.id === track.id}
+                      onPlay={() => playTrack(track, selectedOfflineAlbum.tracks)}
+                      isFav={isFavorite(track.id)}
+                      onToggleFav={() => toggleFavorite(track)}
+                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
+                      isDownloaded={true}
+                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
+                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : offlineSubView === 'albums' ? (
+              /* VISTA: CARPETAS DE ÁLBUMES */
+              <div className="space-y-4">
+                {offlineAlbumList.length === 0 ? (
+                  <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-6 text-gray-400">
+                    <Folder className="w-10 h-10 mx-auto mb-2 text-emerald-400/50" />
+                    <p className="text-sm font-semibold text-white">No tienes álbumes completos descargados</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Tus canciones individuales descargadas están en la pestaña <strong>"Todas las Canciones"</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {offlineAlbumList.map((album) => (
+                      <div
+                        key={`offline-album-card-${album.id}-${album.title}`}
+                        onClick={() => setSelectedOfflineAlbum(album)}
+                        className="group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-emerald-500/40 transition duration-300 flex flex-col cursor-pointer active:scale-[0.98]"
+                      >
+                        <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
+                          <img
+                            src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
+                            alt={album.title}
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600/90 text-white text-[10px] font-black flex items-center gap-1 shadow-lg backdrop-blur-sm border border-emerald-400/40 z-10">
+                            <Folder className="w-3 h-3 stroke-[2.5]" />
+                            <span>Carpeta</span>
+                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
+                            <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
+                              <Folder className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Abrir Carpeta</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-300 truncate transition">
+                            {album.title}
+                          </h4>
+                          <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                            {album.artist}
+                          </p>
+                          <div className="flex items-center justify-between gap-1 mt-1 text-[11px] text-emerald-400">
+                            <span className="font-semibold">{album.tracks.length} {album.tracks.length === 1 ? 'canción' : 'canciones'}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`¿Eliminar el álbum "${album.title}" de las descargas?`)) {
+                                  deleteOfflineAlbum(album);
+                                }
+                              }}
+                              className="p-1 rounded-md bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-300 transition"
+                              title="Eliminar álbum offline"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
+              /* VISTA: TODAS LAS CANCIONES INDIVIDUALES */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {offlineTracks.map((track, idx) => (
-                  <TrackCard 
-                    key={`offline-${track.id}-${idx}`} 
-                    track={track} 
+                  <TrackCard
+                    key={`offline-${track.id}-${idx}`}
+                    track={track}
                     queue={offlineTracks}
                     index={idx + 1}
                     isPlaying={isPlaying && currentTrack?.id === track.id}
@@ -3564,15 +4030,15 @@ export default function Music() {
 }
 
 // Subcomponente de Tarjeta de Canción / Álbum
-function TrackCard({ 
-  track, 
-  queue, 
-  index, 
-  isPlaying, 
-  onPlay, 
-  isFav, 
-  onToggleFav, 
-  onAddToPlaylist, 
+function TrackCard({
+  track,
+  queue,
+  index,
+  isPlaying,
+  onPlay,
+  isFav,
+  onToggleFav,
+  onAddToPlaylist,
   onRemoveFromPlaylist,
   isDownloaded,
   downloadStatus,
@@ -3610,34 +4076,34 @@ function TrackCard({
   })() : null;
 
   return (
-    <div 
+    <div
       onClick={onPlay}
       className={`group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border transition duration-300 flex flex-col cursor-pointer active:scale-[0.98] ${
-        isPlaying 
-          ? 'border-fuchsia-500/60 shadow-lg shadow-fuchsia-500/15 bg-fuchsia-500/10' 
+        isPlaying
+          ? 'border-fuchsia-500/60 shadow-lg shadow-fuchsia-500/15 bg-fuchsia-500/10'
           : 'border-white/5 hover:border-white/20'
       }`}
     >
       {/* Carátula */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
-        <img 
+        <img
           src={track.cover?.replace(/600x600bb/g, '300x300bb').replace(/\/(1000|500)x\1-/g, '/300x300-') || '/logo-teamg.png'}
-          alt={track.title} 
+          alt={track.title}
           loading={!index || index <= 6 ? "eager" : "lazy"}
           decoding="async"
           onError={e => { e.currentTarget.onerror=null; e.currentTarget.src='/logo-teamg.png'; }}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
 
-        {/* Número de posición (para Top charts) */}
-        {index && (
+        {/* Número de posición (para Top charts o álbumes si NO está descargada) */}
+        {!isDownloaded && index && (
           <span className="absolute top-2 left-2 w-6 h-6 rounded-full bg-black/75 backdrop-blur-md text-fuchsia-300 text-xs font-black flex items-center justify-center border border-white/10 shadow z-10">
             {index}
           </span>
         )}
 
         {/* Indicador visual de Modo Offline Descargada */}
-        {isDownloaded && !index && (() => {
+        {isDownloaded && (() => {
           const lic = getTrackLicenseInfo(track);
           if (lic.isExpired) {
             return (
@@ -3648,9 +4114,9 @@ function TrackCard({
             );
           }
           return (
-            <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/90 text-[8px] font-black text-black tracking-wider uppercase shadow flex items-center gap-1 backdrop-blur-sm z-10" title={`Licencia offline: ${lic.daysRemaining} días restantes`}>
-              <Check className="w-2.5 h-2.5 stroke-[3]" />
-              {lic.daysRemaining < 30 ? `${lic.daysRemaining}D OFFLINE` : 'OFFLINE'}
+            <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-emerald-500/95 text-[9px] font-black text-black tracking-wider uppercase shadow-md flex items-center gap-1 backdrop-blur-sm z-10" title={`Licencia offline: ${lic.daysRemaining} días restantes`}>
+              <Check className="w-2.5 h-2.5 stroke-[3] text-black" />
+              <span>{index ? `#${index} · OFFLINE` : (lic.daysRemaining < 30 ? `${lic.daysRemaining}D OFFLINE` : 'OFFLINE')}</span>
             </span>
           );
         })()}
@@ -3684,23 +4150,51 @@ function TrackCard({
             <p className="text-[11px] text-gray-400 truncate flex-1">
               {track.artist}
             </p>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onArtistClick) {
-                  onArtistClick(track.artist, track.artistId);
-                } else if (window.__teamgOpenArtist) {
-                  window.__teamgOpenArtist(track.artist, track.artistId);
-                }
-              }}
-              className="text-[11px] text-gray-400 hover:text-fuchsia-300 hover:underline truncate flex-1 text-left transition cursor-pointer"
-              title={`Ver discografía y álbumes de ${track.artist}`}
-            >
-              {track.artist}
-            </button>
-          )}
+          ) : (() => {
+            const cardArtists = parseArtists(track.artist);
+            return (
+              <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-gray-400 truncate flex-1">
+                {cardArtists.length > 0 ? (
+                  cardArtists.map((artName, aIdx) => (
+                    <React.Fragment key={`card-art-${track.id}-${artName}-${aIdx}`}>
+                      {aIdx > 0 && <span className="text-gray-600 font-normal">&</span>}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onArtistClick) {
+                            onArtistClick(artName);
+                          } else if (window.__teamgOpenArtist) {
+                            window.__teamgOpenArtist(artName);
+                          }
+                        }}
+                        className="hover:text-fuchsia-300 hover:underline transition cursor-pointer text-left truncate"
+                        title={`Ver discografía y álbumes de ${artName}`}
+                      >
+                        {artName}
+                      </button>
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onArtistClick) {
+                        onArtistClick(track.artist, track.artistId);
+                      } else if (window.__teamgOpenArtist) {
+                        window.__teamgOpenArtist(track.artist, track.artistId);
+                      }
+                    }}
+                    className="hover:text-fuchsia-300 hover:underline transition cursor-pointer truncate text-left"
+                    title={`Ver discografía y álbumes de ${track.artist}`}
+                  >
+                    {track.artist}
+                  </button>
+                )}
+              </div>
+            );
+          })()}
           {formattedDate && (
             <span className="text-[9px] font-semibold text-fuchsia-300/90 bg-fuchsia-950/60 px-1.5 py-0.5 rounded border border-fuchsia-500/20 flex-shrink-0" title={`Fecha de lanzamiento: ${formattedDate}`}>
               {formattedDate}
