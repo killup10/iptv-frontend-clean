@@ -1720,7 +1720,7 @@ export default function Music() {
                         isFav={isFavorite(track.id)}
                         onToggleFav={() => toggleFavorite(track)}
                         onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                        isDownloaded={isTrackDownloaded(track.id)}
+                        isDownloaded={isTrackDownloaded(track)}
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -1926,7 +1926,7 @@ export default function Music() {
                     isFav={isFavorite(track.id)}
                     onToggleFav={() => toggleFavorite(track)}
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                    isDownloaded={isTrackDownloaded(track.id)}
+                    isDownloaded={isTrackDownloaded(track)}
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -2197,7 +2197,7 @@ export default function Music() {
                         isFav={isFavorite(track.id)}
                         onToggleFav={() => toggleFavorite(track)}
                         onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                        isDownloaded={isTrackDownloaded(track.id)}
+                        isDownloaded={isTrackDownloaded(track)}
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -2545,7 +2545,7 @@ export default function Music() {
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
                       onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                      isDownloaded={isTrackDownloaded(track.id)}
+                      isDownloaded={isTrackDownloaded(track)}
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -2618,7 +2618,7 @@ export default function Music() {
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
                       onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                      isDownloaded={isTrackDownloaded(track.id)}
+                      isDownloaded={isTrackDownloaded(track)}
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -2766,7 +2766,7 @@ export default function Music() {
                     isFav={true}
                     onToggleFav={() => toggleFavorite(track)}
                     onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                    isDownloaded={isTrackDownloaded(track.id)}
+                    isDownloaded={isTrackDownloaded(track)}
                     downloadStatus={activeDownloadsMap[track.id]}
                     onDownload={() => downloadTrack(track)}
                     onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -2897,7 +2897,7 @@ export default function Music() {
                         isFav={isFavorite(track.id)}
                         onToggleFav={() => toggleFavorite(track)}
                         onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                        isDownloaded={isTrackDownloaded(track.id)}
+                        isDownloaded={isTrackDownloaded(track)}
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -3091,7 +3091,7 @@ export default function Music() {
                         onToggleFav={() => toggleFavorite(track)}
                         onAddToPlaylist={() => openAddToPlaylistModal(track)}
                         onRemoveFromPlaylist={() => removeTrackFromPlaylist(selectedPlaylist.id, track.id)}
-                        isDownloaded={isTrackDownloaded(track.id)}
+                        isDownloaded={isTrackDownloaded(track)}
                         downloadStatus={activeDownloadsMap[track.id]}
                         onDownload={() => downloadTrack(track)}
                         onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -3690,7 +3690,7 @@ export default function Music() {
                       isFav={isFavorite(track.id)}
                       onToggleFav={() => toggleFavorite(track)}
                       onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                      isDownloaded={isTrackDownloaded(track.id)}
+                      isDownloaded={isTrackDownloaded(track)}
                       downloadStatus={activeDownloadsMap[track.id]}
                       onDownload={() => downloadTrack(track)}
                       onDeleteOffline={() => deleteOfflineTrack(track.id)}
@@ -4239,9 +4239,13 @@ function TrackCard({
               </button>
             ) : onDownload ? (
               <button
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  onDownload();
+                  try {
+                    await onDownload();
+                  } catch (err) {
+                    alert('No se pudo descargar la canción: ' + (err?.message || err));
+                  }
                 }}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-fuchsia-400 hover:bg-white/5 active:scale-90 transition"
                 title="Descargar para escuchar sin internet (Modo Offline)"

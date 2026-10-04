@@ -1,7 +1,16 @@
 // src/services/musicOfflineService.js
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { musicService } from './musicService.js';
+
+let NativeMusicPlayback = null;
+try {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
+    NativeMusicPlayback = registerPlugin('MusicPlaybackPlugin');
+  }
+} catch (e) {
+  console.warn('[musicOfflineService] MusicPlaybackPlugin no disponible:', e);
+}
 
 const STORAGE_MUSIC_KEY = 'teamg_music_offline_tracks_v1';
 const STORAGE_OFFLINE_ALBUMS_KEY = 'teamg_music_offline_albums_v1';
@@ -59,12 +68,12 @@ export function getActiveUser() {
  */
 export function isUserSubscriptionActive(user = null) {
   const u = user || getActiveUser();
-  if (!u) return false;
+  if (!u) return true; // Si no hay usuario en sesión explícito, permitir uso estándar
   if (u.role === 'admin') return true;
   if (u.isActive === false) return false;
   if (u.expiresAt) {
     const exp = new Date(u.expiresAt).getTime();
-    if (isNaN(exp) || exp <= Date.now()) {
+    if (!isNaN(exp) && exp <= Date.now()) {
       return false; // Suscripción vencida en AdminPanel
     }
   }
@@ -78,7 +87,8 @@ export function isUserSubscriptionActive(user = null) {
  */
 export function calculateAllowedLicenseDuration(user = null) {
   const u = user || getActiveUser();
-  if (!u || !isUserSubscriptionActive(u)) {
+  if (!u) return OFFLINE_LICENSE_DURATION_MS;
+  if (!isUserSubscriptionActive(u)) {
     return 0; // Suscripción inactiva o vencida
   }
 
@@ -274,7 +284,7 @@ export function saveOfflineAlbums(albums) {
  * Registra un álbum como descargado en el almacenamiento persistente
  */
 export function recordAlbumDownloaded(album, downloadedTracks = []) {
-  if (!album) return;
+  if (!album || !Array.isArray(downloadedTracks) || downloadedTracks.length === 0) return;
   const albums = getOfflineAlbums();
   const albumId = String(album.id || '').trim();
   const albumTitle = String(album.title || '').trim();
@@ -608,40 +618,24 @@ export async function downloadTrackOffline(track, onProgress = null) {
       // === ALMACENAMIENTO MÓVIL ANDROID/CAPACITOR (SANDBOX PRIVADO) ===
       storageType = 'native_sandbox';
 
-      // Crear directorio principal y subcarpeta de álbum si existe
-      try {
-        await Filesystem.mkdir({
-          path: OFFLINE_MUSIC_FOLDER,
-          directory: Directory.Data,
-          recursive: true
-        });
-        if (safeAlbumFolder) {
-          await Filesystem.mkdir({
-            path: `${OFFLINE_MUSIC_FOLDER}/${safeAlbumFolder}`,
-            directory: Directory.Data,
-            recursive: true
-          });
-        }
-      } catch (_) {}
-
       let progressSub = null;
-      try {
-        progressSub = await Filesystem.addListener('progress', (event) => {
-          const bytes = Number(event?.bytes ?? event?.bytesWritten ?? 0);
-          const total = Number(event?.contentLength ?? event?.total ?? 0);
-          if (total > 0) {
-            const pct = Math.min(98, Math.max(25, Math.round(25 + ((bytes / total) * 73))));
-            notifyProgress({
-              id: trackId,
-              progress: pct,
-              status: 'downloading',
-              bytes,
-              total
-            });
-          }
-        });
-      } catch (subErr) {
-        console.warn('[musicOfflineService] No se pudo vincular listener de progreso nativo:', subErr);
+      if (NativeMusicPlayback && typeof NativeMusicPlayback.addListener === 'function') {
+        try {
+          progressSub = await NativeMusicPlayback.addListener('downloadProgress', (event) => {
+            if (String(event?.id) === trackId) {
+              const bytes = Number(event?.bytes || 0);
+              const total = Number(event?.total || 0);
+              const pct = Number(event?.progress || 0);
+              notifyProgress({
+                id: trackId,
+                progress: Math.min(99, Math.max(15, pct)),
+                status: 'downloading',
+                bytes,
+                total
+              });
+            }
+          });
+        } catch (_) {}
       }
 
       console.log(`[musicOfflineService] Descargando audio nativo: "${track.title}"`);
@@ -650,64 +644,80 @@ export async function downloadTrackOffline(track, onProgress = null) {
       const downloadHeaders = isYtStream ? {
         'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
         'Accept': '*/*'
-      } : {};
+      } : {
+        'Accept': '*/*'
+      };
 
-      try {
-        await Filesystem.downloadFile({
-          url: audioDownloadUrl,
-          path: relativeFilePath,
-          directory: Directory.Data,
-          progress: true,
-          headers: downloadHeaders
-        });
-
-        const stat = await Filesystem.stat({
-          path: relativeFilePath,
-          directory: Directory.Data
-        });
-        if ((stat.size || 0) >= 20 * 1024) {
-          finalSizeBytes = stat.size || 0;
-          downloadedOk = true;
+      // 1. Descarga nativa de alto rendimiento vía NativeMusicPlayback (Java HttpURLConnection con mkdirs() automático)
+      if (NativeMusicPlayback && typeof NativeMusicPlayback.downloadAudio === 'function') {
+        try {
+          const dlRes = await NativeMusicPlayback.downloadAudio({
+            id: trackId,
+            url: audioDownloadUrl,
+            path: relativeFilePath,
+            headers: downloadHeaders
+          });
+          if (dlRes && (dlRes.size || 0) >= 20 * 1024) {
+            finalSizeBytes = dlRes.size || 0;
+            downloadedOk = true;
+          }
+        } catch (nativeErr) {
+          console.warn('[musicOfflineService] NativeMusicPlayback.downloadAudio error, probando CDN alternativa:', nativeErr?.message || nativeErr);
         }
-      } catch (nativeDlErr) {
-        console.warn('[musicOfflineService] Descarga primaria nativa no completada:', nativeDlErr?.message || nativeDlErr);
       }
 
-      // Si la descarga primaria de YouTube falló o el archivo quedó en 0B, usar fallback CDN (Apple/Deezer)
-      if (!downloadedOk) {
+      // 2. Si falló la primaria nativa, intentar con respaldo CDN nativo
+      if (!downloadedOk && NativeMusicPlayback && typeof NativeMusicPlayback.downloadAudio === 'function') {
         try {
-          await Filesystem.deleteFile({
-            path: relativeFilePath,
-            directory: Directory.Data
-          });
-        } catch (_) {}
-
-        console.log(`[musicOfflineService] Intentando descarga de respaldo CDN para: "${track.title}"`);
-        const fallbackUrl = await resolveFallbackCdnAudio(track);
-        if (fallbackUrl && fallbackUrl !== audioDownloadUrl) {
-          try {
-            await Filesystem.downloadFile({
+          const fallbackUrl = await resolveFallbackCdnAudio(track);
+          if (fallbackUrl && fallbackUrl !== audioDownloadUrl) {
+            console.log(`[musicOfflineService] Reintentando descarga con CDN alternativa para: "${track.title}"`);
+            const fbRes = await NativeMusicPlayback.downloadAudio({
+              id: trackId,
               url: fallbackUrl,
               path: relativeFilePath,
-              directory: Directory.Data,
-              progress: true
+              headers: { 'Accept': '*/*' }
             });
-            const statFallback = await Filesystem.stat({
-              path: relativeFilePath,
-              directory: Directory.Data
-            });
-            if ((statFallback.size || 0) >= 20 * 1024) {
-              finalSizeBytes = statFallback.size || 0;
+            if (fbRes && (fbRes.size || 0) >= 20 * 1024) {
+              finalSizeBytes = fbRes.size || 0;
               downloadedOk = true;
             }
-          } catch (fbErr) {
-            console.warn('[musicOfflineService] Respaldo CDN nativo falló:', fbErr?.message || fbErr);
           }
+        } catch (fbErr) {
+          console.warn('[musicOfflineService] Respaldo nativo también falló:', fbErr?.message || fbErr);
+        }
+      }
+
+      // 3. Fallback a Filesystem de Capacitor si el plugin nativo no estuviera presente
+      if (!downloadedOk) {
+        try {
+          try {
+            await Filesystem.mkdir({ path: OFFLINE_MUSIC_FOLDER, directory: Directory.Data, recursive: true });
+            if (safeAlbumFolder) {
+              await Filesystem.mkdir({ path: `${OFFLINE_MUSIC_FOLDER}/${safeAlbumFolder}`, directory: Directory.Data, recursive: true });
+            }
+          } catch (_) {}
+
+          await Filesystem.downloadFile({
+            url: audioDownloadUrl,
+            path: relativeFilePath,
+            directory: Directory.Data,
+            progress: true,
+            headers: downloadHeaders
+          });
+
+          const stat = await Filesystem.stat({ path: relativeFilePath, directory: Directory.Data });
+          if ((stat.size || 0) >= 20 * 1024) {
+            finalSizeBytes = stat.size || 0;
+            downloadedOk = true;
+          }
+        } catch (fsErr) {
+          console.warn('[musicOfflineService] Filesystem fallback falló:', fsErr?.message || fsErr);
         }
       }
 
       if (progressSub && typeof progressSub.remove === 'function') {
-        progressSub.remove();
+        try { progressSub.remove(); } catch (_) {}
       }
 
       // Validar integridad mínima: audio real > 20 KB
@@ -898,9 +908,11 @@ export async function downloadAlbumOffline(album, onOverallProgress = null) {
     }
   }
 
-  // Registrar el álbum como descargado en almacenamiento persistente
-  if (results.length > 0 || completed > 0) {
+  // Registrar el álbum como descargado en almacenamiento persistente sólo si se descargaron pistas
+  if (results.length > 0) {
     recordAlbumDownloaded({ ...album, tracks }, results);
+  } else {
+    throw new Error(`No se pudo descargar ninguna canción del álbum "${albumTitle}". Verifica tu conexión.`);
   }
 
   return results;
@@ -912,6 +924,9 @@ export async function downloadAlbumOffline(album, onOverallProgress = null) {
  */
 export function isAlbumOffline(album) {
   if (!album) return false;
+  const list = getOfflineTracks();
+  if (!Array.isArray(list) || list.length === 0) return false;
+
   const albumId = album.id ? String(album.id).trim() : null;
   const cleanAlbumId = albumId ? albumId.replace(/^[a-z]+_album_/i, '').replace(/^[a-z]+-/i, '') : null;
   const albumTitle = String(album.title || '').trim().toLowerCase();

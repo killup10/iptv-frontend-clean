@@ -889,34 +889,40 @@ const YT_INNER_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
  */
 async function resolveYouTubeViaCapacitor(query) {
   if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform?.()) return null;
-  try {
-    const res = await CapacitorHttp.post({
-      url: `https://www.youtube.com/youtubei/v1/search?key=${YT_INNER_KEY}`,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip'
-      },
-      data: {
-        context: {
-          client: {
-            clientName: 'ANDROID',
-            clientVersion: '20.10.38',
-            androidSdkVersion: 30,
-            hl: 'es',
-            gl: 'PE'
-          }
+  const doSearch = async (q) => {
+    try {
+      const res = await CapacitorHttp.post({
+        url: `https://www.youtube.com/youtubei/v1/search?key=${YT_INNER_KEY}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip'
         },
-        query: query + ' audio'
-      }
-    });
-    const str = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-    const matches = [...str.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)].map(m => m[1]);
-    const uniqueIds = [...new Set(matches)];
-    if (uniqueIds.length > 0) return uniqueIds[0];
-  } catch (e) {
-    console.warn('[MusicService] Capacitor InnerTube search failed:', e);
-  }
-  return null;
+        data: {
+          context: {
+            client: {
+              clientName: 'ANDROID',
+              clientVersion: '20.10.38',
+              androidSdkVersion: 30,
+              hl: 'es',
+              gl: 'PE'
+            }
+          },
+          query: q
+        }
+      });
+      const str = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+      const matches = [...str.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)].map(m => m[1]);
+      const uniqueIds = [...new Set(matches)];
+      if (uniqueIds.length > 0) return uniqueIds[0];
+    } catch (e) {
+      console.warn('[MusicService] Capacitor InnerTube search failed:', e);
+    }
+    return null;
+  };
+
+  let id = await doSearch(query + ' audio');
+  if (!id) id = await doSearch(query);
+  return id;
 }
 
 /**
@@ -1810,10 +1816,14 @@ export const musicService = {
     const cached = ytCacheGet(query);
     if (cached) return cached;
 
+    const primaryArtist = cleanArtist ? cleanArtist.split(/,|&|\/| feat\.? | ft\.? /i)[0].trim() : '';
+    const altQuery = (primaryArtist && primaryArtist !== cleanArtist) ? `${primaryArtist} ${cleanTitle}`.trim() : null;
+
     // 1. Electron IPC (proceso principal Node.js con InnerTube integrado: ~200ms)
     if (typeof window !== 'undefined' && window.electronAPI?.getMusicYouTubeId) {
       try {
-        const id = await window.electronAPI.getMusicYouTubeId(query);
+        let id = await window.electronAPI.getMusicYouTubeId(query);
+        if (!id && altQuery) id = await window.electronAPI.getMusicYouTubeId(altQuery);
         if (id) {
           ytCacheSet(query, id);
           return id;
@@ -1826,7 +1836,8 @@ export const musicService = {
     // 2. Móvil / Android TV (Capacitor nativo): resolución directa en dispositivo sin CORS (~300ms)
     if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()) {
       try {
-        const nativeId = await resolveYouTubeViaCapacitor(query);
+        let nativeId = await resolveYouTubeViaCapacitor(query);
+        if (!nativeId && altQuery) nativeId = await resolveYouTubeViaCapacitor(altQuery);
         if (nativeId) {
           ytCacheSet(query, nativeId);
           return nativeId;
@@ -1838,10 +1849,16 @@ export const musicService = {
 
     // 3. Backend vía axiosInstance (timeout corto 4s)
     try {
-      const res = await axiosInstance.get('/api/music/resolve', {
+      let res = await axiosInstance.get('/api/music/resolve', {
         params: { artist: cleanArtist, title: cleanTitle },
         timeout: 4000
       });
+      if (!res.data?.youtubeId && altQuery) {
+        res = await axiosInstance.get('/api/music/resolve', {
+          params: { artist: primaryArtist, title: cleanTitle },
+          timeout: 4000
+        });
+      }
       if (res.data?.youtubeId) {
         ytCacheSet(query, res.data.youtubeId);
         return res.data.youtubeId;
