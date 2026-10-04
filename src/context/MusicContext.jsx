@@ -65,14 +65,18 @@ export function MusicProvider({ children }) {
   });
   const [playlistModalTrack, setPlaylistModalTrack] = useState(null);
   const [offlineTracks, setOfflineTracks] = useState(() => musicOfflineService.getOfflineTracks());
+  const [downloadedAlbums, setDownloadedAlbums] = useState(() => musicOfflineService.getOfflineAlbums());
   const [activeDownloadsMap, setActiveDownloadsMap] = useState({});
   const [isDownloadingPlaylistId, setIsDownloadingPlaylistId] = useState(null);
   const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState(null);
+  const [downloadingAlbumId, setDownloadingAlbumId] = useState(null);
+  const [albumDownloadProgress, setAlbumDownloadProgress] = useState(null);
 
   // Escuchar eventos de descargas offline y sincronizar estado reactivo
   useEffect(() => {
     const handleOfflineUpdate = (e) => {
       setOfflineTracks(e.detail?.tracks || musicOfflineService.getOfflineTracks());
+      setDownloadedAlbums(e.detail?.albums || musicOfflineService.getOfflineAlbums());
     };
 
     const handleOfflineProgress = (e) => {
@@ -202,7 +206,6 @@ export function MusicProvider({ children }) {
 
     const onEnded = () => {
       if (transitionRef.current || !playIntentRef.current) return;
-      if (Capacitor.isNativePlatform() && fullStreamRef.current) return;
       const track = currentTrackRef.current;
       // En modo YouTube el iframe maneja el fin (su onEnded avanza solo).
       if (track?.youtubeId && playbackModeRef.current === 'youtube') return;
@@ -335,7 +338,9 @@ export function MusicProvider({ children }) {
         ],
         coverUrl: currentTrack.cover || '',
         audioUrl: safeAudio,
-        isPlaying: isPlaying,
+        // Do not let the native player resume the previous ExoPlayer item while
+        // the next track's stream URL is still being resolved.
+        isPlaying: isPlaying && !transitionRef.current,
         duration: duration,
         position: currentTime
       });
@@ -364,7 +369,7 @@ export function MusicProvider({ children }) {
     if (currentTrack && !videoPlaybackActiveRef.current) {
       const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
       const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
-      backgroundPlaybackService.updatePlaybackState(isPlaying, {
+      backgroundPlaybackService.updatePlaybackState(isPlaying && !transitionRef.current, {
         ...currentTrack,
         audioUrl: safeAudio
       }, currentTime, duration);
@@ -429,6 +434,20 @@ export function MusicProvider({ children }) {
     }, 5000);
     return () => clearTimeout(timer);
   }, [isLoadingAudio]);
+
+  // Watchdog de reproducción continua garantizada: si la canción llegó al final y no avanzó, avanzar tras 2.5s
+  useEffect(() => {
+    if (!isPlaying || !currentTrack || duration <= 5) return;
+    if (currentTime >= Math.floor(duration) - 0.5) {
+      const endWatchdog = setTimeout(() => {
+        if (playIntentRef.current && !transitionRef.current) {
+          console.log('[MusicContext] Watchdog de fin de pista activado: avanzando a la siguiente...');
+          handleNextRef.current?.();
+        }
+      }, 2500);
+      return () => clearTimeout(endWatchdog);
+    }
+  }, [isPlaying, currentTime, duration, currentTrack]);
 
   // Carga el stream COMPLETO (mp3/m4a directo) en el motor de reproducción.
   // Si no hay stream directo disponible, delega al iframe YouTube como respaldo seguro.
@@ -1022,16 +1041,39 @@ export function MusicProvider({ children }) {
   // --- MODO OFFLINE (DESCARGAS INDIVIDUALES Y PLAYLISTS) ---
   const downloadTrack = useCallback(async (track) => {
     if (!track) return null;
-    return await musicOfflineService.downloadTrackOffline(track);
+    try {
+      const res = await musicOfflineService.downloadTrackOffline(track);
+      setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+      setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
+      return res;
+    } catch (err) {
+      console.error('[MusicContext] Error descargando pista offline:', err);
+      throw err;
+    } finally {
+      setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+      setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
+    }
   }, []);
 
   const deleteOfflineTrack = useCallback(async (trackId) => {
     if (!trackId) return;
     await musicOfflineService.deleteOfflineTrack(trackId);
+    setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+    setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
   }, []);
 
-  const isTrackDownloaded = useCallback((trackId) => {
-    return musicOfflineService.isTrackOffline(trackId);
+  const isTrackDownloaded = useCallback((trackOrId, title = null, artist = null) => {
+    if (trackOrId && typeof trackOrId === 'object') {
+      return musicOfflineService.isTrackOffline(trackOrId.id, trackOrId.title, trackOrId.artist);
+    }
+    return musicOfflineService.isTrackOffline(trackOrId, title, artist);
+  }, [offlineTracks]);
+
+  const isPlaylistDownloaded = useCallback((playlist) => {
+    const tracks = Array.isArray(playlist?.tracks) ? playlist.tracks : [];
+    return tracks.length > 0 && tracks.every((track) =>
+      musicOfflineService.isTrackOffline(track?.id, track?.title, track?.artist)
+    );
   }, [offlineTracks]);
 
   const downloadPlaylist = useCallback(async (playlist) => {
@@ -1050,13 +1092,45 @@ export function MusicProvider({ children }) {
     }
   }, []);
 
-  const isPlaylistDownloaded = useCallback((playlist) => {
-    if (!playlist || !Array.isArray(playlist.tracks) || playlist.tracks.length === 0) return false;
-    return playlist.tracks.every(t => musicOfflineService.isTrackOffline(t.id));
-  }, [offlineTracks]);
+  const downloadAlbum = useCallback(async (album) => {
+    if (!album) return;
+    setDownloadingAlbumId(album.id);
+    const totalCount = Array.isArray(album.tracks) && album.tracks.length > 0 ? album.tracks.length : 1;
+    setAlbumDownloadProgress({ current: 0, total: totalCount, percentage: 0 });
+    try {
+      const results = await musicOfflineService.downloadAlbumOffline(album, (progress) => {
+        setAlbumDownloadProgress(progress);
+      });
+      // Sincronizar inmediatamente estado reactivo de pistas y álbumes descargados
+      setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+      setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
+      return results;
+    } catch (err) {
+      console.error('[MusicContext] Error descargando álbum offline:', err);
+      throw err;
+    } finally {
+      setDownloadingAlbumId(null);
+      setAlbumDownloadProgress(null);
+      setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+      setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
+    }
+  }, []);
+
+  const deleteOfflineAlbum = useCallback(async (album) => {
+    if (!album) return;
+    await musicOfflineService.deleteOfflineAlbum(album);
+    setOfflineTracks([...musicOfflineService.getOfflineTracks()]);
+    setDownloadedAlbums([...musicOfflineService.getOfflineAlbums()]);
+  }, []);
+
+  const isAlbumDownloaded = useCallback((album) => {
+    return musicOfflineService.isAlbumOffline(album);
+  }, [offlineTracks, downloadedAlbums]);
 
   const clearAllOffline = useCallback(async () => {
     await musicOfflineService.clearAllOfflineTracks();
+    setOfflineTracks([]);
+    setDownloadedAlbums([]);
   }, []);
 
   const value = {
@@ -1079,14 +1153,20 @@ export function MusicProvider({ children }) {
     playlistCloudStatus,
     playlistModalTrack,
     offlineTracks,
+    downloadedAlbums,
     activeDownloadsMap,
     isDownloadingPlaylistId,
     playlistDownloadProgress,
+    downloadingAlbumId,
+    albumDownloadProgress,
     downloadTrack,
     deleteOfflineTrack,
     isTrackDownloaded,
     downloadPlaylist,
     isPlaylistDownloaded,
+    downloadAlbum,
+    deleteOfflineAlbum,
+    isAlbumDownloaded,
     clearAllOffline,
     getOfflineTotalStorage: musicOfflineService.getTotalOfflineSize,
     getTrackLicenseInfo: musicOfflineService.getTrackLicenseInfo,

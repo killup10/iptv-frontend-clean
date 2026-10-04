@@ -35,7 +35,27 @@ public class MusicPlaybackPlugin extends Plugin {
         if (instance != null) {
             JSObject ret = new JSObject();
             ret.put("action", action);
-            instance.notifyListeners("onMediaAction", ret);
+            try {
+                instance.notifyListeners("onMediaAction", ret);
+            } catch (Exception ignored) {}
+
+            try {
+                if (instance.getActivity() != null) {
+                    instance.getActivity().runOnUiThread(() -> {
+                        try {
+                            if (instance.getBridge() != null && instance.getBridge().getWebView() != null) {
+                                instance.getBridge().getWebView().resumeTimers();
+                                String script = "try { window.dispatchEvent(new CustomEvent('backgroundPlayback:" + action + "')); } catch(e){}";
+                                instance.getBridge().getWebView().evaluateJavascript(script, null);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error enviando JS directo a WebView", e);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error en sendMediaAction", e);
+            }
         }
     }
 

@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -71,6 +72,7 @@ public class MusicPlaybackService extends Service {
     private ExoPlayer player;
     private MediaSessionCompat mediaSession;
     private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
     private NotificationManager notificationManager;
     private Bitmap currentCoverBitmap = null;
     private String lastLoadedCoverUrl = null;
@@ -89,7 +91,7 @@ public class MusicPlaybackService extends Service {
         notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         createNotificationChannel();
 
-        // 1. WakeLock parcial para asegurar que la CPU no duerma con la pantalla apagada
+        // 1. WakeLock parcial y WifiLock para asegurar que la CPU y el WiFi no duerman con la pantalla apagada
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
@@ -98,6 +100,16 @@ public class MusicPlaybackService extends Service {
             }
         } catch (Exception e) {
             Log.w(TAG, "No se pudo obtener WakeLock", e);
+        }
+
+        try {
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null) {
+                wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "TeamG:MusicPlaybackWifiLock");
+                wifiLock.setReferenceCounted(false);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "No se pudo obtener WifiLock", e);
         }
 
         // 2. Inicializar ExoPlayer nativo para reproducción de audio
@@ -126,18 +138,27 @@ public class MusicPlaybackService extends Service {
                 @Override
                 public void onIsPlayingChanged(boolean isPlayingNow) {
                     isPlaying = player != null && player.getPlayWhenReady();
-                    manageWakeLock(isPlaying);
+                    // Si el estado es STATE_ENDED o está pasando a la siguiente canción, mantener CPU despierta
+                    if (player != null && (player.getPlaybackState() == Player.STATE_ENDED || player.getPlaybackState() == Player.STATE_BUFFERING)) {
+                        manageWakeLock(true);
+                    } else {
+                        manageWakeLock(isPlaying);
+                    }
                     updateMediaSessionState();
                     updateNotification();
-                    // IMPORTANTE: NO emitir sendMediaAction aquí. Durante buffering o seek,
-                    // isPlayingNow cambia temporalmente a false. Las acciones reales del usuario
-                    // (notificación y pantalla de bloqueo) se gestionan explícitamente en handleAction.
                 }
 
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     if (playbackState == Player.STATE_ENDED) {
                         Log.d(TAG, "Canción finalizada en ExoPlayer nativo -> pasando a la siguiente");
+                        // Mantener la CPU activa 60 segundos garantizados mientras el WebView procesa la siguiente pista
+                        if (wakeLock != null) {
+                            try {
+                                if (wakeLock.isHeld()) wakeLock.release();
+                                wakeLock.acquire(60 * 1000L);
+                            } catch (Exception ignored) {}
+                        }
                         MusicPlaybackPlugin.sendMediaAction("next");
                     }
                 }
@@ -145,6 +166,12 @@ public class MusicPlaybackService extends Service {
                 @Override
                 public void onPlayerError(PlaybackException error) {
                     Log.e(TAG, "ExoPlayer error de reproducción: " + error.getMessage());
+                    if (wakeLock != null) {
+                        try {
+                            if (wakeLock.isHeld()) wakeLock.release();
+                            wakeLock.acquire(30 * 1000L);
+                        } catch (Exception ignored) {}
+                    }
                     mainHandler.postDelayed(() -> {
                         MusicPlaybackPlugin.sendMediaAction("next");
                     }, 500);
@@ -368,8 +395,15 @@ public class MusicPlaybackService extends Service {
                     wakeLock.release();
                 }
             }
+            if (wifiLock != null) {
+                if (acquire && !wifiLock.isHeld()) {
+                    wifiLock.acquire();
+                } else if (!acquire && wifiLock.isHeld()) {
+                    wifiLock.release();
+                }
+            }
         } catch (Exception e) {
-            Log.w(TAG, "Error administrando WakeLock", e);
+            Log.w(TAG, "Error administrando WakeLock/WifiLock", e);
         }
     }
 
@@ -562,6 +596,9 @@ public class MusicPlaybackService extends Service {
         if (mediaSession != null) {
             mediaSession.setActive(false);
             mediaSession.release();
+        }
+        if (wifiLock != null && wifiLock.isHeld()) {
+            try { wifiLock.release(); } catch (Exception ignored) {}
         }
         imageExecutor.shutdown();
     }

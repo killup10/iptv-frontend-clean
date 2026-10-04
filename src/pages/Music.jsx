@@ -1470,9 +1470,13 @@ export default function Music() {
                         const confirmRedownload = window.confirm?.(`El álbum "${selectedAlbumDetail.title}" ya está descargado. ¿Deseas volver a descargarlo para actualizar sus archivos?`) ?? true;
                         if (!confirmRedownload) return;
                       }
-                      await downloadAlbum(selectedAlbumDetail);
-                      setAlbumDownloadedToast(true);
-                      setTimeout(() => setAlbumDownloadedToast(false), 3500);
+                      try {
+                        await downloadAlbum(selectedAlbumDetail);
+                        setAlbumDownloadedToast(true);
+                        setTimeout(() => setAlbumDownloadedToast(false), 3500);
+                      } catch (err) {
+                        alert('No se pudo completar la descarga del álbum: ' + (err?.message || err));
+                      }
                     }}
                     className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 shadow-sm border ${
                       isAlbumDownloaded(selectedAlbumDetail) || albumDownloadedToast
@@ -1508,6 +1512,7 @@ export default function Music() {
                         const confirmDel = window.confirm?.(`¿Deseas eliminar las canciones descargadas de "${selectedAlbumDetail.title}" de tu dispositivo?`) ?? true;
                         if (confirmDel) {
                           await deleteOfflineAlbum(selectedAlbumDetail);
+                          setAlbumDownloadedToast(false);
                         }
                       }}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer active:scale-95 shadow-sm border bg-red-500/10 hover:bg-red-500/20 text-red-300 border-red-500/30"

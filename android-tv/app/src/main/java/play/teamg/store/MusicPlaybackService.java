@@ -126,18 +126,26 @@ public class MusicPlaybackService extends Service {
                 @Override
                 public void onIsPlayingChanged(boolean isPlayingNow) {
                     isPlaying = player != null && player.getPlayWhenReady();
-                    manageWakeLock(isPlaying);
+                    // Si el estado es STATE_ENDED o está pasando a la siguiente canción, mantener CPU despierta
+                    if (player != null && (player.getPlaybackState() == Player.STATE_ENDED || player.getPlaybackState() == Player.STATE_BUFFERING)) {
+                        manageWakeLock(true);
+                    } else {
+                        manageWakeLock(isPlaying);
+                    }
                     updateMediaSessionState();
                     updateNotification();
-                    // IMPORTANTE: NO emitir sendMediaAction aquí. Durante buffering o seek,
-                    // isPlayingNow cambia temporalmente a false. Las acciones reales del usuario
-                    // (notificación y pantalla de bloqueo) se gestionan explícitamente en handleAction.
                 }
 
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     if (playbackState == Player.STATE_ENDED) {
                         Log.d(TAG, "Canción finalizada en ExoPlayer nativo -> pasando a la siguiente");
+                        if (wakeLock != null) {
+                            try {
+                                if (wakeLock.isHeld()) wakeLock.release();
+                                wakeLock.acquire(60 * 1000L);
+                            } catch (Exception ignored) {}
+                        }
                         MusicPlaybackPlugin.sendMediaAction("next");
                     }
                 }
@@ -145,6 +153,12 @@ public class MusicPlaybackService extends Service {
                 @Override
                 public void onPlayerError(PlaybackException error) {
                     Log.e(TAG, "ExoPlayer error de reproducción: " + error.getMessage());
+                    if (wakeLock != null) {
+                        try {
+                            if (wakeLock.isHeld()) wakeLock.release();
+                            wakeLock.acquire(30 * 1000L);
+                        } catch (Exception ignored) {}
+                    }
                     mainHandler.postDelayed(() -> {
                         MusicPlaybackPlugin.sendMediaAction("next");
                     }, 500);

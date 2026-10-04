@@ -95,7 +95,7 @@ class BackgroundPlaybackService {
       await this.initialize();
       
       this.currentMedia = mediaInfo;
-      this.isPlaying = true;
+      this.isPlaying = mediaInfo.isPlaying !== false;
 
       // Configurar Media Session estándar para navegadores
       if (this.mediaSession) {
@@ -129,7 +129,7 @@ class BackgroundPlaybackService {
           window.dispatchEvent(new CustomEvent('backgroundPlayback:next'));
         });
 
-        this.mediaSession.playbackState = 'playing';
+        this.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
       }
 
       // Notificar al servicio nativo de Android para crear/actualizar la notificación multimedia y reproducir con ExoPlayer
@@ -142,7 +142,7 @@ class BackgroundPlaybackService {
           artist: mediaInfo.artist || 'Reproduciendo',
           coverUrl: mediaInfo.coverUrl || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
           audioUrl: safeAudioUrl,
-          isPlaying: true,
+          isPlaying: this.isPlaying,
           duration: mediaInfo.duration ? Math.round(mediaInfo.duration) : 0,
           position: mediaInfo.position ? Math.round(mediaInfo.position) : 0
         }).catch(err => {
@@ -151,7 +151,7 @@ class BackgroundPlaybackService {
       }
 
       // Solicitar Wake Lock para evitar que la pantalla se apague mientras la app está abierta
-      await this.requestWakeLock();
+      if (this.isPlaying) await this.requestWakeLock();
 
       console.log('[BackgroundPlayback] Reproducción iniciada:', mediaInfo.title);
     } catch (error) {
@@ -161,6 +161,7 @@ class BackgroundPlaybackService {
 
   updatePlaybackState(isPlaying, mediaInfo, position, duration) {
     this.isPlaying = isPlaying;
+    if (mediaInfo) this.currentMedia = { ...mediaInfo, position, duration, isPlaying };
     if (this.mediaSession) {
       this.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }

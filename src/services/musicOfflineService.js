@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { musicService } from './musicService.js';
 
 const STORAGE_MUSIC_KEY = 'teamg_music_offline_tracks_v1';
+const STORAGE_OFFLINE_ALBUMS_KEY = 'teamg_music_offline_albums_v1';
 const OFFLINE_MUSIC_FOLDER = 'teamg_offline_music';
 const CACHE_NAME = 'teamg-offline-music-v1';
 
@@ -99,7 +100,9 @@ export function calculateAllowedLicenseDuration(user = null) {
  * considerando tanto el límite de 30 días como el estado de suscripción en AdminPanel.
  */
 export function getTrackLicenseInfo(trackOrId, user = null) {
-  const track = typeof trackOrId === 'object' && trackOrId !== null ? trackOrId : getOfflineTrack(trackOrId);
+  const track = typeof trackOrId === 'object' && trackOrId !== null
+    ? (getOfflineTrack(trackOrId.id, trackOrId.title, trackOrId.artist) || trackOrId)
+    : getOfflineTrack(trackOrId);
   if (!track) return { isValid: false, daysRemaining: 0, isExpired: true, expiresAt: 0, isSubscriptionExpired: false };
 
   const now = Date.now();
@@ -243,24 +246,154 @@ function saveOfflineTracks(tracks) {
 }
 
 /**
- * Comprueba si una canción específica está descargada en modo offline
+ * Lee la lista de álbumes guardados como descargados offline
  */
-export function isTrackOffline(trackId) {
-  if (!trackId) return false;
-  const list = getOfflineTracks();
-  return list.some((item) => String(item.id) === String(trackId) && (item.sizeBytes === undefined || item.sizeBytes >= 20 * 1024));
+export function getOfflineAlbums() {
+  try {
+    const raw = localStorage.getItem(STORAGE_OFFLINE_ALBUMS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error('[musicOfflineService] Error leyendo álbumes offline:', err);
+    return [];
+  }
 }
 
 /**
- * Obtiene el registro de una canción descargada
+ * Guarda la lista de álbumes offline y notifica a la app
  */
-export function getOfflineTrack(trackId) {
-  if (!trackId) return null;
-  const list = getOfflineTracks();
-  const item = list.find((item) => String(item.id) === String(trackId)) || null;
-  if (item && item.sizeBytes !== undefined && item.sizeBytes < 20 * 1024) {
-    return null;
+export function saveOfflineAlbums(albums) {
+  try {
+    localStorage.setItem(STORAGE_OFFLINE_ALBUMS_KEY, JSON.stringify(albums));
+    window.dispatchEvent(new CustomEvent('teamg:music-offline-update', { detail: { albums } }));
+  } catch (err) {
+    console.error('[musicOfflineService] Error guardando álbumes offline:', err);
   }
+}
+
+/**
+ * Registra un álbum como descargado en el almacenamiento persistente
+ */
+export function recordAlbumDownloaded(album, downloadedTracks = []) {
+  if (!album) return;
+  const albums = getOfflineAlbums();
+  const albumId = String(album.id || '').trim();
+  const albumTitle = String(album.title || '').trim();
+  const albumArtist = String(album.artist || '').trim();
+
+  const record = {
+    id: albumId,
+    title: albumTitle,
+    artist: albumArtist,
+    cover: album.cover || '',
+    trackCount: (Array.isArray(album.tracks) && album.tracks.length) || downloadedTracks.length || 0,
+    downloadedAt: Date.now()
+  };
+
+  const filtered = albums.filter(a => {
+    if (albumId && String(a.id) === albumId) return false;
+    if (albumTitle && String(a.title || '').trim().toLowerCase() === albumTitle.toLowerCase()) return false;
+    return true;
+  });
+
+  saveOfflineAlbums([record, ...filtered]);
+}
+
+/**
+ * Normaliza cadenas de texto para comparar títulos de álbumes y canciones
+ * ignorando mayúsculas, tildes, símbolos y menciones como (Deluxe), [Remastered], etc.
+ */
+export function normalizeCleanText(str) {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*\([^)]*\)|\s*\[[^\]]*\]/g, '') // descarta (deluxe), [explicit], (remaster), etc.
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Comprueba si una canción específica está descargada en modo offline
+ * Soporta coincidencia por trackId (con o sin prefijos itunes-/deezer-) o por título y artista normalizados
+ */
+export function isTrackOffline(trackId, title = null, artist = null) {
+  if (!trackId && !title) return false;
+  const list = getOfflineTracks();
+  const rawId = trackId ? String(trackId).trim() : '';
+  const cleanId = rawId ? rawId.replace(/^[a-z]+-/, '') : '';
+  const normTitle = title ? normalizeCleanText(title) : '';
+  const normArtist = artist ? normalizeCleanText(artist) : '';
+
+  return list.some((item) => {
+    if (item.sizeBytes !== undefined && item.sizeBytes < 20 * 1024) return false;
+    const itemId = String(item.id || '').trim();
+    if (rawId && itemId === rawId) return true;
+    if (cleanId) {
+      const itemCleanId = itemId.replace(/^[a-z]+-/, '');
+      if (itemCleanId === cleanId) return true;
+      if (item.trackId && (String(item.trackId) === cleanId || String(item.trackId) === rawId)) return true;
+    }
+    if (title && item.title) {
+      const matchExact = item.title.trim().toLowerCase() === title.trim().toLowerCase();
+      if (matchExact) {
+        if (!artist || !item.artist) return true;
+        const a1 = artist.trim().toLowerCase();
+        const a2 = item.artist.trim().toLowerCase();
+        if (a1 === a2 || a1.includes(a2) || a2.includes(a1)) return true;
+      }
+      if (normTitle) {
+        const itemNorm = normalizeCleanText(item.title);
+        if (itemNorm && (itemNorm === normTitle || itemNorm.includes(normTitle) || normTitle.includes(itemNorm))) {
+          if (!normArtist || !item.artist) return true;
+          const aNorm = normalizeCleanText(item.artist);
+          if (!aNorm || aNorm === normArtist || aNorm.includes(normArtist) || normArtist.includes(aNorm)) return true;
+        }
+      }
+    }
+    return false;
+  });
+}
+
+/**
+ * Obtiene el registro de una canción descargada por ID o por coincidencia de título y artista
+ */
+export function getOfflineTrack(trackId, title = null, artist = null) {
+  if (!trackId && !title) return null;
+  const list = getOfflineTracks();
+  const rawId = trackId ? String(trackId).trim() : '';
+  const cleanId = rawId ? rawId.replace(/^[a-z]+-/, '') : '';
+  const normTitle = title ? normalizeCleanText(title) : '';
+  const normArtist = artist ? normalizeCleanText(artist) : '';
+
+  const item = list.find((item) => {
+    if (item.sizeBytes !== undefined && item.sizeBytes < 20 * 1024) return false;
+    const itemId = String(item.id || '').trim();
+    if (rawId && itemId === rawId) return true;
+    if (cleanId) {
+      const itemCleanId = itemId.replace(/^[a-z]+-/, '');
+      if (itemCleanId === cleanId) return true;
+      if (item.trackId && (String(item.trackId) === cleanId || String(item.trackId) === rawId)) return true;
+    }
+    if (title && item.title) {
+      const exactTitle = item.title.trim().toLowerCase() === title.trim().toLowerCase();
+      if (exactTitle) {
+        if (!artist || !item.artist) return true;
+        const a1 = artist.trim().toLowerCase();
+        const a2 = item.artist.trim().toLowerCase();
+        if (a1 === a2 || a1.includes(a2) || a2.includes(a1)) return true;
+      }
+      if (normTitle) {
+        const itemNorm = normalizeCleanText(item.title);
+        if (itemNorm && (itemNorm === normTitle || itemNorm.includes(normTitle) || normTitle.includes(itemNorm))) {
+          if (!normArtist || !item.artist) return true;
+          const aNorm = normalizeCleanText(item.artist);
+          if (!aNorm || aNorm === normArtist || aNorm.includes(normArtist) || normArtist.includes(aNorm)) return true;
+        }
+      }
+    }
+    return false;
+  }) || null;
+
   return item;
 }
 
@@ -270,6 +403,71 @@ export function getOfflineTrack(trackId) {
 export function getActiveDownloadStatus(trackId) {
   if (!trackId) return null;
   return activeMusicDownloads.get(String(trackId)) || null;
+}
+
+/**
+ * Resuelve una URL de audio CDN directa y confiable (Apple Music / Deezer)
+ * para descargas garantizadas sin bloqueos CORS ni restricciones de token.
+ */
+export async function resolveFallbackCdnAudio(track) {
+  if (!track) return null;
+
+  // 1. Si ya tiene audioUrl o previewUrl directa de CDN no-googlevideo
+  if (track.audioUrl && /^https?:\/\//i.test(track.audioUrl) && !/googlevideo\.com|youtube\.com/i.test(track.audioUrl)) {
+    return track.audioUrl.trim();
+  }
+  if (track.previewUrl && /^https?:\/\//i.test(track.previewUrl) && !/googlevideo\.com|youtube\.com/i.test(track.previewUrl)) {
+    return track.previewUrl.trim();
+  }
+
+  // 2. Si el track tiene ID de iTunes o Apple Music
+  const rawId = String(track.trackId || track.id || '');
+  const itunesIdMatch = rawId.match(/(?:itunes-|apple-)?(\d{6,14})/);
+  if (itunesIdMatch) {
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?id=${itunesIdMatch[1]}`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const d = await res.json();
+        const found = d.results?.[0];
+        if (found?.previewUrl && /^https?:\/\//i.test(found.previewUrl)) {
+          return found.previewUrl.trim();
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Buscar en iTunes por Artista y Título
+  const cleanTitle = (track.title || '').replace(/\(.*?\)|\[.*?\]/g, '').trim();
+  const cleanArtist = (track.artist && track.artist !== 'Artista Desconocido') ? track.artist.trim() : '';
+  const query = `${cleanArtist} ${cleanTitle}`.trim();
+
+  if (query) {
+    try {
+      const itunesSearchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=3`;
+      const res = await fetch(itunesSearchUrl, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const d = await res.json();
+        const found = d.results?.find(r => r.previewUrl);
+        if (found?.previewUrl && /^https?:\/\//i.test(found.previewUrl)) {
+          return found.previewUrl.trim();
+        }
+      }
+    } catch (_) {}
+
+    // 4. Buscar en Deezer por Artista y Título
+    try {
+      const deezerRes = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=3`, { signal: AbortSignal.timeout(5000) });
+      if (deezerRes.ok) {
+        const d = await deezerRes.json();
+        const found = d.data?.find(r => r.preview);
+        if (found?.preview && /^https?:\/\//i.test(found.preview)) {
+          return found.preview.trim();
+        }
+      }
+    } catch (_) {}
+  }
+
+  return null;
 }
 
 /**
@@ -285,8 +483,8 @@ async function resolveAudioUrlForDownload(track) {
     resolved = track.streamUrl;
   }
 
-  // 2. Si ya tiene youtubeId resuelto, obtener stream directo de alta calidad
-  if (!resolved && track.youtubeId) {
+  // 2. Si ya tiene youtubeId resuelto y estamos en Android o Electron, obtener stream directo
+  if (!resolved && track.youtubeId && (isNativeStorage() || (typeof window !== 'undefined' && window.electronAPI))) {
     try {
       const fullUrl = await musicService.getFullAudioUrl(track.youtubeId);
       if (fullUrl && /^https?:\/\//i.test(fullUrl)) {
@@ -297,10 +495,10 @@ async function resolveAudioUrlForDownload(track) {
     }
   }
 
-  // 3. Si no tiene youtubeId, resolverlo primero
-  if (!resolved && track.title) {
+  // 3. Si no tiene youtubeId, resolverlo primero (en Android o Electron)
+  if (!resolved && track.title && (isNativeStorage() || (typeof window !== 'undefined' && window.electronAPI))) {
     try {
-      const ytId = await musicService.getYouTubeId(track.artist, track.title);
+      let ytId = await musicService.getYouTubeId(track.artist, track.title);
       if (ytId) {
         track.youtubeId = ytId;
         const fullUrl = await musicService.getFullAudioUrl(ytId);
@@ -313,9 +511,26 @@ async function resolveAudioUrlForDownload(track) {
     }
   }
 
-  // 4. Fallback: Si tiene audioUrl estándar (mp3 de vista previa / fuente directa)
+  // 4. Fallback: Si tiene audioUrl estándar o previewUrl
   if (!resolved && track.audioUrl && /^https?:\/\//i.test(track.audioUrl)) {
     resolved = track.audioUrl;
+  }
+  if (!resolved && track.previewUrl && /^https?:\/\//i.test(track.previewUrl)) {
+    resolved = track.previewUrl;
+  }
+
+  // 5. Fallback garantizado: resolución dinámica en Apple Music / Deezer CDN
+  if (!resolved || (/googlevideo\.com|youtube\.com/i.test(resolved) && !isNativeStorage() && (!window?.electronAPI))) {
+    try {
+      const cdnUrl = await resolveFallbackCdnAudio(track);
+      if (cdnUrl) {
+        resolved = cdnUrl;
+        track.audioUrl = cdnUrl;
+        track.previewUrl = cdnUrl;
+      }
+    } catch (e) {
+      console.warn('[musicOfflineService] Error en resolución fallback CDN:', e);
+    }
   }
 
   if (resolved) {
@@ -374,8 +589,15 @@ export async function downloadTrackOffline(track, onProgress = null) {
 
     notifyProgress({ id: trackId, progress: 25, status: 'downloading', bytes: 0, total: 0 });
 
-    const safeTitle = (track.title || 'cancion').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
-    const safeFileName = `tg_track_${trackId.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.mp3`;
+    const rawAlbum = (track.album || track.albumTitle || '').trim();
+    const safeAlbumFolder = (rawAlbum && rawAlbum !== 'Sencillo' && rawAlbum !== 'TeamG Music')
+      ? rawAlbum.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().substring(0, 45)
+      : '';
+    const trackNum = track.trackNumber ? String(track.trackNumber).padStart(2, '0') + ' - ' : '';
+    const safeTitle = (track.title || 'cancion').replace(/[^a-zA-Z0-9_\-\s]/g, '_').trim().substring(0, 35);
+    const safeFileName = safeAlbumFolder
+      ? `${safeAlbumFolder}/${trackNum}${safeTitle}_${Date.now()}.mp3`
+      : `tg_track_${trackId.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.mp3`;
     const relativeFilePath = `${OFFLINE_MUSIC_FOLDER}/${safeFileName}`;
 
     let finalSizeBytes = 0;
@@ -386,13 +608,20 @@ export async function downloadTrackOffline(track, onProgress = null) {
       // === ALMACENAMIENTO MÓVIL ANDROID/CAPACITOR (SANDBOX PRIVADO) ===
       storageType = 'native_sandbox';
 
-      // Crear directorio privado si no existe
+      // Crear directorio principal y subcarpeta de álbum si existe
       try {
         await Filesystem.mkdir({
           path: OFFLINE_MUSIC_FOLDER,
           directory: Directory.Data,
           recursive: true
         });
+        if (safeAlbumFolder) {
+          await Filesystem.mkdir({
+            path: `${OFFLINE_MUSIC_FOLDER}/${safeAlbumFolder}`,
+            directory: Directory.Data,
+            recursive: true
+          });
+        }
       } catch (_) {}
 
       let progressSub = null;
@@ -416,46 +645,106 @@ export async function downloadTrackOffline(track, onProgress = null) {
       }
 
       console.log(`[musicOfflineService] Descargando audio nativo: "${track.title}"`);
-      await Filesystem.downloadFile({
-        url: audioDownloadUrl,
-        path: relativeFilePath,
-        directory: Directory.Data,
-        progress: true
-      });
+      let downloadedOk = false;
+      const isYtStream = /googlevideo\.com|youtube\.com/i.test(audioDownloadUrl);
+      const downloadHeaders = isYtStream ? {
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
+        'Accept': '*/*'
+      } : {};
 
-      if (progressSub && typeof progressSub.remove === 'function') {
-        progressSub.remove();
-      }
-
-      // Obtener tamaño final del archivo
       try {
+        await Filesystem.downloadFile({
+          url: audioDownloadUrl,
+          path: relativeFilePath,
+          directory: Directory.Data,
+          progress: true,
+          headers: downloadHeaders
+        });
+
         const stat = await Filesystem.stat({
           path: relativeFilePath,
           directory: Directory.Data
         });
-        finalSizeBytes = stat.size || 0;
-      } catch (_) {}
+        if ((stat.size || 0) >= 20 * 1024) {
+          finalSizeBytes = stat.size || 0;
+          downloadedOk = true;
+        }
+      } catch (nativeDlErr) {
+        console.warn('[musicOfflineService] Descarga primaria nativa no completada:', nativeDlErr?.message || nativeDlErr);
+      }
 
-      // Validar integridad mínima: audio real > 20 KB
-      if (finalSizeBytes < 20 * 1024) {
+      // Si la descarga primaria de YouTube falló o el archivo quedó en 0B, usar fallback CDN (Apple/Deezer)
+      if (!downloadedOk) {
         try {
           await Filesystem.deleteFile({
             path: relativeFilePath,
             directory: Directory.Data
           });
         } catch (_) {}
-        throw new Error('La descarga de la canción falló o el archivo está incompleto (0 MB).');
+
+        console.log(`[musicOfflineService] Intentando descarga de respaldo CDN para: "${track.title}"`);
+        const fallbackUrl = await resolveFallbackCdnAudio(track);
+        if (fallbackUrl && fallbackUrl !== audioDownloadUrl) {
+          try {
+            await Filesystem.downloadFile({
+              url: fallbackUrl,
+              path: relativeFilePath,
+              directory: Directory.Data,
+              progress: true
+            });
+            const statFallback = await Filesystem.stat({
+              path: relativeFilePath,
+              directory: Directory.Data
+            });
+            if ((statFallback.size || 0) >= 20 * 1024) {
+              finalSizeBytes = statFallback.size || 0;
+              downloadedOk = true;
+            }
+          } catch (fbErr) {
+            console.warn('[musicOfflineService] Respaldo CDN nativo falló:', fbErr?.message || fbErr);
+          }
+        }
+      }
+
+      if (progressSub && typeof progressSub.remove === 'function') {
+        progressSub.remove();
+      }
+
+      // Validar integridad mínima: audio real > 20 KB
+      if (!downloadedOk || finalSizeBytes < 20 * 1024) {
+        try {
+          await Filesystem.deleteFile({
+            path: relativeFilePath,
+            directory: Directory.Data
+          });
+        } catch (_) {}
+        throw new Error(`La descarga de "${track.title}" no pudo completarse. Por favor verifica tu conexión.`);
       }
       localFilePath = relativeFilePath;
 
     } else {
       // === ALMACENAMIENTO WEB / DESKTOP (CACHE API / BLOB) ===
       storageType = 'cache_api';
-      console.log(`[musicOfflineService] Descargando audio web vía Cache API: "${track.title}"`);
+      let targetWebUrl = audioDownloadUrl;
+      // En Web los navegadores bloquean CORS a googlevideo. Usamos CDN directa (Apple/Deezer).
+      if (/googlevideo\.com|youtube\.com/i.test(targetWebUrl) && (!window?.electronAPI)) {
+        const cdnUrl = await resolveFallbackCdnAudio(track);
+        if (cdnUrl) targetWebUrl = cdnUrl;
+      }
 
-      const response = await fetch(audioDownloadUrl);
-      if (!response.ok) {
-        throw new Error(`Error HTTP al descargar audio: ${response.status}`);
+      console.log(`[musicOfflineService] Descargando audio web vía Cache API: "${track.title}"`);
+      let response;
+      try {
+        response = await fetch(targetWebUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch (webFetchErr) {
+        const altCdn = await resolveFallbackCdnAudio(track);
+        if (altCdn && altCdn !== targetWebUrl) {
+          response = await fetch(altCdn);
+          if (!response.ok) throw new Error(`Error HTTP al descargar audio: ${response.status}`);
+        } else {
+          throw webFetchErr;
+        }
       }
 
       const contentLength = Number(response.headers.get('content-length')) || 0;
@@ -482,12 +771,13 @@ export async function downloadTrackOffline(track, onProgress = null) {
       }
 
       finalSizeBytes = receivedBytes;
-      const blob = new Blob(chunks, { type: 'audio/mpeg' });
+      const contentType = response.headers.get('content-type') || 'audio/mpeg';
+      const blob = new Blob(chunks, { type: contentType });
 
       const cache = await caches.open(CACHE_NAME);
       const fakeUrl = `https://offline.teamg.store/music/${safeFileName}`;
       await cache.put(fakeUrl, new Response(blob, {
-        headers: { 'Content-Type': 'audio/mpeg', 'Content-Length': String(receivedBytes) }
+        headers: { 'Content-Type': contentType, 'Content-Length': String(receivedBytes) }
       }));
 
       localFilePath = fakeUrl;
@@ -498,7 +788,9 @@ export async function downloadTrackOffline(track, onProgress = null) {
       id: trackId,
       title: track.title || 'Canción',
       artist: track.artist || 'Artista Desconocido',
-      album: track.album || 'TeamG Music',
+      album: track.album || rawAlbum || 'TeamG Music',
+      albumFolder: safeAlbumFolder || null,
+      trackNumber: track.trackNumber || null,
       cover: track.cover || '',
       genre: track.genre || '',
       fullDuration: track.fullDuration || track.duration || 210,
@@ -534,6 +826,158 @@ export async function downloadTrackOffline(track, onProgress = null) {
 }
 
 /**
+ * Descarga un álbum completo organizando sus archivos en su propia carpeta de álbum
+ */
+export async function downloadAlbumOffline(album, onOverallProgress = null) {
+  if (!album) {
+    throw new Error('Información de álbum inválida');
+  }
+
+  let tracks = Array.isArray(album.tracks) ? album.tracks : [];
+  if (tracks.length === 0 && (album.id || album.title)) {
+    try {
+      tracks = await musicService.getAlbumTracks(album.id, album.title, album.artist);
+    } catch (err) {
+      console.warn('[musicOfflineService] Error cargando pistas del álbum para descarga:', err);
+    }
+  }
+
+  if (!Array.isArray(tracks) || tracks.length === 0) {
+    throw new Error('El álbum no contiene canciones para descargar');
+  }
+
+  const total = tracks.length;
+  let completed = 0;
+  const results = [];
+
+  const albumTitle = String(album.title || 'Álbum').trim();
+  const albumCover = album.cover || '';
+  const albumArtist = String(album.artist || '').trim();
+
+  for (let i = 0; i < total; i++) {
+    const orig = tracks[i];
+    const track = {
+      ...orig,
+      album: albumTitle,
+      albumTitle: albumTitle,
+      artist: orig.artist || albumArtist,
+      cover: orig.cover || albumCover,
+      trackNumber: orig.trackNumber || (i + 1)
+    };
+
+    if (typeof onOverallProgress === 'function') {
+      onOverallProgress({
+        current: i + 1,
+        total,
+        percentage: Math.round(((i) / total) * 100),
+        trackTitle: track.title,
+        albumTitle
+      });
+    }
+
+    try {
+      if (isTrackOffline(track.id, track.title, track.artist)) {
+        results.push(getOfflineTrack(track.id, track.title, track.artist) || track);
+      } else {
+        const downloaded = await downloadTrackOffline(track);
+        if (downloaded) results.push(downloaded);
+      }
+    } catch (err) {
+      console.warn(`[musicOfflineService] Falló descarga de canción en álbum "${albumTitle}": "${track.title}":`, err);
+    }
+
+    completed++;
+    if (typeof onOverallProgress === 'function') {
+      onOverallProgress({
+        current: completed,
+        total,
+        percentage: Math.round((completed / total) * 100),
+        trackTitle: track.title,
+        albumTitle
+      });
+    }
+  }
+
+  // Registrar el álbum como descargado en almacenamiento persistente
+  if (results.length > 0 || completed > 0) {
+    recordAlbumDownloaded({ ...album, tracks }, results);
+  }
+
+  return results;
+}
+
+/**
+ * Verifica si un álbum está descargado en modo offline
+ * Comprueba registro persistente de álbumes, pistas individuales y carpeta de álbum
+ */
+export function isAlbumOffline(album) {
+  if (!album) return false;
+  const albumId = album.id ? String(album.id).trim() : null;
+  const cleanAlbumId = albumId ? albumId.replace(/^[a-z]+_album_/i, '').replace(/^[a-z]+-/i, '') : null;
+  const albumTitle = String(album.title || '').trim().toLowerCase();
+  const normTitle = normalizeCleanText(album.title);
+  const albumArtist = String(album.artist || '').trim().toLowerCase();
+  const normArtist = normalizeCleanText(album.artist);
+
+  // 1. Verificación en registro persistente de álbumes offline
+  const offlineAlbums = getOfflineAlbums();
+  const isRecorded = offlineAlbums.some(a => {
+    if (albumId && String(a.id).trim() === albumId) return true;
+    if (cleanAlbumId) {
+      const aCleanId = String(a.id || '').replace(/^[a-z]+_album_/i, '').replace(/^[a-z]+-/i, '');
+      if (aCleanId && aCleanId === cleanAlbumId) return true;
+    }
+    if (albumTitle && String(a.title || '').trim().toLowerCase() === albumTitle) {
+      return true;
+    }
+    if (normTitle) {
+      const aNormTitle = normalizeCleanText(a.title);
+      if (aNormTitle && (aNormTitle === normTitle || aNormTitle.includes(normTitle) || normTitle.includes(aNormTitle))) {
+        if (!normArtist || !a.artist) return true;
+        const aNormArt = normalizeCleanText(a.artist);
+        if (!aNormArt || aNormArt === normArtist || aNormArt.includes(normArtist) || normArtist.includes(aNormArt)) return true;
+      }
+    }
+    return false;
+  });
+  if (isRecorded) return true;
+
+  // 2. Verificación por pistas del álbum
+  const tracks = Array.isArray(album.tracks) ? album.tracks : [];
+  if (tracks.length > 0) {
+    const offlineCount = tracks.filter(t => isTrackOffline(t.id, t.title, t.artist || album.artist)).length;
+    // Si al menos 1 pista está offline en álbumes pequeños o 50% en completos
+    const threshold = tracks.length <= 3 ? 1 : Math.max(1, Math.ceil(tracks.length * 0.5));
+    if (offlineCount >= threshold) {
+      return true;
+    }
+  }
+
+  // 3. Verificación por canciones offline que pertenezcan a este álbum (por albumFolder o nombre de álbum)
+  if (albumTitle || normTitle) {
+    const list = getOfflineTracks();
+    const matchingTracks = list.filter(t => {
+      const tAlbum = String(t.album || '').trim().toLowerCase();
+      if (tAlbum && (tAlbum === albumTitle || tAlbum.includes(albumTitle) || albumTitle.includes(tAlbum))) return true;
+      if (normTitle) {
+        const tNorm = normalizeCleanText(t.album);
+        if (tNorm && (tNorm === normTitle || tNorm.includes(normTitle) || normTitle.includes(tNorm))) return true;
+      }
+      if (t.albumFolder) {
+        const safeTargetFolder = (album.title || '').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim().substring(0, 45).toLowerCase();
+        if (safeTargetFolder && t.albumFolder.toLowerCase() === safeTargetFolder) return true;
+      }
+      return false;
+    });
+    if (matchingTracks.length > 0 && (!tracks.length || matchingTracks.length >= Math.max(1, Math.ceil((tracks.length || 1) * 0.5)))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Descarga una playlist completa para modo offline
  */
 export async function downloadPlaylistOffline(playlist, onOverallProgress = null) {
@@ -558,8 +1002,8 @@ export async function downloadPlaylistOffline(playlist, onOverallProgress = null
     }
 
     try {
-      if (isTrackOffline(track.id)) {
-        results.push(getOfflineTrack(track.id));
+      if (isTrackOffline(track.id, track.title, track.artist)) {
+        results.push(getOfflineTrack(track.id, track.title, track.artist) || track);
       } else {
         const downloaded = await downloadTrackOffline(track);
         if (downloaded) results.push(downloaded);
@@ -623,6 +1067,61 @@ export async function clearAllOfflineTracks() {
     } catch (_) {}
   }
   saveOfflineTracks([]);
+}
+
+/**
+ * Elimina un álbum completo del almacenamiento offline (archivos físicos y registros)
+ */
+export async function deleteOfflineAlbum(album) {
+  if (!album) return;
+  const albumId = String(album.id || '').trim();
+  const albumTitle = String(album.title || '').trim().toLowerCase();
+  const albumArtist = String(album.artist || '').trim().toLowerCase();
+
+  const allTracks = getOfflineTracks();
+  const tracksToDelete = allTracks.filter(t => {
+    if (albumId && t.albumId && String(t.albumId).trim() === albumId) return true;
+    if (albumTitle && t.album && String(t.album).trim().toLowerCase() === albumTitle) {
+      if (!albumArtist || !t.artist) return true;
+      const tArt = String(t.artist).trim().toLowerCase();
+      return tArt === albumArtist || tArt.includes(albumArtist) || albumArtist.includes(tArt);
+    }
+    return false;
+  });
+
+  for (const track of tracksToDelete) {
+    try {
+      await deleteOfflineTrack(track.id);
+    } catch (_) {}
+  }
+
+  // Actualizar lista de álbumes guardados
+  const currentAlbums = getOfflineAlbums();
+  const updatedAlbums = currentAlbums.filter(a => {
+    if (albumId && String(a.id).trim() === albumId) return false;
+    if (albumTitle && String(a.title || '').trim().toLowerCase() === albumTitle) return false;
+    return true;
+  });
+  saveOfflineAlbums(updatedAlbums);
+
+  // Si en nativo existe la carpeta del álbum, intentar limpiarla
+  if (isNativeStorage()) {
+    try {
+      const safeFolder = (albumTitle || albumId).replace(/[^a-zA-Z0-9_\-\. ]/g, '_').slice(0, 50);
+      await Filesystem.rmdir({
+        path: `${OFFLINE_MUSIC_FOLDER}/${safeFolder}`,
+        directory: Directory.Data,
+        recursive: true
+      });
+    } catch (_) {}
+  }
+
+  window.dispatchEvent(new CustomEvent('teamg:music-offline-update', {
+    detail: {
+      tracks: getOfflineTracks(),
+      albums: updatedAlbums
+    }
+  }));
 }
 
 /**

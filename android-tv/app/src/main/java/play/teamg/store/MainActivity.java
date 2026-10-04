@@ -38,6 +38,7 @@ public class MainActivity extends BridgeActivity {
     if (MusicPlaybackService.isPlaybackActive()) {
       if (bridge != null && bridge.getWebView() != null) {
         bridge.getWebView().onResume();
+        bridge.getWebView().resumeTimers();
       }
     }
   }
@@ -48,6 +49,7 @@ public class MainActivity extends BridgeActivity {
     if (MusicPlaybackService.isPlaybackActive()) {
       if (bridge != null && bridge.getWebView() != null) {
         bridge.getWebView().onResume();
+        bridge.getWebView().resumeTimers();
       }
     }
   }

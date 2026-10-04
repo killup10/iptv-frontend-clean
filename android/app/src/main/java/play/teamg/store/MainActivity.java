@@ -39,10 +39,11 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onPause() {
     super.onPause();
-    // Si hay música reproduciéndose, reanudar WebView para que la canción no se pause al salir o minimizar
+    // Si hay música reproduciéndose, reanudar WebView y timers para que la canción no se pause al salir o minimizar
     if (MusicPlaybackService.isPlaybackActive()) {
       if (bridge != null && bridge.getWebView() != null) {
         bridge.getWebView().onResume();
+        bridge.getWebView().resumeTimers();
       }
     }
   }
@@ -50,10 +51,11 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onStop() {
     super.onStop();
-    // Si la música está activa, mantener el WebView activo incluso con la pantalla apagada
+    // Si la música está activa, mantener el WebView y temporizadores JS activos incluso con la pantalla apagada
     if (MusicPlaybackService.isPlaybackActive()) {
       if (bridge != null && bridge.getWebView() != null) {
         bridge.getWebView().onResume();
+        bridge.getWebView().resumeTimers();
       }
     }
   }

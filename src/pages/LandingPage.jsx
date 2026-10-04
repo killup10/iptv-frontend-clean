@@ -58,7 +58,7 @@ import { isWeb } from "../utils/platformUtils.js";
 import heroShowcase from "../assets/hero_showcase.png";
 import grillaPoster from "../assets/TeamG_Grilla_Completa_TODOS_Los_Canales.png";
 import { LANDING_CHANNELS_DATA } from "../data/landingChannelsData.js";
-import { musicService, INITIAL_FEATURED_TRACKS } from "../services/musicService.js";
+import { musicService } from "../services/musicService.js";
 
 // Fallback inicial de partidos verificados en tiempo real
 const DEFAULT_LANDING_MATCHES = [
@@ -484,379 +484,120 @@ function CatalogShowcaseGrid({ onSelectPlanes }) {
   );
 }
 
-// Reproductor Demo Interactivo de 30 Segundos para Prospectos en la Landing
+// Descubrimiento musical con datos de catálogo actualizados cada día.
 function LandingMusicPreview({ onSelectPlanes }) {
-  const [activeTab, setActiveTab] = useState("fresh"); // "fresh" | "top"
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('fresh');
   const [recentTracks, setRecentTracks] = useState([]);
   const [topTracks, setTopTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Estado del reproductor demo
-  const [currentTrack, setCurrentTrack] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const audioRef = useRef(null);
-
-  // Carga de canciones en vivo para ambos tabs
   useEffect(() => {
     let isMounted = true;
-    async function loadTracks() {
-      setIsLoading(true);
-      try {
-        const [recentRes, topRes] = await Promise.allSettled([
-          musicService.getRecentTracks(8),
-          musicService.getTopTracks('global')
-        ]);
+    let refreshTimer;
+    const cycle = () => {
+      const lima = new Date(Date.now() - 5 * 60 * 60 * 1000);
+      if (lima.getUTCHours() < 3) lima.setUTCDate(lima.getUTCDate() - 1);
+      return lima.toISOString().slice(0, 10);
+    };
+    let loadedCycle = cycle();
 
-        if (isMounted) {
-          if (recentRes.status === 'fulfilled' && Array.isArray(recentRes.value) && recentRes.value.length > 0) {
-            setRecentTracks(recentRes.value.slice(0, 8));
-          } else {
-            setRecentTracks(INITIAL_FEATURED_TRACKS.slice(0, 8));
-          }
-
-          if (topRes.status === 'fulfilled' && Array.isArray(topRes.value) && topRes.value.length > 0) {
-            setTopTracks(topRes.value.slice(0, 8));
-          } else {
-            setTopTracks(INITIAL_FEATURED_TRACKS.slice(0, 8));
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          setRecentTracks(INITIAL_FEATURED_TRACKS.slice(0, 8));
-          setTopTracks(INITIAL_FEATURED_TRACKS.slice(0, 8));
-        }
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    }
-
-    loadTracks();
-    return () => { isMounted = false; };
-  }, []);
-
-  // Eventos del elemento de audio HTML5
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-      // Límite estricto a 30 segundos de preview
-      if (audio.currentTime >= 30) {
-        audio.pause();
-        audio.currentTime = 0;
-        setIsPlaying(false);
+    const load = async (force = false, quiet = false) => {
+      if (!quiet) setIsLoading(true);
+      const [fresh, trends] = await Promise.allSettled([
+        musicService.getRecentTracks(8, force),
+        musicService.getTopTracks('global', force)
+      ]);
+      if (isMounted) {
+        setRecentTracks(fresh.status === 'fulfilled' && Array.isArray(fresh.value) ? fresh.value.slice(0, 8) : []);
+        setTopTracks(trends.status === 'fulfilled' && Array.isArray(trends.value) ? trends.value.slice(0, 8) : []);
+        loadedCycle = cycle();
+        if (!quiet) setIsLoading(false);
       }
     };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
+    const schedule = () => {
+      const lima = new Date(Date.now() - 5 * 60 * 60 * 1000);
+      const target = new Date(lima);
+      target.setUTCHours(3, 0, 0, 0);
+      if (target <= lima) target.setUTCDate(target.getUTCDate() + 1);
+      const delay = target.getTime() + 5 * 60 * 60 * 1000 - Date.now();
+      refreshTimer = setTimeout(async () => {
+        await load(true, true);
+        if (isMounted) schedule();
+      }, Math.max(1000, delay));
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && loadedCycle !== cycle()) load(true, true);
     };
 
-    const handleError = () => {
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
+    load();
+    schedule();
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
+      isMounted = false;
+      clearTimeout(refreshTimer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
-  const handlePlayTrack = (track) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const audioSource = track.previewUrl || track.audioUrl;
-    if (!audioSource) return;
-
-    if (currentTrack?.id === track.id) {
-      if (isPlaying) {
-        audio.pause();
-        setIsPlaying(false);
-      } else {
-        audio.play().then(() => setIsPlaying(true)).catch(() => {});
-      }
-      return;
-    }
-
-    setCurrentTrack(track);
-    audio.src = audioSource;
-    audio.currentTime = 0;
-    audio.play().then(() => {
-      setIsPlaying(true);
-    }).catch(() => {
-      setIsPlaying(false);
-    });
+  const tracks = activeTab === 'fresh' ? recentTracks : topTracks;
+  const dateLabel = value => {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('es-PE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   };
-
-  const toggleMute = () => {
-    if (audioRef.current) {
-      audioRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return null;
-    try {
-      const parts = dateStr.split('T')[0].split('-');
-      if (parts.length === 3) {
-        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-        const mIdx = parseInt(parts[1], 10) - 1;
-        return `${parts[2]} ${months[mIdx] || parts[1]}`;
-      }
-    } catch {}
-    return dateStr;
-  };
-
-  const currentList = activeTab === 'fresh' ? recentTracks : topTracks;
 
   return (
-    <div className="relative rounded-3xl bg-gradient-to-b from-[#130722]/95 via-[#0d0417]/95 to-black/95 border border-fuchsia-500/25 p-6 sm:p-10 shadow-[0_0_50px_rgba(217,70,239,0.12)] overflow-hidden">
-      {/* Decorative Glows */}
-      <div className="absolute -top-32 -left-32 w-80 h-80 bg-fuchsia-600/15 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-purple-600/15 rounded-full blur-[100px] pointer-events-none" />
-
-      {/* Audio Element para muestras de 30 segundos */}
-      <audio ref={audioRef} preload="none" />
-
-      {/* Header */}
-      <div className="text-center max-w-2xl mx-auto mb-8 relative z-10">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-[10px] font-black uppercase tracking-wider text-fuchsia-300 mb-3 shadow-inner">
-          <Music className="w-3.5 h-3.5 text-fuchsia-400" />
-          <span>TeamG Music ♪ • Reproductor Demo 30 Segundos</span>
-        </div>
-        <h3 className="text-2xl sm:text-4xl font-outfit font-black text-white tracking-tight mb-2">
-          Prueba el Audio en Vivo Antes de Suscribirte
-        </h3>
-        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-          Haz clic en cualquier canción para escuchar <strong className="text-fuchsia-300">30 segundos de muestra en alta fidelidad</strong>. Sin necesidad de registrarte.
-        </p>
-      </div>
-
-      {/* Selector de 2 Pestañas Exclusivas */}
-      <div className="flex justify-center mb-8 relative z-10">
-        <div className="inline-flex p-1.5 rounded-full bg-black/60 border border-white/15 gap-1 shadow-lg">
-          <button
-            onClick={() => setActiveTab('fresh')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'fresh'
-                ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg shadow-fuchsia-500/30 scale-100'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Disc3 className={`w-4 h-4 ${activeTab === 'fresh' ? 'animate-[spin_4s_linear_infinite] text-fuchsia-300' : 'text-slate-400'}`} />
-            <span>Lo Más Reciente (Estrenos 2026)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('top')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'top'
-                ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow-lg shadow-fuchsia-500/30 scale-100'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Flame className={`w-4 h-4 ${activeTab === 'top' ? 'text-amber-400' : 'text-slate-400'}`} />
-            <span>Top Semanal</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Grilla de Canciones */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-          <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
-          <span className="text-xs">Sincronizando catálogo oficial en tiempo real...</span>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 relative z-10">
-          {currentList.map((track, idx) => {
-            const isThisPlaying = isPlaying && currentTrack?.id === track.id;
-            const isThisSelected = currentTrack?.id === track.id;
-            const dateBadge = formatDate(track.releaseDate);
-
-            return (
-              <div
-                key={`demo-track-${track.id}-${idx}`}
-                onClick={() => handlePlayTrack(track)}
-                className={`group relative rounded-2xl p-3 bg-white/[0.03] hover:bg-white/[0.08] border transition-all duration-300 flex flex-col cursor-pointer active:scale-[0.98] ${
-                  isThisSelected
-                    ? 'border-fuchsia-500/80 shadow-lg shadow-fuchsia-500/20 bg-fuchsia-950/20'
-                    : 'border-white/5 hover:border-fuchsia-500/30'
-                }`}
-              >
-                {/* Carátula */}
-                <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/50 shadow-md">
-                  <img
-                    src={track.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
-                    alt={track.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-
-                  {/* Badge 30s DEMO */}
-                  <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-black tracking-wider uppercase text-fuchsia-300 border border-white/10 shadow">
-                    30s DEMO
-                  </span>
-
-                  {/* Fecha o Género */}
-                  {dateBadge ? (
-                    <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-bold text-slate-300 border border-white/10 shadow">
-                      {dateBadge}
-                    </span>
-                  ) : track.genre ? (
-                    <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-bold text-slate-300 border border-white/10 shadow truncate max-w-[80px]">
-                      {track.genre}
-                    </span>
-                  ) : null}
-
-                  {/* Botón Play / Pause Flotante */}
-                  <div className={`absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[2px] transition-all duration-300 ${
-                    isThisPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  }`}>
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-transform">
-                      {isThisPlaying ? (
-                        <Pause className="w-5 h-5 fill-white" />
-                      ) : (
-                        <Play className="w-5 h-5 fill-white ml-0.5" />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Ecualizador animado en reproducción */}
-                  {isThisPlaying && (
-                    <div className="absolute bottom-2 left-2 flex items-end gap-1 px-2 py-1 rounded bg-black/75 backdrop-blur-md">
-                      <span className="w-1 h-3 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1 h-4 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1 h-2 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      <span className="w-1 h-5 bg-fuchsia-400 rounded-full animate-bounce" style={{ animationDelay: '75ms' }} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Título y Artista */}
-                <div className="flex-1 min-w-0">
-                  <h4 className={`text-xs sm:text-sm font-bold truncate transition-colors ${
-                    isThisSelected ? 'text-fuchsia-400' : 'text-white group-hover:text-fuchsia-300'
-                  }`}>
-                    {track.title}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                    {track.artist}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Mini-Player en reproducción */}
-      {currentTrack && (
-        <div className="mt-8 pt-5 border-t border-white/10 relative z-10 animate-in fade-in slide-in-from-bottom-2">
-          <div className="rounded-2xl p-4 bg-black/70 backdrop-blur-xl border border-fuchsia-500/30 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xl">
-            {/* Info Canción */}
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <img
-                src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
-                alt={currentTrack.title}
-                className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40">
-                    Preview 30s
-                  </span>
-                </div>
-                <h4 className="text-xs sm:text-sm font-bold text-white truncate max-w-[220px] sm:max-w-xs">
-                  {currentTrack.title}
-                </h4>
-                <p className="text-[11px] text-slate-400 truncate max-w-[220px] sm:max-w-xs">
-                  {currentTrack.artist}
-                </p>
-              </div>
+    <section className="relative overflow-hidden rounded-3xl border border-fuchsia-500/25 bg-gradient-to-br from-[#160a27] via-[#10091b] to-[#1b0b25] p-5 sm:p-8 shadow-[0_0_50px_rgba(217,70,239,0.12)]">
+      <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-fuchsia-600/10 blur-[90px]" />
+      <div className="relative z-10">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-fuchsia-200">
+              <Disc3 className="h-3.5 w-3.5" /> Música nueva para descubrir
             </div>
-
-            {/* Controles de Reproducción y Barra de Progreso */}
-            <div className="flex-1 w-full max-w-md flex flex-col items-center gap-1.5">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handlePlayTrack(currentTrack)}
-                  className="w-10 h-10 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 hover:from-fuchsia-400 hover:to-purple-500 text-white flex items-center justify-center shadow-lg transition cursor-pointer hover:scale-105 active:scale-95"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-4 h-4 fill-white" />
-                  ) : (
-                    <Play className="w-4 h-4 fill-white ml-0.5" />
-                  )}
-                </button>
-
-                <button
-                  onClick={toggleMute}
-                  className="p-2 text-slate-400 hover:text-white transition cursor-pointer"
-                  title={isMuted ? "Activar sonido" : "Silenciar"}
-                >
-                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-              </div>
-
-              {/* Barra de Progreso de 30 segundos */}
-              <div className="w-full flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                <span>0:{Math.floor(currentTime).toString().padStart(2, '0')}</span>
-                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden relative">
-                  <div
-                    className="h-full bg-gradient-to-r from-fuchsia-500 to-purple-500 transition-all duration-200 rounded-full"
-                    style={{ width: `${Math.min(100, (currentTime / 30) * 100)}%` }}
-                  />
-                </div>
-                <span>0:30</span>
-              </div>
-            </div>
-
-            {/* CTA para desbloquear canción completa */}
-            <div className="w-full md:w-auto flex justify-end">
-              <button
-                onClick={onSelectPlanes}
-                className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:from-fuchsia-500 hover:to-purple-500 text-white font-extrabold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(217,70,239,0.35)] transition-all flex items-center justify-center gap-1.5 hover:scale-105 active:scale-95 cursor-pointer"
-              >
-                <span>Desbloquear Completa</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <h3 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Estrenos y tendencias</h3>
+            <p className="mt-1 text-xs text-slate-300">Catálogos revisados diariamente desde las 03:00, hora de Lima.</p>
           </div>
-        </div>
-      )}
-
-      {/* Banner de aviso para futuros clientes */}
-      <div className="mt-8 rounded-2xl p-4 bg-fuchsia-950/20 border border-fuchsia-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left relative z-10">
-        <div className="space-y-1">
-          <p className="text-xs font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
-            <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-            <span>¿Quieres música ilimitada sin cortes de 30 segundos?</span>
-          </p>
-          <p className="text-[11px] text-slate-300">
-            Con tu cuenta de TeamG Play escuchas canciones <strong>100% completas</strong>, con descargas para modo offline, radios 24/7 y segundo plano en tu celular.
-          </p>
+          <button onClick={() => navigate('/musica')} className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-fuchsia-900/30 transition hover:scale-[1.02]">
+            Abrir TeamG Music <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
 
-        <button
-          onClick={onSelectPlanes}
-          className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition-all whitespace-nowrap cursor-pointer hover:border-fuchsia-400 active:scale-95"
-        >
-          Ver Planes y Precios
-        </button>
+        <div className="mb-5 flex w-fit gap-1 rounded-full border border-white/10 bg-black/30 p-1">
+          <button onClick={() => setActiveTab('fresh')} aria-pressed={activeTab === 'fresh'} className={activeTab === 'fresh' ? 'rounded-full bg-fuchsia-500 px-4 py-2 text-xs font-bold text-white' : 'rounded-full px-4 py-2 text-xs font-semibold text-slate-300'}>
+            Estrenos
+          </button>
+          <button onClick={() => setActiveTab('top')} aria-pressed={activeTab === 'top'} className={activeTab === 'top' ? 'rounded-full bg-fuchsia-500 px-4 py-2 text-xs font-bold text-white' : 'rounded-full px-4 py-2 text-xs font-semibold text-slate-300'}>
+            Tendencias
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-fuchsia-400" /></div>
+        ) : tracks.length === 0 ? (
+          <div className="rounded-2xl border border-white/5 bg-black/20 py-10 text-center text-sm text-slate-400">No hay canciones disponibles ahora. Vuelve a intentarlo más tarde.</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {tracks.map((track, index) => (
+              <button key={track.id} onClick={() => navigate('/musica')} className="group min-w-0 rounded-2xl border border-white/5 bg-white/[0.035] p-2.5 text-left transition hover:-translate-y-0.5 hover:border-fuchsia-400/30 hover:bg-white/[0.07]">
+                <div className="relative mb-2.5 aspect-square overflow-hidden rounded-xl bg-black/30">
+                  <img src={track.cover || ''} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                  <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2 py-1 text-[10px] font-bold text-white">{activeTab === 'fresh' ? dateLabel(track.releaseDate) : '#' + (index + 1)}</span>
+                </div>
+                <span className="block truncate text-xs font-bold text-white group-hover:text-fuchsia-200">{track.title}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{track.artist}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-4 sm:flex-row">
+          <p className="text-[11px] text-slate-400">Los resultados se renuevan al abrir Música y cada día a las 03:00 si la app está activa.</p>
+          <button onClick={onSelectPlanes} className="text-xs font-semibold text-fuchsia-300 transition hover:text-white">Ver planes <ArrowRight className="ml-1 inline h-3.5 w-3.5" /></button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 

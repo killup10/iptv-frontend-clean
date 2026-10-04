@@ -1,7 +1,8 @@
 // src/components/music/AddToPlaylistModal.jsx
-import React, { useState } from 'react';
-import { X, Plus, Check, ListMusic, Music2, Globe, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Plus, Check, ListMusic, Music2, Globe, Lock, Disc3, Loader2 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext.jsx';
+import { musicService } from '../../services/musicService.js';
 
 export default function AddToPlaylistModal() {
   const { 
@@ -14,27 +15,84 @@ export default function AddToPlaylistModal() {
     addTrackToPlaylist
   } = useMusic();
 
+  const isAlbum = Boolean(playlistModalTrack?.isAlbum);
+  const [albumTracks, setAlbumTracks] = useState([]);
+  const [isLoadingAlbumTracks, setIsLoadingAlbumTracks] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [newPlaylistIsPublic, setNewPlaylistIsPublic] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
+  // Cargar pistas del álbum si el elemento es un álbum completo
+  useEffect(() => {
+    if (!playlistModalTrack) return;
+    if (playlistModalTrack.isAlbum) {
+      if (Array.isArray(playlistModalTrack.tracks) && playlistModalTrack.tracks.length > 0) {
+        setAlbumTracks(playlistModalTrack.tracks);
+      } else if (playlistModalTrack.id) {
+        setIsLoadingAlbumTracks(true);
+        musicService.getAlbumTracks(playlistModalTrack.id, playlistModalTrack.title, playlistModalTrack.artist)
+          .then((res) => {
+            setAlbumTracks(res || []);
+          })
+          .catch(() => setAlbumTracks([]))
+          .finally(() => setIsLoadingAlbumTracks(false));
+      }
+      setNewPlaylistName(`${playlistModalTrack.title || 'Álbum'} - ${playlistModalTrack.artist || ''}`.trim());
+    } else {
+      setAlbumTracks([]);
+      setNewPlaylistName('');
+    }
+  }, [playlistModalTrack]);
+
   if (!playlistModalTrack) return null;
 
-  const handleCreateAndAdd = (e) => {
+  const handleCreateAndAdd = async (e) => {
     e.preventDefault();
     const name = newPlaylistName.trim();
     if (!name) return;
 
     const created = createPlaylist(name, '', newPlaylistIsPublic);
     if (created) {
-      addTrackToPlaylist(created.id, playlistModalTrack);
+      if (isAlbum) {
+        let tracksToAdd = albumTracks;
+        if (tracksToAdd.length === 0 && playlistModalTrack.id) {
+          try {
+            tracksToAdd = await musicService.getAlbumTracks(playlistModalTrack.id, playlistModalTrack.title, playlistModalTrack.artist) || [];
+          } catch {}
+        }
+        for (const t of tracksToAdd) {
+          addTrackToPlaylist(created.id, t);
+        }
+        setFeedbackMsg(`¡Álbum completo (${tracksToAdd.length} canciones) añadido a "${name}"!`);
+      } else {
+        addTrackToPlaylist(created.id, playlistModalTrack);
+        setFeedbackMsg(`¡Añadida a "${name}" (${newPlaylistIsPublic ? 'Pública' : 'Privada'})!`);
+      }
       setNewPlaylistName('');
-      setFeedbackMsg(`¡Añadida a "${name}" (${newPlaylistIsPublic ? 'Pública' : 'Privada'})!`);
       setTimeout(() => setFeedbackMsg(''), 2500);
     }
   };
 
-  const handleToggle = (playlist) => {
+  const handleToggle = async (playlist) => {
+    if (isAlbum) {
+      let tracksToAdd = albumTracks;
+      if (tracksToAdd.length === 0 && playlistModalTrack.id) {
+        try {
+          tracksToAdd = await musicService.getAlbumTracks(playlistModalTrack.id, playlistModalTrack.title, playlistModalTrack.artist) || [];
+        } catch {}
+      }
+      let added = 0;
+      for (const t of tracksToAdd) {
+        if (!isTrackInPlaylist(playlist.id, t.id)) {
+          addTrackToPlaylist(playlist.id, t);
+          added++;
+        }
+      }
+      setFeedbackMsg(added > 0 ? `¡Se añadieron ${added} canciones del álbum a "${playlist.name}"!` : `Todas las pistas del álbum ya están en "${playlist.name}"`);
+      setTimeout(() => setFeedbackMsg(''), 2500);
+      return;
+    }
+
     const isAlready = isTrackInPlaylist(playlist.id, playlistModalTrack.id);
     toggleTrackInPlaylist(playlist.id, playlistModalTrack);
     setFeedbackMsg(isAlready ? `Eliminada de "${playlist.name}"` : `¡Añadida a "${playlist.name}"!`);
@@ -58,14 +116,15 @@ export default function AddToPlaylistModal() {
               />
             </div>
             <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
-                Añadir a playlist
+              <span className={`text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${isAlbum ? 'text-purple-300' : 'text-cyan-400'}`}>
+                {isAlbum && <Disc3 className="w-3 h-3 text-purple-400" />}
+                <span>{isAlbum ? 'Añadir álbum a playlist' : 'Añadir a playlist'}</span>
               </span>
               <h3 className="text-sm font-bold text-white truncate">
                 {playlistModalTrack.title}
               </h3>
               <p className="text-xs text-gray-400 truncate">
-                {playlistModalTrack.artist}
+                {playlistModalTrack.artist} {isAlbum && (isLoadingAlbumTracks ? '• Cargando pistas...' : `• ${albumTracks.length} canciones`)}
               </p>
             </div>
           </div>
