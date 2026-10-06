@@ -27,10 +27,21 @@ function dedupe(items) {
   });
 }
 
+const FAMILY_GENRE_KEYS = ['familiar', 'familia', 'family', 'infantil', 'kids', 'nino', 'ninos', 'animacion', 'animation', 'disney', 'pixar'];
+
+function isFamilyItem(item) {
+  if (!Array.isArray(item?.genres)) return false;
+  return item.genres.some((g) => {
+    const n = String(g || '').toLowerCase();
+    return FAMILY_GENRE_KEYS.some((k) => n.includes(k));
+  });
+}
+
 export function Halloween() {
   const navigate = useNavigate();
   const [exclusive, setExclusive] = useState([]);
   const [curated, setCurated] = useState([]);
+  const [curatedKids, setCuratedKids] = useState([]);
   const [autoTerror, setAutoTerror] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('todos');
@@ -87,18 +98,24 @@ export function Halloween() {
         setExclusive(exclusiveItems);
 
         let curatedItems = [];
+        let kidsItems = [];
         if (collectionsRes.status === 'fulfilled') {
           const all = collectionsRes.value || [];
           setCollections(all);
-          const halloweenCollection = all.find((c) =>
-            /halloween/i.test(c?.name || ''),
+          const hwCollection = all.find((c) =>
+            /halloween/i.test(c?.name || '') && !/kids/i.test(c?.name || ''),
           );
-          curatedItems = dedupe(halloweenCollection?.items || []);
+          curatedItems = dedupe(hwCollection?.items || []);
+          const kidsCollection = all.find((c) =>
+            /halloween/i.test(c?.name || '') && /kids/i.test(c?.name || ''),
+          );
+          kidsItems = dedupe(kidsCollection?.items || []);
         }
         setCurated(curatedItems);
+        setCuratedKids(kidsItems);
 
         const knownIds = new Set(
-          [...exclusiveItems, ...curatedItems].map(getId).filter(Boolean),
+          [...exclusiveItems, ...curatedItems, ...kidsItems].map(getId).filter(Boolean),
         );
         const autoPool = [
           ...(terrorRes.status === 'fulfilled' ? terrorRes.value?.videos || [] : []),
@@ -126,6 +143,10 @@ export function Halloween() {
     if (activeTab === 'especiales') {
       return (item?.tipo || '').toLowerCase() === 'halloween';
     }
+    if (activeTab === 'kids') {
+      if (curatedKids.some((k) => getId(k) && getId(k) === getId(item))) return true;
+      return isFamilyItem(item);
+    }
     return true;
   };
 
@@ -141,13 +162,13 @@ export function Halloween() {
   };
 
   const allItems = useMemo(
-    () => dedupe([...exclusive, ...curated, ...autoTerror]),
-    [exclusive, curated, autoTerror],
+    () => dedupe([...exclusive, ...curated, ...curatedKids, ...autoTerror]),
+    [exclusive, curated, curatedKids, autoTerror],
   );
   const filteredAll = useMemo(
     () => allItems.filter((i) => matchesTab(i) && matchesSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allItems, activeTab, searchTerm],
+    [allItems, activeTab, curatedKids, searchTerm],
   );
 
   // Grupos por tipo para las secciones: Especiales = solo subido como Halloween,
@@ -169,6 +190,13 @@ export function Halloween() {
   const movieItems = useMemo(
     () => searchedAll.filter((i) => getTipo(i) === 'pelicula'),
     [searchedAll],
+  );
+  const kidsItems = useMemo(
+    () => {
+      const base = dedupe([...curatedKids, ...searchedAll.filter(isFamilyItem)]);
+      return base;
+    },
+    [curatedKids, searchedAll],
   );
 
   const gridOptions = [5, 4, 3, 1];
@@ -261,6 +289,7 @@ export function Halloween() {
     { key: 'peliculas', label: 'Películas' },
     { key: 'series', label: 'Series' },
     { key: 'especiales', label: 'Especiales' },
+    { key: 'kids', label: '👻 Halloween Kids' },
   ];
 
   if (loading && !isMobile) {
@@ -421,10 +450,11 @@ export function Halloween() {
             </div>
 
             {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Aún no hay especiales. Súbelos con tipo Halloween desde el Admin.' : '')}
+            {renderSection('👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Agrega contenido familiar a la colección “HALLOWEEN KIDS” o usa géneros familiares.' : '')}
             {renderSection('📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
             {renderSection('🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}
 
-            {!exclusive.length && !curated.length && !autoTerror.length && (
+            {!exclusive.length && !curated.length && !curatedKids.length && !autoTerror.length && (
               <div className="text-center py-14">
                 <div className="text-6xl mb-4">🕸️</div>
                 <p className="text-purple-200 text-lg">La cripta está vacía... por ahora.</p>
