@@ -124,8 +124,7 @@ export function Halloween() {
       return t !== 'pelicula' && t !== 'halloween';
     }
     if (activeTab === 'especiales') {
-      const t = (item?.tipo || '').toLowerCase();
-      return item?.showInHalloween === true || t === 'halloween';
+      return (item?.tipo || '').toLowerCase() === 'halloween';
     }
     return true;
   };
@@ -141,7 +140,6 @@ export function Halloween() {
     return inTitle || inDesc || inGenres;
   };
 
-  const filterItems = (items) => (items || []).filter((i) => matchesTab(i) && matchesSearch(i));
   const allItems = useMemo(
     () => dedupe([...exclusive, ...curated, ...autoTerror]),
     [exclusive, curated, autoTerror],
@@ -150,6 +148,27 @@ export function Halloween() {
     () => allItems.filter((i) => matchesTab(i) && matchesSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allItems, activeTab, searchTerm],
+  );
+
+  // Grupos por tipo para las secciones: Especiales = solo subido como Halloween,
+  // Series/Películas = todo lo demás (incluye lo marcado con el checkbox).
+  const getTipo = (item) => (item?.tipo || '').toLowerCase();
+  const searchedAll = useMemo(
+    () => allItems.filter((i) => matchesSearch(i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allItems, searchTerm],
+  );
+  const especialItems = useMemo(
+    () => searchedAll.filter((i) => getTipo(i) === 'halloween'),
+    [searchedAll],
+  );
+  const seriesItems = useMemo(
+    () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && getTipo(i) !== 'halloween'),
+    [searchedAll],
+  );
+  const movieItems = useMemo(
+    () => searchedAll.filter((i) => getTipo(i) === 'pelicula'),
+    [searchedAll],
   );
 
   const gridOptions = [5, 4, 3, 1];
@@ -271,8 +290,7 @@ export function Halloween() {
   }
 
   const renderSection = (emoji, title, items, emptyHint) => {
-    const filtered = filterItems(items);
-    if (!filtered.length && !items.length) return null;
+    if (!items.length && !emptyHint) return null;
     return (
       <section className="mb-10">
         <h2 className="text-xl md:text-2xl font-extrabold mb-4 flex items-center gap-2">
@@ -281,12 +299,12 @@ export function Halloween() {
             {title}
           </span>
           <span className="text-sm font-semibold text-orange-200/70 bg-orange-950/60 px-2.5 py-0.5 rounded-full border border-orange-800/60">
-            {filtered.length}
+            {items.length}
           </span>
         </h2>
-        {filtered.length > 0 ? (
+        {items.length > 0 ? (
           <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
-            {filtered.map((item) => (
+            {items.map((item) => (
               <Card
                 key={getId(item) || `${title}-${getTitle(item)}`}
                 item={item}
@@ -402,9 +420,9 @@ export function Halloween() {
               </div>
             </div>
 
-            {renderSection('🎃', 'Especial Halloween', exclusive, 'Marca el checkbox 🎃 Halloween en tus pelis/series o súbelas con tipo Halloween desde el Admin.')}
-            {renderSection('🕸️', 'Selección del equipo', curated, '')}
-            {renderSection('🔪', 'Terror para maratonear', autoTerror, '')}
+            {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Aún no hay especiales. Súbelos con tipo Halloween desde el Admin.' : '')}
+            {renderSection('📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
+            {renderSection('🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}
 
             {!exclusive.length && !curated.length && !autoTerror.length && (
               <div className="text-center py-14">
