@@ -135,17 +135,18 @@ export function Halloween() {
 
   const matchesTab = (item) => {
     if (activeTab === 'todos') return true;
-    if (activeTab === 'peliculas') return (item?.tipo || '').toLowerCase() === 'pelicula';
     if (activeTab === 'series') {
       const t = (item?.tipo || '').toLowerCase();
-      return t !== 'pelicula' && t !== 'halloween';
+      return t !== 'pelicula' && t !== 'halloween' && !kidsBaseIds.has(getId(item));
+    }
+    if (activeTab === 'peliculas') {
+      return (item?.tipo || '').toLowerCase() === 'pelicula' && !kidsBaseIds.has(getId(item));
     }
     if (activeTab === 'especiales') {
       return (item?.tipo || '').toLowerCase() === 'halloween';
     }
     if (activeTab === 'kids') {
-      if (curatedKids.some((k) => getId(k) && getId(k) === getId(item))) return true;
-      return isFamilyItem(item);
+      return kidsBaseIds.has(getId(item));
     }
     return true;
   };
@@ -165,10 +166,23 @@ export function Halloween() {
     () => dedupe([...exclusive, ...curated, ...curatedKids, ...autoTerror]),
     [exclusive, curated, curatedKids, autoTerror],
   );
+  // Grupo Kids (sin búsqueda): colección HALLOWEEN KIDS + géneros familiares.
+  // Lo Kids es exclusivo: no se repite en Series/Películas.
+  const kidsBase = useMemo(
+    () => dedupe([
+      ...curatedKids,
+      ...allItems.filter((i) => (i?.tipo || '').toLowerCase() !== 'halloween' && isFamilyItem(i)),
+    ]),
+    [curatedKids, allItems],
+  );
+  const kidsBaseIds = useMemo(
+    () => new Set(kidsBase.map(getId).filter(Boolean)),
+    [kidsBase],
+  );
   const filteredAll = useMemo(
     () => allItems.filter((i) => matchesTab(i) && matchesSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allItems, activeTab, curatedKids, searchTerm],
+    [allItems, activeTab, curatedKids, kidsBase, searchTerm],
   );
 
   // Grupos por tipo para las secciones: Especiales = solo subido como Halloween,
@@ -184,19 +198,17 @@ export function Halloween() {
     [searchedAll],
   );
   const seriesItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && getTipo(i) !== 'halloween'),
-    [searchedAll],
+    () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && getTipo(i) !== 'halloween' && !kidsBaseIds.has(getId(i))),
+    [searchedAll, kidsBaseIds],
   );
   const movieItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) === 'pelicula'),
-    [searchedAll],
+    () => searchedAll.filter((i) => getTipo(i) === 'pelicula' && !kidsBaseIds.has(getId(i))),
+    [searchedAll, kidsBaseIds],
   );
   const kidsItems = useMemo(
-    () => {
-      const base = dedupe([...curatedKids, ...searchedAll.filter(isFamilyItem)]);
-      return base;
-    },
-    [curatedKids, searchedAll],
+    () => kidsBase.filter((i) => matchesSearch(i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [kidsBase, searchTerm],
   );
 
   const gridOptions = [5, 4, 3, 1];
