@@ -110,15 +110,18 @@ export function Halloween() {
 
   const matchesTab = (item) => {
     if (activeTab === 'todos') return true;
+    // Series: por Tipo (incluye Halloween sin marcar); lo marcado va solo a Especiales.
     if (activeTab === 'series') {
       const t = (item?.tipo || '').toLowerCase();
-      return t !== 'pelicula' && t !== 'halloween' && !kidsBaseIds.has(getId(item));
+      return !(item?.showInHalloween === true) && !kidsBaseIds.has(getId(item)) && t !== 'pelicula';
     }
+    // Películas: por Tipo, marcado o no.
     if (activeTab === 'peliculas') {
       return (item?.tipo || '').toLowerCase() === 'pelicula' && !kidsBaseIds.has(getId(item));
     }
+    // Especiales: solo lo marcado con el checkbox.
     if (activeTab === 'especiales') {
-      return (item?.tipo || '').toLowerCase() === 'halloween' && !kidsBaseIds.has(getId(item));
+      return item?.showInHalloween === true && !kidsBaseIds.has(getId(item));
     }
     if (activeTab === 'kids') {
       return kidsBaseIds.has(getId(item));
@@ -169,11 +172,11 @@ export function Halloween() {
     [allItems, searchTerm],
   );
   const especialItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) === 'halloween' && !kidsBaseIds.has(getId(i))),
+    () => searchedAll.filter((i) => i?.showInHalloween === true && !kidsBaseIds.has(getId(i))),
     [searchedAll, kidsBaseIds],
   );
   const seriesItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && getTipo(i) !== 'halloween' && !kidsBaseIds.has(getId(i))),
+    () => searchedAll.filter((i) => !(i?.showInHalloween === true) && getTipo(i) !== 'pelicula' && !kidsBaseIds.has(getId(i))),
     [searchedAll, kidsBaseIds],
   );
   const movieItems = useMemo(
@@ -441,7 +444,7 @@ export function Halloween() {
               </div>
             </div>
 
-            {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Aún no hay especiales. Súbelos con tipo Halloween desde el Admin.' : '')}
+            {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Marca ☑️ Halloween en el Admin para destacar títulos aquí.' : '')}
             {renderSection('👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Marca 👻 Solo Halloween Kids o usa géneros familiares.' : '')}
             {renderSection('📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
             {renderSection('🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}

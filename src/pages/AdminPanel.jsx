@@ -2956,8 +2956,9 @@ export default function AdminPanel() {
                   <div className="mt-4">
                     {expandedDevices[usr._id] && (
                       <AdminUserDevices userId={usr._id} username={usr.username} />
-                    )}
-                  </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-400">🎃 marcado → Especiales · 👻 marcado → solo Kids · Sin marcar: Series/Películas por Tipo.</p>
                 </div>
               ))}
             </div>
