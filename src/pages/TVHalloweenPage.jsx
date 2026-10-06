@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import TVGrid from '../components/TVGrid.jsx';
 import TVSearch from '../components/TVSearch.jsx';
-import { fetchHalloweenVideos, getCollections } from '../utils/api.js';
+import { fetchHalloweenVideos } from '../utils/api.js';
+import { isHalloweenSeason } from '../utils/halloweenSeason.js';
 import { focusTVContent } from '../utils/tvFocusZone.js';
 import { getTVItemId, resolveTVItemType, unwrapTVItems } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
@@ -56,32 +57,15 @@ export default function TVHalloweenPage() {
       setError('');
 
       try {
-        const [exclusiveRes, collectionsRes] = await Promise.allSettled([
+        const [exclusiveRes] = await Promise.allSettled([
           fetchHalloweenVideos(1, 400),
-          getCollections(),
         ]);
 
         const exclusiveItems = exclusiveRes.status === 'fulfilled'
           ? unwrapTVItems(exclusiveRes.value)
           : [];
 
-        let curatedItems = [];
-        let kidsItems = [];
-        if (collectionsRes.status === 'fulfilled') {
-          const all = Array.isArray(collectionsRes.value)
-            ? collectionsRes.value
-            : [];
-          const wheel = all.find((c) => /halloween/i.test(c?.name || '') && !/kids/i.test(c?.name || ''));
-          curatedItems = dedupe(unwrapTVItems(wheel?.items || []));
-          const kidsWheel = all.find((c) => /halloween/i.test(c?.name || '') && /kids/i.test(c?.name || ''));
-          kidsItems = dedupe(unwrapTVItems(kidsWheel?.items || []));
-        }
-
-        const nextItems = dedupe([
-          ...exclusiveItems,
-          ...curatedItems,
-          ...kidsItems,
-        ]);
+        const nextItems = dedupe([...exclusiveItems]);
 
         if (!cancelled) {
           halloweenItemsCache = nextItems;
@@ -151,6 +135,11 @@ export default function TVHalloweenPage() {
       setStatusMessage(err?.message || 'No se pudo agregar a Mi Lista.');
     }
   };
+
+  // Fuera de temporada (solo octubre) el especial se oculta y redirige al inicio.
+  if (!isHalloweenSeason()) {
+    return <Navigate to="/" replace />;
+  }
 
   if (loading && !items.length) {
     return (

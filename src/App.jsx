@@ -15,6 +15,7 @@ import GlobalMusicPlayer from "./components/music/GlobalMusicPlayer.jsx";
 import { renewAllOfflineLicenses } from "./services/offlineStorage.js";
 import { renewAllMusicOfflineLicenses } from "./services/musicOfflineService.js";
 import { storage } from "./utils/storage.js";
+import { isHalloweenSeason } from "./utils/halloweenSeason.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -544,10 +545,12 @@ function App() {
                     )}
                   </div>
 
+                  {isHalloweenSeason() && (
                   <Link to="/halloween" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/15 border border-orange-400/40 text-orange-300 hover:text-orange-200 hover:bg-orange-500/25 font-semibold transition" onClick={closeAllMenus}>
                     <span>🎃</span>
                     <span>Halloween</span>
                   </Link>
+                  )}
                   <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
                     <span>❤️</span>
                     <span>Mi Lista</span>
@@ -817,9 +820,11 @@ function App() {
                   <Link to="/kids" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">🐻</span> Zona Kids
                   </Link>
+                  {isHalloweenSeason() && (
                   <Link to="/halloween" className="flex items-center gap-3 text-orange-300 hover:text-orange-200 px-3 py-3 rounded-xl bg-orange-500/10 border border-orange-400/25 text-base font-bold transition" onClick={closeAllMenus}>
                     <span className="text-lg">🎃</span> Especial Halloween
                   </Link>
+                  )}
                   <Link to="/colecciones" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">💎</span> Colecciones
                   </Link>

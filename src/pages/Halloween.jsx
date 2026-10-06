@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { normalizeSearchText } from '../utils/searchUtils.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { isHalloweenSeason } from '../utils/halloweenSeason.js';
 import axiosInstance from '@/utils/axiosInstance';
 import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
@@ -40,8 +41,6 @@ function isFamilyItem(item) {
 export function Halloween() {
   const navigate = useNavigate();
   const [exclusive, setExclusive] = useState([]);
-  const [curated, setCurated] = useState([]);
-  const [curatedKids, setCuratedKids] = useState([]);
   const [autoTerror, setAutoTerror] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('todos');
@@ -85,32 +84,14 @@ export function Halloween() {
       setLoading(true);
       setError(null);
       try {
-        const [exclusiveRes, collectionsRes] = await Promise.allSettled([
+        const [exclusiveRes] = await Promise.allSettled([
           fetchHalloweenVideos(1, 500),
-          getCollections(),
         ]);
 
         const exclusiveItems = exclusiveRes.status === 'fulfilled'
           ? dedupe(exclusiveRes.value?.videos || [])
           : [];
         setExclusive(exclusiveItems);
-
-        let curatedItems = [];
-        let kidsItems = [];
-        if (collectionsRes.status === 'fulfilled') {
-          const all = collectionsRes.value || [];
-          setCollections(all);
-          const hwCollection = all.find((c) =>
-            /halloween/i.test(c?.name || '') && !/kids/i.test(c?.name || ''),
-          );
-          curatedItems = dedupe(hwCollection?.items || []);
-          const kidsCollection = all.find((c) =>
-            /halloween/i.test(c?.name || '') && /kids/i.test(c?.name || ''),
-          );
-          kidsItems = dedupe(kidsCollection?.items || []);
-        }
-        setCurated(curatedItems);
-        setCuratedKids(kidsItems);
         setAutoTerror([]);
       } catch (err) {
         console.error('Error cargando Especial Halloween:', err);
@@ -121,6 +102,10 @@ export function Halloween() {
     };
 
     loadAll();
+  }, []);
+
+  useEffect(() => {
+    getCollections().then(setCollections).catch(() => {});
   }, []);
 
   const matchesTab = (item) => {
@@ -153,18 +138,17 @@ export function Halloween() {
   };
 
   const allItems = useMemo(
-    () => dedupe([...exclusive, ...curated, ...curatedKids, ...autoTerror]),
-    [exclusive, curated, curatedKids, autoTerror],
+    () => dedupe([...exclusive, ...autoTerror]),
+    [exclusive, autoTerror],
   );
-  // Grupo Kids (sin búsqueda): colección HALLOWEEN KIDS + géneros familiares.
+  // Grupo Kids: flag Solo Halloween Kids + géneros familiares.
   // Lo Kids es exclusivo: no se repite en Series/Películas.
   const kidsBase = useMemo(
     () => dedupe([
-      ...curatedKids,
       ...allItems.filter((i) => i?.halloweenKidsOnly === true),
       ...allItems.filter((i) => (i?.tipo || '').toLowerCase() !== 'halloween' && isFamilyItem(i)),
     ]),
-    [curatedKids, allItems],
+    [allItems],
   );
   const kidsBaseIds = useMemo(
     () => new Set(kidsBase.map(getId).filter(Boolean)),
@@ -173,7 +157,7 @@ export function Halloween() {
   const filteredAll = useMemo(
     () => allItems.filter((i) => matchesTab(i) && matchesSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allItems, activeTab, curatedKids, kidsBase, searchTerm],
+    [allItems, activeTab, kidsBase, searchTerm],
   );
 
   // Grupos por tipo para las secciones: Especiales = solo subido como Halloween,
@@ -294,6 +278,11 @@ export function Halloween() {
     { key: 'especiales', label: 'Especiales' },
     { key: 'kids', label: '👻 Halloween Kids' },
   ];
+
+  // Fuera de temporada (solo octubre) el especial se oculta y redirige al inicio.
+  if (!isHalloweenSeason()) {
+    return <Navigate to="/home" replace />;
+  }
 
   if (loading && !isMobile) {
     return (
@@ -453,16 +442,16 @@ export function Halloween() {
             </div>
 
             {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Aún no hay especiales. Súbelos con tipo Halloween desde el Admin.' : '')}
-            {renderSection('👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Agrega contenido familiar a la colección “HALLOWEEN KIDS” o usa géneros familiares.' : '')}
+            {renderSection('👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Marca 👻 Solo Halloween Kids o usa géneros familiares.' : '')}
             {renderSection('📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
             {renderSection('🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}
 
-            {!exclusive.length && !curated.length && !curatedKids.length && !autoTerror.length && (
+            {!allItems.length && (
               <div className="text-center py-14">
                 <div className="text-6xl mb-4">🕸️</div>
                 <p className="text-purple-200 text-lg">La cripta está vacía... por ahora.</p>
                 <p className="text-purple-300/60 text-sm mt-2">
-                  Crea la colección “ESPECIAL HALLOWEEN” y agrega tus pelis/series de terror favoritas,
+                  Marca el checkbox 🎃 Halloween en tus pelis/series,
                   o sube contenido con tipo Halloween desde el Admin.
                 </p>
               </div>

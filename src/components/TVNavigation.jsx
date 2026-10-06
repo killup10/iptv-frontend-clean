@@ -11,6 +11,7 @@ import {
 } from '../utils/tvFocusZone.js';
 import { requestTVSearch } from '../utils/tvSearchEvents.js';
 import { getTVKeyName } from '../utils/tvRemote.js';
+import { isHalloweenSeason } from '../utils/halloweenSeason.js';
 
 export default function TVNavigation() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function TVNavigation() {
     { key: 'novelas', path: '/novelas', label: 'Novelas', icon: 'novelas' },
     { key: 'documentales', path: '/documentales', label: 'Documentales', icon: 'documentales' },
     { key: 'kids', path: '/kids', label: 'Zona Kids', icon: 'kids' },
-    { key: 'halloween', path: '/halloween', label: 'Halloween', icon: 'halloween' },
+    ...(isHalloweenSeason() ? [{ key: 'halloween', path: '/halloween', label: 'Halloween', icon: 'halloween' }] : []),
     { key: 'collections', path: '/colecciones', label: 'Colecciones', icon: 'collections' },
     { key: 'my-list', path: '/mi-lista', label: 'Mi Lista', icon: 'my-list' },
     { key: 'settings', path: '/settings', label: 'Ajustes', icon: 'settings' },

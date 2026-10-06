@@ -31,6 +31,7 @@ import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import { getTVItemTrailerUrl, resolveTVItemType } from '../utils/tvContentUtils.js';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import { itemMatchesGenre } from '../utils/genreUtils.js';
+import { isHalloweenSeason } from '../utils/halloweenSeason.js';
 
 // Helper to process settled promises
 const processResult = (result, setter, name, slice = 0) => {
@@ -1380,9 +1381,15 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {horrorItems.length > 0 && (
               <Carousel
-                title="🎃 Terror y Suspenso"
-                actionLabel="Ver especial Halloween"
-                onActionClick={() => navigate('/halloween')}
+                title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "Terror y Suspenso"}
+                actionLabel={isHalloweenSeason() ? "Ver especial Halloween" : "Ver más"}
+                onActionClick={() => {
+                  if (isHalloweenSeason()) {
+                    navigate('/halloween');
+                    return;
+                  }
+                  navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } });
+                }}
                 items={horrorItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1783,10 +1790,16 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {horrorItems.length > 0 && (
           <Carousel
-            title="🎃 Terror y Suspenso"
+            title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "Terror y Suspenso"}
             subtitle="Historias oscuras, misterio y sustos inolvidables."
-            actionLabel="Ver especial Halloween"
-            onActionClick={() => navigate('/halloween')}
+            actionLabel={isHalloweenSeason() ? "Ver especial Halloween" : "Ver películas"}
+            onActionClick={() => {
+              if (isHalloweenSeason()) {
+                navigate('/halloween');
+                return;
+              }
+              navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } });
+            }}
             items={horrorItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}
