@@ -143,7 +143,7 @@ export function Halloween() {
       return (item?.tipo || '').toLowerCase() === 'pelicula' && !kidsBaseIds.has(getId(item));
     }
     if (activeTab === 'especiales') {
-      return (item?.tipo || '').toLowerCase() === 'halloween';
+      return (item?.tipo || '').toLowerCase() === 'halloween' && !kidsBaseIds.has(getId(item));
     }
     if (activeTab === 'kids') {
       return kidsBaseIds.has(getId(item));
@@ -171,6 +171,7 @@ export function Halloween() {
   const kidsBase = useMemo(
     () => dedupe([
       ...curatedKids,
+      ...allItems.filter((i) => i?.halloweenKidsOnly === true),
       ...allItems.filter((i) => (i?.tipo || '').toLowerCase() !== 'halloween' && isFamilyItem(i)),
     ]),
     [curatedKids, allItems],
@@ -194,8 +195,8 @@ export function Halloween() {
     [allItems, searchTerm],
   );
   const especialItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) === 'halloween'),
-    [searchedAll],
+    () => searchedAll.filter((i) => getTipo(i) === 'halloween' && !kidsBaseIds.has(getId(i))),
+    [searchedAll, kidsBaseIds],
   );
   const seriesItems = useMemo(
     () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && getTipo(i) !== 'halloween' && !kidsBaseIds.has(getId(i))),

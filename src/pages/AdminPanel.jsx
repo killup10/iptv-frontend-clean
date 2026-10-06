@@ -314,7 +314,8 @@ export default function AdminPanel() {
     is4K: false,
     is60FPS: false,
     showInBanner: false,
-    showInHalloween: false
+    showInHalloween: false,
+    halloweenKidsOnly: false
   });
 
 
@@ -1372,7 +1373,8 @@ export default function AdminPanel() {
       is4K: false,
       is60FPS: false,
       showInBanner: false,
-      showInHalloween: false
+      showInHalloween: false,
+      halloweenKidsOnly: false
     });
   }, []);
 
@@ -1411,7 +1413,8 @@ export default function AdminPanel() {
       is4K: video.is4K || false,
       is60FPS: video.is60FPS || false,
       showInBanner: video.showInBanner || false,
-      showInHalloween: video.showInHalloween || false
+      showInHalloween: video.showInHalloween || false,
+      halloweenKidsOnly: video.halloweenKidsOnly || false
     });
 
     setActiveTab("add_vod"); 
@@ -2630,6 +2633,7 @@ export default function AdminPanel() {
               <Checkbox label="Destacado" name="isFeatured" checked={vodForm.isFeatured} onChange={handleVodFormChange} />
               <Checkbox label="Mostrar en Banner" name="showInBanner" checked={vodForm.showInBanner} onChange={handleVodFormChange} />
               <Checkbox label="🎃 Halloween" name="showInHalloween" checked={!!vodForm.showInHalloween} onChange={handleVodFormChange} />
+              <Checkbox label="👻 Solo Halloween Kids" name="halloweenKidsOnly" checked={!!vodForm.halloweenKidsOnly} onChange={handleVodFormChange} />
               {vodForm.tipo !== 'pelicula' && (
                 <Checkbox 
                   label="Nuevos Episodios (48h)" 
