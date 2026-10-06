@@ -15,6 +15,7 @@ function Card({
   progressPercent,
   onAddToCollectionClick,
   onAddToMyList,
+  onToggleHalloweenClick,
   onRemoveFromCollection,
   showItemTypeBadge = false,
   showRemoveButton = false,
@@ -422,6 +423,23 @@ function Card({
                     title="Agregar a coleccion"
                   >
                     <PlusCircleIcon className="h-5 w-5" />
+                  </button>
+                )}
+
+                {!isAndroidTV() && onToggleHalloweenClick && user?.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onToggleHalloweenClick(item);
+                    }}
+                    className={collectionActionClasses}
+                    aria-label={`${item?.showInHalloween ? 'Quitar' : 'Agregar'} ${item.name || item.title} ${item?.showInHalloween ? 'de' : 'a'} Halloween`}
+                    title={item?.showInHalloween ? 'Quitar de Halloween' : 'Agregar a Halloween'}
+                    style={item?.showInHalloween ? { background: '#ea580c', color: '#fff' } : undefined}
+                  >
+                    <span className="text-base leading-none">🎃</span>
                   </button>
                 )}
 

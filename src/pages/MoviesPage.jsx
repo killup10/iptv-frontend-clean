@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection } from '../utils/api.js';
+import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToCollection, updateAdminVideo } from '../utils/api.js';
 import { normalizeSearchText } from '../utils/searchUtils.js';
 import useDataCache from '../hooks/useDataCache.js';
 import Card from '../components/Card.jsx';
@@ -298,6 +298,30 @@ export default function MoviesPage() {
         setIsCollectionsModalOpen(true);
     };
 
+    const handleToggleHalloween = async (item) => {
+        const id = item._id || item.id;
+        if (!id) return;
+        const next = !item.showInHalloween;
+        const title = item.name || item.title || 'Título';
+        try {
+            await updateAdminVideo(id, { showInHalloween: next });
+            const patchList = (list) => (list || []).map((m) =>
+                ((m._id || m.id) === id ? { ...m, showInHalloween: next } : m)
+            );
+            setMovies(patchList);
+            setMoviesBySection((prev) =>
+                Object.fromEntries(Object.entries(prev || {}).map(([k, v]) => [k, patchList(v)]))
+            );
+            setToastMessage(next ? `🎃 "${title}" entra al Especial Halloween` : ` "${title}" sale del Especial Halloween`);
+            setToastType('success');
+        } catch (err) {
+            setToastMessage(err.message || 'Error al actualizar Halloween');
+            setToastType('error');
+        } finally {
+            setTimeout(() => setToastMessage(''), 3000);
+        }
+    };
+
     const handleCloseCollectionsModal = () => {
         setIsCollectionsModalOpen(false);
         setSelectedItemForCollection(null);
@@ -561,6 +585,7 @@ export default function MoviesPage() {
                                         onPlayTrailer={handlePlayTrailerClick}
                                         onAddToCollectionClick={handleOpenCollectionsModal}
                                         onAddToMyList={handleAddToMyListSafe}
+                                        onToggleHalloweenClick={handleToggleHalloween}
                                     />
                                 </div>
                             );
@@ -574,6 +599,7 @@ export default function MoviesPage() {
                                     onPlayTrailer={handlePlayTrailerClick}
                                     onAddToCollectionClick={handleOpenCollectionsModal}
                                     onAddToMyList={handleAddToMyListSafe}
+                                    onToggleHalloweenClick={handleToggleHalloween}
                                 />
                             );
                         }
