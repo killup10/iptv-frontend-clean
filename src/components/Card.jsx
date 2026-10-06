@@ -16,6 +16,7 @@ function Card({
   onAddToCollectionClick,
   onAddToMyList,
   onToggleHalloweenClick,
+  onToggleKidsClick,
   onRemoveFromCollection,
   showItemTypeBadge = false,
   showRemoveButton = false,
@@ -440,6 +441,23 @@ function Card({
                     style={item?.showInHalloween ? { background: '#ea580c', color: '#fff' } : undefined}
                   >
                     <span className="text-base leading-none">🎃</span>
+                  </button>
+                )}
+
+                {!isAndroidTV() && onToggleKidsClick && user?.role === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onToggleKidsClick(item);
+                    }}
+                    className={collectionActionClasses}
+                    aria-label={`${item?.halloweenKidsOnly ? 'Quitar' : 'Agregar'} ${item.name || item.title} ${item?.halloweenKidsOnly ? 'de' : 'a'} Halloween Kids`}
+                    title={item?.halloweenKidsOnly ? 'Quitar de Halloween Kids (KIDS · FAMILIAR · INFANTIL)' : 'Agregar a Halloween Kids (KIDS · FAMILIAR · INFANTIL)'}
+                    style={item?.halloweenKidsOnly ? { background: '#7c3aed', color: '#fff' } : undefined}
+                  >
+                    <span className="text-base leading-none">👻</span>
                   </button>
                 )}
 

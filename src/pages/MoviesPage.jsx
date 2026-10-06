@@ -322,6 +322,30 @@ export default function MoviesPage() {
         }
     };
 
+    const handleToggleKids = async (item) => {
+        const id = item._id || item.id;
+        if (!id) return;
+        const next = !item.halloweenKidsOnly;
+        const title = item.name || item.title || 'Título';
+        try {
+            await updateAdminVideo(id, { halloweenKidsOnly: next });
+            const patchList = (list) => (list || []).map((m) =>
+                ((m._id || m.id) === id ? { ...m, halloweenKidsOnly: next } : m)
+            );
+            setMovies(patchList);
+            setMoviesBySection((prev) =>
+                Object.fromEntries(Object.entries(prev || {}).map(([k, v]) => [k, patchList(v)]))
+            );
+            setToastMessage(next ? `👻 "${title}" entra a Halloween Kids` : ` "${title}" sale de Halloween Kids`);
+            setToastType('success');
+        } catch (err) {
+            setToastMessage(err.message || 'Error al actualizar Halloween Kids');
+            setToastType('error');
+        } finally {
+            setTimeout(() => setToastMessage(''), 3000);
+        }
+    };
+
     const handleCloseCollectionsModal = () => {
         setIsCollectionsModalOpen(false);
         setSelectedItemForCollection(null);
@@ -586,6 +610,7 @@ export default function MoviesPage() {
                                         onAddToCollectionClick={handleOpenCollectionsModal}
                                         onAddToMyList={handleAddToMyListSafe}
                                         onToggleHalloweenClick={handleToggleHalloween}
+                                        onToggleKidsClick={handleToggleKids}
                                     />
                                 </div>
                             );
@@ -600,6 +625,7 @@ export default function MoviesPage() {
                                     onAddToCollectionClick={handleOpenCollectionsModal}
                                     onAddToMyList={handleAddToMyListSafe}
                                     onToggleHalloweenClick={handleToggleHalloween}
+                                    onToggleKidsClick={handleToggleKids}
                                 />
                             );
                         }

@@ -2958,7 +2958,7 @@ export default function AdminPanel() {
                       <AdminUserDevices userId={usr._id} username={usr.username} />
               )}
             </div>
-            <p className="text-xs text-gray-400">🎃 marcado → Especiales · 👻 marcado → solo Kids · Sin marcar: Series/Películas por Tipo.</p>
+            <p className="text-xs text-gray-400">🎃 marcado → Películas/Series del especial · Tipo Halloween → Especiales · 👻 marcado → solo Kids.</p>
                 </div>
               ))}
             </div>
