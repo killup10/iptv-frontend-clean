@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import TVGrid from '../components/TVGrid.jsx';
 import TVSearch from '../components/TVSearch.jsx';
-import { fetchVideosByGenre, fetchHalloweenVideos, getCollections } from '../utils/api.js';
+import { fetchHalloweenVideos, getCollections } from '../utils/api.js';
 import { focusTVContent } from '../utils/tvFocusZone.js';
 import { getTVItemId, resolveTVItemType, unwrapTVItems } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
@@ -56,11 +56,9 @@ export default function TVHalloweenPage() {
       setError('');
 
       try {
-        const [exclusiveRes, collectionsRes, terrorRes, horrorRes] = await Promise.allSettled([
+        const [exclusiveRes, collectionsRes] = await Promise.allSettled([
           fetchHalloweenVideos(1, 400),
           getCollections(),
-          fetchVideosByGenre('terror', null, 100, 1),
-          fetchVideosByGenre('horror', null, 100, 1),
         ]);
 
         const exclusiveItems = exclusiveRes.status === 'fulfilled'
@@ -68,26 +66,21 @@ export default function TVHalloweenPage() {
           : [];
 
         let curatedItems = [];
+        let kidsItems = [];
         if (collectionsRes.status === 'fulfilled') {
           const all = Array.isArray(collectionsRes.value)
             ? collectionsRes.value
             : [];
-          const wheel = all.find((c) => /halloween/i.test(c?.name || ''));
+          const wheel = all.find((c) => /halloween/i.test(c?.name || '') && !/kids/i.test(c?.name || ''));
           curatedItems = dedupe(unwrapTVItems(wheel?.items || []));
+          const kidsWheel = all.find((c) => /halloween/i.test(c?.name || '') && /kids/i.test(c?.name || ''));
+          kidsItems = dedupe(unwrapTVItems(kidsWheel?.items || []));
         }
-
-        const knownIds = new Set(
-          [...exclusiveItems, ...curatedItems].map(getId).filter(Boolean),
-        );
-        const autoPool = [
-          ...(terrorRes.status === 'fulfilled' ? unwrapTVItems(terrorRes.value) : []),
-          ...(horrorRes.status === 'fulfilled' ? unwrapTVItems(horrorRes.value) : []),
-        ];
 
         const nextItems = dedupe([
           ...exclusiveItems,
           ...curatedItems,
-          ...autoPool.filter((item) => !knownIds.has(getId(item))),
+          ...kidsItems,
         ]);
 
         if (!cancelled) {

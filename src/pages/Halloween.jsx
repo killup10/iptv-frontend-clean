@@ -7,7 +7,7 @@ import TrailerModal from '@/components/TrailerModal';
 import MobileVodDetailModal from '../components/MobileVodDetailModal.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import Toast from '@/components/Toast';
-import { getCollections, addItemsToCollection, fetchHalloweenVideos, fetchVideosByGenre } from '../utils/api.js';
+import { getCollections, addItemsToCollection, fetchHalloweenVideos } from '../utils/api.js';
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
@@ -85,11 +85,9 @@ export function Halloween() {
       setLoading(true);
       setError(null);
       try {
-        const [exclusiveRes, collectionsRes, terrorRes, horrorRes] = await Promise.allSettled([
+        const [exclusiveRes, collectionsRes] = await Promise.allSettled([
           fetchHalloweenVideos(1, 500),
           getCollections(),
-          fetchVideosByGenre('terror', null, 100, 1),
-          fetchVideosByGenre('horror', null, 100, 1),
         ]);
 
         const exclusiveItems = exclusiveRes.status === 'fulfilled'
@@ -113,15 +111,7 @@ export function Halloween() {
         }
         setCurated(curatedItems);
         setCuratedKids(kidsItems);
-
-        const knownIds = new Set(
-          [...exclusiveItems, ...curatedItems, ...kidsItems].map(getId).filter(Boolean),
-        );
-        const autoPool = [
-          ...(terrorRes.status === 'fulfilled' ? terrorRes.value?.videos || [] : []),
-          ...(horrorRes.status === 'fulfilled' ? horrorRes.value?.videos || [] : []),
-        ];
-        setAutoTerror(dedupe(autoPool.filter((item) => !knownIds.has(getId(item)))));
+        setAutoTerror([]);
       } catch (err) {
         console.error('Error cargando Especial Halloween:', err);
         setError('Error al cargar el Especial Halloween');
