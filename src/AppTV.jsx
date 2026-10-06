@@ -24,6 +24,7 @@ const HOME_BACK_ROUTES = new Set([
   '/novelas',
   '/documentales',
   '/kids',
+  '/halloween',
   '/colecciones',
   '/mi-lista',
   '/settings',
@@ -143,6 +144,7 @@ function AppTV() {
         fetchVideosByType('dorama', 1, 500),
         fetchVideosByType('novela', 1, 500),
         fetchVideosByType('documental', 1, 500),
+        fetchVideosByType('halloween', 1, 500),
         fetchUserMovies(1, 500, 'CINE_2026'),
       ]);
 
@@ -154,6 +156,7 @@ function AppTV() {
         doramasResult,
         novelasResult,
         documentalesResult,
+        halloweenResult,
         cine2026Result,
       ] = results;
 
@@ -165,6 +168,7 @@ function AppTV() {
         ...(doramasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(doramasResult.value, 'dorama') : []),
         ...(novelasResult.status === 'fulfilled' ? normalizeGlobalSearchItems(novelasResult.value, 'novela') : []),
         ...(documentalesResult.status === 'fulfilled' ? normalizeGlobalSearchItems(documentalesResult.value, 'documental') : []),
+        ...(halloweenResult.status === 'fulfilled' ? normalizeGlobalSearchItems(halloweenResult.value, 'halloween') : []),
         ...(cine2026Result.status === 'fulfilled' ? normalizeGlobalSearchItems(cine2026Result.value, 'movie') : []),
       ];
 

@@ -36,6 +36,7 @@ const Doramas = React.lazy(() => import('./pages/Doramas.jsx'));
 const Novelas = React.lazy(() => import('./pages/Novelas.jsx'));
 const Colecciones = React.lazy(() => import('./pages/Colecciones.jsx'));
 const ZonaKids = React.lazy(() => import('./pages/ZonaKids.jsx'));
+const Halloween = React.lazy(() => import('./pages/Halloween.jsx'));
 const BulkUploadPage = React.lazy(() => import('./pages/BulkUploadPage.jsx'));
 const MyList = React.lazy(() => import('./pages/MyList.jsx'));
 const Profiles = React.lazy(() => import('./pages/Profiles.jsx'));
@@ -178,6 +179,16 @@ const router = createHashRouter([
           <ProtectedRoute>
             <Suspense fallback={<PageLoader />}>
               <ZonaKids />
+            </Suspense>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "halloween",
+        element: (
+          <ProtectedRoute>
+            <Suspense fallback={<PageLoader />}>
+              <Halloween />
             </Suspense>
           </ProtectedRoute>
         ),

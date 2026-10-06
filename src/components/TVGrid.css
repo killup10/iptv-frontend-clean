@@ -494,6 +494,42 @@
     inset 0 0 15px rgba(250, 204, 21, 0.18);
 }
 
+.tv-grid-variant-halloween {
+  background:
+    radial-gradient(circle at top left, rgba(255, 107, 0, 0.18), transparent 26%),
+    radial-gradient(circle at 20% 18%, rgba(124, 58, 237, 0.2), transparent 20%),
+    radial-gradient(circle at top right, rgba(255, 107, 0, 0.12), transparent 22%),
+    linear-gradient(180deg, #1c0b2e 0%, #0b0614 45%, #000000 100%);
+}
+
+.tv-grid-variant-halloween .tv-grid-header h1 {
+  background: linear-gradient(90deg, #ff6b00, #fbbf24, #c084fc, #ff6b00);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 107, 0, 0.45));
+}
+
+.tv-grid-variant-halloween .tv-grid-subtitle {
+  color: rgba(216, 180, 254, 0.85);
+}
+
+.tv-grid-variant-halloween .item-image-wrapper {
+  border-color: rgba(255, 107, 0, 0.22);
+}
+
+.tv-grid-variant-halloween .tv-grid-item.focused .item-image-wrapper {
+  border-color: #ff6b00;
+  box-shadow: 0 0 0 2px rgba(20, 8, 30, 0.9), 0 0 30px rgba(255, 107, 0, 0.45);
+}
+
+.tv-grid-variant-halloween .focus-ring {
+  border-color: #ff6b00;
+  box-shadow:
+    0 0 15px rgba(255, 107, 0, 0.75),
+    inset 0 0 15px rgba(255, 107, 0, 0.2);
+}
+
 @media (max-width: 1920px) {
   .tv-grid {
     gap: 12px;

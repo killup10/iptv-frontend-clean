@@ -152,9 +152,10 @@ const TVGrid = ({
   if (items.length === 0) return null;
 
   const isKidsVariant = variant === 'kids';
+  const isHalloweenVariant = variant === 'halloween';
 
   return (
-    <div className={`tv-grid-container ${isKidsVariant ? 'tv-grid-variant-kids' : ''}`} data-grid-id={gridId}>
+    <div className={`tv-grid-container ${isKidsVariant ? 'tv-grid-variant-kids' : ''} ${isHalloweenVariant ? 'tv-grid-variant-halloween' : ''}`} data-grid-id={gridId}>
       <div className="tv-grid-header">
         <div>
           {title && (

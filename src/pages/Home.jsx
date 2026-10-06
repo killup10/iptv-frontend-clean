@@ -252,10 +252,12 @@ export function Home() {
           tipo === 'dorama' ||
           tipo === 'novela' ||
           tipo === 'documental' ||
+          tipo === 'halloween' ||
           subcat.includes('anime') ||
           subcat.includes('dorama') ||
           subcat.includes('novela') ||
-          subcat.includes('documental')
+          subcat.includes('documental') ||
+          subcat.includes('halloween')
         ) {
           return;
         }
@@ -1378,9 +1380,9 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {horrorItems.length > 0 && (
               <Carousel
-                title="Terror y Suspenso"
-                actionLabel="Ver más"
-                onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } })}
+                title="🎃 Terror y Suspenso"
+                actionLabel="Ver especial Halloween"
+                onActionClick={() => navigate('/halloween')}
                 items={horrorItems}
                 onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
                 onPlayTrailerClick={handlePlayTrailerClick}
@@ -1781,10 +1783,10 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {horrorItems.length > 0 && (
           <Carousel
-            title="Terror y Suspenso"
+            title="🎃 Terror y Suspenso"
             subtitle="Historias oscuras, misterio y sustos inolvidables."
-            actionLabel="Ver películas"
-            onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Terror', selectedMainSectionKey: 'POR_GENERO' } })}
+            actionLabel="Ver especial Halloween"
+            onActionClick={() => navigate('/halloween')}
             items={horrorItems}
             onItemClick={(item) => handleMobileVodSelection(item, item.tipo || item.itemType || 'movie')}
             onPlayTrailerClick={handlePlayTrailerClick}

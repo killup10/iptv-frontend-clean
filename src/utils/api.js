@@ -253,6 +253,22 @@ export async function fetchVideosByType(tipo, page = 1, limit = 100) {
   }
 }
 
+// Especial Halloween: trae flagged (showInHalloween) + tipo halloween.
+// El contenido conserva su tipo/sección original y ADEMÁS aparece en Halloween.
+export async function fetchHalloweenVideos(page = 1, limit = 500) {
+  const relativePath = "/api/videos";
+  const params = { halloween: 'true', page, limit };
+  console.log(`API (fetchHalloweenVideos - axios): GET ${relativePath} con params:`, params);
+  try {
+    const response = await axiosInstance.get(relativePath, { params });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Error al obtener Especial Halloween.";
+    console.error(`API Error (fetchHalloweenVideos - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 export async function fetchVideoCounts() {
   const relativePath = "/api/videos/counts";
   console.log(`API (fetchVideoCounts - axios): GET ${relativePath}`);

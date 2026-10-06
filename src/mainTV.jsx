@@ -18,6 +18,7 @@ import TVCollectionsPage from './pages/TVCollectionsPage.jsx';
 import TVMyListPage from './pages/TVMyListPage.jsx';
 import TVMoviesPage from './pages/TVMoviesPage.jsx';
 import TVKidsPage from './pages/TVKidsPage.jsx';
+import TVHalloweenPage from './pages/TVHalloweenPage.jsx';
 import TVMusicPage from './pages/TVMusicPage.jsx';
 import Profiles from './pages/Profiles.jsx';
 import Settings from './pages/Settings.jsx';
@@ -77,6 +78,10 @@ function TVApp() {
             <Route
               path="kids"
               element={<TVKidsPage />}
+            />
+            <Route
+              path="halloween"
+              element={<TVHalloweenPage />}
             />
             <Route
               path="colecciones"

@@ -189,6 +189,7 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [desktopContenidoOpen, setDesktopContenidoOpen] = useState(false);
+  const [desktopMasOpen, setDesktopMasOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileContenidoOpen, setMobileContenidoOpen] = useState(false);
   const [allSearchItems, setAllSearchItems] = useState([]);
@@ -262,6 +263,7 @@ function App() {
   const closeAllMenus = useCallback(() => {
     setDropdownOpen(false);
     setDesktopContenidoOpen(false);
+    setDesktopMasOpen(false);
     setMobileMenuOpen(false);
     setMobileContenidoOpen(false);
   }, []);
@@ -300,20 +302,23 @@ function App() {
       if (!event.target.closest("#desktop-content-menu")) {
         setDesktopContenidoOpen(false);
       }
+      if (!event.target.closest("#desktop-mas-menu")) {
+        setDesktopMasOpen(false);
+      }
       if (!event.target.closest("#mobile-menu") && !event.target.closest("#mobile-menu-button")) {
         setMobileMenuOpen(false);
         setMobileContenidoOpen(false);
       }
     };
 
-    if (dropdownOpen || desktopContenidoOpen || mobileMenuOpen) {
+    if (dropdownOpen || desktopContenidoOpen || desktopMasOpen || mobileMenuOpen) {
       document.addEventListener("click", handleClickOutside);
     } else {
       document.removeEventListener("click", handleClickOutside);
     }
 
     return () => document.removeEventListener("click", handleClickOutside);
-  }, [desktopContenidoOpen, dropdownOpen, mobileMenuOpen, closeAllMenus]);
+  }, [desktopContenidoOpen, desktopMasOpen, dropdownOpen, mobileMenuOpen, closeAllMenus]);
 
   useEffect(() => {
     let handleRef = null;
@@ -528,15 +533,21 @@ function App() {
                         <Link to="/documentales" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
                           Documentales
                         </Link>
+                        <div className="my-1 border-t border-white/10" />
+                        <Link to="/kids" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          🐻 Zona Kids
+                        </Link>
+                        <Link to="/colecciones" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white" onClick={closeAllMenus}>
+                          💎 Colecciones
+                        </Link>
                       </div>
                     )}
                   </div>
-                  
-                  <Link to="/kids" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
-                    <span>🐻</span>
-                    <span>Zona Kids</span>
+
+                  <Link to="/halloween" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/15 border border-orange-400/40 text-orange-300 hover:text-orange-200 hover:bg-orange-500/25 font-semibold transition" onClick={closeAllMenus}>
+                    <span>🎃</span>
+                    <span>Halloween</span>
                   </Link>
-                  <Link to="/colecciones" className="text-gray-300 hover:text-white px-3 py-2" onClick={closeAllMenus}>Colecciones</Link>
                   <Link to="/mi-lista" className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1.5" onClick={closeAllMenus}>
                     <span>❤️</span>
                     <span>Mi Lista</span>
@@ -551,14 +562,42 @@ function App() {
                       </span>
                     )}
                   </Link>
-                  <Link to="/pedidos" className="text-pink-400 hover:text-pink-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
-                    <span>📩</span>
-                    <span>Pedidos</span>
-                  </Link>
-                  <Link to="/offline" className="text-purple-400 hover:text-purple-300 px-3 py-2 flex items-center gap-1.5 font-semibold transition" onClick={closeAllMenus}>
-                    <WifiOff className="w-4 h-4 text-purple-400" />
-                    <span>Modo Offline</span>
-                  </Link>
+                  <div id="desktop-mas-menu" className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setMobileMenuOpen(false);
+                        setMobileContenidoOpen(false);
+                        setDesktopContenidoOpen(false);
+                        setDesktopMasOpen((current) => !current);
+                      }}
+                      className="text-gray-300 hover:text-white px-3 py-2 flex items-center gap-1"
+                      aria-expanded={desktopMasOpen}
+                      aria-haspopup="menu"
+                    >
+                      Más
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${desktopMasOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {desktopMasOpen && (
+                      <div className="absolute left-0 mt-2 w-48 rounded-md bg-gray-900 py-1 shadow-lg ring-1 ring-white/10 z-[95]">
+                        <Link to="/pedidos" className="block px-4 py-2 text-sm text-pink-300 hover:bg-gray-800 hover:text-pink-200 font-semibold" onClick={closeAllMenus}>
+                          📩 Pedidos
+                        </Link>
+                        <Link to="/offline" className="block px-4 py-2 text-sm text-purple-300 hover:bg-gray-800 hover:text-purple-200 font-semibold" onClick={closeAllMenus}>
+                          📴 Modo Offline
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </nav>
               </div>
 
@@ -777,6 +816,9 @@ function App() {
  
                   <Link to="/kids" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">🐻</span> Zona Kids
+                  </Link>
+                  <Link to="/halloween" className="flex items-center gap-3 text-orange-300 hover:text-orange-200 px-3 py-3 rounded-xl bg-orange-500/10 border border-orange-400/25 text-base font-bold transition" onClick={closeAllMenus}>
+                    <span className="text-lg">🎃</span> Especial Halloween
                   </Link>
                   <Link to="/colecciones" className="flex items-center gap-3 text-gray-300 hover:text-white px-3 py-3 rounded-xl hover:bg-white/[0.04] text-base font-semibold transition" onClick={closeAllMenus}>
                     <span className="text-lg">💎</span> Colecciones

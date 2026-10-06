@@ -107,7 +107,7 @@ const MAIN_SECTION_VOD_OPTIONS = [
   { key: "ZONA_KIDS", displayName: "ZONA KIDS"},
 ];
 
-const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO Max", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS", "MUNDIAL 2026" ];
+const SERIES_SUBCATEGORIES = [ "Netflix", "Prime Video", "Disney", "Apple TV", "HBO Max", "Hulu y Otros", "Retro", "Animadas", "ZONA KIDS", "MUNDIAL 2026", "HALLOWEEN" ];
 
 const ALL_AVAILABLE_PLANS = [
   { key: "gplay", displayName: "GPlay" },
@@ -280,6 +280,7 @@ const VOD_MANAGEMENT_TABS = [
     { value: 'manage_doramas', label: 'Series Asiáticas', tipo: 'dorama' },
     { value: 'manage_novelas', label: 'Novelas', tipo: 'novela' },
     { value: 'manage_documentales', label: 'Documentales', tipo: 'documental' },
+    { value: 'manage_halloween', label: '🎃 Halloween', tipo: 'halloween' },
 ];
 
 export default function AdminPanel() {
@@ -312,7 +313,8 @@ export default function AdminPanel() {
     hasNewEpisodes: false,
     is4K: false,
     is60FPS: false,
-    showInBanner: false
+    showInBanner: false,
+    showInHalloween: false
   });
 
 
@@ -1369,7 +1371,8 @@ export default function AdminPanel() {
       hasNewEpisodes: false,
       is4K: false,
       is60FPS: false,
-      showInBanner: false
+      showInBanner: false,
+      showInHalloween: false
     });
   }, []);
 
@@ -1407,7 +1410,8 @@ export default function AdminPanel() {
       hasNewEpisodes: video.hasNewEpisodes || false,
       is4K: video.is4K || false,
       is60FPS: video.is60FPS || false,
-      showInBanner: video.showInBanner || false
+      showInBanner: video.showInBanner || false,
+      showInHalloween: video.showInHalloween || false
     });
 
     setActiveTab("add_vod"); 
@@ -2405,6 +2409,7 @@ export default function AdminPanel() {
               <option value="novela">Novela</option>
               <option value="documental">Documental</option>
               <option value="zona kids">Zona Kids</option>
+              <option value="halloween">🎃 Halloween</option>
             </Select>
             {vodForm.tipo === "pelicula" ? (
               <Input name="url" type="url" placeholder="URL del Video/Stream Principal" value={vodForm.url} onChange={handleVodFormChange} required />
@@ -2624,6 +2629,7 @@ export default function AdminPanel() {
               <Checkbox label="Activo" name="active" checked={vodForm.active} onChange={handleVodFormChange} />
               <Checkbox label="Destacado" name="isFeatured" checked={vodForm.isFeatured} onChange={handleVodFormChange} />
               <Checkbox label="Mostrar en Banner" name="showInBanner" checked={vodForm.showInBanner} onChange={handleVodFormChange} />
+              <Checkbox label="🎃 Halloween" name="showInHalloween" checked={!!vodForm.showInHalloween} onChange={handleVodFormChange} />
               {vodForm.tipo !== 'pelicula' && (
                 <Checkbox 
                   label="Nuevos Episodios (48h)" 
@@ -2708,6 +2714,8 @@ export default function AdminPanel() {
                 <option value="dorama">Dorama</option>
                 <option value="novela">Novela</option>
                 <option value="documental">Documental</option>
+                <option value="zona kids">Zona Kids</option>
+                <option value="halloween">🎃 Halloween</option>
               </Select>
             )}
             <Button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
@@ -3074,6 +3082,7 @@ export default function AdminPanel() {
                 <option value="dorama">Dorama</option>
                 <option value="novela">Novelas</option>
                 <option value="documental">Documentales</option>
+                <option value="halloween">🎃 Halloween</option>
               </Select>
             </div>
 

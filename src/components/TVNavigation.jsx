@@ -30,6 +30,7 @@ export default function TVNavigation() {
     { key: 'novelas', path: '/novelas', label: 'Novelas', icon: 'novelas' },
     { key: 'documentales', path: '/documentales', label: 'Documentales', icon: 'documentales' },
     { key: 'kids', path: '/kids', label: 'Zona Kids', icon: 'kids' },
+    { key: 'halloween', path: '/halloween', label: 'Halloween', icon: 'halloween' },
     { key: 'collections', path: '/colecciones', label: 'Colecciones', icon: 'collections' },
     { key: 'my-list', path: '/mi-lista', label: 'Mi Lista', icon: 'my-list' },
     { key: 'settings', path: '/settings', label: 'Ajustes', icon: 'settings' },
@@ -268,6 +269,15 @@ export default function TVNavigation() {
             <path d="M8 14s1.5 2 4 2 4-2 4-2" />
             <line x1="9" y1="9" x2="9.01" y2="9" />
             <line x1="15" y1="9" x2="15.01" y2="9" />
+          </svg>
+        );
+      case 'halloween':
+        return (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2C7 2 3 6.5 3 12v8l2.5-2 2.5 2 2.5-2 2.5 2 2.5-2L18 20l3 2v-8c0-5.5-4-10-9-10z" />
+            <circle cx="9" cy="11" r="0.6" fill="currentColor" />
+            <circle cx="15" cy="11" r="0.6" fill="currentColor" />
+            <path d="M9.5 15.5c1 1 3.5 1 5 0" />
           </svg>
         );
       case 'collections':
