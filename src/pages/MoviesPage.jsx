@@ -5,7 +5,6 @@ import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToColl
 import { normalizeSearchText } from '../utils/searchUtils.js';
 import useDataCache from '../hooks/useDataCache.js';
 import Card from '../components/Card.jsx';
-import { rewriteImageUrl } from '../utils/imageUrl.js';
 import { ChevronLeftIcon, Squares2X2Icon, ChevronRightIcon, LockClosedIcon } from '@heroicons/react/24/solid';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
@@ -54,7 +53,8 @@ export default function MoviesPage() {
     const [moviesBySection, setMoviesBySection] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [selectedMainSectionKey, setSelectedMainSectionKey] = useState(location.state?.selectedMainSectionKey || null);
+    const [selectedMainSectionKey, setSelectedMainSectionKey] = useState(location.state?.selectedMainSectionKey || 'todas');
+    const [sectionCounts, setSectionCounts] = useState({});
     const [allGenres, setAllGenres] = useState(['Todas']);
     const [selectedGenre, setSelectedGenre] = useState(location.state?.selectedGenre || 'Todas');
     const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
@@ -130,7 +130,8 @@ export default function MoviesPage() {
 
         try {
             const isGenreSection = mainSection === 'por-generos' || mainSection === 'POR_GENERO';
-            const sectionToFetch = isGenreSection ? null : mainSection;
+            const isAllSection = mainSection === 'todas' || mainSection === 'TODAS';
+            const sectionToFetch = (isGenreSection || isAllSection) ? null : mainSection;
             const limit = window.innerWidth < 768 ? 1000 : 20;
             const data = await fetchUserMovies(currentPage, limit, sectionToFetch, genre, search);
             
@@ -139,7 +140,7 @@ export default function MoviesPage() {
             setPage(data.page);
             setHasMore(data.page < data.totalPages);
 
-            if (isGenreSection) {
+            if (isGenreSection || mainSection === 'todas' || mainSection === 'TODAS') {
                 const newGenres = extractUniqueGenres(data.videos);
                 setAllGenres(prevGenres => {
                     return extractUniqueGenres([...movies, ...data.videos]);
@@ -212,8 +213,29 @@ export default function MoviesPage() {
     }, [user?.token, dataCache]);
 
     useEffect(() => {
+        if (!user?.token || mainSections.length === 0) return;
+        let cancelled = false;
+        const loadCounts = async () => {
+            const entries = await Promise.all(
+                ['todas', ...mainSections.map(s => s.key)].map(async (key) => {
+                    try {
+                        const data = await fetchUserMovies(1, 1, key === 'todas' ? null : key, 'Todas');
+                        const total = data.total ?? data.totalVideos ?? data.videos?.length ?? 0;
+                        return [key, total];
+                    } catch {
+                        return [key, 0];
+                    }
+                })
+            );
+            if (!cancelled) setSectionCounts(Object.fromEntries(entries));
+        };
+        loadCounts();
+        return () => { cancelled = true; };
+    }, [user?.token, mainSections]);
+
+    useEffect(() => {
         if (location.state?.selectedMainSectionKey !== undefined) {
-            setSelectedMainSectionKey(location.state.selectedMainSectionKey);
+            setSelectedMainSectionKey(location.state.selectedMainSectionKey || 'todas');
         }
         if (location.state?.selectedGenre !== undefined) {
             setSelectedGenre(location.state.selectedGenre);
@@ -258,14 +280,7 @@ export default function MoviesPage() {
     };
 
     const handleGoBack = () => {
-        // Si estamos en una sección, volver a las secciones
-        if (selectedMainSectionKey) {
-            setSelectedMainSectionKey(null);
-            setSearchTerm('');
-        } else {
-            // Si no estamos en una sección, ir a la página principal
-            navigate('/home');
-        }
+        navigate('/home');
     };
 
     const toggleGridView = () => {
@@ -451,72 +466,48 @@ export default function MoviesPage() {
     if (error)
         return <p className="text-center text-red-400 p-6 text-lg bg-gray-800 rounded-md mx-auto max-w-md">{error}</p>;
 
+    const sectionOptions = [{ key: 'todas', displayName: 'TODAS' }, ...mainSections];
+    const currentSectionLabel = selectedMainSectionKey === 'todas' || selectedMainSectionKey === 'TODAS'
+        ? 'TODAS'
+        : (mainSections.find(s => s.key === selectedMainSectionKey)?.displayName || 'Películas');
+
     if (!user)
         return <p className="text-center text-xl text-gray-400 mt-20">Debes <a href="/login" className="text-red-500 hover:underline">iniciar sesión</a> para ver este contenido.</p>;
 
-    if (!selectedMainSectionKey) {
-        return (
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-                <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 text-center sm:text-left">Explorar Películas</h1>
-                {mainSections.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {mainSections.map(section => {
-                            const sectionLockState = getAccessLockState({ ...section, mainSection: section.key }, user?.plan);
-                            const preview = (moviesBySection[section.key] || [])[0];
-                            const thumb = preview?.customThumbnail || preview?.thumbnail || preview?.logo || section.thumbnailSample;
-                            return (
-                                <button
-                                    key={section.key}
-                                    onClick={() => openMainSection(section.key)}
-                                    title={sectionLockState.locked ? sectionLockState.lockMessage : section.displayName}
-                                    className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-fuchsia-400/40 hover:bg-white/[0.06] active:scale-[0.99]"
-                                >
-                                    <img
-                                        src={thumb ? rewriteImageUrl(thumb) : '/img/placeholder-thumbnail.png'}
-                                        alt=""
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
-                                        className="h-16 w-12 shrink-0 rounded-lg object-cover"
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
-                                            Colección destacada
-                                        </p>
-                                        <h3 className="truncate text-base font-extrabold text-white sm:text-lg">
-                                            {section.displayName}
-                                        </h3>
-                                        {section.requiresPlan && section.requiresPlan !== 'basico' && section.requiresPlan !== 'gplay' ? (
-                                            <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-200/90">
-                                                {String(section.requiresPlan).toUpperCase()}
-                                            </p>
-                                        ) : (
-                                            <p className="mt-0.5 text-xs text-gray-400">Explorar colección</p>
-                                        )}
-                                    </div>
-                                    {sectionLockState.locked ? (
-                                        <LockClosedIcon className="h-5 w-5 shrink-0 text-amber-200/80" />
-                                    ) : (
-                                        <ChevronRightIcon className="h-5 w-5 shrink-0 text-gray-500" />
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-center text-gray-500 mt-10 text-lg">No hay secciones de películas disponibles.</p>
-                )}
-            </div>
-        );
-    }
-
     const currentMainSection = mainSections.find(s => s.key === selectedMainSectionKey);
-    const genresToShow = selectedMainSectionKey === 'por-generos' ? (allGenres.length > 1 ? allGenres : extractUniqueGenres(movies)) : extractUniqueGenres(movies);
+    const genresToShow = (selectedMainSectionKey === 'por-generos' || selectedMainSectionKey === 'todas' || selectedMainSectionKey === 'TODAS') ? (allGenres.length > 1 ? allGenres : extractUniqueGenres(movies)) : extractUniqueGenres(movies);
     const displayedMovies = selectedGenre && selectedGenre !== 'Todas' ? movies.filter(m => itemMatchesGenre(m, selectedGenre)) : movies;
 
     if (isMobile && selectedMainSectionKey) {
         return (
             <>
+                <div className="px-4 pt-4 overflow-x-auto whitespace-nowrap scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div className="flex gap-2 pb-2">
+                        {sectionOptions.map(section => {
+                            const isActive = (selectedMainSectionKey || 'todas') === section.key;
+                            return (
+                                <button
+                                    key={section.key}
+                                    onClick={() => setSelectedMainSectionKey(section.key)}
+                                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
+                                        isActive
+                                            ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.3)] scale-[1.02]'
+                                            : 'bg-zinc-900/90 border border-zinc-800 text-gray-300 hover:bg-zinc-800'
+                                    }`}
+                                >
+                                    <span>{section.displayName}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                                        isActive
+                                            ? 'bg-black/15 text-white'
+                                            : 'bg-zinc-800 text-slate-400'
+                                    }`}>
+                                        {sectionCounts[section.key] ?? 0}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
                 <MobileArcadeDeck
                     items={movies}
                     searchTerm={searchTerm}
@@ -577,17 +568,77 @@ export default function MoviesPage() {
 
     return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex flex-col md:flex-row gap-8">
+            {/* Secciones: Desktop Sidebar (hidden on mobile) */}
+            <div className="hidden md:block md:w-64 flex-shrink-0">
+                <div className="bg-zinc-900/80 border border-zinc-800/60 backdrop-blur-md rounded-2xl p-4 sticky top-24 shadow-xl">
+                    <h2 className="text-xl font-bold mb-4 text-white">Secciones</h2>
+                    <div className="space-y-2">
+                        {sectionOptions.map(section => {
+                            const isActive = (selectedMainSectionKey || 'todas') === section.key;
+                            const sectionLockState = section.key === 'todas' ? { locked: false } : getAccessLockState({ ...section, mainSection: section.key }, user?.plan);
+                            return (
+                                <button
+                                    key={section.key}
+                                    onClick={() => setSelectedMainSectionKey(section.key)}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left transition-all duration-200 ${
+                                        isActive
+                                            ? 'bg-red-600 text-white font-bold shadow-[0_0_15px_rgba(220,38,38,0.35)] scale-[1.02]'
+                                            : 'text-gray-300 hover:bg-zinc-800 hover:text-white'
+                                    }`}
+                                >
+                                    <span className="flex items-center gap-2 truncate">
+                                        {sectionLockState.locked && <LockClosedIcon className="h-4 w-4 shrink-0 text-amber-200" />}
+                                        <span className="truncate">{section.displayName}</span>
+                                    </span>
+                                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-colors ${
+                                        isActive
+                                            ? 'bg-black/15 text-white'
+                                            : 'bg-zinc-800 text-slate-400'
+                                    }`}>
+                                        {sectionCounts[section.key] ?? 0}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Secciones: Mobile Horizontal Row (visible on mobile, hidden on desktop) */}
+            <div className="block md:hidden -mx-4 px-4 overflow-x-auto whitespace-nowrap mb-6 scrollbar-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex gap-2 pb-2">
+                    {sectionOptions.map(section => {
+                        const isActive = (selectedMainSectionKey || 'todas') === section.key;
+                        return (
+                            <button
+                                key={section.key}
+                                onClick={() => setSelectedMainSectionKey(section.key)}
+                                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
+                                    isActive
+                                        ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.3)] scale-[1.02]'
+                                        : 'bg-zinc-900/90 border border-zinc-800 text-gray-300 hover:bg-zinc-800'
+                                }`}
+                            >
+                                <span>{section.displayName}</span>
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                                    isActive
+                                        ? 'bg-black/15 text-white'
+                                        : 'bg-zinc-800 text-slate-400'
+                                }`}>
+                                    {sectionCounts[section.key] ?? 0}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="flex-1 min-w-0">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
                 <div className="flex items-center">
-                    <button
-                        onClick={() => { setSelectedMainSectionKey(null); setSearchTerm(''); }}
-                        className="mr-3 text-gray-300 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
-                        title="Volver a Secciones"
-                    >
-                        <ChevronLeftIcon className="w-6 h-6 sm:w-7 sm:h-7" />
-                    </button>
                     <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight flex items-center gap-2">
-                        <span>{currentMainSection?.displayName || "Películas"}</span>
+                        <span>Películas: {currentSectionLabel}</span>
                         <span className="text-sm font-semibold text-gray-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-full border border-zinc-700/60 align-middle">
                             {movies.length}
                         </span>
@@ -671,6 +722,8 @@ export default function MoviesPage() {
                     <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
                 </div>
             )}
+            </div>
+            </div>
 
             <ContentAccessModal
                 isOpen={showAccessModal}
