@@ -60,7 +60,7 @@ export default function MoviesPage() {
     const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    const gridOptions = [5, 4, 3, 1];
+    const gridOptions = [3, 4, 5, 1];
     const [gridCols, setGridCols] = useState(gridOptions[0]); // Default to 6 columns for smaller cards
 
     const [collections, setCollections] = useState([]);
@@ -292,7 +292,7 @@ export default function MoviesPage() {
     const getGridClass = () => {
         switch (gridCols) {
             case 1: return 'grid-cols-1';
-            case 3: return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+            case 3: return 'grid-cols-2 md:grid-cols-3';
             case 4: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
             case 5: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
             default: return 'grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-5';
