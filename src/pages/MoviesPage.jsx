@@ -5,8 +5,8 @@ import { fetchUserMovies, fetchMainMovieSections, getCollections, addItemsToColl
 import { normalizeSearchText } from '../utils/searchUtils.js';
 import useDataCache from '../hooks/useDataCache.js';
 import Card from '../components/Card.jsx';
-import MovieSectionCard from '../components/MovieSectionCard.jsx';
-import { ChevronLeftIcon, Squares2X2Icon } from '@heroicons/react/24/solid';
+import { rewriteImageUrl } from '../utils/imageUrl.js';
+import { ChevronLeftIcon, Squares2X2Icon, ChevronRightIcon, LockClosedIcon } from '@heroicons/react/24/solid';
 import { useContentAccess } from '../hooks/useContentAccess.js';
 import ContentAccessModal from '../components/ContentAccessModal.jsx';
 import TrailerModal from '../components/TrailerModal.jsx';
@@ -459,18 +459,47 @@ export default function MoviesPage() {
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
                 <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 text-center sm:text-left">Explorar Películas</h1>
                 {mainSections.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         {mainSections.map(section => {
                             const sectionLockState = getAccessLockState({ ...section, mainSection: section.key }, user?.plan);
+                            const preview = (moviesBySection[section.key] || [])[0];
+                            const thumb = preview?.customThumbnail || preview?.thumbnail || preview?.logo || section.thumbnailSample;
                             return (
-                                <MovieSectionCard
+                                <button
                                     key={section.key}
-                                    section={section}
-                                    onClick={openMainSection}
-                                    moviesInSection={moviesBySection[section.key] || []}
-                                    isLocked={sectionLockState.locked}
-                                    lockHint={sectionLockState.lockMessage}
-                                />
+                                    onClick={() => openMainSection(section.key)}
+                                    title={sectionLockState.locked ? sectionLockState.lockMessage : section.displayName}
+                                    className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-fuchsia-400/40 hover:bg-white/[0.06] active:scale-[0.99]"
+                                >
+                                    <img
+                                        src={thumb ? rewriteImageUrl(thumb) : '/img/placeholder-thumbnail.png'}
+                                        alt=""
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/img/placeholder-thumbnail.png'; }}
+                                        className="h-16 w-12 shrink-0 rounded-lg object-cover"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200/80">
+                                            Colección destacada
+                                        </p>
+                                        <h3 className="truncate text-base font-extrabold text-white sm:text-lg">
+                                            {section.displayName}
+                                        </h3>
+                                        {section.requiresPlan && section.requiresPlan !== 'basico' && section.requiresPlan !== 'gplay' ? (
+                                            <p className="mt-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-200/90">
+                                                {String(section.requiresPlan).toUpperCase()}
+                                            </p>
+                                        ) : (
+                                            <p className="mt-0.5 text-xs text-gray-400">Explorar colección</p>
+                                        )}
+                                    </div>
+                                    {sectionLockState.locked ? (
+                                        <LockClosedIcon className="h-5 w-5 shrink-0 text-amber-200/80" />
+                                    ) : (
+                                        <ChevronRightIcon className="h-5 w-5 shrink-0 text-gray-500" />
+                                    )}
+                                </button>
                             );
                         })}
                     </div>
