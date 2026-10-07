@@ -72,6 +72,8 @@ export function Halloween() {
   const [autoTerror, setAutoTerror] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('todos');
+  const [shownCounts, setShownCounts] = useState({});
+  const PAGE_SIZE = 30;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
@@ -341,8 +343,9 @@ export function Halloween() {
     );
   }
 
-  const renderSection = (emoji, title, items, emptyHint) => {
+  const renderSection = (key, emoji, title, items, emptyHint) => {
     if (!items.length && !emptyHint) return null;
+    const visible = items.slice(0, shownCounts[key] || PAGE_SIZE);
     return (
       <section className="mb-10">
         <h2 className="text-xl md:text-2xl font-extrabold mb-4 flex items-center gap-2">
@@ -354,9 +357,10 @@ export function Halloween() {
             {items.length}
           </span>
         </h2>
-        {items.length > 0 ? (
+        {visible.length > 0 ? (
+          <>
           <div className={`grid ${getGridClass()} gap-4 md:gap-6`}>
-            {items.map((item) => (
+            {visible.map((item) => (
               <Card
                 key={getId(item) || `${title}-${getTitle(item)}`}
                 item={item}
@@ -368,6 +372,17 @@ export function Halloween() {
               />
             ))}
           </div>
+          {items.length > visible.length && (
+            <div className="text-center mt-5">
+              <button
+                onClick={() => setShownCounts((prev) => ({ ...prev, [key]: (prev[key] || PAGE_SIZE) + PAGE_SIZE }))}
+                className="px-6 py-2.5 rounded-full text-sm font-bold bg-orange-600/20 border border-orange-500/50 text-orange-200 hover:bg-orange-600/40 transition-colors"
+              >
+                Ver más 🎃 ({items.length - visible.length} restantes)
+              </button>
+            </div>
+          )}
+          </>
         ) : (
           <p className="text-orange-200/50 text-center py-6">{emptyHint}</p>
         )}
@@ -404,6 +419,7 @@ export function Halloween() {
           z-index: 0;
           overflow: hidden;
           pointer-events: none;
+          contain: strict;
           background:
             radial-gradient(44vw 44vw at 6% 10%, rgba(255,107,0,0.22), transparent 62%),
             radial-gradient(38vw 38vw at 94% 6%, rgba(124,58,237,0.26), transparent 62%),
@@ -428,14 +444,19 @@ export function Halloween() {
           opacity: 0.55;
           animation: hwDrift 9s ease-in-out infinite;
           user-select: none;
+          will-change: transform;
+          transform: translateZ(0);
         }
         @keyframes hwDrift {
           0%, 100% { transform: translateY(0) rotate(-6deg); }
           50% { transform: translateY(-24px) rotate(6deg); }
         }
         @media (max-width: 768px) {
-          .hw-bg-emoji { filter: blur(3px); opacity: 0.32; }
+          .hw-bg-emoji { filter: blur(1px); opacity: 0.3; }
           .hw-bg-emoji.hide-mobile { display: none; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hw-bg-emoji, .hw-float, .hw-float-slow { animation: none !important; }
         }
       `}</style>
 
@@ -487,7 +508,7 @@ export function Halloween() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
+                    onClick={() => { setActiveTab(tab.key); setShownCounts({}); }}
                     className={`px-4 py-2 rounded-full text-sm font-bold transition-colors border ${
                       activeTab === tab.key
                         ? 'bg-orange-600 border-orange-400 text-white shadow-[0_0_18px_rgba(255,107,0,0.55)]'
@@ -510,16 +531,16 @@ export function Halloween() {
                   type="text"
                   placeholder="Buscar en Halloween... 🎃"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => { setSearchTerm(e.target.value); setShownCounts({}); }}
                   className="w-full sm:w-auto px-4 py-2 bg-black/50 border border-orange-800 rounded-lg text-white placeholder-orange-200/40 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 />
               </div>
             </div>
 
-            {renderSection('🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Lo subido con Tipo Halloween aparece aquí.' : '')}
-            {renderSection('👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Marca 👻 Solo Halloween Kids o usa géneros familiares.' : '')}
-            {renderSection('📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
-            {renderSection('🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}
+            {renderSection('especiales', '🎃', 'Especiales', (activeTab === 'todos' || activeTab === 'especiales') ? especialItems : [], activeTab === 'especiales' ? 'Lo subido con Tipo Halloween aparece aquí.' : '')}
+            {renderSection('kids', '👻', 'Halloween Kids', (activeTab === 'todos' || activeTab === 'kids') ? kidsItems : [], activeTab === 'kids' ? 'Marca 👻 Solo Halloween Kids o usa géneros familiares.' : '')}
+            {renderSection('series', '📺', 'Series', (activeTab === 'todos' || activeTab === 'series') ? seriesItems : [], activeTab === 'series' ? 'No hay series aquí todavía.' : '')}
+            {renderSection('peliculas', '🎬', 'Películas', (activeTab === 'todos' || activeTab === 'peliculas') ? movieItems : [], activeTab === 'peliculas' ? 'No hay películas aquí todavía.' : '')}
 
             {!allItems.length && (
               <div className="text-center py-14">
