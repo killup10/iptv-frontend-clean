@@ -496,6 +496,9 @@
 
 .tv-grid-variant-halloween {
   background:
+    radial-gradient(38vw 38vw at 4% 6%, rgba(255, 107, 0, 0.22), transparent 62%),
+    radial-gradient(34vw 34vw at 96% 4%, rgba(124, 58, 237, 0.24), transparent 62%),
+    radial-gradient(48vw 48vw at 50% 112%, rgba(255, 60, 0, 0.12), transparent 62%),
     radial-gradient(circle at top left, rgba(255, 107, 0, 0.18), transparent 26%),
     radial-gradient(circle at 20% 18%, rgba(124, 58, 237, 0.2), transparent 20%),
     radial-gradient(circle at top right, rgba(255, 107, 0, 0.12), transparent 22%),

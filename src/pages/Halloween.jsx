@@ -38,6 +38,34 @@ function isFamilyItem(item) {
   });
 }
 
+const HW_BG_EMOJIS = [
+  { e: '🎃', top: '6%', left: '4%', size: '4.5rem', delay: '0s' },
+  { e: '🦇', top: '10%', left: '78%', size: '3rem', delay: '1.2s' },
+  { e: '👻', top: '38%', left: '90%', size: '3.6rem', delay: '2s', hideMobile: true },
+  { e: '🕷️', top: '64%', left: '6%', size: '2.6rem', delay: '0.6s' },
+  { e: '🌙', top: '4%', left: '55%', size: '3.2rem', delay: '3s', hideMobile: true },
+  { e: '🕸️', top: '82%', left: '80%', size: '4rem', delay: '1.6s', hideMobile: true },
+  { e: '🎃', top: '74%', left: '42%', size: '2.4rem', delay: '2.4s' },
+  { e: '🦇', top: '30%', left: '12%', size: '2.2rem', delay: '4s' },
+  { e: '🍬', top: '52%', left: '95%', size: '2rem', delay: '0.9s', hideMobile: true },
+];
+
+function HalloweenBg() {
+  return (
+    <div className="hw-bg" aria-hidden="true">
+      {HW_BG_EMOJIS.map((b, i) => (
+        <span
+          key={i}
+          className={`hw-bg-emoji${b.hideMobile ? ' hide-mobile' : ''}`}
+          style={{ top: b.top, left: b.left, fontSize: b.size, animationDelay: b.delay }}
+        >
+          {b.e}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function Halloween() {
   const navigate = useNavigate();
   const [exclusive, setExclusive] = useState([]);
@@ -370,10 +398,51 @@ export function Halloween() {
             radial-gradient(circle at 50% 100%, rgba(255,107,0,0.08), transparent 40%),
             linear-gradient(180deg, #150826 0%, #0b0614 55%, #000 100%);
         }
+        .hw-bg {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          overflow: hidden;
+          pointer-events: none;
+          background:
+            radial-gradient(44vw 44vw at 6% 10%, rgba(255,107,0,0.22), transparent 62%),
+            radial-gradient(38vw 38vw at 94% 6%, rgba(124,58,237,0.26), transparent 62%),
+            radial-gradient(52vw 52vw at 50% 112%, rgba(255,60,0,0.14), transparent 62%),
+            radial-gradient(30vw 30vw at 88% 72%, rgba(255,107,0,0.12), transparent 62%),
+            radial-gradient(26vw 26vw at 10% 85%, rgba(124,58,237,0.16), transparent 62%),
+            linear-gradient(180deg, #150826 0%, #0b0614 55%, #000 100%);
+        }
+        .hw-bg::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(120% 90% at 50% 38%, transparent 52%, rgba(0,0,0,0.6) 100%);
+        }
+        .hw-content {
+          position: relative;
+          z-index: 1;
+        }
+        .hw-bg-emoji {
+          position: absolute;
+          filter: blur(2px);
+          opacity: 0.55;
+          animation: hwDrift 9s ease-in-out infinite;
+          user-select: none;
+        }
+        @keyframes hwDrift {
+          0%, 100% { transform: translateY(0) rotate(-6deg); }
+          50% { transform: translateY(-24px) rotate(6deg); }
+        }
+        @media (max-width: 768px) {
+          .hw-bg-emoji { filter: blur(3px); opacity: 0.32; }
+          .hw-bg-emoji.hide-mobile { display: none; }
+        }
       `}</style>
 
       {isMobile ? (
-        <div className="hw-fog min-h-screen">
+        <div className="min-h-screen">
+          <HalloweenBg />
+          <div className="hw-content">
           <MobileArcadeDeck
             items={filteredAll}
             searchTerm={searchTerm}
@@ -387,9 +456,12 @@ export function Halloween() {
             variant="arcade"
             loading={loading}
           />
+          </div>
         </div>
       ) : (
-        <div className="text-white min-h-screen hw-fog">
+        <div className="text-white min-h-screen">
+          <HalloweenBg />
+          <div className="hw-content">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
             <div
               className="relative overflow-hidden rounded-2xl border border-orange-800/50 mb-8 p-6 md:p-10"
@@ -459,6 +531,7 @@ export function Halloween() {
                 </p>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
