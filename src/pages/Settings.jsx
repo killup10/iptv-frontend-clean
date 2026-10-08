@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import axiosInstance from '../utils/axiosInstance.js';
 import { storage } from '../utils/storage.js';
 import { getUserSubscriptionSummary } from '../utils/userSubscription.js';
-import { isAndroidTV } from '../utils/platformUtils.js';
+import { isAndroidTV, isForcedTVMode } from '../utils/platformUtils.js';
 
 export default function Settings() {
   const { user, logout } = useAuth();
@@ -65,6 +65,9 @@ export default function Settings() {
 
   // Preferences state
   const [autoplay, setAutoplay] = useState(true);
+  const [tvModeEnabled, setTvModeEnabled] = useState(() => {
+    return typeof window !== 'undefined' && isForcedTVMode();
+  });
 
   // Speed test state
   const [speedTestState, setSpeedTestState] = useState('idle'); // 'idle' | 'testing' | 'completed'
@@ -334,6 +337,20 @@ export default function Settings() {
     } catch (err) {
       console.warn('Error saving autoplay preference:', err);
     }
+  };
+
+  // TV Mode toggle handler
+  const handleToggleTvMode = () => {
+    const nextVal = !tvModeEnabled;
+    setTvModeEnabled(nextVal);
+    if (nextVal) {
+      localStorage.setItem('FORCE_TV_MODE', 'true');
+      localStorage.setItem('FORCED_TV_MODE', 'true');
+    } else {
+      localStorage.removeItem('FORCE_TV_MODE');
+      localStorage.removeItem('FORCED_TV_MODE');
+    }
+    window.location.reload();
   };
 
   // Password change handler
@@ -1145,6 +1162,44 @@ export default function Settings() {
                     >
                       <div className={`w-6 h-6 rounded-full bg-black shadow-md transition-transform duration-300 ${
                         autoplay ? 'translate-x-8 bg-white' : ''
+                      }`} />
+                    </button>
+                  </div>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Android TV Mode toggle */}
+                <div>
+                  <h3 className="text-2xl font-bold uppercase tracking-tight text-white mb-1">Modo de Visualización</h3>
+                  <p className="text-gray-400 text-xs mb-6">Prueba la experiencia de TeamG Play adaptada para televisores o pantallas grandes.</p>
+
+                  <div className="flex items-center justify-between bg-white/[0.01] border border-white/5 p-5 rounded-3xl">
+                    <div className="max-w-[70%]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">📺</span>
+                        <h4 className="text-base font-bold text-white">Versión Android TV (Prueba)</h4>
+                        {tvModeEnabled && (
+                          <span className="bg-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-cyan-500/30">
+                            Activo
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Activa la interfaz optimizada para Smart TV y Android TV directamente en tu dispositivo. Puedes interactuar con la pantalla táctil o con control remoto. Te recomendamos usar la pantalla en horizontal para una mejor experiencia.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleToggleTvMode}
+                      className={`w-16 h-8 rounded-full p-1 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 border ${
+                        tvModeEnabled 
+                          ? 'bg-cyan-500 border-cyan-400' 
+                          : 'bg-white/10 border-white/10'
+                      }`}
+                      tabIndex={0}
+                    >
+                      <div className={`w-6 h-6 rounded-full bg-black shadow-md transition-transform duration-300 ${
+                        tvModeEnabled ? 'translate-x-8 bg-white' : ''
                       }`} />
                     </button>
                   </div>

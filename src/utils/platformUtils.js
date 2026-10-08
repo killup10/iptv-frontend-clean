@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 
-const isForcedTVMode = () => {
+export const isForcedTVMode = () => {
   if (typeof window === 'undefined') return false;
 
   return window.__TEAMG_TV_BUILD__ === true ||

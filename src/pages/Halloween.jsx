@@ -12,7 +12,6 @@ import { getCollections, addItemsToCollection, fetchHalloweenVideos } from '../u
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
-import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 
 const getId = (item) => item?._id || item?.id;
 const getTitle = (item) => item?.title || item?.name || 'Sin título';
@@ -78,15 +77,6 @@ export function Halloween() {
   const [error, setError] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
-
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const [collections, setCollections] = useState([]);
   const [isCollectionsModalOpen, setIsCollectionsModalOpen] = useState(false);
@@ -305,10 +295,10 @@ export function Halloween() {
   };
 
   const tabs = [
-    { key: 'todos', label: 'Todo' },
-    { key: 'peliculas', label: 'Películas' },
-    { key: 'series', label: 'Series' },
-    { key: 'especiales', label: 'Especiales' },
+    { key: 'todos', label: '🎃 Todo' },
+    { key: 'peliculas', label: '🎬 Películas' },
+    { key: 'series', label: '📺 Series' },
+    { key: 'especiales', label: '🍬 Especiales' },
     { key: 'kids', label: '👻 Halloween Kids' },
   ];
 
@@ -317,7 +307,7 @@ export function Halloween() {
     return <Navigate to="/home" replace />;
   }
 
-  if (loading && !isMobile) {
+  if (loading) {
     return (
       <div
         className="flex justify-center items-center min-h-screen"
@@ -460,56 +450,36 @@ export function Halloween() {
         }
       `}</style>
 
-      {isMobile ? (
-        <div className="min-h-screen">
-          <HalloweenBg />
-          <div className="hw-content">
-          <MobileArcadeDeck
-            items={filteredAll}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            onItemClick={handleItemClick}
-            onPlayTrailer={handlePlayTrailerClick}
-            onAddToMyList={handleAddToMyList}
-            onAddToCollectionClick={handleOpenCollectionsModal}
-            title="🎃 Especial Halloween"
-            itemType="halloween"
-            variant="arcade"
-            loading={loading}
-          />
-          </div>
-        </div>
-      ) : (
         <div className="text-white min-h-screen">
           <HalloweenBg />
           <div className="hw-content">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-24 pb-8">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 md:pt-24 pb-12">
             <div
-              className="relative overflow-hidden rounded-2xl border border-orange-800/50 mb-8 p-6 md:p-10"
+              className="relative overflow-hidden rounded-2xl border border-orange-800/50 mb-8 p-5 sm:p-6 md:p-10"
               style={{ background: 'linear-gradient(120deg, rgba(60,12,80,0.9) 0%, rgba(20,8,30,0.95) 55%, rgba(80,25,0,0.85) 100%)' }}
             >
-              <div className="absolute top-2 left-6 text-4xl md:text-6xl hw-float">🎃</div>
-              <div className="absolute top-4 right-8 text-3xl md:text-5xl hw-float-slow">👻</div>
-              <div className="absolute bottom-3 left-1/3 text-2xl md:text-4xl hw-float-slow">🦇</div>
-              <div className="absolute bottom-4 right-1/4 text-2xl md:text-4xl hw-float">🕷️</div>
+              <div className="absolute top-2 left-3 sm:left-6 text-3xl sm:text-4xl md:text-6xl hw-float">🎃</div>
+              <div className="absolute top-3 right-4 sm:right-8 text-2xl sm:text-3xl md:text-5xl hw-float-slow">👻</div>
+              <div className="absolute bottom-2 left-1/4 sm:left-1/3 text-xl sm:text-2xl md:text-4xl hw-float-slow">🦇</div>
+              <div className="absolute bottom-3 right-1/4 text-xl sm:text-2xl md:text-4xl hw-float">🕷️</div>
               <div className="relative text-center">
-                <p className="text-orange-300/80 tracking-[0.3em] text-xs md:text-sm font-bold mb-2">🦇 TRUCO O TRATO 🍬</p>
-                <h1 className="text-3xl md:text-5xl font-black bg-gradient-to-r from-orange-400 via-amber-200 to-orange-500 bg-clip-text text-transparent drop-shadow-[0_0_25px_rgba(255,107,0,0.45)]">
+                <p className="text-orange-300/80 tracking-[0.2em] sm:tracking-[0.3em] text-[11px] sm:text-xs md:text-sm font-bold mb-1.5 sm:mb-2">🦇 TRUCO O TRATO 🍬</p>
+                <h1 className="text-2xl sm:text-3xl md:text-5xl font-black bg-gradient-to-r from-orange-400 via-amber-200 to-orange-500 bg-clip-text text-transparent drop-shadow-[0_0_25px_rgba(255,107,0,0.45)]">
                   ESPECIAL HALLOWEEN
                 </h1>
-                <p className="text-purple-200/80 mt-3 text-sm md:text-base">
+                <p className="text-purple-200/80 mt-2 sm:mt-3 text-xs sm:text-sm md:text-base">
                   Películas, series y cortos para una maratón escalofriante 🎃 {allItems.length} títulos embrujados
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-8 gap-4">
               <div className="flex flex-wrap gap-2">
                 {tabs.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => { setActiveTab(tab.key); setShownCounts({}); }}
-                    className={`px-4 py-2 rounded-full text-sm font-bold transition-colors border ${
+                    className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-bold transition-colors border ${
                       activeTab === tab.key
                         ? 'bg-orange-600 border-orange-400 text-white shadow-[0_0_18px_rgba(255,107,0,0.55)]'
                         : 'bg-white/5 border-purple-700/50 text-purple-200 hover:bg-white/10'
@@ -519,10 +489,10 @@ export function Halloween() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-4 w-full sm:w-auto">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button
                   onClick={toggleGridView}
-                  className="bg-purple-950 hover:bg-purple-900 text-purple-200 hover:text-white p-2 rounded-md transition-colors border border-purple-800"
+                  className="bg-purple-950 hover:bg-purple-900 text-purple-200 hover:text-white p-2 sm:p-2.5 rounded-lg transition-colors border border-purple-800 shrink-0"
                   aria-label="Cambiar vista de cuadrícula"
                 >
                   <Squares2X2Icon className="w-5 h-5" />
@@ -532,7 +502,7 @@ export function Halloween() {
                   placeholder="Buscar en Halloween... 🎃"
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setShownCounts({}); }}
-                  className="w-full sm:w-auto px-4 py-2 bg-black/50 border border-orange-800 rounded-lg text-white placeholder-orange-200/40 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full sm:w-auto px-4 py-2 bg-black/50 border border-orange-800 rounded-lg text-white placeholder-orange-200/40 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                 />
               </div>
             </div>
@@ -555,7 +525,6 @@ export function Halloween() {
           </div>
           </div>
         </div>
-      )}
 
       {showTrailerModal && currentTrailerUrl && (
         <TrailerModal trailerUrl={currentTrailerUrl} onClose={closeTrailer} />

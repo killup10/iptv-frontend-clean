@@ -48,6 +48,25 @@ function AppTV() {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const { isPlaying, togglePlay } = useMusic();
 
+  const isForcedTV = typeof window !== 'undefined' && (
+    localStorage.getItem('FORCE_TV_MODE') === 'true' ||
+    localStorage.getItem('FORCED_TV_MODE') === 'true' ||
+    new URLSearchParams(window.location.search).get('tv') === 'true'
+  );
+
+  const handleExitTVMode = () => {
+    localStorage.removeItem('FORCE_TV_MODE');
+    localStorage.removeItem('FORCED_TV_MODE');
+    window.location.reload();
+  };
+
+  useEffect(() => {
+    document.body.classList.add('tv-interface');
+    return () => {
+      document.body.classList.remove('tv-interface');
+    };
+  }, []);
+
   useEffect(() => {
     if (isWatchPage && isPlaying) {
       togglePlay();
@@ -352,6 +371,20 @@ function AppTV() {
       `}</style>
 
       <div className="tv-app-container">
+        {isForcedTV && !isWatchPage && (
+          <button
+            type="button"
+            onClick={handleExitTVMode}
+            className="fixed top-4 right-4 z-[999] flex items-center gap-2 bg-black/85 hover:bg-black text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl backdrop-blur-md border border-cyan-500/40 hover:border-cyan-400 transition-all active:scale-95 cursor-pointer"
+            title="Salir del Modo Android TV y volver a la versión móvil"
+          >
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="hidden sm:inline">Modo TV (Prueba)</span>
+            <span className="bg-red-500/80 hover:bg-red-600 px-2 py-0.5 rounded-full text-[10px] text-white transition">
+              Volver a Móvil ✕
+            </span>
+          </button>
+        )}
         {!isWatchPage && <TVNavigation />}
         <main className="tv-main-content">
           <Outlet />

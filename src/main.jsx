@@ -28,6 +28,15 @@ const AdminPanel = React.lazy(() => import('./pages/AdminPanel.jsx'));
 import Watch from './pages/Watch.jsx';
 const LiveTVPage = React.lazy(() => import('./pages/LiveTVPage.jsx'));
 const TVLiveTV = React.lazy(() => import('./pages/TVLiveTV.jsx'));
+const AppTV = React.lazy(() => import('./AppTV.jsx'));
+const TVCatalogPage = React.lazy(() => import('./pages/TVCatalogPage.jsx'));
+const TVSeriesPage = React.lazy(() => import('./pages/TVSeriesPage.jsx'));
+const TVCollectionsPage = React.lazy(() => import('./pages/TVCollectionsPage.jsx'));
+const TVMyListPage = React.lazy(() => import('./pages/TVMyListPage.jsx'));
+const TVMoviesPage = React.lazy(() => import('./pages/TVMoviesPage.jsx'));
+const TVKidsPage = React.lazy(() => import('./pages/TVKidsPage.jsx'));
+const TVHalloweenPage = React.lazy(() => import('./pages/TVHalloweenPage.jsx'));
+const TVMusicPage = React.lazy(() => import('./pages/TVMusicPage.jsx'));
 const MoviesPage = React.lazy(() => import('./pages/MoviesPage.jsx'));
 const SeriesPage = React.lazy(() => import('./pages/SeriesPage.jsx'));
 const Animes = React.lazy(() => import('./pages/Animes.jsx'));
@@ -313,12 +322,53 @@ const router = createHashRouter([
   // aunque generalmente con AppLayout como raíz es suficiente.
 ]);
 
+const tvRouter = createHashRouter([
+  { path: "/login", element: <Suspense fallback={<PageLoader />}><Login /></Suspense> },
+  { path: "/register", element: <Suspense fallback={<PageLoader />}><Register /></Suspense> },
+  { path: "/forgot-password", element: <Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense> },
+  { path: "/profiles", element: <ProtectedRoute><Suspense fallback={<PageLoader />}><Profiles /></Suspense></ProtectedRoute> },
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <Suspense fallback={<PageLoader />}>
+          <AppTV />
+        </Suspense>
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Suspense fallback={<PageLoader />}><Home /></Suspense> },
+      { path: "home", element: <Navigate to="/" replace /> },
+      { path: "tv", element: <Navigate to="/live-tv" replace /> },
+      { path: "live-tv", element: <Suspense fallback={<PageLoader />}><TVLiveTV /></Suspense> },
+      { path: "musica", element: <Suspense fallback={<PageLoader />}><TVMusicPage /></Suspense> },
+      { path: "music", element: <Navigate to="/musica" replace /> },
+      { path: "peliculas", element: <Suspense fallback={<PageLoader />}><TVMoviesPage /></Suspense> },
+      { path: "peliculas/:sectionKey", element: <Suspense fallback={<PageLoader />}><TVMoviesPage /></Suspense> },
+      { path: "series", element: <Suspense fallback={<PageLoader />}><TVSeriesPage /></Suspense> },
+      { path: "animes", element: <Suspense fallback={<PageLoader />}><TVCatalogPage title="Animes" contentType="anime" fallbackWatchType="anime" /></Suspense> },
+      { path: "doramas", element: <Suspense fallback={<PageLoader />}><TVCatalogPage title="Series Asiáticas" contentType="dorama" fallbackWatchType="dorama" /></Suspense> },
+      { path: "novelas", element: <Suspense fallback={<PageLoader />}><TVCatalogPage title="Novelas" contentType="novela" fallbackWatchType="novela" /></Suspense> },
+      { path: "documentales", element: <Suspense fallback={<PageLoader />}><TVCatalogPage title="Documentales" contentType="documental" fallbackWatchType="documental" /></Suspense> },
+      { path: "kids", element: <Suspense fallback={<PageLoader />}><TVKidsPage /></Suspense> },
+      { path: "halloween", element: <Suspense fallback={<PageLoader />}><TVHalloweenPage /></Suspense> },
+      { path: "colecciones", element: <Suspense fallback={<PageLoader />}><TVCollectionsPage /></Suspense> },
+      { path: "mi-lista", element: <Suspense fallback={<PageLoader />}><TVMyListPage /></Suspense> },
+      { path: "watch/:itemType/:itemId", element: <Watch /> },
+      { path: "settings", element: <Suspense fallback={<PageLoader />}><Settings /></Suspense> },
+    ],
+  },
+  { path: "*", element: <Navigate to="/" replace /> },
+]);
+
+const activeRouter = isAndroidTV() ? tvRouter : router;
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <AuthProvider>
         <MusicProvider>
-          <RouterProvider router={router} />
+          <RouterProvider router={activeRouter} />
         </MusicProvider>
       </AuthProvider>
     </ErrorBoundary>
