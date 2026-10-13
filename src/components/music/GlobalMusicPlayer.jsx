@@ -34,6 +34,8 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { isPremiumUser } from '../../utils/planAccess.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ReactPlayer from 'react-player/youtube';
+import LyricsPanel from './LyricsPanel.jsx';
+import { parseLrc } from './lyricsTiming.js';
 import AddToPlaylistModal from './AddToPlaylistModal.jsx';
 import { musicService, parseArtists } from '../../services/musicService.js';
 
@@ -42,21 +44,6 @@ function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-}
-
-// Parser de letras sincronizadas formato LRC [mm:ss.xx]
-function parseLrc(lrcText) {
-  if (typeof lrcText !== 'string' || !lrcText) return null;
-  const offset = Number(lrcText.match(/\[offset:([+-]?\d+)\]/i)?.[1] || 0) / 1000;
-  const result = [];
-  for (const line of lrcText.split('\n')) {
-    const stamps = [...line.matchAll(/\[(\d+):(\d{2}(?:\.\d{1,3})?)\]/g)];
-    const text = line.replace(/\[[^\]]*\]/g, '').trim();
-    // Empty lines mark instrumental passages and must clear the previous lyric.
-    for (const stamp of stamps) result.push({ time: Math.max(0, Number(stamp[1]) * 60 + Number(stamp[2]) + offset), text });
-  }
-  result.sort((a, b) => a.time - b.time);
-  return result.length ? result : null;
 }
 
 // Consulta de letras en tiempo real a LRCLIB (0% consumo de backend Render / API pública gratuita)
@@ -201,7 +188,6 @@ export default function GlobalMusicPlayer() {
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
 
   const statusTimeoutRef = useRef(null);
-  const lyricsContainerRef = useRef(null);
   const videoPlayerRef = officialVideoPlayerRef;
   const [officialVideo, setOfficialVideo] = useState(null);
   const [videoError, setVideoError] = useState('');
@@ -283,32 +269,11 @@ export default function GlobalMusicPlayer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpandedPlayer, togglePlay, nextTrack, prevTrack, seekTo, currentTime, duration, currentTrack?.fullDuration]);
 
-  // Cálculo de línea de letra activa según currentTime
-  // Cálculo de línea de letra activa según currentTime
-  const activeLyricIdx = useMemo(() => {
-    if (!lyricsData?.syncedLyrics || lyricsData.syncedLyrics.length === 0) return -1;
-    for (let i = lyricsData.syncedLyrics.length - 1; i >= 0; i--) {
-      if (currentTime >= lyricsData.syncedLyrics[i].time) {
-        return i;
-      }
-    }
-    return 0;
-  }, [currentTime, lyricsData]);
-
   // Análisis incondicional de colaboradores para respetar el orden de los Hooks de React
   const parsedTrackArtists = useMemo(() => {
     if (!currentTrack?.artist || currentTrack.isRadio) return [];
     return parseArtists(currentTrack.artist);
   }, [currentTrack?.artist, currentTrack?.isRadio]);
-
-  // Auto-scroll suave de letra sincronizada
-  useEffect(() => {
-    if (!showLyrics || !lyricsContainerRef.current) return;
-    const activeEl = lyricsContainerRef.current.querySelector('[data-active="true"]');
-    if (activeEl) {
-      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [activeLyricIdx, showLyrics]);
 
   // Referencia táctil para gestos móviles fluidos (Previo, Siguiente, Letra, Minimizar)
   const touchStartRef = useRef(null);
@@ -940,64 +905,7 @@ export default function GlobalMusicPlayer() {
                   </div>}
                 </div>
               ) : showLyrics ? (
-                /* VISTA 2: LETRA EN TIEMPO REAL (SINCRONIZADA O TEXTO PLANO) */
-                <div
-                  ref={lyricsContainerRef}
-                  className="relative w-full max-w-md h-64 sm:h-72 md:h-80 rounded-3xl overflow-y-auto px-4 py-6 bg-black/60 backdrop-blur-xl border border-fuchsia-500/30 shadow-2xl flex flex-col items-center text-center space-y-4 custom-scrollbar select-text"
-                  style={{ touchAction: 'pan-y' }}
-                >
-                  <div className="sticky top-0 z-10 w-full pb-2 mb-2 border-b border-white/10 flex items-center justify-between text-xs text-fuchsia-300 font-bold bg-black/40 backdrop-blur-md px-2 rounded-lg">
-                    <span className="flex items-center gap-1.5">
-                      <Mic2 className="w-3.5 h-3.5 text-fuchsia-400" />
-                      <span>{lyricsData?.isSynced ? 'Letra Sincronizada' : 'Letra Oficial'}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowLyrics(false)}
-                      className="text-gray-400 hover:text-white p-1 rounded-md"
-                      title="Volver a carátula"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {isLoadingLyrics ? (
-                    <div className="flex flex-col items-center justify-center my-auto text-gray-400 gap-2">
-                      <Loader2 className="w-6 h-6 animate-spin text-fuchsia-400" />
-                      <span className="text-xs">Buscando letra oficial...</span>
-                    </div>
-                  ) : lyricsData?.syncedLyrics ? (
-                    lyricsData.syncedLyrics.map((line, idx) => {
-                      const isActive = idx === activeLyricIdx;
-                      return (
-                        <p
-                          key={`lrc-${idx}`}
-                          data-active={isActive ? 'true' : undefined}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            seekTo(line.time);
-                          }}
-                          className={`w-full py-1.5 px-3 rounded-xl transition-all duration-300 cursor-pointer font-bold ${
-                            isActive
-                              ? 'text-white text-base sm:text-lg scale-105 bg-fuchsia-500/25 border border-fuchsia-500/40 text-fuchsia-200 shadow-md'
-                              : 'text-gray-400/80 hover:text-white text-xs sm:text-sm hover:bg-white/5'
-                          }`}
-                        >
-                          {line.text}
-                        </p>
-                      );
-                    })
-                  ) : lyricsData?.plainLyrics ? (
-                    <div className="whitespace-pre-line text-xs sm:text-sm text-gray-200 leading-relaxed font-medium px-2">
-                      {lyricsData.plainLyrics}
-                    </div>
-                  ) : (
-                    <div className="my-auto text-gray-400 text-xs flex flex-col items-center gap-2">
-                      <Mic2 className="w-8 h-8 text-gray-600" />
-                      <span>No se encontró la letra oficial de esta pista</span>
-                    </div>
-                  )}
-                </div>
+                <LyricsPanel data={lyricsData} loading={isLoadingLyrics} currentTime={currentTime} duration={duration} trackKey={currentTrack?.id || `${currentTrack?.artist}-${currentTrack?.title}`} onSeek={seekTo} onClose={() => setShowLyrics(false)} />
               ) : (
                 /* VISTA: CARÁTULA HD CON GLOW AMBIENTAL */
                 <div className="relative flex items-center justify-center">

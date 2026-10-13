@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTVGrid } from '../hooks/useTVNavigation';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
@@ -42,6 +42,146 @@ function resolveGridAction(event) {
   }
 }
 
+const FilteredCard = React.memo(function FilteredCard({item,index,isSelected,plan,showPlanLock,showItemTypeBadge,statusMessage,onSelectItem,columns}) {
+              const itemTitle = getTVItemTitle(item);
+              const itemDescription = getTVItemDescription(item);
+              const itemYear = getTVItemYear(item);
+              const itemRating = getTVItemRating(item);
+              const itemQualityBadges = getTVItemQualityBadges(item);
+              const resolvedItemType = resolveTVItemType(item, 'movie');
+              const itemType = resolvedItemType.replace('-', ' ');
+              const itemDuration = getTVItemDuration(item);
+              const itemDirector = getTVItemDirector(item);
+              const itemCert = getTVItemCertification(item);
+              const itemUserScore = getTVItemUserScore(item);
+              const lockState = showPlanLock
+                ? getAccessLockState(item, plan)
+                : { locked: false, lockMessage: '' };
+
+              return (
+                <div
+                  key={item._id || item.id || index}
+                  data-filtered-grid-index={index}
+                  tabIndex={-1}
+                  role="button"
+                  aria-label={itemTitle}
+                  className={`tv-grid-item ${isSelected ? 'focused' : ''}`}
+                >
+                  <div
+                    className="item-image-wrapper"
+                    onClick={() => onSelectItem?.(item, index)}
+                  >
+                    <img
+                      src={getTVItemImage(item)}
+                      alt={itemTitle}
+                      className={`item-image ${lockState.locked ? 'is-locked' : ''}`}
+                      loading={index < columns * 2 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+
+                    {lockState.locked && (
+                      <div className="item-lock-badge">
+                        <svg className="w-3.5 h-3.5 mr-1 inline-block align-middle" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
+                        <span>CERRADO</span>
+                      </div>
+                    )}
+
+                    {lockState.locked && (
+                      <div className="item-lock-footer">
+                        <p className="font-extrabold uppercase text-[10px] tracking-wider text-amber-200">Upgrade requerido</p>
+                        <p className="text-[11px] text-white/90 font-semibold mt-0.5">{lockState.minimumPlanLabel || 'Plan Superior'}</p>
+                      </div>
+                    )}
+
+                    {(itemRating || itemQualityBadges.length > 0 || (itemType && itemType !== 'movie')) ? (
+                      <div className="item-corner-badges">
+                        {itemRating ? (
+                          <div className="item-rating-badge">
+                            <span className="item-rating-star">{'\u2605'}</span>
+                            <span>{itemRating}</span>
+                          </div>
+                        ) : null}
+
+                        {itemQualityBadges.map((badge) => (
+                          <span
+                            key={`${itemTitle}-${badge}`}
+                            className={`item-feature-badge ${badge.includes('4K') ? 'is-4k' : 'is-60fps'}`}
+                          >
+                            {badge}
+                          </span>
+                        ))}
+
+                        {showItemTypeBadge && resolvedItemType && (
+                          <span className="item-type-badge">
+                            {(() => {
+                             const t = resolvedItemType.toLowerCase();
+                             if (t === 'movie' || t === 'movies' || t === 'pelicula' || t === 'peliculas' || t === 'video' || t === 'videos') return 'película';
+                             if (t === 'serie' || t === 'series') return 'serie';
+                             if (t === 'anime' || t === 'animes') return 'anime';
+                             if (t === 'dorama' || t === 'doramas' || t === 'k-dramas' || t === 'k-drama') return 'Series Asiáticas';
+                             if (t === 'novela' || t === 'novelas') return 'novela';
+                             if (t === 'documental' || t === 'documentales') return 'documental';
+                             if (t === 'zona kids' || t === 'kids') return 'kids';
+                              return t;
+                            })()}
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {!lockState.locked && (
+                      <div className="item-base-copy">
+                        <p className="item-base-title">{itemTitle}</p>
+                        {itemYear ? <p className="item-base-meta">{itemYear}</p> : null}
+                      </div>
+                    )}
+
+                    {isSelected ? (
+                      <div className="item-overlay">
+                        <div className="item-overlay-copy">
+                          <h2>{itemTitle}</h2>
+                          <div className="item-overlay-meta flex items-center gap-1.5 flex-wrap">
+                            {itemCert ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-white/20 text-white border border-white/30">
+                                {itemCert}
+                              </span>
+                            ) : null}
+                            {itemYear ? <span>{itemYear}</span> : null}
+                            {itemDuration ? <span>• {itemDuration}</span> : null}
+                            {itemUserScore ? (
+                              <span className="text-emerald-400 font-bold">• {itemUserScore}% TMDB</span>
+                            ) : null}
+                          </div>
+                          {itemDirector ? (
+                            <p className="text-[11px] text-cyan-300 font-semibold mt-1">Dir: {itemDirector}</p>
+                          ) : null}
+                          {lockState.locked ? (
+                            <p className="item-overlay-description text-amber-400 font-bold uppercase tracking-wider mt-1 text-xs">
+                              {lockState.lockMessage}
+                            </p>
+                          ) : itemDescription ? (
+                            <p className="item-overlay-description">{itemDescription}</p>
+                          ) : null}
+                          {statusMessage ? (
+                            <p className="item-overlay-status">{statusMessage}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {isSelected ? (
+                      <div className="focus-indicator">
+                        <div className="focus-ring" />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+
+});
+
 export default function TVFilteredGridPage({
   title,
   subtitle = '',
@@ -64,6 +204,9 @@ export default function TVFilteredGridPage({
   showItemTypeBadge = false,
 }) {
   const { user } = useAuth();
+  const selectItemRef = useRef(onSelectItem);
+  selectItemRef.current = onSelectItem;
+  const selectCard = useCallback((item, index) => selectItemRef.current?.(item, index), []);
   const [focusMode, setFocusMode] = useState(initialFocusMode);
   const { currentIndex, currentItem, navigate, setCurrentIndex } = useTVGrid(items, columns, initialIndex);
   const currentRow = Math.floor(currentIndex / columns);
@@ -93,7 +236,10 @@ export default function TVFilteredGridPage({
 
     const selectedElement = document.querySelector(`[data-filtered-grid-index="${currentIndex}"]`);
     if (selectedElement) {
-       selectedElement.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+       if (getTVFocusZone() === TV_FOCUS_ZONE_CONTENT) {
+         selectedElement.focus({ preventScroll: true });
+       }
+       selectedElement.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
     }
   }, [currentIndex, focusMode]);
 
@@ -291,137 +437,7 @@ export default function TVFilteredGridPage({
           >
             {items.map((item, index) => {
               const isSelected = focusMode === 'grid' && index === currentIndex;
-              const itemTitle = getTVItemTitle(item);
-              const itemDescription = getTVItemDescription(item);
-              const itemYear = getTVItemYear(item);
-              const itemRating = getTVItemRating(item);
-              const itemQualityBadges = getTVItemQualityBadges(item);
-              const resolvedItemType = resolveTVItemType(item, 'movie');
-              const itemType = resolvedItemType.replace('-', ' ');
-              const itemDuration = getTVItemDuration(item);
-              const itemDirector = getTVItemDirector(item);
-              const itemCert = getTVItemCertification(item);
-              const itemUserScore = getTVItemUserScore(item);
-              const lockState = showPlanLock
-                ? getAccessLockState(item, user?.plan)
-                : { locked: false, lockMessage: '' };
-
-              return (
-                <div
-                  key={item._id || item.id || index}
-                  data-filtered-grid-index={index}
-                  className={`tv-grid-item ${isSelected ? 'focused' : ''}`}
-                >
-                  <div
-                    className="item-image-wrapper"
-                    onClick={() => onSelectItem?.(item, index)}
-                  >
-                    <img
-                      src={getTVItemImage(item)}
-                      alt={itemTitle}
-                      className={`item-image ${lockState.locked ? 'is-locked' : ''}`}
-                    />
-
-                    {lockState.locked && (
-                      <div className="item-lock-badge">
-                        <svg className="w-3.5 h-3.5 mr-1 inline-block align-middle" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                        </svg>
-                        <span>CERRADO</span>
-                      </div>
-                    )}
-
-                    {lockState.locked && (
-                      <div className="item-lock-footer">
-                        <p className="font-extrabold uppercase text-[10px] tracking-wider text-amber-200">Upgrade requerido</p>
-                        <p className="text-[11px] text-white/90 font-semibold mt-0.5">{lockState.minimumPlanLabel || 'Plan Superior'}</p>
-                      </div>
-                    )}
-
-                    {(itemRating || itemQualityBadges.length > 0 || (itemType && itemType !== 'movie')) ? (
-                      <div className="item-corner-badges">
-                        {itemRating ? (
-                          <div className="item-rating-badge">
-                            <span className="item-rating-star">{'\u2605'}</span>
-                            <span>{itemRating}</span>
-                          </div>
-                        ) : null}
-
-                        {itemQualityBadges.map((badge) => (
-                          <span
-                            key={`${itemTitle}-${badge}`}
-                            className={`item-feature-badge ${badge.includes('4K') ? 'is-4k' : 'is-60fps'}`}
-                          >
-                            {badge}
-                          </span>
-                        ))}
-
-                        {showItemTypeBadge && resolvedItemType && (
-                          <span className="item-type-badge">
-                            {(() => {
-                             const t = resolvedItemType.toLowerCase();
-                             if (t === 'movie' || t === 'movies' || t === 'pelicula' || t === 'peliculas' || t === 'video' || t === 'videos') return 'película';
-                             if (t === 'serie' || t === 'series') return 'serie';
-                             if (t === 'anime' || t === 'animes') return 'anime';
-                             if (t === 'dorama' || t === 'doramas' || t === 'k-dramas' || t === 'k-drama') return 'Series Asiáticas';
-                             if (t === 'novela' || t === 'novelas') return 'novela';
-                             if (t === 'documental' || t === 'documentales') return 'documental';
-                             if (t === 'zona kids' || t === 'kids') return 'kids';
-                              return t;
-                            })()}
-                          </span>
-                        )}
-                      </div>
-                    ) : null}
-
-                    {!lockState.locked && (
-                      <div className="item-base-copy">
-                        <p className="item-base-title">{itemTitle}</p>
-                        {itemYear ? <p className="item-base-meta">{itemYear}</p> : null}
-                      </div>
-                    )}
-
-                    {isSelected ? (
-                      <div className="item-overlay">
-                        <div className="item-overlay-copy">
-                          <h2>{itemTitle}</h2>
-                          <div className="item-overlay-meta flex items-center gap-1.5 flex-wrap">
-                            {itemCert ? (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-black uppercase bg-white/20 text-white border border-white/30">
-                                {itemCert}
-                              </span>
-                            ) : null}
-                            {itemYear ? <span>{itemYear}</span> : null}
-                            {itemDuration ? <span>• {itemDuration}</span> : null}
-                            {itemUserScore ? (
-                              <span className="text-emerald-400 font-bold">• {itemUserScore}% TMDB</span>
-                            ) : null}
-                          </div>
-                          {itemDirector ? (
-                            <p className="text-[11px] text-cyan-300 font-semibold mt-1">Dir: {itemDirector}</p>
-                          ) : null}
-                          {lockState.locked ? (
-                            <p className="item-overlay-description text-amber-400 font-bold uppercase tracking-wider mt-1 text-xs">
-                              {lockState.lockMessage}
-                            </p>
-                          ) : itemDescription ? (
-                            <p className="item-overlay-description">{itemDescription}</p>
-                          ) : null}
-                          {statusMessage ? (
-                            <p className="item-overlay-status">{statusMessage}</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {isSelected ? (
-                      <div className="focus-indicator">
-                        <div className="focus-ring" />
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
+              return <FilteredCard key={item._id || item.id || index} item={item} index={index} isSelected={isSelected} plan={user?.plan} showPlanLock={showPlanLock} showItemTypeBadge={showItemTypeBadge} statusMessage={statusMessage} onSelectItem={selectCard} columns={columns} />;
             })}
           </div>
         </div>

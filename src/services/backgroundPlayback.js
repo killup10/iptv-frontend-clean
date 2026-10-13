@@ -54,6 +54,11 @@ class BackgroundPlaybackService {
               window.dispatchEvent(new CustomEvent('backgroundPlayback:prev'));
             }
           });
+
+          NativeMusicPlayback.addListener('onTrackChanged', (data) => {
+            console.log('[BackgroundPlayback] Pista nativa cambiada automáticamente:', data);
+            window.dispatchEvent(new CustomEvent('backgroundPlayback:trackChanged', { detail: data }));
+          });
           console.log('[BackgroundPlayback] Listeners de MusicPlaybackPlugin nativo conectados');
         } catch (err) {
           console.warn('[BackgroundPlayback] No se pudo añadir listener a MusicPlaybackPlugin:', err);
@@ -138,13 +143,19 @@ class BackgroundPlaybackService {
         const safeAudioUrl = rawAudio;
 
         NativeMusicPlayback.updatePlayback({
+          trackId: String(mediaInfo.id || mediaInfo.trackId || ''),
           title: mediaInfo.title || 'TeamG Play',
           artist: mediaInfo.artist || 'Reproduciendo',
-          coverUrl: mediaInfo.coverUrl || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
+          coverUrl: mediaInfo.coverUrl || mediaInfo.cover || (mediaInfo.artwork && mediaInfo.artwork[0]?.src) || '',
           audioUrl: safeAudioUrl,
+          filePath: mediaInfo.filePath || '',
           isPlaying: this.isPlaying,
           duration: mediaInfo.duration ? Math.round(mediaInfo.duration) : 0,
-          position: mediaInfo.position ? Math.round(mediaInfo.position) : 0
+          position: mediaInfo.position ? Math.round(mediaInfo.position) : 0,
+          queueIndex: typeof mediaInfo.queueIndex === 'number' ? mediaInfo.queueIndex : -1,
+          queue: Array.isArray(mediaInfo.queue) ? mediaInfo.queue : [],
+          repeatMode: mediaInfo.repeatMode || 'all',
+          isShuffle: Boolean(mediaInfo.isShuffle)
         }).catch(err => {
           console.warn('[BackgroundPlayback] Error al llamar updatePlayback nativo:', err);
         });
@@ -171,13 +182,19 @@ class BackgroundPlaybackService {
       const safeAudioUrl = rawAudio;
 
       NativeMusicPlayback.updatePlayback({
+        trackId: String(mediaInfo.id || mediaInfo.trackId || ''),
         title: mediaInfo.title || 'TeamG Play',
         artist: mediaInfo.artist || 'Reproduciendo',
         coverUrl: mediaInfo.cover || mediaInfo.coverUrl || '',
         audioUrl: safeAudioUrl,
+        filePath: mediaInfo.filePath || '',
         isPlaying: Boolean(isPlaying),
         duration: duration ? Math.round(duration) : 0,
-        position: position ? Math.round(position) : 0
+        position: position ? Math.round(position) : 0,
+        queueIndex: typeof mediaInfo.queueIndex === 'number' ? mediaInfo.queueIndex : -1,
+        queue: Array.isArray(mediaInfo.queue) ? mediaInfo.queue : [],
+        repeatMode: mediaInfo.repeatMode || 'all',
+        isShuffle: Boolean(mediaInfo.isShuffle)
       }).catch(err => {
         console.warn('[BackgroundPlayback] Error en updatePlaybackState nativo:', err);
       });

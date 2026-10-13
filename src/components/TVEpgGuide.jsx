@@ -424,11 +424,9 @@ export default function TVEpgGuide({
       <div className="flex-shrink-0 px-8 pt-5 pb-3 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-4">
           <h1 className="text-3xl font-black italic tracking-tighter uppercase text-white flex items-center gap-3">
-            <span className="text-cyan-400">TeamG</span> TV en Vivo
+            TV en vivo
           </h1>
-          <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
-            Guía EPG Horizontal
-          </span>
+
         </div>
 
         {/* View Controls */}
@@ -442,7 +440,7 @@ export default function TVEpgGuide({
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>Guía Horizontal</span>
+            <span>Guía</span>
           </button>
 
           <button
@@ -474,7 +472,6 @@ export default function TVEpgGuide({
           <div className="ml-4 pl-4 border-l border-white/10 flex items-center gap-2 text-cyan-200 text-sm font-black tracking-wider">
             <Clock className="w-4 h-4 text-cyan-400" />
             <span>{formatTime(now)}</span>
-            <span className="text-[10px] text-white/40 font-bold uppercase">(Perú)</span>
           </div>
         </div>
       </div>
@@ -527,13 +524,13 @@ export default function TVEpgGuide({
                 </span>
                 {activeProgram && isProgramLive(activeProgram) && (
                   <span className="bg-red-600 text-white font-black text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider pulse-live-glow flex items-center gap-1 shadow-[0_0_10px_rgba(239,68,68,0.8)]">
-                    <Radio className="w-3 h-3" /> En Vivo Ahora
+                    <Radio className="w-3 h-3" /> En vivo
                   </span>
                 )}
                 {activeProgram && (
                   <span className="text-slate-300 font-bold text-xs flex items-center gap-1">
                     <Clock className="w-3 h-3 text-cyan-400" />
-                    {formatTime(activeProgram.start)} - {formatTime(activeProgram.end)} ({activeProgram.duration} min)
+                    {formatTime(activeProgram.start)} - {formatTime(activeProgram.end)}
                   </span>
                 )}
               </div>
@@ -542,9 +539,7 @@ export default function TVEpgGuide({
                 {activeProgram ? activeProgram.title : activeChannel.name}
               </h2>
 
-              <p className="text-xs text-slate-300/80 line-clamp-1 mt-0.5">
-                {activeProgram?.description || 'Transmisión en directo disponible para sintonizar en TeamG Play.'}
-              </p>
+
             </div>
           </div>
         ) : (
@@ -554,7 +549,7 @@ export default function TVEpgGuide({
         <div className="flex-shrink-0 flex items-center gap-3">
           <div className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 rounded-xl px-4 py-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-lg">
             <span className="bg-cyan-400 text-black px-2 py-0.5 rounded font-black text-sm">OK</span>
-            <span>Ver Pantalla Completa</span>
+            <span>Ver canal</span>
           </div>
         </div>
       </div>
@@ -655,9 +650,7 @@ export default function TVEpgGuide({
                           <p className="text-xs font-black truncate leading-tight">
                             {channel.name}
                           </p>
-                          <p className="text-[10px] text-slate-400 font-semibold truncate uppercase mt-0.5">
-                            {channel.epg ? '🔴 Señal Activa' : getCategoryFromChannelName(channel.name)}
-                          </p>
+
                         </div>
                       </div>
 
@@ -749,7 +742,7 @@ export default function TVEpgGuide({
         </div>
         <div className="flex items-center gap-2">
           <span className="bg-white/10 px-2 py-0.5 rounded text-white font-black">BACK</span>
-          <span>Menú Principal</span>
+          <span>Volver</span>
         </div>
       </div>
     </div>

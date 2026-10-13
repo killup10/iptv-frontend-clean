@@ -12,6 +12,7 @@ import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 
 export function Doramas() {
@@ -197,24 +198,7 @@ export function Doramas() {
 
   if (loading && !isMobile) {
     return (
-      <>
-        <style>{`
-          :root {
-            --primary: 190 100% 50%;
-          }
-        `}</style>
-        <div 
-          className="flex justify-center items-center min-h-screen"
-          style={{
-            backgroundImage: `url(./fondo.png)`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed'
-          }}
-        >
-          <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'hsl(var(--primary))', borderTopColor: 'transparent' }}></div>
-        </div>
-      </>
+      <ThemedLoader theme="doramas" />
     );
   }
 
@@ -291,6 +275,8 @@ export function Doramas() {
           itemType="dorama"
           variant="arcade"
           loading={loading}
+          loadingEmoji="🌸"
+          loadingText="Preparando tu drama..."
         />
       ) : (
         <div 

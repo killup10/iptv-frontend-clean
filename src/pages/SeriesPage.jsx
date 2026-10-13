@@ -17,6 +17,7 @@ import { addItemToMyList } from '../utils/myListUtils.js';
 import { SERIES_SUBCATEGORIES, buildSeriesSubcategoryCounts } from '../utils/seriesSubcategoryUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 const SUBCATEGORIAS = SERIES_SUBCATEGORIES;
 
@@ -354,9 +355,7 @@ const handleAddToMyList = async (item) => {
   }, [series, searchTerm]);
 
   if (isLoading && page === 1 && !isMobile) return (
-    <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
-      <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
-    </div>
+    <ThemedLoader theme="series" />
   );
   
   if (error) return (
@@ -390,6 +389,8 @@ const handleAddToMyList = async (item) => {
           selectedCategory={selectedSubcategoria}
           onCategoryChange={setSelectedSubcategoria}
           loading={isLoading}
+          loadingEmoji="📺"
+          loadingText="Sintonizando maratón..."
         />
       ) : (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -513,8 +514,10 @@ const handleAddToMyList = async (item) => {
               )}
 
               {loadingMore && (
-                  <div className="flex justify-center items-center mt-8">
-                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-600"></div>
+                  <div className="flex flex-col justify-center items-center mt-8 gap-2">
+                      <div className="text-3xl animate-bounce">📺</div>
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-400"></div>
+                      <p className="text-cyan-300/70 text-xs">Cargando más episodios...</p>
                   </div>
               )}
             </div>

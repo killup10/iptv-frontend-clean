@@ -4,10 +4,12 @@ import { useNavigate, useLocation, Link, useOutletContext } from 'react-router-d
 import { useAuth } from '../context/AuthContext.jsx';
 import Carousel from '../components/Carousel.jsx';
 import TVHome from '../components/TVHome.jsx';
+import { supportsHomeLivePlayer } from '../hooks/useHomeLivePlayer.js';
 import { isAndroidMobile, isAndroidTV } from '../utils/platformUtils.js';
 import axiosInstance from '../utils/axiosInstance.js';
 import useDataCache from '../hooks/useDataCache.js';
 import Toast from '../components/Toast.jsx';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 import {
   fetchFeaturedChannels,
   fetchFeaturedMovies,
@@ -110,10 +112,11 @@ const activateTextInput = (input) => {
 };
 
 export function Home() {
-  const { user, login } = useAuth();
+  const { user, login, activeProfile } = useAuth();
   const location = useLocation();
   const dataCache = useDataCache();
-  const initialCachedHomeData = dataCache.getStale('homeData');
+  const homeCacheKey = `homeData:${user?._id || user?.id || 'guest'}:${activeProfile?._id || activeProfile?.id || 'default'}`;
+  const initialCachedHomeData = useMemo(() => dataCache.getStale(homeCacheKey), [dataCache, homeCacheKey]);
   const outletContext = useOutletContext();
   const setAllSearchItems = outletContext?.setAllSearchItems;
   const navigate = useNavigate();
@@ -563,6 +566,7 @@ export function Home() {
 
 
   const isLoadingRef = useRef(false);
+  const loadedHomeKeyRef = useRef(homeCacheKey);
   const searchDataLoadedRef = useRef(false); // Evita recargar datos de búsqueda en cada render
 
   const applyHomeCacheData = (cachedData) => {
@@ -579,6 +583,7 @@ export function Home() {
     setFeaturedDocumentales(cachedData.featuredDocumentales || []);
     setRecentlyAdded(cachedData.recentlyAdded || []);
     setContinueWatchingItems(cachedData.continueWatchingItems || []);
+    setFeatured4KMovies(cachedData.featured4KMovies || []);
     if (cachedData.allSearchItems) {
       setBackgroundItems(cachedData.allSearchItems);
     }
@@ -591,17 +596,18 @@ export function Home() {
       return;
     }
 
-    // Force refresh "Continuar Viendo" cuando el usuario regresa a Home desde Watch
-    const handlePageFocus = async () => {
-      console.log('[Home.jsx] Página recuperó el foco - actualizando "Continuar Viendo"...');
-      try {
-        const updated = await fetchContinueWatching();
-        setContinueWatchingItems(updated || []);
-        console.log('[Home.jsx] ✅ "Continuar Viendo" actualizado:', updated?.length || 0, 'items');
-      } catch (err) {
-        console.error('[Home.jsx] Error actualizando "Continuar Viendo":', err);
-      }
-    };
+    if (loadedHomeKeyRef.current !== homeCacheKey) {
+      loadedHomeKeyRef.current = homeCacheKey;
+      searchDataLoadedRef.current = false;
+      applyHomeCacheData(initialCachedHomeData || {});
+      setBackgroundItems(initialCachedHomeData?.allSearchItems || []);
+      setAllSearchItems?.(initialCachedHomeData?.allSearchItems || []);
+      setLoading(!initialCachedHomeData);
+    }
+    let cancelled = false;
+    let phase2Timer;
+    let phase2Idle;
+    const handlePageFocus = () => { loadAllData(); };
 
     // Handler para visibilitychange
     const handleVisibilityChange = () => {
@@ -621,35 +627,9 @@ export function Home() {
       }
       isLoadingRef.current = true;
 
-      // Verificar si hay datos cacheados
-      const cachedData = dataCache.get('homeData');
-      if (cachedData) {
-        console.log('[Home.jsx] Cargando datos desde cache...');
-        applyHomeCacheData(cachedData);
-        setLoading(false);
-        isLoadingRef.current = false; // Release lock
-
-        // Refrescar siempre la sección "Continuar Viendo" incluso si usamos cache,
-        // para que refleje el último playback de Electron sin esperar a un change de foco.
-        (async () => {
-          try {
-            const fresh = await fetchContinueWatching();
-            setContinueWatchingItems(fresh || []);
-            dataCache.set('homeData', {
-              ...cachedData,
-              continueWatchingItems: fresh || []
-            });
-            console.log('[Home.jsx] ƒo. Continuar Viendo actualizado tras usar cache');
-          } catch (err) {
-            console.error('[Home.jsx] Error refrescando Continuar Viendo tras cache:', err);
-          }
-        })();
-        return;
-      }
-
-      const staleCachedData = dataCache.getStale('homeData');
+      // Render cached content immediately, but always refresh highlights on entry.
+      const staleCachedData = dataCache.getStale(homeCacheKey);
       if (staleCachedData) {
-        console.log('[Home.jsx] Usando cache persistido mientras se refresca Home...');
         applyHomeCacheData(staleCachedData);
         setLoading(false);
       } else {
@@ -662,18 +642,30 @@ export function Home() {
       try {
         // PHASE 1: Cargar SOLO datos críticos para mostrar UI rápido (2-3 segundos)
         console.time('[Home.jsx] Phase 1: Critical data load time');
-        const criticalResults = await Promise.allSettled([
-          fetchContinueWatching(),
-          fetchRecentlyAdded(),
-          fetchFeaturedChannels(),
-          fetchFeaturedMovies(),
-          fetchFeaturedSeries(),
-          fetchFeaturedAnimes(),
-          fetchFeaturedDoramas(),
-          fetchFeaturedNovelas(),
-          fetchFeaturedDocumentales(),
-          fetchUserMovies(1, 40, 'CINE_4K'),
-        ]);
+        const requests = [
+          [fetchContinueWatching, setContinueWatchingItems],
+          [fetchRecentlyAdded, setRecentlyAdded, 30],
+          [fetchFeaturedChannels, setFeaturedChannels, 10],
+          [fetchFeaturedMovies, setFeaturedMovies, 10],
+          [fetchFeaturedSeries, setFeaturedSeries, 10],
+          [fetchFeaturedAnimes, setFeaturedAnimes, 10],
+          [fetchFeaturedDoramas, setFeaturedDoramas, 10],
+          [fetchFeaturedNovelas, setFeaturedNovelas, 10],
+          [fetchFeaturedDocumentales, setFeaturedDocumentales, 10],
+          [() => fetchUserMovies(1, 40, 'CINE_4K'), setFeatured4KMovies, 20],
+        ];
+        const criticalResults = await Promise.allSettled(requests.map(async ([fetchData, setter, limit]) => {
+          const value = await fetchData();
+          if (!cancelled) {
+            const items = Array.isArray(value) ? value : value?.videos;
+            if (Array.isArray(items)) {
+              setter(limit ? items.slice(0, limit) : items);
+              if (items.length) setLoading(false);
+            }
+          }
+          return value;
+        }));
+        if (cancelled) return;
         console.timeEnd('[Home.jsx] Phase 1: Critical data load time');
 
         const [
@@ -690,16 +682,16 @@ export function Home() {
         ] = criticalResults;
 
         // Procesar datos visuales
-        const processedContinueWatching = processResult(continueWatchingResult, setContinueWatchingItems, 'Continue Watching');
-        const processedRecentlyAdded = processResult(recentlyAddedResult, setRecentlyAdded, 'Recently Added', 30);
-        const processedFeaturedChannels = processResult(featuredChannelsResult, setFeaturedChannels, 'Featured Channels', 10);
-        const processedFeaturedMovies = processResult(featuredMoviesResult, setFeaturedMovies, 'Featured Movies', 10);
-        const processedFeaturedSeries = processResult(featuredSeriesResult, setFeaturedSeries, 'Featured Series', 10);
-        const processedFeaturedAnimes = processResult(featuredAnimesResult, setFeaturedAnimes, 'Featured Animes', 10);
-        const processedFeaturedDoramas = processResult(featuredDoramasResult, setFeaturedDoramas, 'Featured Doramas', 10);
-        const processedFeaturedNovelas = processResult(featuredNovelasResult, setFeaturedNovelas, 'Featured Novelas', 10);
-        const processedFeaturedDocumentales = processResult(featuredDocumentalesResult, setFeaturedDocumentales, 'Featured Documentales', 10);
-        const processedFeatured4K = processResult(featured4KResult, setFeatured4KMovies, 'Featured 4K Movies', 20);
+        const processedContinueWatching = continueWatchingResult.status === 'fulfilled' ? processResult(continueWatchingResult, null, 'Continue Watching') : (staleCachedData?.continueWatchingItems || []);
+        const processedRecentlyAdded = recentlyAddedResult.status === 'fulfilled' ? processResult(recentlyAddedResult, null, 'Recently Added', 30) : (staleCachedData?.recentlyAdded || []);
+        const processedFeaturedChannels = featuredChannelsResult.status === 'fulfilled' ? processResult(featuredChannelsResult, null, 'Featured Channels', 10) : (staleCachedData?.featuredChannels || []);
+        const processedFeaturedMovies = featuredMoviesResult.status === 'fulfilled' ? processResult(featuredMoviesResult, null, 'Featured Movies', 10) : (staleCachedData?.featuredMovies || []);
+        const processedFeaturedSeries = featuredSeriesResult.status === 'fulfilled' ? processResult(featuredSeriesResult, null, 'Featured Series', 10) : (staleCachedData?.featuredSeries || []);
+        const processedFeaturedAnimes = featuredAnimesResult.status === 'fulfilled' ? processResult(featuredAnimesResult, null, 'Featured Animes', 10) : (staleCachedData?.featuredAnimes || []);
+        const processedFeaturedDoramas = featuredDoramasResult.status === 'fulfilled' ? processResult(featuredDoramasResult, null, 'Featured Doramas', 10) : (staleCachedData?.featuredDoramas || []);
+        const processedFeaturedNovelas = featuredNovelasResult.status === 'fulfilled' ? processResult(featuredNovelasResult, null, 'Featured Novelas', 10) : (staleCachedData?.featuredNovelas || []);
+        const processedFeaturedDocumentales = featuredDocumentalesResult.status === 'fulfilled' ? processResult(featuredDocumentalesResult, null, 'Featured Documentales', 10) : (staleCachedData?.featuredDocumentales || []);
+        const processedFeatured4K = featured4KResult.status === 'fulfilled' ? processResult(featured4KResult, null, 'Featured 4K Movies', 20) : (staleCachedData?.featured4KMovies || []);
 
         // Mostrar UI inmediatamente
         setLoading(false);
@@ -708,6 +700,8 @@ export function Home() {
 
         // Cache de Phase 1
         const phase1CacheData = {
+          allSearchItems: staleCachedData?.allSearchItems,
+          featured4KMovies: processedFeatured4K,
           continueWatchingItems: processedContinueWatching,
           recentlyAdded: processedRecentlyAdded,
           featuredChannels: processedFeaturedChannels,
@@ -718,7 +712,7 @@ export function Home() {
           featuredNovelas: processedFeaturedNovelas,
           featuredDocumentales: processedFeaturedDocumentales,
         };
-        dataCache.set('homeData', phase1CacheData);
+        dataCache.set(homeCacheKey, phase1CacheData);
 
         // ⚡ CONSTRUIR ITEMS PARA BÚSQUEDA INSTANTÁNEA
         // Compilar todos los items locales de Home para que SearchBar busque digito por digito
@@ -746,11 +740,12 @@ export function Home() {
 
         // 🔥 EN BACKGROUND: Cargar TODO el contenido (sin bloquear UI) para completar el índice de búsqueda
         // Phase 2: Diferido inteligentemente para no competir con el renderizado inicial y el scroll en móviles
-        if (!searchDataLoadedRef.current) {
+        if (!searchDataLoadedRef.current && !staleCachedData?.allSearchItems?.length) {
           searchDataLoadedRef.current = true;
           const searchSetter = setAllSearchItems;
 
           const executePhase2 = () => {
+            if (cancelled) return;
             (async () => {
               console.log('[Home.jsx] 🚀 Phase 2: Indexando contenido diferido en background...');
               console.time('[Home.jsx] Phase 2: Full content index load time');
@@ -767,6 +762,7 @@ export function Home() {
                 fetchUserMovies(1, 500, 'CINE_2026'), // Cine 2026
                 fetchUserMovies(1, 500, 'CINE_4K'),   // Cine 4K
               ]);
+              if (cancelled) return;
               console.timeEnd('[Home.jsx] Phase 2: Full content index load time');
 
               const [
@@ -810,10 +806,10 @@ export function Home() {
               setBackgroundItems(fullUniqueItems);
 
               const fullCacheData = {
-                ...phase1CacheData,
+                ...(dataCache.getStale(homeCacheKey) || phase1CacheData),
                 allSearchItems: fullUniqueItems,
               };
-              dataCache.set('homeData', fullCacheData);
+              dataCache.set(homeCacheKey, fullCacheData);
             } catch (err) {
               console.error('[Home.jsx] ❌ Error en Phase 2:', err);
               // Mantener los items locales ya cargados, no limpiar
@@ -822,16 +818,17 @@ export function Home() {
         };
 
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-          window.requestIdleCallback(() => {
-            setTimeout(executePhase2, 2500);
+          phase2Idle = window.requestIdleCallback(() => {
+            phase2Timer = setTimeout(executePhase2, 2500);
           }, { timeout: 6000 });
         } else {
-          setTimeout(executePhase2, 3500);
+          phase2Timer = setTimeout(executePhase2, 3500);
         }
       }
       } catch (err) {
+        if (cancelled) return;
         console.error('[Home.jsx] ❌ General error in loadAllData:', err);
-        setContentError(err.message || "Error loading content.");
+        if (!staleCachedData) setContentError(err.message || "Error loading content.");
         setLoading(false);
         isLoadingRef.current = false; // Release lock on error
       }
@@ -841,6 +838,10 @@ export function Home() {
 
     // Cleanup: remover listeners
     return () => {
+      cancelled = true;
+      clearTimeout(phase2Timer);
+      if (phase2Idle !== undefined) window.cancelIdleCallback?.(phase2Idle);
+      isLoadingRef.current = false;
       window.removeEventListener('focus', handlePageFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       // Considerar si resetear el lock aquí. Si el componente se desmonta y remonta rápido,
@@ -848,7 +849,7 @@ export function Home() {
       // isLoadingRef.current = false;
     };
     // Sin Phase 2, la carga es más rápida y limpia
-  }, [user, dataCache, setAllSearchItems]);
+  }, [user, homeCacheKey, dataCache, setAllSearchItems]);
 
   const navigateToItem = (item, itemType, extraState = null) => {
     const navigateToPlayer = (resolvedItem, resolvedType) => {
@@ -1027,11 +1028,11 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
     },
   ];
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-[calc(100vh-5rem)]"><div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div></div>;
+  if (loading && !(isTVMode && supportsHomeLivePlayer())) {
+    return <ThemedLoader theme="home" />;
   }
 
-  if (contentError) {
+  if (contentError && !(isTVMode && supportsHomeLivePlayer())) {
       return <div className="text-center text-red-400 p-10 pt-24">Error loading content: {contentError}</div>;
   }
 
@@ -1039,22 +1040,22 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
 
   // Preparar secciones para TV
   const tvSections = [
-    { title: 'Recién Agregados', items: recentlyAdded },
-    { title: 'Continuar Viendo', items: continueWatchingItems },
-    { title: 'Canales en Vivo Destacados', items: featuredChannels },
-    { title: 'Películas Destacadas', items: featuredMovies },
-    { title: 'Cine 4K Ultra HD', items: cine4KItems },
-    { title: 'Series Populares', items: featuredSeries },
-    { title: 'Animes Destacados', items: featuredAnimes },
-    { title: 'Series Asiáticas Populares', items: featuredDoramas },
-    { title: 'Novelas Destacadas', items: featuredNovelas },
-    { title: 'Documentales Imperdibles', items: featuredDocumentales },
-    { title: 'Aventura para Todos', items: adventureItems },
-    { title: 'Para la Familia', items: familyItems },
-    { title: 'Terror y Suspenso', items: horrorItems },
-    { title: 'Acción y Adrenalina', items: actionItems },
-    { title: 'Ciencia Ficción y Fantasía', items: sciFiItems },
-    { title: 'Comedia y Risas', items: comedyItems },
+    { title: '✨ Recién Agregados', items: recentlyAdded },
+    { title: '▶️ Continuar Viendo', items: continueWatchingItems },
+    { title: '📡 Canales en Vivo Destacados', items: featuredChannels },
+    { title: '🎬 Películas Destacadas', items: featuredMovies },
+    { title: '🍿 Cine 4K Ultra HD', items: cine4KItems },
+    { title: '📺 Series Populares', items: featuredSeries },
+    { title: '⛩️ Animes Destacados', items: featuredAnimes },
+    { title: '🌸 Series Asiáticas Populares', items: featuredDoramas },
+    { title: '🌹 Novelas Destacadas', items: featuredNovelas },
+    { title: '🌍 Documentales Imperdibles', items: featuredDocumentales },
+    { title: '🧭 Aventura para Todos', items: adventureItems },
+    { title: '🧸 Para la Familia', items: familyItems },
+    { title: '🎃 Terror y Suspenso', items: horrorItems },
+    { title: '💥 Acción y Adrenalina', items: actionItems },
+    { title: '🚀 Ciencia Ficción y Fantasía', items: sciFiItems },
+    { title: '😂 Comedia y Risas', items: comedyItems },
   ].filter(section => section.items && section.items.length > 0);
 
   const normalizedTVSections = tvSections.map((section) => {
@@ -1109,8 +1110,8 @@ const handlePlayTrailerClick = (trailerUrl, onCloseCallback) => {
 
   // Si es Android TV, mostrar interfaz optimizada
   if (isTVMode) {
-    if (loading) {
-      return <div style={{ color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Cargando...</div>;
+    if (loading && !supportsHomeLivePlayer()) {
+      return <ThemedLoader theme="home" />;
     }
 
     return (
@@ -1199,7 +1200,7 @@ onProceedWithTrial={proceedWithTrial}
           <div className="relative container mx-auto space-y-4 px-3 pb-6 pt-2 sm:px-6 md:space-y-8 lg:px-8 z-10">
             {recentlyAdded.length > 0 && (
               <Carousel
-                title="Recien Agregados"
+                title="✨ Recien Agregados"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/recien-agregados')}
                 items={recentlyAdded}
@@ -1215,7 +1216,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {continueWatchingItems.length > 0 && (
               <Carousel
-                title="Continuar Viendo"
+                title="▶️ Continuar Viendo"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/mi-lista')}
                 items={continueWatchingItems}
@@ -1231,7 +1232,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredChannels.length > 0 && (
               <Carousel
-                title="Canales en Vivo Destacados"
+                title="📡 Canales en Vivo Destacados"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/live-tv')}
                 items={featuredChannels}
@@ -1244,7 +1245,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredMovies.length > 0 && (
               <Carousel
-                title="Películas Destacadas"
+                title="🎬 Películas Destacadas"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas')}
                 items={featuredMovies}
@@ -1259,7 +1260,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {cine4KItems.length > 0 && (
               <Carousel
-                title="Cine 4K Ultra HD"
+                title="🍿 Cine 4K Ultra HD"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas', { state: { selectedMainSectionKey: 'CINE_4K' } })}
                 items={cine4KItems}
@@ -1274,7 +1275,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredSeries.length > 0 && (
               <Carousel
-                title="Series Populares"
+                title="📺 Series Populares"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/series')}
                 items={featuredSeries}
@@ -1289,7 +1290,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredAnimes.length > 0 && (
               <Carousel
-                title="Animes Destacados"
+                title="⛩️ Animes Destacados"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/animes')}
                 items={featuredAnimes}
@@ -1304,7 +1305,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredDoramas.length > 0 && (
               <Carousel
-                title="Series Asiáticas Populares"
+                title="🌸 Series Asiáticas Populares"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/doramas')}
                 items={featuredDoramas}
@@ -1319,7 +1320,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredNovelas.length > 0 && (
               <Carousel
-                title="Novelas Destacadas"
+                title="🌹 Novelas Destacadas"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/novelas')}
                 items={featuredNovelas}
@@ -1334,7 +1335,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {featuredDocumentales.length > 0 && (
               <Carousel
-                title="Documentales Imperdibles"
+                title="🌍 Documentales Imperdibles"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/documentales')}
                 items={featuredDocumentales}
@@ -1349,7 +1350,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {adventureItems.length > 0 && (
               <Carousel
-                title="Aventura para Todos"
+                title="🧭 Aventura para Todos"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Aventura', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={adventureItems}
@@ -1365,7 +1366,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {familyItems.length > 0 && (
               <Carousel
-                title="Para la Familia"
+                title="🧸 Para la Familia"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/kids')}
                 items={familyItems}
@@ -1381,7 +1382,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {horrorItems.length > 0 && (
               <Carousel
-                title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "Terror y Suspenso"}
+                title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "👻 Terror y Suspenso"}
                 actionLabel={isHalloweenSeason() ? "Ver especial Halloween" : "Ver más"}
                 onActionClick={() => {
                   if (isHalloweenSeason()) {
@@ -1403,7 +1404,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {actionItems.length > 0 && (
               <Carousel
-                title="Acción y Adrenalina"
+                title="💥 Acción y Adrenalina"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Acción', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={actionItems}
@@ -1419,7 +1420,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {sciFiItems.length > 0 && (
               <Carousel
-                title="Ciencia Ficción y Fantasía"
+                title="🚀 Ciencia Ficción y Fantasía"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Ciencia Ficción', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={sciFiItems}
@@ -1435,7 +1436,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
             {comedyItems.length > 0 && (
               <Carousel
-                title="Comedia y Risas"
+                title="😂 Comedia y Risas"
                 actionLabel="Ver más"
                 onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Comedia', selectedMainSectionKey: 'POR_GENERO' } })}
                 items={comedyItems}
@@ -1596,7 +1597,7 @@ onProceedWithTrial={proceedWithTrial}
           <div className="space-y-6 rounded-[36px] border border-fuchsia-300/10 bg-[linear-gradient(180deg,rgba(8,4,22,0.82),rgba(7,8,27,0.92)_42%,rgba(4,8,20,0.96))] p-4 shadow-[0_28px_70px_rgba(17,24,39,0.35)] backdrop-blur-sm sm:p-5 md:space-y-8 md:p-6 lg:p-7">
             {recentlyAdded.length > 0 && (
               <Carousel
-                title="Recien Agregados"
+                title="✨ Recien Agregados"
                 subtitle="Disfruta lo mas reciente en series, peliculas y mas."
                 actionLabel="Ver todos"
                 onActionClick={() => navigate('/recien-agregados')}
@@ -1613,7 +1614,7 @@ onProceedWithTrial={proceedWithTrial}
             )}
         {continueWatchingItems.length > 0 && (
           <Carousel
-            title="Continuar Viendo"
+            title="▶️ Continuar Viendo"
             subtitle="Retoma donde lo dejaste."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/mi-lista')}
@@ -1630,7 +1631,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredChannels.length > 0 && (
           <Carousel
-            title="Canales en Vivo Destacados"
+            title="📡 Canales en Vivo Destacados"
             subtitle="Lo mas visto ahora mismo."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/live-tv')}
@@ -1644,7 +1645,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredMovies.length > 0 && (
           <Carousel
-            title="Películas Destacadas"
+            title="🎬 Películas Destacadas"
             subtitle="Estrenos, favoritos del catalogo."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/peliculas')}
@@ -1660,7 +1661,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {cine4KItems.length > 0 && (
           <Carousel
-            title="Cine 4K Ultra HD"
+            title="🍿 Cine 4K Ultra HD"
             subtitle="Películas en la más alta resolución 4K Ultra HD."
             actionLabel="Ver películas"
             onActionClick={() => navigate('/peliculas', { state: { selectedMainSectionKey: 'CINE_4K' } })}
@@ -1676,7 +1677,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredSeries.length > 0 && (
           <Carousel
-            title="Series Populares"
+            title="📺 Series Populares"
             subtitle="Temporadas, episodios y maratones listos para ver."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/series')}
@@ -1692,7 +1693,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredAnimes.length > 0 && (
           <Carousel
-            title="Animes Destacados"
+            title="⛩️ Animes Destacados"
             subtitle="Shonen, fantasia y joyas recien agregadas."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/animes')}
@@ -1708,7 +1709,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredDoramas.length > 0 && (
           <Carousel
-            title="Series Asiáticas Populares"
+            title="🌸 Series Asiáticas Populares"
             subtitle="Historias intensas para maratonear esta semana."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/doramas')}
@@ -1724,7 +1725,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredNovelas.length > 0 && (
           <Carousel
-            title="Novelas Destacadas"
+            title="🌹 Novelas Destacadas"
             subtitle="Clasicos y nuevas historias siempre a mano."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/novelas')}
@@ -1740,7 +1741,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {featuredDocumentales.length > 0 && (
           <Carousel
-            title="Documentales Imperdibles"
+            title="🌍 Documentales Imperdibles"
             subtitle="Historia, crimen, naturaleza y mucho mas."
             actionLabel="Ver todos"
             onActionClick={() => navigate('/documentales')}
@@ -1756,7 +1757,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {adventureItems.length > 0 && (
           <Carousel
-            title="Aventura para Todos"
+            title="🧭 Aventura para Todos"
             subtitle="Emoción, héroes y grandes expediciones."
             actionLabel="Ver películas"
             onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Aventura', selectedMainSectionKey: 'POR_GENERO' } })}
@@ -1773,7 +1774,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {familyItems.length > 0 && (
           <Carousel
-            title="Para la Familia"
+            title="🧸 Para la Familia"
             subtitle="Historias divertidas y aptas para disfrutar juntos."
             actionLabel="Zona Kids"
             onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Familiar', selectedMainSectionKey: 'POR_GENERO' } })}
@@ -1790,7 +1791,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {horrorItems.length > 0 && (
           <Carousel
-            title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "Terror y Suspenso"}
+            title={isHalloweenSeason() ? "🎃 Terror y Suspenso" : "👻 Terror y Suspenso"}
             subtitle="Historias oscuras, misterio y sustos inolvidables."
             actionLabel={isHalloweenSeason() ? "Ver especial Halloween" : "Ver películas"}
             onActionClick={() => {
@@ -1813,7 +1814,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {actionItems.length > 0 && (
           <Carousel
-            title="Acción y Adrenalina"
+            title="💥 Acción y Adrenalina"
             subtitle="Combates, persecuciones y emoción pura."
             actionLabel="Ver películas"
             onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Acción', selectedMainSectionKey: 'POR_GENERO' } })}
@@ -1830,7 +1831,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {sciFiItems.length > 0 && (
           <Carousel
-            title="Ciencia Ficción y Fantasía"
+            title="🚀 Ciencia Ficción y Fantasía"
             subtitle="Mundos imposibles, magia y el futuro."
             actionLabel="Ver películas"
             onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Ciencia Ficción', selectedMainSectionKey: 'POR_GENERO' } })}
@@ -1847,7 +1848,7 @@ onProceedWithTrial={proceedWithTrial}
         )}
         {comedyItems.length > 0 && (
           <Carousel
-            title="Comedia y Risas"
+            title="😂 Comedia y Risas"
             subtitle="Las mejores comedias para alegrar tu día."
             actionLabel="Ver películas"
             onActionClick={() => navigate('/peliculas', { state: { selectedGenre: 'Comedia', selectedMainSectionKey: 'POR_GENERO' } })}

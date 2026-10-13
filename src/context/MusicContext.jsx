@@ -39,6 +39,34 @@ export function MusicProvider({ children }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isShuffle, setIsShuffle] = useState(false);
+  const shuffleOrderRef = useRef([]);
+  const shuffleIndexRef = useRef(0);
+
+  const initShuffleDeck = useCallback((total, startingIndex = -1) => {
+    if (!total || total <= 0) {
+      shuffleOrderRef.current = [];
+      shuffleIndexRef.current = 0;
+      return [];
+    }
+    const pool = [];
+    for (let i = 0; i < total; i++) {
+      if (i !== startingIndex) {
+        pool.push(i);
+      }
+    }
+    // Algoritmo Fisher-Yates para mezcla uniforme sin repeticiones prematuras
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = temp;
+    }
+    const deck = (startingIndex >= 0 && startingIndex < total) ? [startingIndex, ...pool] : pool;
+    shuffleOrderRef.current = deck;
+    shuffleIndexRef.current = 0;
+    return deck;
+  }, []);
+
   const [repeatMode, setRepeatMode] = useState('off'); // 'off' | 'all' | 'one'
   const [isExpandedPlayer, setIsExpandedPlayer] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
@@ -206,6 +234,7 @@ export function MusicProvider({ children }) {
 
     const onEnded = () => {
       if (transitionRef.current || !playIntentRef.current) return;
+      if (Capacitor.isNativePlatform() && fullStreamRef.current) return;
       const track = currentTrackRef.current;
       // En modo YouTube el iframe maneja el fin (su onEnded avanza solo).
       if (track?.youtubeId && playbackModeRef.current === 'youtube') return;
@@ -298,13 +327,97 @@ export function MusicProvider({ children }) {
     cloudPlaylistsRef.current?.update(next,dirtyIds,deletedIds);
   }, []);
 
+  const buildNativeQueuePayload = useCallback((curQueue, activeTrackId, effectiveAudioUrl = null) => {
+    if (!Array.isArray(curQueue) || curQueue.length === 0) return [];
+    return curQueue.map((t, idx) => {
+      const isOff = Boolean(t.isOffline || musicOfflineService.isTrackOffline(t.id, t.title, t.artist));
+      let fp = t.filePath || '';
+      if (isOff && !fp) {
+        const rec = musicOfflineService.getOfflineTrack(t.id, t.title, t.artist);
+        fp = rec?.filePath || '';
+      }
+      return {
+        id: String(t.id || idx),
+        title: t.title || 'TeamG Music',
+        artist: t.artist || 'Reproduciendo',
+        coverUrl: t.cover || t.coverUrl || '',
+        audioUrl: (t.id === activeTrackId && effectiveAudioUrl ? effectiveAudioUrl : (t.audioUrl || t.streamUrl || '')) || '',
+        filePath: fp,
+        duration: Math.round(t.fullDuration || t.duration || 0),
+        isOffline: isOff
+      };
+    });
+  }, []);
+
+  // Escuchar cuando ExoPlayer nativo cambia de canción automáticamente con la pantalla apagada
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const onTrackChanged = (e) => {
+      const detail = e.detail;
+      if (!detail) return;
+      console.log('[MusicContext] Sincronizando pista desde cambio nativo ExoPlayer:', detail);
+      const curQueue = queueRef.current;
+      if (!curQueue || curQueue.length === 0) return;
+
+      const nextIdx = typeof detail.index === 'number' && detail.index >= 0
+        ? detail.index
+        : curQueue.findIndex(t => String(t.id) === String(detail.trackId));
+
+      if (nextIdx >= 0 && nextIdx < curQueue.length) {
+        const nextTrack = curQueue[nextIdx];
+        transitionRef.current = false;
+        setQueueIndex(nextIdx);
+        currentTrackRef.current = nextTrack;
+        setCurrentTrack(nextTrack);
+        fullStreamRef.current = detail.audioUrl || nextTrack.streamUrl || nextTrack.audioUrl;
+        if (detail.duration > 0) setDuration(detail.duration);
+        setCurrentTime(0);
+        setIsPlaying(true);
+        setAudioQuality(nextTrack.isOffline || musicOfflineService.isTrackOffline(nextTrack.id) ? 'offline' : 'full');
+      }
+    };
+
+    window.addEventListener('backgroundPlayback:trackChanged', onTrackChanged);
+    return () => window.removeEventListener('backgroundPlayback:trackChanged', onTrackChanged);
+  }, []);
+
   // Sincronizar posición y estado nativo cuando la app vuelve de segundo plano
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const onNativeResume = async () => {
       if (videoPlaybackActiveRef.current) return;
       const state = await backgroundPlaybackService.getNativePosition();
-      if (!transitionRef.current && state?.audioUrl === fullStreamRef.current && state && typeof state.position === 'number') {
+      if (!state) return;
+
+      // Si ExoPlayer avanzó de canción mientras la app estaba minimizada o con pantalla apagada
+      if (state.trackId || typeof state.queueIndex === 'number') {
+        const curQueue = queueRef.current;
+        const curTrack = currentTrackRef.current;
+        const isDifferentTrack = (state.trackId && curTrack && String(state.trackId) !== String(curTrack.id)) ||
+                                 (typeof state.queueIndex === 'number' && state.queueIndex >= 0 && state.queueIndex !== queueIndexRef.current);
+
+        if (isDifferentTrack && curQueue && curQueue.length > 0) {
+          const matchedIdx = typeof state.queueIndex === 'number' && state.queueIndex >= 0 && state.queueIndex < curQueue.length
+            ? state.queueIndex
+            : curQueue.findIndex(t => String(t.id) === String(state.trackId));
+
+          if (matchedIdx >= 0 && matchedIdx < curQueue.length) {
+            const matchedTrack = curQueue[matchedIdx];
+            transitionRef.current = false;
+            setQueueIndex(matchedIdx);
+            currentTrackRef.current = matchedTrack;
+            setCurrentTrack(matchedTrack);
+            fullStreamRef.current = state.audioUrl || matchedTrack.streamUrl || matchedTrack.audioUrl;
+            if (state.duration > 0) setDuration(state.duration);
+            if (typeof state.position === 'number') setCurrentTime(state.position);
+            setIsPlaying(Boolean(state.isPlaying));
+            setAudioQuality(matchedTrack.isOffline || musicOfflineService.isTrackOffline(matchedTrack.id) ? 'offline' : 'full');
+            return;
+          }
+        }
+      }
+
+      if (!transitionRef.current && state.audioUrl === fullStreamRef.current && typeof state.position === 'number') {
         setCurrentTime(state.position);
         if (state.duration > 0) setDuration(state.duration);
         // Preserve the user's play intent through native buffering.
@@ -327,6 +440,7 @@ export function MusicProvider({ children }) {
     try {
       const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
       const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
+      const nativeQueue = buildNativeQueuePayload(queueRef.current, currentTrack.id, safeAudio);
 
       backgroundPlaybackService.startPlayback({
         id: currentTrack.id,
@@ -338,11 +452,16 @@ export function MusicProvider({ children }) {
         ],
         coverUrl: currentTrack.cover || '',
         audioUrl: safeAudio,
+        filePath: currentTrack.filePath || '',
         // Do not let the native player resume the previous ExoPlayer item while
         // the next track's stream URL is still being resolved.
         isPlaying: isPlaying && !transitionRef.current,
         duration: duration,
-        position: currentTime
+        position: currentTime,
+        queue: nativeQueue,
+        queueIndex: queueIndexRef.current >= 0 ? queueIndexRef.current : 0,
+        repeatMode: repeatModeRef.current,
+        isShuffle: isShuffle
       });
 
       if ('mediaSession' in navigator) {
@@ -359,7 +478,7 @@ export function MusicProvider({ children }) {
     } catch (err) {
       console.warn('[MusicContext] Error configurando MediaSession:', err);
     }
-  }, [currentTrack]);
+  }, [currentTrack, buildNativeQueuePayload, isShuffle]);
 
   // Sincronizar estado play/pause con MediaSession y servicio nativo para pantalla de bloqueo en móviles
   useEffect(() => {
@@ -369,12 +488,18 @@ export function MusicProvider({ children }) {
     if (currentTrack && !videoPlaybackActiveRef.current) {
       const isPreview = currentTrack.audioUrl && (currentTrack.audioUrl.includes('apple-assets-us-std') || currentTrack.audioUrl.includes('AudioPreview'));
       const safeAudio = currentTrack.streamUrl || (!isPreview ? currentTrack.audioUrl : '') || '';
+      const nativeQueue = buildNativeQueuePayload(queueRef.current, currentTrack.id, safeAudio);
       backgroundPlaybackService.updatePlaybackState(isPlaying && !transitionRef.current, {
         ...currentTrack,
-        audioUrl: safeAudio
+        audioUrl: safeAudio,
+        filePath: currentTrack.filePath || '',
+        queue: nativeQueue,
+        queueIndex: queueIndexRef.current >= 0 ? queueIndexRef.current : 0,
+        repeatMode: repeatModeRef.current,
+        isShuffle: isShuffle
       }, currentTime, duration);
     }
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, currentTrack, buildNativeQueuePayload, repeatMode, isShuffle]);
 
   // Sincronizar posición con la barra scrubber de MediaSession en pantalla de bloqueo
   useEffect(() => {
@@ -485,7 +610,16 @@ export function MusicProvider({ children }) {
       setQueue(prev => prev.map(t => t.id === track.id ? { ...t, ...fullTrack } : t));
 
       // En Android nativo, ExoPlayer reproduce el audio en segundo plano (100% inmune a pantalla apagada)
-      if (!videoPlaybackActiveRef.current) backgroundPlaybackService.updatePlaybackState(playIntentRef.current, fullTrack, 0, fullTrack.fullDuration);
+      if (!videoPlaybackActiveRef.current) {
+        const nativeQueue = buildNativeQueuePayload(queueRef.current, fullTrack.id, url);
+        backgroundPlaybackService.updatePlaybackState(playIntentRef.current, {
+          ...fullTrack,
+          queue: nativeQueue,
+          queueIndex: queueIndexRef.current >= 0 ? queueIndexRef.current : 0,
+          repeatMode: repeatModeRef.current,
+          isShuffle: isShuffle
+        }, 0, fullTrack.fullDuration);
+      }
 
       const audio = audioRef.current;
       if (audio && !videoPlaybackActiveRef.current) {
@@ -600,6 +734,11 @@ export function MusicProvider({ children }) {
     fullStreamRef.current = null;
     setPlaybackMode('native');
 
+    // Inicializar baraja aleatoria con la pista actual como punto de partida
+    const activeLen = (activeQueue && activeQueue.length) || (queueRef.current && queueRef.current.length) || 1;
+    const targetIdx = activeQueue ? activeQueue.findIndex(t => t.id === track.id) : (queueRef.current ? queueRef.current.findIndex(t => t.id === track.id) : 0);
+    initShuffleDeck(activeLen, targetIdx !== -1 ? targetIdx : 0);
+
     // Detener cualquier audio previo de inmediato
     if (audio) {
       try { audio.pause(); audio.removeAttribute?.('src'); audio.src = ''; audio.load(); } catch {}
@@ -639,9 +778,19 @@ export function MusicProvider({ children }) {
         setPlaybackMode('native');
         fullStreamRef.current = effectiveUrl;
 
+        const curQ = activeQueue || queueRef.current || [];
+        const trackIdx = curQ.findIndex(t => String(t.id) === String(track.id));
+        const nativeQueue = buildNativeQueuePayload(curQ, offlineTrack.id, effectiveUrl);
+
         backgroundPlaybackService.updatePlaybackState(
           playIntentRef.current,
-          offlineTrack,
+          {
+            ...offlineTrack,
+            queue: nativeQueue,
+            queueIndex: trackIdx !== -1 ? trackIdx : (queueIndexRef.current >= 0 ? queueIndexRef.current : 0),
+            repeatMode: repeatModeRef.current,
+            isShuffle: isShuffle
+          },
           0,
           offlineTrack.fullDuration || offlineTrack.duration || 210
         );
@@ -815,12 +964,42 @@ export function MusicProvider({ children }) {
 
     let nextIdx;
     if (isShuffle) {
-      nextIdx = Math.floor(Math.random() * curQueue.length);
+      const curLen = curQueue.length;
+      if (!shuffleOrderRef.current || shuffleOrderRef.current.length !== curLen) {
+        initShuffleDeck(curLen, queueIndexRef.current >= 0 ? queueIndexRef.current : 0);
+      }
+
+      const nextPointer = shuffleIndexRef.current + 1;
+      if (nextPointer < shuffleOrderRef.current.length) {
+        // Reproducir siguiente pista de la ronda aleatoria
+        shuffleIndexRef.current = nextPointer;
+        nextIdx = shuffleOrderRef.current[nextPointer];
+      } else {
+        // Se escucharon TODAS las canciones de la cola aleatoria exactamente una vez
+        if (repeatModeRef.current === 'off') {
+          console.log('[MusicContext] Fin de la cola en modo aleatorio (repeatMode=off). Deteniendo reproducción.');
+          setIsPlaying(false);
+          audioRef.current?.pause();
+          backgroundPlaybackService.pausePlayback();
+          return;
+        }
+        // Si repeatMode es 'all', generar una nueva ronda aleatoria con todas las canciones
+        initShuffleDeck(curLen, -1);
+        shuffleIndexRef.current = 0;
+        nextIdx = shuffleOrderRef.current[0];
+      }
     } else {
       const curIdx = queueIndexRef.current >= 0 ? queueIndexRef.current : queueIndex;
       nextIdx = curIdx + 1;
       if (nextIdx >= curQueue.length) {
-        nextIdx = 0; // Reproducción continua sin fin
+        if (repeatModeRef.current === 'off') {
+          console.log('[MusicContext] Fin de la cola de reproducción (repeatMode=off). Deteniendo reproducción.');
+          setIsPlaying(false);
+          audioRef.current?.pause();
+          backgroundPlaybackService.pausePlayback();
+          return;
+        }
+        nextIdx = 0; // Repetir lista ('all')
       }
     }
 
@@ -829,7 +1008,7 @@ export function MusicProvider({ children }) {
       setQueueIndex(nextIdx);
       playTrack(nextSong, curQueue);
     }
-  }, [queue, queueIndex, isShuffle, playTrack]);
+  }, [queue, queueIndex, isShuffle, playTrack, initShuffleDeck, setIsPlaying]);
   handleNextRef.current = handleNext;
 
   const clockRef = useRef({time:0,duration:0});
@@ -856,19 +1035,36 @@ export function MusicProvider({ children }) {
       return;
     }
 
-    if (queue.length === 0) return;
+    const curQueue = queueRef.current.length > 0 ? queueRef.current : queue;
+    if (curQueue.length === 0) return;
 
-    let prevIdx = queueIndex - 1;
-    if (prevIdx < 0) {
-      prevIdx = repeatMode === 'all' ? queue.length - 1 : 0;
+    let prevIdx;
+    if (isShuffle && shuffleOrderRef.current && shuffleOrderRef.current.length > 0) {
+      if (shuffleIndexRef.current > 0) {
+        shuffleIndexRef.current -= 1;
+        prevIdx = shuffleOrderRef.current[shuffleIndexRef.current];
+      } else {
+        if (repeatModeRef.current === 'all') {
+          shuffleIndexRef.current = shuffleOrderRef.current.length - 1;
+          prevIdx = shuffleOrderRef.current[shuffleIndexRef.current];
+        } else {
+          prevIdx = shuffleOrderRef.current[0];
+        }
+      }
+    } else {
+      const curIdx = queueIndexRef.current >= 0 ? queueIndexRef.current : queueIndex;
+      prevIdx = curIdx - 1;
+      if (prevIdx < 0) {
+        prevIdx = repeatModeRef.current === 'all' ? curQueue.length - 1 : 0;
+      }
     }
 
-    const prevSong = queue[prevIdx];
+    const prevSong = curQueue[prevIdx];
     if (prevSong) {
       setQueueIndex(prevIdx);
-      playTrack(prevSong, queue);
+      playTrack(prevSong, curQueue);
     }
-  }, [queue, queueIndex, repeatMode, playTrack, currentTrack, playbackMode]);
+  }, [queue, queueIndex, isShuffle, playTrack, currentTrack, playbackMode]);
   handlePrevRef.current = handlePrev;
 
   // Cambiar posición de la pista (Seek)
@@ -911,8 +1107,16 @@ export function MusicProvider({ children }) {
 
   // Alternar Modo Shuffle
   const toggleShuffle = useCallback(() => {
-    setIsShuffle(prev => !prev);
-  }, []);
+    setIsShuffle(prev => {
+      const next = !prev;
+      if (next) {
+        const curLen = queueRef.current?.length || 0;
+        const curIdx = queueIndexRef.current >= 0 ? queueIndexRef.current : 0;
+        initShuffleDeck(curLen, curIdx);
+      }
+      return next;
+    });
+  }, [initShuffleDeck]);
 
   // Alternar Modo Repetición: off -> all -> one -> off
   const toggleRepeat = useCallback(() => {

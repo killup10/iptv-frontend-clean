@@ -27,7 +27,9 @@ export function MobileArcadeDeck({
   categories = [],
   selectedCategory = 'TODOS',
   onCategoryChange,
-  loading = false
+  loading = false,
+  loadingEmoji,
+  loadingText
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedGenre, setSelectedGenre] = useState('Todos');
@@ -478,15 +480,19 @@ export function MobileArcadeDeck({
           <div className="flex flex-col items-center justify-center text-center p-6 z-10 w-full relative">
             {/* Pulsing Skeleton Card */}
             <div className="relative w-[54vw] aspect-[2/3] max-w-[240px] rounded-[22px] overflow-hidden bg-gradient-to-br from-zinc-900/50 via-zinc-950/70 to-black border border-cyan-500/20 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex flex-col items-center justify-center p-4">
-              <Film className="w-12 h-12 text-cyan-500/30 animate-pulse mb-3" />
+              {loadingEmoji ? (
+                <div className="text-5xl mb-3 animate-bounce">{loadingEmoji}</div>
+              ) : (
+                <Film className="w-12 h-12 text-cyan-500/30 animate-pulse mb-3" />
+              )}
               <div className="h-2 w-24 bg-zinc-800/80 rounded-full mb-2 animate-pulse"></div>
               <div className="h-2 w-16 bg-zinc-800/50 rounded-full animate-pulse"></div>
-              
+
               {/* Shimmer light reflection effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-shimmer"></div>
             </div>
             <p className="text-cyan-400/80 text-xs font-bold uppercase tracking-widest mt-6 animate-pulse drop-shadow-[0_0_8px_rgba(6,182,212,0.3)]">
-              Cargando contenido...
+              {loadingText || 'Cargando contenido...'}
             </p>
           </div>
         ) : filteredItems.length === 0 ? (

@@ -297,9 +297,11 @@ export function RecienAgregados() {
       {/* Content Grid */}
       <div className="max-w-7xl mx-auto">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mb-4" />
-            <p className="text-gray-400 text-sm">Cargando los 100 títulos más recientes...</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <div className="text-5xl animate-bounce">✨</div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400" />
+            <p className="text-cyan-200 text-sm font-semibold">Descubriendo novedades...</p>
+            <p className="text-gray-400 text-xs">Cargando los 100 títulos más recientes...</p>
           </div>
         ) : error ? (
           <div className="text-center py-20">

@@ -1,0 +1,17 @@
+.music-lyrics { position: relative; width: 100%; max-width: 30rem; border: 1px solid rgba(217,70,239,.22); border-radius: 24px; background: rgba(15,10,23,.88); overflow: hidden; text-align: left; }
+.music-lyrics-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px 8px; color:#e8c7f0; font-size:12px; font-weight:700; }
+.music-lyrics-header span { display:flex; align-items:center; gap:8px; }
+.music-lyrics-header button { padding:6px; }
+.music-lyrics-scroll { position:relative; height:260px; overflow-y:auto; overscroll-behavior:contain; padding:100px 16px; touch-action:pan-y; }
+.music-lyrics-line { display:block; width:100%; padding:12px 4px; text-align:left; font-size:19px; font-weight:750; line-height:1.65; color:#807589; }
+.music-lyrics-line.is-current { color:#b5a9c0; }
+.music-lyrics-line span { border-radius:5px; transition:color .12s, background-color .12s; }
+.music-lyrics-line .is-word-active { color:#fae8ff; background:rgba(217,70,239,.25); text-shadow:0 0 12px rgba(232,121,249,.25); }
+.music-lyrics-line:hover { color:#d8cde1; }
+.music-lyrics-message { display:flex; flex-direction:column; align-items:center; gap:12px; color:#a89ab4; font-size:13px; text-align:center; }
+.music-lyrics-plain { white-space:pre-line; color:#ddd3e5; font-size:16px; line-height:1.9; }
+.music-lyrics-instrumental { display:flex; align-items:center; gap:8px; padding:14px 4px; color:#a89ab4; font-size:13px; }
+.music-lyrics-follow { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:#e9b5f4; color:#24122b; font-size:12px; font-weight:750; border-radius:20px; padding:9px 16px; box-shadow:0 4px 20px rgba(15,10,23,.5); white-space:nowrap; }
+.music-lyrics button:focus-visible, .music-lyrics-scroll:focus-visible { outline:2px solid #f0abfc; outline-offset:-2px; }
+@media (min-width:768px) { .music-lyrics-scroll { height:320px; } }
+@media (prefers-reduced-motion:reduce) { .music-lyrics-line span { transition:none; } }

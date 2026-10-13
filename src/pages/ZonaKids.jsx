@@ -12,6 +12,7 @@ import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
 import Toast from '../components/Toast.jsx';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 export default function ZonaKids() {
   const { user } = useAuth();
@@ -197,9 +198,7 @@ export default function ZonaKids() {
   });
 
   if (isLoading && !isMobile) return (
-    <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
-      <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
-    </div>
+    <ThemedLoader theme="kids" />
   );
   
   if (error) return (
@@ -229,6 +228,8 @@ export default function ZonaKids() {
           itemType="kids"
           variant="arcade"
           loading={isLoading}
+          loadingEmoji="🧸"
+          loadingText="Reuniendo diversión..."
         />
         <ContentAccessModal
           isOpen={showAccessModal}

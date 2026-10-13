@@ -154,6 +154,9 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     console.log('[VideoPlayer] Registering global native player listeners (closed & progress)');
     
     const handlePlayerClosed = async (closeData) => {
+      if (closeData?.sessionId && closeData.sessionId !== nativePlaybackSessionIdRef.current) return;
+      isStartingRef.current = false;
+      setPlaybackStarting(false);
       console.log('[VideoPlayer] Native player stopped/closed event received globally. Saving final progress...');
       
       let finalTime = lastSavedTimeRef.current;

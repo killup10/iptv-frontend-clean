@@ -1,3 +1,4 @@
+import './MobileVodDetailModal.css';
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Clock3, WifiOff, Film, Play, Plus, Star, X } from 'lucide-react';
@@ -332,19 +333,20 @@ export default function MobileVodDetailModal({
   const title = getTVItemTitle(modalItem);
   const description = getTVItemDescription(modalItem);
   const backdropImage = getTVItemBackdrop(modalItem);
-  const posterImage = getTVItemImage(modalItem);
+  const verticalPoster = modalItem?.customPoster || modalItem?.poster || modalItem?.portada || modalItem?.posterPath || modalItem?.poster_path;
+  const posterImage = getTVItemImage(verticalPoster ? { ...modalItem, customThumbnail: verticalPoster } : modalItem);
   const rating = getTVItemRating(modalItem);
   const year = getTVItemYear(modalItem);
   const genre = getTVItemGenre(modalItem);
-  const genreList = getTVItemGenreList(modalItem);
   const releaseDate = getTVItemReleaseDate(modalItem);
+  const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
+  const genreList = getTVItemGenreList(modalItem);
   const duration = getTVItemDuration(modalItem);
   const director = getTVItemDirector(modalItem);
   const cast = getTVItemCast(modalItem);
   const userScore = getTVItemUserScore(modalItem);
   const certification = getTVItemCertification(modalItem);
   const tagline = getTVItemTagline(modalItem);
-  const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
   const trailerUrl = getTVItemTrailerUrl(modalItem);
   const hasTrailer = Boolean(trailerUrl && onTrailer);
   const watchProgress = modalItem?.watchProgress || {};
@@ -562,7 +564,7 @@ export default function MobileVodDetailModal({
 
       <div className="absolute inset-0 overflow-y-auto">
         <div className="min-h-full px-4 py-5 sm:px-6">
-          <section className="relative mx-auto flex min-h-[calc(100vh-2.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-fuchsia-300/14 bg-[#050816] shadow-[0_28px_90px_rgba(2,6,23,0.78)]">
+          <section role="dialog" aria-modal="true" aria-label={title} className="vod-classic relative mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-fuchsia-300/14 bg-[#050816] shadow-[0_28px_90px_rgba(2,6,23,0.78)]">
             <div className="absolute inset-0 overflow-hidden">
               <img
                 src={backdropImage}
@@ -595,15 +597,28 @@ export default function MobileVodDetailModal({
             </div>
 
             <div className="relative z-10 flex flex-1 flex-col px-4 pb-5 pt-4 sm:px-6 sm:pb-6">
-              <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
-                <div className="mx-auto w-[160px] md:mx-0 md:w-full">
+              <div className="vod-classic-layout grid gap-5">
+                <div className="vod-classic-poster">
                   <div className="overflow-hidden rounded-[28px] border border-white/12 shadow-[0_24px_48px_rgba(2,6,23,0.58)]">
                     <img
                       src={posterImage}
                       alt={title}
-                      className="aspect-[2/3] w-full object-cover"
+                      className="vod-classic-poster-image"
                     />
                   </div>
+                  {currentEpisodeSummary && (
+                    <button type="button" onClick={handlePlaySelection} className="vod-classic-episode" aria-label={`Ver ${currentEpisodeSummary.label}: ${currentEpisodeSummary.title}`}>
+                      <div className="vod-classic-episode-art">
+                        <img src={selectedEpisode?.backdrop || selectedEpisode?.image || backdropImage || posterImage} alt="" />
+                        <span className="vod-classic-episode-play"><Play className="h-5 w-5 fill-current" /></span>
+                      </div>
+                      <div className="vod-classic-episode-copy">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">Episodio seleccionado · {currentEpisodeSummary.label}</p>
+                        <p className="mt-2 text-sm font-bold leading-5 text-white">{currentEpisodeSummary.title}</p>
+                        {currentEpisodeSummary.duration && <p className="mt-1 text-xs text-slate-400">{currentEpisodeSummary.duration}</p>}
+                      </div>
+                    </button>
+                  )}
                 </div>
 
                 <div className="min-w-0">
@@ -714,23 +729,6 @@ export default function MobileVodDetailModal({
                     </div>
                   )}
 
-                  {currentEpisodeSummary && (
-                    <div className="mt-5 rounded-[22px] border border-cyan-300/14 bg-cyan-400/[0.07] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-100/78">
-                        Episodio seleccionado
-                      </p>
-                      <p className="mt-2 text-base font-bold text-white">
-                        {currentEpisodeSummary.label}
-                        {currentEpisodeSummary.title ? ` / ${currentEpisodeSummary.title}` : ''}
-                      </p>
-                      {currentEpisodeSummary.duration ? (
-                        <p className="mt-1 text-sm text-slate-300/82">
-                          {currentEpisodeSummary.duration}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
                   {effectiveCanContinue && (
                     <div className="mt-6 rounded-[24px] border border-cyan-300/12 bg-slate-950/34 p-4">
                       <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100/84">
@@ -806,7 +804,7 @@ export default function MobileVodDetailModal({
                     }`}
                   >
                     <Film className="h-5 w-5" />
-                    {hasTrailer ? 'Ver trailer' : 'Trailer no disponible'}
+                    {hasTrailer ? 'Ver tráiler' : 'Tráiler no disponible'}
                   </button>
 
                   <button

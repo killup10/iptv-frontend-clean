@@ -4,6 +4,7 @@ import TVSearch from './TVSearch';
 import './TVHome.css';
 import {
   focusTVNav,
+  focusTVContent,
   getTVFocusZone,
   TV_FOCUS_CONTENT_EVENT,
   TV_FOCUS_ZONE_CONTENT,
@@ -19,6 +20,9 @@ import {
 } from '../utils/tvContentUtils.js';
 import { TV_OPEN_SEARCH_EVENT } from '../utils/tvSearchEvents.js';
 import { getTVKeyName } from '../utils/tvRemote.js';
+import useHomeLivePlayer, { supportsHomeLivePlayer } from '../hooks/useHomeLivePlayer.js';
+import { formatGuideTime, getProgramProgress } from '../utils/epgCache.js';
+import { selectHomeLiveChannels } from '../utils/homeLiveChannels.js';
 
 function normalizeLabel(value) {
   return String(value || '')
@@ -27,8 +31,30 @@ function normalizeLabel(value) {
     .toLowerCase();
 }
 
+const HomeCard = React.memo(function HomeCard({ item, itemKey, selected, itemRefs }) {
+  const badges = getTVItemQualityBadges(item);
+  return (
+    <div data-item-key={itemKey} tabIndex={-1} role="button" aria-label={getTVItemTitle(item)}
+      ref={element => { itemRefs.current[itemKey] = element; }}
+      className={`carousel-item ${selected ? 'focused' : ''}`}>
+      <div className="item-card">
+        <img src={getTVItemImage(item)} alt={getTVItemTitle(item)} className="item-poster" loading="lazy" decoding="async" />
+        {item?.hasNewEpisodes && <div className="item-episode-badge">NUEVOS EPISODIOS</div>}
+        {badges.length > 0 && <div className="item-quality-badges">{badges.map(badge => <span key={badge} className="item-quality-badge">{badge}</span>)}</div>}
+        {selected && <div className="focus-overlay"><div className="focus-ring" /></div>}
+      </div>
+      <div className="item-meta"><p className="item-name">{getTVItemTitle(item)}</p>
+        {item.__homeLive && <><p className="tv-live-program">{item.epg || item.currentProgram || 'En directo'}</p>
+          <p className="tv-live-time">{item.epgStart && item.epgStop ? `${formatGuideTime(item.epgStart)} – ${formatGuideTime(item.epgStop)}` : 'En directo'}</p>
+          <progress className="tv-live-progress" max="1" value={getProgramProgress(item.epgStart, item.epgStop)} />
+        </>}
+      </div>
+    </div>
+  );
+});
+
 export default function TVHome({
-  sections = [],
+  sections: catalogSections = [],
   onSelectItem,
   onAddToMyList,
 }) {
@@ -37,7 +63,18 @@ export default function TVHome({
   const [showSearch, setShowSearch] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [searchChannels, setSearchChannels] = useState([]);
-  const [focusMode, setFocusMode] = useState('hero');
+  const nativeLive = supportsHomeLivePlayer();
+  const [focusMode, setFocusMode] = useState(nativeLive ? 'content' : 'hero');
+  const [liveIndex, setLiveIndex] = useState(0);
+  const [epgTick, setEpgTick] = useState(0);
+  const liveChannels = useMemo(() => selectHomeLiveChannels(searchChannels)
+    .map(channel => ({ ...channel, title: channel.name || channel.title, __homeLive: true, itemType: 'channel' })), [searchChannels]);
+  const liveMode = nativeLive && liveChannels.length > 0;
+  const sections = useMemo(() => liveMode
+    ? [{ title: '🔴 Ahora en vivo', type: 'channel', items: liveChannels }, ...catalogSections.filter(section => section.type !== 'channel')]
+    : catalogSections, [liveMode, liveChannels, catalogSections]);
+  const activeLiveChannel = liveChannels[Math.min(liveIndex, liveChannels.length - 1)];
+  const livePlayer = useHomeLivePlayer(activeLiveChannel, liveMode);
   const containerRef = useRef(null);
   const heroRef = useRef(null);
   const sectionRefs = useRef([]);
@@ -45,6 +82,16 @@ export default function TVHome({
   const hasUserNavigatedRef = useRef(false);
   const restoredFocusSignatureRef = useRef('');
   const location = useLocation();
+
+  useEffect(() => {
+    if (liveMode && !Number.isInteger(location.state?.focusedSectionIndex)) {
+      hasUserNavigatedRef.current = true;
+      setCurrentSectionIndex(0);
+      setFocusMode('content');
+      const timer = setTimeout(() => focusTVContent(), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [liveMode]);
 
   const allContent = useMemo(() => {
     const merged = [];
@@ -80,6 +127,23 @@ export default function TVHome({
   const currentItemIndex = sectionItemIndexes[currentSectionIndex] || 0;
   const currentItem = currentSection?.items[currentItemIndex];
   const currentItemType = resolveTVItemType(currentItem, currentSection?.type || 'movie');
+
+  useEffect(() => {
+    if (liveMode && focusMode === 'content' && currentSectionIndex === 0) setLiveIndex(currentItemIndex);
+  }, [liveMode, focusMode, currentSectionIndex, currentItemIndex]);
+
+  useEffect(() => {
+    if (!liveMode) return undefined;
+    const timer = setInterval(() => setEpgTick(value => value + 1), 60000);
+    return () => clearInterval(timer);
+  }, [liveMode]);
+
+  useEffect(() => {
+    if (!nativeLive || epgTick === 0) return;
+    let cancelled = false;
+    fetchUserChannels('Todos').then(channels => { if (!cancelled) setSearchChannels(Array.isArray(channels) ? channels : []); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [nativeLive, epgTick]);
 
   const heroItems = useMemo(() => {
     const nonContinueSections = sections.filter((section) => (
@@ -146,7 +210,7 @@ export default function TVHome({
   }, [heroItems.length]);
 
   useEffect(() => {
-    if (showSearch || heroItems.length <= 1) {
+    if (liveMode || showSearch || focusMode !== 'hero' || heroItems.length <= 1) {
       return undefined;
     }
 
@@ -155,7 +219,7 @@ export default function TVHome({
     }, 6500);
 
     return () => window.clearInterval(intervalId);
-  }, [heroItems.length, showSearch]);
+  }, [heroItems.length, showSearch, focusMode, liveMode]);
 
   useEffect(() => {
     setSectionItemIndexes((prev) => {
@@ -186,7 +250,9 @@ export default function TVHome({
   }, [sections.length]);
 
   useEffect(() => {
-    const restoredSectionIndex = location.state?.focusedSectionIndex;
+    const originalIndex = location.state?.focusedSectionIndex;
+    const restoredSectionIndex = liveMode && Number.isInteger(originalIndex)
+      ? sections.indexOf(catalogSections[originalIndex]) : originalIndex;
     const restoredItemIndex = location.state?.focusedItemIndex;
 
     if (!Number.isInteger(restoredSectionIndex) || restoredSectionIndex < 0 || restoredSectionIndex >= sections.length) {
@@ -217,7 +283,7 @@ export default function TVHome({
       ...prev,
       [restoredSectionIndex]: nextItemIndex,
     }));
-  }, [location.key, location.state?.focusedItemIndex, location.state?.focusedSectionIndex, sections]);
+  }, [location.key, location.state?.focusedItemIndex, location.state?.focusedSectionIndex, sections, catalogSections, liveMode]);
 
   useEffect(() => {
     if (location.state?.openSearch) {
@@ -307,17 +373,29 @@ export default function TVHome({
       return;
     }
 
-    const itemLeft = itemElement.offsetLeft;
-    const itemWidth = itemElement.offsetWidth;
-    const targetLeft = Math.max(0, itemLeft - ((carousel.clientWidth - itemWidth) / 2));
+    const itemRect = itemElement.getBoundingClientRect();
+    const carouselRect = carousel.getBoundingClientRect();
+    const padding = 12;
+    let targetLeft = carousel.scrollLeft;
+    if (itemRect.left < carouselRect.left + padding) {
+      targetLeft += itemRect.left - carouselRect.left - padding;
+    } else if (itemRect.right > carouselRect.right - padding) {
+      targetLeft += itemRect.right - carouselRect.right + padding;
+    } else {
+      return;
+    }
 
     carousel.scrollTo({
-      left: targetLeft,
+      left: Math.max(0, targetLeft),
       behavior: 'auto',
     });
   }, []);
 
   const scrollSectionVertically = useCallback((sectionIndex = currentSectionIndex) => {
+    if (liveMode && sectionIndex === 0 && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+      return;
+    }
     const sectionRef = sectionRefs.current[sectionIndex];
     if (!sectionRef) {
       return;
@@ -326,7 +404,7 @@ export default function TVHome({
     // Margen amplio: el titulo de seccion queda totalmente visible con aire
     // arriba. Antes (18/24px) quedaba pegado al borde y se cortaba.
     scrollContainerToElement(sectionRef, 96);
-  }, [scrollContainerToElement]);
+  }, [scrollContainerToElement, liveMode]);
 
   const scrollCurrentContentIntoView = useCallback((sectionIndex = currentSectionIndex, itemIndex = currentItemIndex) => {
     scrollSectionVertically(sectionIndex);
@@ -367,21 +445,21 @@ export default function TVHome({
     hasUserNavigatedRef.current = true;
     setFocusMode('content');
 
-    window.requestAnimationFrame(() => {
-      scrollCurrentContentIntoView();
-      window.setTimeout(() => {
-        scrollCurrentContentIntoView();
-      }, 80);
-    });
-  }, [scrollCurrentContentIntoView]);
+  }, []);
 
   const runItemAction = useCallback((_action, item = currentItem, sectionIndex = currentSectionIndex, itemIndex = null) => {
     if (!item) return;
 
+    if (liveMode && item.__homeLive) {
+      livePlayer.enterFullscreen(item);
+      return;
+    }
+
     const resolvedItemIndex = itemIndex ?? currentItemIndex;
 
-    onSelectItem?.(item, sectionIndex, resolvedItemIndex);
-  }, [currentItem, currentItemIndex, currentSectionIndex, onSelectItem]);
+    const originalSectionIndex = liveMode && sectionIndex != null ? catalogSections.indexOf(sections[sectionIndex]) : sectionIndex;
+    onSelectItem?.(item, originalSectionIndex, resolvedItemIndex);
+  }, [currentItem, currentItemIndex, currentSectionIndex, onSelectItem, liveMode, livePlayer.enterFullscreen, catalogSections, sections]);
 
   const resolveAction = (event) => {
     const name = getTVKeyName(event);
@@ -508,6 +586,7 @@ export default function TVHome({
         event.preventDefault();
         hasUserNavigatedRef.current = true;
         if (curSecIdx === 0) {
+          if (liveMode) { focusTVNav(); return; }
           focusHero();
           return;
         }
@@ -546,7 +625,7 @@ export default function TVHome({
       default:
         break;
     }
-  }, [focusCurrentContent, focusHero, runItemAction, setCurrentItemIndex]);
+  }, [focusCurrentContent, focusHero, runItemAction, setCurrentItemIndex, liveMode]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleNavigation);
@@ -559,7 +638,7 @@ export default function TVHome({
         return;
       }
 
-      if (!hasUserNavigatedRef.current && !Number.isInteger(location.state?.focusedSectionIndex)) {
+      if (!liveMode && !hasUserNavigatedRef.current && !Number.isInteger(location.state?.focusedSectionIndex)) {
         focusHero();
         return;
       }
@@ -568,7 +647,7 @@ export default function TVHome({
       if (!selectedItemRef) return;
 
       setFocusMode('content');
-      scrollCurrentContentIntoView();
+      selectedItemRef.focus({ preventScroll: true });
     };
 
     window.addEventListener(TV_FOCUS_CONTENT_EVENT, handleFocusContent);
@@ -580,6 +659,7 @@ export default function TVHome({
     location.state?.focusedSectionIndex,
     scrollCurrentContentIntoView,
     showSearch,
+    liveMode,
   ]);
 
   useEffect(() => {
@@ -611,6 +691,9 @@ export default function TVHome({
     if (!itemRef) {
       return;
     }
+    if (getTVFocusZone() === TV_FOCUS_ZONE_CONTENT && !showSearch) {
+      itemRef.focus({ preventScroll: true });
+    }
     scrollItemHorizontally(itemRef);
 
     const container = containerRef.current;
@@ -623,7 +706,7 @@ export default function TVHome({
         container.scrollTop -= containerRect.top - itemRect.top + 12;
       }
     }
-  }, [currentItemIndex, currentSectionIndex, focusMode, location.state?.focusedSectionIndex, scrollItemHorizontally]);
+  }, [currentItemIndex, currentSectionIndex, focusMode, location.state?.focusedSectionIndex, scrollItemHorizontally, showSearch]);
 
   if (!sections || sections.length === 0) {
     return (
@@ -648,7 +731,7 @@ export default function TVHome({
   const spotlightSectionLabel = spotlightItem?.__heroSectionTitle || 'Destacado';
 
   return (
-    <div ref={containerRef} className="tv-home-container">
+    <div ref={containerRef} className={`tv-home-container ${liveMode ? 'tv-home-with-live' : ''}`}>
       {showSearch && (
         <TVSearch
           allContent={allContent}
@@ -660,7 +743,14 @@ export default function TVHome({
       )}
 
       <div className="tv-home-container-inner">
-        {spotlightItem && (
+        {liveMode && <section className="tv-live-hero" aria-label="Canal en directo">
+          <p className="tv-live-label">EN VIVO · {getTVItemTitle(activeLiveChannel)}</p>
+          <h1>{activeLiveChannel?.epg || activeLiveChannel?.currentProgram || getTVItemTitle(activeLiveChannel)}</h1>
+          <p>{activeLiveChannel?.epgDesc || ''}</p>
+          <p className="tv-live-time">{activeLiveChannel?.epgStart && activeLiveChannel?.epgStop ? `${formatGuideTime(activeLiveChannel.epgStart)} – ${formatGuideTime(activeLiveChannel.epgStop)}` : 'En directo'}</p>
+          <p className="tv-live-status" role="status">{livePlayer.state === 'error' ? 'No se pudo reproducir. Pulsa OK para reintentar o elige otro canal.' : livePlayer.state === 'loading' ? 'Sintonizando…' : 'OK · Pantalla completa'}</p>
+        </section>}
+        {!liveMode && spotlightItem && (
           <section
             ref={heroRef}
             tabIndex={-1}
@@ -673,12 +763,9 @@ export default function TVHome({
                 src={spotlightBackdrop}
                 alt=""
                 className="tv-home-spotlight-backdrop-fill animate-fadeIn"
-              />
-              <img
-                key={`backdrop-fit-${spotlightItem?.id || spotlightItem?._id || heroIndex}`}
-                src={spotlightBackdrop}
-                alt=""
-                className="tv-home-spotlight-backdrop-fit animate-fadeIn"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
 
@@ -699,7 +786,13 @@ export default function TVHome({
 
             <div className="tv-home-spotlight-side">
               <div className="tv-home-spotlight-poster">
-                <img src={getTVItemImage(spotlightItem)} alt={getTVItemTitle(spotlightItem)} />
+                <img
+                  src={getTVItemImage(spotlightItem)}
+                  alt={getTVItemTitle(spotlightItem)}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                />
               </div>
 
               {heroItems.length > 1 && (
@@ -747,7 +840,7 @@ export default function TVHome({
             return (
               <div
                 key={`${section.title}-${sectionIndex}`}
-                className={`tv-home-section ${isCurrentSection ? 'active' : ''}`}
+                className={`tv-home-section ${section.type === 'channel' && liveMode ? 'tv-live-row' : ''} ${isCurrentSection ? 'active' : ''}`}
                 ref={(element) => {
                   sectionRefs.current[sectionIndex] = element;
                 }}
@@ -757,48 +850,7 @@ export default function TVHome({
                   {section.items.map((item, itemIndex) => {
                     const isSelected = isCurrentSection && itemIndex === activeItemIndex;
                     const key = `${sectionIndex}-${itemIndex}`;
-                    const qualityBadges = getTVItemQualityBadges(item);
-
-                    return (
-                      <div
-                        key={item?._id || item?.id || key}
-                        data-item-key={key}
-                        ref={(element) => {
-                          itemRefs.current[key] = element;
-                        }}
-                        className={`carousel-item ${isSelected ? 'focused' : ''}`}
-                      >
-                        <div className="item-card">
-                          <img
-                            src={getTVItemImage(item)}
-                            alt={getTVItemTitle(item)}
-                            className="item-poster"
-                          />
-                          {item?.hasNewEpisodes && (
-                            <div className="item-episode-badge">
-                              NUEVOS EPISODIOS
-                            </div>
-                          )}
-                          {qualityBadges.length > 0 && (
-                            <div className="item-quality-badges">
-                              {qualityBadges.map((badge) => (
-                                <span key={`${key}-${badge}`} className="item-quality-badge">
-                                  {badge}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {isSelected && (
-                            <div className="focus-overlay">
-                              <div className="focus-ring" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="item-meta">
-                          <p className="item-name">{getTVItemTitle(item)}</p>
-                        </div>
-                      </div>
-                    );
+                    return <HomeCard key={item?._id || item?.id || key} item={item} itemKey={key} selected={isSelected} itemRefs={itemRefs} />;
                   })}
                 </div>
               </div>

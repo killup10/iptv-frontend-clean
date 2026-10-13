@@ -5,6 +5,7 @@ import Card from '@/components/Card';
 import TrailerModal from '@/components/TrailerModal';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import Toast from '@/components/Toast';
+import ThemedLoader from '@/components/ThemedLoader.jsx';
 
 export function Series() {
   const navigate = useNavigate();
@@ -93,24 +94,7 @@ export function Series() {
 
   if (loading) {
     return (
-      <>
-        <style>{`
-          :root {
-            --primary: 190 100% 50%;
-          }
-        `}</style>
-        <div 
-          className="flex justify-center items-center min-h-screen"
-          style={{
-            backgroundImage: `url(./fondo.png)`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed'
-          }}
-        >
-          <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'hsl(var(--primary))', borderTopColor: 'transparent' }}></div>
-        </div>
-      </>
+      <ThemedLoader theme="series" />
     );
   }
 

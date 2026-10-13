@@ -15,6 +15,7 @@ import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
 import MobileArcadeDeck from '../components/MobileArcadeDeck.jsx';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 
 
@@ -287,9 +288,7 @@ export function Animes() {
 
   if (loading && !isMobile) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
-        <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
-      </div>
+      <ThemedLoader theme="animes" />
     );
   }
 
@@ -358,6 +357,8 @@ export function Animes() {
           itemType="anime"
           variant="arcade"
           loading={loading}
+          loadingEmoji="⛩️"
+          loadingText="Invocando chakra..."
         />
       ) : (
         <div 

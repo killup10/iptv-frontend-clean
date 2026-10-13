@@ -2,6 +2,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx'; // Asegúrate que la ruta a tu AuthContext sea correcta
+import ThemedLoader from './ThemedLoader.jsx';
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, activeProfile, isLoadingAuth } = useAuth(); // Asumimos que tu AuthContext expone 'user' y 'isLoadingAuth'
@@ -10,11 +11,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   // Si aún está cargando la información de autenticación, muestra un loader
   // Esto evita redirigir a login prematuramente si la sesión se está restaurando.
   if (isLoadingAuth) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-black">
-        <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <ThemedLoader theme="home" />;
   }
 
   // Si no hay usuario (no está logueado), redirigir a la página de login

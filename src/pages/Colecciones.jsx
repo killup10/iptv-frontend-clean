@@ -12,6 +12,7 @@ import CollectionsModal from '../components/CollectionsModal.jsx';
 import { Squares2X2Icon } from '@heroicons/react/24/solid';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 export default function Colecciones() {
   const { user } = useAuth();
@@ -290,9 +291,7 @@ export default function Colecciones() {
   }, [collections, selectedColeccion]);
 
   if (isLoading) return (
-    <div className="flex justify-center items-center min-h-[calc(100vh-128px)]">
-      <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-red-600"></div>
-    </div>
+    <ThemedLoader theme="colecciones" />
   );
   
   if (error) return (

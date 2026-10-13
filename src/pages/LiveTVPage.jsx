@@ -13,6 +13,7 @@ import EpgGuide from '../components/EpgGuide.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
 import { getPlayerType, isAndroidTV } from '../utils/platformUtils.js';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 
 const formatLiveTime = (iso) => {
@@ -200,10 +201,7 @@ export default function LiveTVPage() {
 
   if (showInitialLoading) {
     return (
-      <div className="flex min-h-[calc(100vh-128px)] items-center justify-center">
-        <div className="h-16 w-16 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />
-        <p className="ml-4 text-xl text-white">Cargando Interfaz...</p>
-      </div>
+      <ThemedLoader theme="live" />
     );
   }
 

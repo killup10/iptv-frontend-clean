@@ -51,13 +51,54 @@
   border: 1px solid rgba(34, 211, 238, 0.1);
   box-shadow: 0 14px 52px rgba(0, 0, 0, 0.28);
   background: #020617;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform, border-color, box-shadow;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
+
+/* Native VLC stays behind the entire WebView; only Home becomes transparent. */
+html.tv-live-home,
+html.tv-live-home body,
+html.tv-live-home #root,
+html.tv-live-home .tv-app-container,
+html.tv-live-home .tv-main-content { background: transparent !important; }
+.tv-home-with-live {
+  --live-accent: #22d3ee;
+  --live-muted: #cbd5e1;
+  background: linear-gradient(180deg, rgba(3,7,18,.08), rgba(3,7,18,.45) 38%, rgba(3,7,18,.94) 76%);
+}
+.tv-live-hero {
+  height: clamp(180px, 30vh, 300px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px;
+  text-shadow: 0 2px 6px #000;
+}
+.tv-live-hero h1 { font-size: clamp(26px, 3vw, 44px); line-height: 1.15; margin: 8px 0; max-width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-live-hero > p { max-width: 75%; margin: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-live-row .item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-live-label { color: var(--live-accent); font-weight: 700; }
+.tv-live-time, .tv-live-status { color: var(--live-muted); font-size: 14px; }
+.tv-home-with-live .tv-home-context-bar, .tv-home-with-live .tv-home-details { display: none; }
+.tv-live-row .carousel-item { flex-basis: clamp(175px, 17vw, 260px); min-width: 0; max-width: clamp(175px, 17vw, 260px); gap: 6px; }
+.tv-live-row .item-card { aspect-ratio: 16 / 9; border-radius: 6px; box-shadow: none; }
+.tv-live-row .item-poster { object-fit: contain; padding: 12px; box-sizing: border-box; }
+.tv-home-with-live .carousel-item, .tv-home-with-live .item-card { transition: none; }
+.tv-live-row .carousel-item.focused { transform: none; }
+.tv-home-with-live .carousel-item:focus { outline: none; }
+.tv-live-row .focus-overlay { display: none; }
+.tv-live-row .carousel-item.focused .item-card { border-color: var(--live-accent); box-shadow: 0 0 0 3px var(--live-accent); }
+.tv-live-program { margin: 3px 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-live-row .item-meta { background: rgba(3,7,18,.75); padding: 8px; border-radius: 4px; }
+.tv-live-row .tv-live-time { margin: 4px 0; }
+.tv-live-progress { width: 100%; height: 3px; border: none; background: #334155; }
+.tv-live-progress::-webkit-progress-bar { background: #334155; }
+.tv-live-progress::-webkit-progress-value { background: var(--live-accent); }
 
 .tv-home-spotlight.is-focused {
   border-color: rgba(103, 232, 249, 0.68);
   box-shadow: 0 0 0 2px rgba(8, 47, 73, 0.88), 0 0 34px rgba(34, 211, 238, 0.18);
+  will-change: transform;
 }
 
 .tv-home-spotlight::after {
@@ -76,8 +117,7 @@
   overflow: hidden;
 }
 
-.tv-home-spotlight-backdrop-fill,
-.tv-home-spotlight-backdrop-fit {
+.tv-home-spotlight-backdrop-fill {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -87,15 +127,7 @@
 
 .tv-home-spotlight-backdrop-fill {
   object-fit: cover;
-  filter: blur(18px) saturate(1.04);
-  transform: scale(1.06);
-  opacity: 0.28;
-}
-
-.tv-home-spotlight-backdrop-fit {
-  object-fit: contain;
-  object-position: center right;
-  opacity: 0.92;
+  opacity: 0.24;
 }
 
 .tv-home-spotlight-content,

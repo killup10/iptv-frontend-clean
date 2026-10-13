@@ -12,6 +12,7 @@ import { getCollections, addItemsToCollection, fetchHalloweenVideos } from '../u
 import CollectionsModal from '../components/CollectionsModal.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import useVodDetailOverlay from '../hooks/useVodDetailOverlay.js';
+import ThemedLoader from '../components/ThemedLoader.jsx';
 
 const getId = (item) => item?._id || item?.id;
 const getTitle = (item) => item?.title || item?.name || 'Sin título';
@@ -130,21 +131,22 @@ export function Halloween() {
 
   const matchesTab = (item) => {
     if (activeTab === 'todos') return true;
-    // Series: por Tipo (incluye Halloween sin marcar); Kids no se repite aquí.
-    if (activeTab === 'series') {
-      const t = (item?.tipo || '').toLowerCase();
-      return !kidsBaseIds.has(getId(item)) && t !== 'pelicula';
+    if (activeTab === 'kids') {
+      return kidsBaseIds.has(getId(item));
     }
-    // Películas: por Tipo, marcado o no.
+    if (kidsBaseIds.has(getId(item))) return false;
+    const t = (item?.tipo || '').toLowerCase().trim();
+    // Series: por Tipo, excluyendo películas y especiales de Halloween.
+    if (activeTab === 'series') {
+      return t !== 'pelicula' && t !== 'movie' && t !== 'halloween';
+    }
+    // Películas: por Tipo.
     if (activeTab === 'peliculas') {
-      return (item?.tipo || '').toLowerCase() === 'pelicula' && !kidsBaseIds.has(getId(item));
+      return t === 'pelicula' || t === 'movie';
     }
     // Especiales: solo lo subido con Tipo Halloween.
     if (activeTab === 'especiales') {
-      return (item?.tipo || '').toLowerCase() === 'halloween' && !kidsBaseIds.has(getId(item));
-    }
-    if (activeTab === 'kids') {
-      return kidsBaseIds.has(getId(item));
+      return t === 'halloween';
     }
     return true;
   };
@@ -183,9 +185,12 @@ export function Halloween() {
     [allItems, activeTab, kidsBase, searchTerm],
   );
 
-  // Grupos por tipo para las secciones: Especiales = solo subido como Halloween,
-  // Series/Películas = todo lo demás (incluye lo marcado con el checkbox).
-  const getTipo = (item) => (item?.tipo || '').toLowerCase();
+  // Grupos por tipo para las secciones:
+  // - Especiales: tipo Halloween (no kids)
+  // - Series: tipo serie/otros (no películas, no halloween, no kids)
+  // - Películas: tipo película (no kids)
+  // - Kids: lista exclusiva de Halloween Kids
+  const getTipo = (item) => (item?.tipo || '').toLowerCase().trim();
   const searchedAll = useMemo(
     () => allItems.filter((i) => matchesSearch(i)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,11 +201,17 @@ export function Halloween() {
     [searchedAll, kidsBaseIds],
   );
   const seriesItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) !== 'pelicula' && !kidsBaseIds.has(getId(i))),
+    () => searchedAll.filter((i) => {
+      const t = getTipo(i);
+      return t !== 'pelicula' && t !== 'movie' && t !== 'halloween' && !kidsBaseIds.has(getId(i));
+    }),
     [searchedAll, kidsBaseIds],
   );
   const movieItems = useMemo(
-    () => searchedAll.filter((i) => getTipo(i) === 'pelicula' && !kidsBaseIds.has(getId(i))),
+    () => searchedAll.filter((i) => {
+      const t = getTipo(i);
+      return (t === 'pelicula' || t === 'movie') && !kidsBaseIds.has(getId(i));
+    }),
     [searchedAll, kidsBaseIds],
   );
   const kidsItems = useMemo(
@@ -309,16 +320,7 @@ export function Halloween() {
 
   if (loading) {
     return (
-      <div
-        className="flex justify-center items-center min-h-screen"
-        style={{ background: 'radial-gradient(circle at 50% 20%, #2a0a3b 0%, #0b0614 60%, #000 100%)' }}
-      >
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🎃</div>
-          <div className="w-16 h-16 mx-auto border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#ff6b00', borderTopColor: 'transparent' }}></div>
-          <p className="text-orange-300 mt-4">Invocando espíritus...</p>
-        </div>
-      </div>
+      <ThemedLoader theme="halloween" />
     );
   }
 

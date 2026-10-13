@@ -91,7 +91,7 @@ const getCachedValue = (key, options = {}) => {
   const isExpired = now - timestamp > CACHE_DURATION;
 
   if (isExpired && !allowStale) {
-    clearCachedValue(key);
+    // Keep expired entries available for stale-while-refresh views.
     return null;
   }
 

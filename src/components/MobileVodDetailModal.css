@@ -1,0 +1,15 @@
+.vod-classic .vod-classic-layout { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+.vod-classic .vod-classic-poster { width: min(100%, 300px); margin: 0 auto; }
+.vod-classic .vod-classic-poster-image { display: block; width: 100%; height: auto; object-fit: contain; }
+.vod-classic button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 4px; }
+@media (min-width: 768px) {
+  .vod-classic .vod-classic-layout { grid-template-columns: minmax(260px, 40%) minmax(0, 1fr); gap: 24px; }
+  .vod-classic .vod-classic-poster { width: 100%; margin: 0; }
+}
+
+.vod-classic .vod-classic-episode { display: block; width: 100%; margin-top: 18px; overflow: hidden; border: 1px solid rgba(103,232,249,.22); border-radius: 20px; background: rgba(15,23,42,.72); text-align: left; transition: border-color .18s; }
+.vod-classic .vod-classic-episode:hover { border-color: rgba(103,232,249,.6); }
+.vod-classic .vod-classic-episode-art { position: relative; }
+.vod-classic .vod-classic-episode-art img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.vod-classic .vod-classic-episode-play { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #22d3ee; color: #0f172a; }
+.vod-classic .vod-classic-episode-copy { padding: 14px; }

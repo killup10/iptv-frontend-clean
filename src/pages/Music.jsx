@@ -818,8 +818,8 @@ export default function Music() {
   // Reproducir en modo aleatorio
   const handleShuffleTop = () => {
     if (topTracks.length > 0) {
-      const randomIdx = Math.floor(Math.random() * topTracks.length);
-      playTrack(topTracks[randomIdx], topTracks);
+      const shuffled = [...topTracks].sort(() => Math.random() - 0.5);
+      playTrack(shuffled[0], shuffled);
     }
   };
 
@@ -888,8 +888,10 @@ export default function Music() {
   // Pantalla de carga mientras se sincroniza la sesión
   if (isLoadingAuth) {
     return (
-      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 py-20">
+        <div className="text-6xl mb-2 animate-bounce">🎧</div>
         <Loader2 className="w-10 h-10 text-fuchsia-400 animate-spin" />
+        <span className="text-sm text-fuchsia-200 font-semibold">Afinando instrumentos...</span>
         <span className="text-xs text-gray-400">Verificando acceso a TeamG Music...</span>
       </div>
     );
@@ -3673,8 +3675,10 @@ export default function Music() {
                 ))}
               </div>
               {isLoadingTop ? (
-                <div className="flex items-center justify-center py-20">
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <div className="text-5xl animate-bounce">🎵</div>
                   <Loader2 className="w-8 h-8 text-fuchsia-400 animate-spin" />
+                  <span className="text-xs text-fuchsia-200/70">Afinando instrumentos...</span>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">

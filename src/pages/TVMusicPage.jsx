@@ -30,7 +30,7 @@ import {
   DEFAULT_CURATED_PLAYLISTS,
   INDEPENDENT_ARTISTS
 } from '../services/musicService.js';
-import { focusTVNav, getTVFocusZone, TV_FOCUS_ZONE_CONTENT } from '../utils/tvFocusZone.js';
+import { focusTVNav, getTVFocusZone, TV_FOCUS_CONTENT_EVENT, TV_FOCUS_ZONE_CONTENT } from '../utils/tvFocusZone.js';
 import { getTVKeyName, isTVBackKey } from '../utils/tvRemote.js';
 import { Capacitor } from '@capacitor/core';
 
@@ -100,6 +100,7 @@ export default function TVMusicPage() {
   const [artistDetailSubZone, setArtistDetailSubZone] = useState('actions'); // 'actions' | 'songs' | 'albums'
   const [focusedArtistSongIndex, setFocusedArtistSongIndex] = useState(0);
   const [focusedArtistAlbumIndex, setFocusedArtistAlbumIndex] = useState(0);
+  const [focusedArtistActionIndex, setFocusedArtistActionIndex] = useState(0);
 
   // Album Detail view
   const [selectedAlbum, setSelectedAlbum] = useState(null);
@@ -116,6 +117,7 @@ export default function TVMusicPage() {
   const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
   const [playlistDetailSubZone, setPlaylistDetailSubZone] = useState('actions'); // 'actions' | 'songs'
   const [focusedPlaylistSongIndex, setFocusedPlaylistSongIndex] = useState(0);
+  const [focusedPlaylistActionIndex, setFocusedPlaylistActionIndex] = useState(0);
 
   // Search Modal
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -127,6 +129,19 @@ export default function TVMusicPage() {
   const [focusedSearchArtistIndex, setFocusedSearchArtistIndex] = useState(0);
   const [focusedSearchTrackIndex, setFocusedSearchTrackIndex] = useState(0);
   const searchInputRef = useRef(null);
+  const rootRef = useRef(null);
+  const searchReturnZoneRef = useRef('tabs');
+  const searchRequestRef = useRef(0);
+  const openSearch = useCallback(() => {
+    searchReturnZoneRef.current = focusZone === 'search_btn' ? 'tabs' : focusZone;
+    setShowSearchModal(true);
+    setSearchFocusZone('input');
+  }, [focusZone]);
+  const closeSearch = useCallback(() => {
+    searchInputRef.current?.blur();
+    setShowSearchModal(false);
+    setFocusZone(searchReturnZoneRef.current);
+  }, []);
 
   // Columns for grids
   const gridColumns = useMemo(() => {
@@ -242,6 +257,7 @@ export default function TVMusicPage() {
     setArtistDetailSubZone('actions');
     setFocusedArtistSongIndex(0);
     setFocusedArtistAlbumIndex(0);
+    setFocusedArtistActionIndex(0);
 
     try {
       const details = await musicService.getArtistDetails(artist.name, artist.id);
@@ -282,6 +298,7 @@ export default function TVMusicPage() {
     setFocusZone('playlist_detail');
     setPlaylistDetailSubZone('actions');
     setFocusedPlaylistSongIndex(0);
+    setFocusedPlaylistActionIndex(0);
 
     try {
       if (playlist.tracks && playlist.tracks.length > 0) {
@@ -299,9 +316,11 @@ export default function TVMusicPage() {
 
   // Search executor
   const executeSearch = useCallback(async (q) => {
+    const requestId = ++searchRequestRef.current;
     if (!q || !q.trim()) {
       setSearchResults([]);
       setSearchArtists([]);
+      setIsSearching(false);
       return;
     }
     setIsSearching(true);
@@ -310,24 +329,44 @@ export default function TVMusicPage() {
         musicService.searchTracks(q.trim(), 80),
         musicService.searchArtists(q.trim(), 8)
       ]);
+      if (requestId !== searchRequestRef.current) return;
       setSearchResults(tracks.status === 'fulfilled' && Array.isArray(tracks.value) ? tracks.value : []);
       setSearchArtists(artists.status === 'fulfilled' && Array.isArray(artists.value) ? artists.value : []);
     } catch (err) {
       console.warn('[TVMusicPage] Error en busqueda:', err);
     } finally {
-      setIsSearching(false);
+      if (requestId === searchRequestRef.current) setIsSearching(false);
     }
   }, []);
 
+  useEffect(() => {
+    ++searchRequestRef.current;
+    if (!showSearchModal) return;
+    const timer = window.setTimeout(() => executeSearch(searchQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [showSearchModal, searchQuery, executeSearch]);
+
   // Auto-scroll focused element into view
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const focusedEl = document.querySelector('[data-tv-focused="true"]');
+    const focusSelection = () => {
+      if (getTVFocusZone() !== TV_FOCUS_ZONE_CONTENT) return;
+      const scope = showSearchModal ? rootRef.current?.querySelector('[role="dialog"]') : rootRef.current;
+      const focusedEl = scope?.querySelector('[data-tv-focused="true"]');
       if (focusedEl) {
-        focusedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        if (!focusedEl.matches('button,input')) {
+          focusedEl.tabIndex = -1;
+          focusedEl.setAttribute('role', 'button');
+        }
+        focusedEl.focus({ preventScroll: true });
+        focusedEl.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
       }
-    }, 40);
-    return () => clearTimeout(timer);
+    };
+    const frame = window.requestAnimationFrame(focusSelection);
+    window.addEventListener(TV_FOCUS_CONTENT_EVENT, focusSelection);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener(TV_FOCUS_CONTENT_EVENT, focusSelection);
+    };
   }, [
     focusZone,
     focusedTabIndex,
@@ -335,14 +374,22 @@ export default function TVMusicPage() {
     focusedPlayerIndex,
     focusedArtistSongIndex,
     focusedArtistAlbumIndex,
+    focusedArtistActionIndex,
+    focusedAlbumActionIndex,
     focusedAlbumSongIndex,
     focusedPlaylistSongIndex,
+    focusedPlaylistActionIndex,
     artistDetailSubZone,
     albumDetailSubZone,
     playlistDetailSubZone,
     searchFocusZone,
     focusedSearchArtistIndex,
-    focusedSearchTrackIndex
+    focusedSearchTrackIndex,
+    showSearchModal,
+    loadingContent,
+    isLoadingArtist,
+    isLoadingAlbum,
+    isLoadingPlaylist
   ]);
 
   // Master D-Pad keydown handler
@@ -376,8 +423,7 @@ export default function TVMusicPage() {
         if (showSearchModal) {
           e.preventDefault();
           e.stopPropagation();
-          setShowSearchModal(false);
-          setFocusZone('tabs');
+          closeSearch();
           return;
         }
 
@@ -438,15 +484,17 @@ export default function TVMusicPage() {
       }
 
       if (!action) return;
+      if (showSearchModal && searchFocusZone === 'input' && (action === 'ArrowLeft' || action === 'ArrowRight')) return;
 
       // Prevent native scroll on Arrow keys
-      if (action.startsWith('Arrow')) {
+      if (action.startsWith('Arrow') || action === 'Enter') {
         e.preventDefault();
       }
 
       // 3. SEARCH MODAL D-PAD
       if (showSearchModal) {
         if (searchFocusZone === 'input') {
+          if (action === 'ArrowLeft' || action === 'ArrowRight') return;
           if (action === 'ArrowDown') {
             if (searchArtists.length > 0) {
               setSearchFocusZone('artists');
@@ -508,7 +556,9 @@ export default function TVMusicPage() {
 
       // 4. ZONE: TABS
       if (focusZone === 'tabs') {
-        if (action === 'ArrowLeft') {
+        if (action === 'ArrowUp') {
+          setFocusZone('search_btn');
+        } else if (action === 'ArrowLeft') {
           if (focusedTabIndex === 0) {
             focusTVNav();
           } else {
@@ -543,17 +593,12 @@ export default function TVMusicPage() {
       if (focusZone === 'search_btn') {
         if (action === 'ArrowLeft') {
           setFocusZone('tabs');
-          setFocusedTabIndex(TABS.length - 1);
+        } else if (action === 'ArrowUp') {
+          focusTVNav();
         } else if (action === 'ArrowDown') {
-          if (currentGridItems.length > 0) {
-            setFocusZone('grid');
-            setFocusedGridIndex(0);
-          } else if (currentTrack) {
-            setFocusZone('player');
-          }
+          setFocusZone(selectedAlbum ? 'album_detail' : selectedArtist ? 'artist_detail' : selectedPlaylist ? 'playlist_detail' : 'tabs');
         } else if (action === 'Enter') {
-          setShowSearchModal(true);
-          setSearchFocusZone('input');
+          openSearch();
         }
         return;
       }
@@ -616,12 +661,17 @@ export default function TVMusicPage() {
 
       // 7. ZONE: ARTIST_DETAIL
       if (focusZone === 'artist_detail') {
-        const topSongs = artistDetails?.topTracks || [];
+        const topSongs = (artistDetails?.topTracks || []).slice(0, 10);
         const albums = artistDetails?.albums || [];
 
         if (artistDetailSubZone === 'actions') {
           if (action === 'ArrowLeft') {
-            focusTVNav();
+            if (focusedArtistActionIndex === 0) setFocusedArtistActionIndex(1);
+            else focusTVNav();
+          } else if (action === 'ArrowRight') {
+            setFocusedArtistActionIndex(0);
+          } else if (action === 'ArrowUp') {
+            setFocusZone('search_btn');
           } else if (action === 'ArrowDown') {
             if (topSongs.length > 0) {
               setArtistDetailSubZone('songs');
@@ -631,7 +681,11 @@ export default function TVMusicPage() {
               setFocusedArtistAlbumIndex(0);
             }
           } else if (action === 'Enter') {
-            if (topSongs.length > 0) {
+            if (focusedArtistActionIndex === 1) {
+              setSelectedArtist(null);
+              setArtistDetails(null);
+              setFocusZone('grid');
+            } else if (topSongs.length > 0) {
               playTrack(topSongs[0], topSongs);
             }
           }
@@ -639,7 +693,10 @@ export default function TVMusicPage() {
         }
 
         if (artistDetailSubZone === 'songs') {
-          if (action === 'ArrowLeft') {
+          if (action === 'ArrowRight' && albums.length > 0) {
+            setArtistDetailSubZone('albums');
+            setFocusedArtistAlbumIndex(0);
+          } else if (action === 'ArrowLeft') {
             focusTVNav();
           } else if (action === 'ArrowUp') {
             if (focusedArtistSongIndex === 0) {
@@ -664,14 +721,15 @@ export default function TVMusicPage() {
         }
 
         if (artistDetailSubZone === 'albums') {
-          const cols = 4;
+          const cols = 2;
           const col = focusedArtistAlbumIndex % cols;
           const row = Math.floor(focusedArtistAlbumIndex / cols);
           const totalRows = Math.ceil(albums.length / cols);
 
           if (action === 'ArrowLeft') {
             if (col === 0) {
-              focusTVNav();
+              if (topSongs.length > 0) setArtistDetailSubZone('songs');
+              else focusTVNav();
             } else {
               setFocusedArtistAlbumIndex(prev => Math.max(0, prev - 1));
             }
@@ -709,7 +767,9 @@ export default function TVMusicPage() {
       // 8. ZONE: ALBUM_DETAIL
       if (focusZone === 'album_detail') {
         if (albumDetailSubZone === 'actions') {
-          if (action === 'ArrowLeft') {
+          if (action === 'ArrowUp') {
+            setFocusZone('search_btn');
+          } else if (action === 'ArrowLeft') {
             if (focusedAlbumActionIndex > 0) {
               setFocusedAlbumActionIndex(0);
             } else {
@@ -759,14 +819,23 @@ export default function TVMusicPage() {
       if (focusZone === 'playlist_detail') {
         if (playlistDetailSubZone === 'actions') {
           if (action === 'ArrowLeft') {
-            focusTVNav();
+            if (focusedPlaylistActionIndex === 0) setFocusedPlaylistActionIndex(1);
+            else focusTVNav();
+          } else if (action === 'ArrowRight') {
+            setFocusedPlaylistActionIndex(0);
+          } else if (action === 'ArrowUp') {
+            setFocusZone('search_btn');
           } else if (action === 'ArrowDown') {
             if (playlistTracks.length > 0) {
               setPlaylistDetailSubZone('songs');
               setFocusedPlaylistSongIndex(0);
             }
           } else if (action === 'Enter') {
-            if (playlistTracks.length > 0) {
+            if (focusedPlaylistActionIndex === 1) {
+              setSelectedPlaylist(null);
+              setPlaylistTracks([]);
+              setFocusZone('grid');
+            } else if (playlistTracks.length > 0) {
               playTrack(playlistTracks[0], playlistTracks);
             }
           }
@@ -856,8 +925,10 @@ export default function TVMusicPage() {
     focusedPlayerIndex,
     focusedArtistSongIndex,
     focusedArtistAlbumIndex,
+    focusedArtistActionIndex,
     focusedAlbumSongIndex,
     focusedPlaylistSongIndex,
+    focusedPlaylistActionIndex,
     artistDetailSubZone,
     albumDetailSubZone,
     playlistDetailSubZone,
@@ -886,11 +957,13 @@ export default function TVMusicPage() {
     toggleFavorite,
     handleOpenArtist,
     handleOpenAlbum,
-    handleOpenPlaylist
+    handleOpenPlaylist,
+    openSearch,
+    closeSearch
   ]);
 
   return (
-    <div className="tv-music-root min-h-screen text-white select-none pb-28">
+    <div ref={rootRef} className="tv-music-root min-h-screen text-white select-none pb-28">
       <style>{`
         .tv-music-root {
           font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -929,10 +1002,15 @@ export default function TVMusicPage() {
 
         .tv-player-bar {
           background: rgba(8, 12, 28, 0.95);
-          backdrop-filter: blur(25px);
-          -webkit-backdrop-filter: blur(25px);
           border-top: 1px solid rgba(34, 211, 238, 0.2);
           box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.75);
+        }
+
+        .tv-music-root [data-tv-focused] {
+          scroll-margin-block: 24px 140px;
+        }
+        .tv-player-bar [data-tv-focused] {
+          scroll-margin-block: 0;
         }
 
         .vinyl-spin {
@@ -956,7 +1034,7 @@ export default function TVMusicPage() {
               TEAMG MUSIC TV
             </h1>
             <p className="text-xs text-cyan-300/70 font-semibold tracking-widest uppercase">
-              {isAndroidTVNative ? 'Reproducción Nativa ExoPlayer · Audio Ininterrumpido' : 'Sonido Master Studio Hi-Fi'}
+              Música, artistas y álbumes
             </p>
           </div>
         </div>
@@ -964,10 +1042,7 @@ export default function TVMusicPage() {
         {/* Search Quick Launcher */}
         <button
           data-tv-focused={focusZone === 'search_btn'}
-          onClick={() => {
-            setShowSearchModal(true);
-            setSearchFocusZone('input');
-          }}
+          onClick={openSearch}
           className={`tv-focus-btn flex items-center gap-3 px-6 py-3 rounded-full border transition-all text-sm font-bold ${
             focusZone === 'search_btn'
               ? 'bg-cyan-400 text-black border-cyan-300'
@@ -1018,7 +1093,7 @@ export default function TVMusicPage() {
         <div className="px-12 pt-6">
           <div className="flex items-center gap-4 mb-6">
             <button
-              data-tv-focused={focusZone === 'artist_detail' && artistDetailSubZone === 'actions'}
+              data-tv-focused={focusZone === 'artist_detail' && artistDetailSubZone === 'actions' && focusedArtistActionIndex === 1}
               onClick={() => {
                 setSelectedArtist(null);
                 setArtistDetails(null);
@@ -1048,7 +1123,7 @@ export default function TVMusicPage() {
               </p>
               <div className="flex items-center gap-4 mt-4">
                 <button
-                  data-tv-focused={focusZone === 'artist_detail' && artistDetailSubZone === 'actions'}
+                  data-tv-focused={focusZone === 'artist_detail' && artistDetailSubZone === 'actions' && focusedArtistActionIndex === 0}
                   onClick={() => {
                     if (artistDetails?.topTracks?.length) {
                       playTrack(artistDetails.topTracks[0], artistDetails.topTracks);
@@ -1285,7 +1360,7 @@ export default function TVMusicPage() {
         <div className="px-12 pt-6">
           <div className="flex items-center gap-4 mb-6">
             <button
-              data-tv-focused={focusZone === 'playlist_detail' && playlistDetailSubZone === 'actions'}
+              data-tv-focused={focusZone === 'playlist_detail' && playlistDetailSubZone === 'actions' && focusedPlaylistActionIndex === 1}
               onClick={() => {
                 setSelectedPlaylist(null);
                 setPlaylistTracks([]);
@@ -1313,7 +1388,7 @@ export default function TVMusicPage() {
               <p className="text-gray-300 text-sm mt-2 max-w-2xl">{selectedPlaylist.description}</p>
               <div className="flex items-center gap-4 mt-5">
                 <button
-                  data-tv-focused={focusZone === 'playlist_detail' && playlistDetailSubZone === 'actions'}
+                  data-tv-focused={focusZone === 'playlist_detail' && playlistDetailSubZone === 'actions' && focusedPlaylistActionIndex === 0}
                   onClick={() => {
                     if (playlistTracks.length > 0) {
                       playTrack(playlistTracks[0], playlistTracks);
@@ -1583,14 +1658,14 @@ export default function TVMusicPage() {
 
       {/* SEARCH OVERLAY MODAL */}
       {showSearchModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-2xl p-16 flex flex-col">
+        <div role="dialog" aria-modal="true" aria-label="Buscar música" className="fixed inset-0 z-50 bg-[#050816] p-10 flex flex-col">
           <div className="flex items-center justify-between pb-6 border-b border-white/10">
             <h2 className="text-3xl font-black text-white flex items-center gap-3">
               <Search className="w-8 h-8 text-cyan-400" />
-              <span>Búsqueda Universal TeamG Music</span>
+              <span>Buscar en TeamG Music</span>
             </h2>
             <button
-              onClick={() => setShowSearchModal(false)}
+              onClick={closeSearch}
               className="text-sm font-bold text-gray-400 hover:text-white bg-white/10 px-4 py-2 rounded-xl"
             >
               Presiona BACK para cerrar
@@ -1606,7 +1681,6 @@ export default function TVMusicPage() {
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  executeSearch(e.target.value);
                 }}
                 placeholder="Escribe el nombre de la canción, artista (ej: Zen, Libido, Taylor) o álbum..."
                 className="tv-focus-glow w-full bg-white/10 border-2 border-white/10 text-white font-bold text-xl px-6 py-4 rounded-2xl placeholder-gray-400 outline-none focus:border-cyan-400 focus:bg-white/15"
@@ -1708,7 +1782,7 @@ export default function TVMusicPage() {
               <p className="text-sm font-semibold text-cyan-300 truncate mt-0.5">{currentTrack.artist}</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-black bg-cyan-400 px-2 py-0.5 rounded font-mono">
-                  {isAndroidTVNative ? 'EXOPLAYER NATIVO' : 'AUDIO NATIVO'}
+                  TEAMG MUSIC
                 </span>
                 {isLoadingAudio && (
                   <span className="text-[11px] text-amber-300 font-bold flex items-center gap-1">
