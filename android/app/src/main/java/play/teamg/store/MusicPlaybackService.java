@@ -33,11 +33,19 @@ import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.util.MimeTypes;
 
+import java.io.File;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import android.net.Uri;
 
 /**
  * Servicio en primer plano (Foreground Service) con ExoPlayer nativo integrado.
@@ -58,6 +66,27 @@ public class MusicPlaybackService extends Service {
     public static final String ACTION_PREV = "play.teamg.store.ACTION_MUSIC_PREV";
     public static final String ACTION_STOP = "play.teamg.store.ACTION_MUSIC_STOP";
 
+    // Estructura de elemento de cola para avance nativo sin depender de WebView
+    public static class QueueItem {
+        public String id;
+        public String title;
+        public String artist;
+        public String coverUrl;
+        public String audioUrl;
+        public String filePath;
+        public long duration;
+
+        public QueueItem(String id, String title, String artist, String coverUrl, String audioUrl, String filePath, long duration) {
+            this.id = id;
+            this.title = title;
+            this.artist = artist;
+            this.coverUrl = coverUrl;
+            this.audioUrl = audioUrl;
+            this.filePath = filePath;
+            this.duration = duration;
+        }
+    }
+
     // Variables de estado accesibles de forma estática
     public static volatile ExoPlayer playerInstance = null;
     public static volatile boolean isServiceRunning = false;
@@ -66,8 +95,17 @@ public class MusicPlaybackService extends Service {
     public static volatile String currentArtist = "Reproduciendo";
     public static volatile String currentCoverUrl = "";
     public static volatile String currentAudioUrl = "";
+    public static volatile String currentTrackId = "";
     public static volatile long currentDuration = 0L;
     public static volatile long currentPosition = 0L;
+
+    // Gestión nativa de cola y modo de repetición
+    public static volatile List<QueueItem> currentQueue = new ArrayList<>();
+    public static volatile int currentQueueIndex = -1;
+    public static volatile String currentRepeatMode = "all"; // "off" | "all" | "one"
+    public static volatile boolean isShuffle = false;
+    public static volatile List<Integer> shuffleOrder = new ArrayList<>();
+    public static volatile int shufflePointer = 0;
 
     private ExoPlayer player;
     private MediaSessionCompat mediaSession;
@@ -79,6 +117,7 @@ public class MusicPlaybackService extends Service {
 
     private final ExecutorService imageExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Random random = new Random();
 
     public static boolean isPlaybackActive() {
         return isServiceRunning;
@@ -152,28 +191,31 @@ public class MusicPlaybackService extends Service {
                 public void onPlaybackStateChanged(int playbackState) {
                     if (playbackState == Player.STATE_ENDED) {
                         Log.d(TAG, "Canción finalizada en ExoPlayer nativo -> pasando a la siguiente");
-                        // Mantener la CPU activa 60 segundos garantizados mientras el WebView procesa la siguiente pista
-                        if (wakeLock != null) {
-                            try {
-                                if (wakeLock.isHeld()) wakeLock.release();
-                                wakeLock.acquire(60 * 1000L);
-                            } catch (Exception ignored) {}
+                        manageWakeLock(true);
+                        if ("one".equalsIgnoreCase(currentRepeatMode)) {
+                            if (player != null) {
+                                player.seekTo(0);
+                                player.play();
+                            }
+                            return;
                         }
-                        MusicPlaybackPlugin.sendMediaAction("next");
+                        boolean handledNatively = playNextNatively();
+                        if (!handledNatively) {
+                            Log.d(TAG, "No se pudo avanzar nativamente, solicitando avance a WebView...");
+                            MusicPlaybackPlugin.sendMediaAction("next");
+                        }
                     }
                 }
 
                 @Override
                 public void onPlayerError(PlaybackException error) {
                     Log.e(TAG, "ExoPlayer error de reproducción: " + error.getMessage());
-                    if (wakeLock != null) {
-                        try {
-                            if (wakeLock.isHeld()) wakeLock.release();
-                            wakeLock.acquire(30 * 1000L);
-                        } catch (Exception ignored) {}
-                    }
+                    manageWakeLock(true);
                     mainHandler.postDelayed(() -> {
-                        MusicPlaybackPlugin.sendMediaAction("next");
+                        boolean handled = playNextNatively();
+                        if (!handled) {
+                            MusicPlaybackPlugin.sendMediaAction("next");
+                        }
                     }, 500);
                 }
             });
@@ -255,6 +297,40 @@ public class MusicPlaybackService extends Service {
                 boolean reqPlay = intent.getBooleanExtra("isPlaying", isPlaying);
                 currentDuration = intent.getLongExtra("duration", currentDuration);
                 currentPosition = intent.getLongExtra("position", currentPosition);
+
+                String trackIdExtra = intent.getStringExtra("trackId");
+                if (trackIdExtra != null && !trackIdExtra.trim().isEmpty()) {
+                    currentTrackId = trackIdExtra;
+                }
+                if (intent.hasExtra("repeatMode")) {
+                    currentRepeatMode = intent.getStringExtra("repeatMode");
+                }
+                boolean prevShuffle = isShuffle;
+                if (intent.hasExtra("isShuffle")) {
+                    isShuffle = intent.getBooleanExtra("isShuffle", isShuffle);
+                }
+                int prevQueueIndex = currentQueueIndex;
+                if (intent.hasExtra("queueIndex")) {
+                    currentQueueIndex = intent.getIntExtra("queueIndex", currentQueueIndex);
+                }
+                String queueJson = intent.getStringExtra("queueJson");
+                boolean queueParsed = false;
+                if (queueJson != null && !queueJson.trim().isEmpty()) {
+                    queueParsed = parseQueueJson(queueJson);
+                }
+
+                if (isShuffle && !currentQueue.isEmpty()) {
+                    if (queueParsed || !prevShuffle || shuffleOrder.size() != currentQueue.size()) {
+                        initShuffleOrder(currentQueue.size(), currentQueueIndex >= 0 ? currentQueueIndex : 0);
+                    } else if (currentQueueIndex != prevQueueIndex) {
+                        int pos = shuffleOrder.indexOf(currentQueueIndex);
+                        if (pos >= 0) {
+                            shufflePointer = pos;
+                        } else {
+                            initShuffleOrder(currentQueue.size(), currentQueueIndex >= 0 ? currentQueueIndex : 0);
+                        }
+                    }
+                }
 
                 // Si se solicitó seek
                 if (intent.hasExtra("seekToSeconds") && player != null) {
@@ -367,11 +443,17 @@ public class MusicPlaybackService extends Service {
                 break;
 
             case ACTION_NEXT:
-                MusicPlaybackPlugin.sendMediaAction("next");
+                boolean nextOk = playNextNatively();
+                if (!nextOk) {
+                    MusicPlaybackPlugin.sendMediaAction("next");
+                }
                 break;
 
             case ACTION_PREV:
-                MusicPlaybackPlugin.sendMediaAction("prev");
+                boolean prevOk = playPreviousNatively();
+                if (!prevOk) {
+                    MusicPlaybackPlugin.sendMediaAction("prev");
+                }
                 break;
 
             case ACTION_STOP:
@@ -384,6 +466,304 @@ public class MusicPlaybackService extends Service {
                 stopSelf();
                 break;
         }
+    }
+
+    private boolean parseQueueJson(String json) {
+        if (json == null || json.trim().isEmpty()) return false;
+        try {
+            JSONArray arr = new JSONArray(json);
+            List<QueueItem> items = new ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject obj = arr.getJSONObject(i);
+                String id = obj.optString("id", String.valueOf(i));
+                String title = obj.optString("title", "TeamG Music");
+                String artist = obj.optString("artist", "Reproduciendo");
+                String coverUrl = obj.optString("coverUrl", obj.optString("cover", ""));
+                String audioUrl = obj.optString("audioUrl", obj.optString("streamUrl", ""));
+                String filePath = obj.optString("filePath", "");
+                long dur = obj.optLong("duration", obj.optLong("fullDuration", 0L));
+                items.add(new QueueItem(id, title, artist, coverUrl, audioUrl, filePath, dur));
+            }
+            if (!items.isEmpty()) {
+                currentQueue = items;
+                return true;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error parseando queueJson", e);
+        }
+        return false;
+    }
+
+    private synchronized void initShuffleOrder(int total, int startingIndex) {
+        shuffleOrder.clear();
+        if (total <= 0) {
+            shufflePointer = 0;
+            return;
+        }
+        List<Integer> pool = new ArrayList<>(total);
+        for (int i = 0; i < total; i++) {
+            if (i != startingIndex) {
+                pool.add(i);
+            }
+        }
+        Collections.shuffle(pool, random);
+        if (startingIndex >= 0 && startingIndex < total) {
+            shuffleOrder.add(startingIndex);
+        }
+        shuffleOrder.addAll(pool);
+        shufflePointer = 0;
+        Log.d(TAG, "initShuffleOrder completado: total=" + total + ", inicio=" + startingIndex + ", elementos=" + shuffleOrder.size());
+    }
+
+    private String resolveTrackAudioSource(QueueItem item) {
+        if (item == null) return null;
+        if (item.audioUrl != null && !item.audioUrl.trim().isEmpty()) {
+            return item.audioUrl.trim();
+        }
+        if (item.filePath != null && !item.filePath.trim().isEmpty()) {
+            File f = new File(getFilesDir(), item.filePath);
+            if (f.exists() && f.length() > 20480) {
+                return Uri.fromFile(f).toString();
+            }
+        }
+        // Fallback para pistas offline: búsqueda recursiva en teamg_offline_music
+        if (item.id != null && !item.id.trim().isEmpty()) {
+            File offlineFolder = new File(getFilesDir(), "teamg_offline_music");
+            if (offlineFolder.exists() && offlineFolder.isDirectory()) {
+                File found = findOfflineFileById(offlineFolder, item.id.trim());
+                if (found != null && found.exists() && found.length() > 20480) {
+                    return Uri.fromFile(found).toString();
+                }
+            }
+        }
+        return null;
+    }
+
+    private File findOfflineFileById(File dir, String trackId) {
+        File[] files = dir.listFiles();
+        if (files == null) return null;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                File sub = findOfflineFileById(f, trackId);
+                if (sub != null) return sub;
+            } else {
+                String name = f.getName().toLowerCase();
+                if (name.contains(trackId.toLowerCase()) && (name.endsWith(".mp3") || name.endsWith(".m4a") || name.endsWith(".aac"))) {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
+    public synchronized boolean playNextNatively() {
+        if (currentQueue == null || currentQueue.isEmpty()) {
+            return false;
+        }
+
+        int total = currentQueue.size();
+        int nextIndex = -1;
+
+        if (isShuffle && total > 1) {
+            if (shuffleOrder.size() != total) {
+                initShuffleOrder(total, currentQueueIndex >= 0 ? currentQueueIndex : 0);
+            }
+
+            int nextPointer = shufflePointer + 1;
+            if (nextPointer < shuffleOrder.size()) {
+                shufflePointer = nextPointer;
+                nextIndex = shuffleOrder.get(shufflePointer);
+            } else {
+                // Se escucharon TODAS las canciones de la cola aleatoria exactamente una vez
+                if ("off".equalsIgnoreCase(currentRepeatMode)) {
+                    Log.d(TAG, "Fin de la cola en modo aleatorio y repeatMode en off -> Deteniendo reproducción");
+                    if (player != null) {
+                        player.stop();
+                    }
+                    isPlaying = false;
+                    manageWakeLock(false);
+                    updateMediaSessionState();
+                    updateNotification();
+                    MusicPlaybackPlugin.sendMediaAction("pause");
+                    return true;
+                } else {
+                    // repeatMode == 'all': nueva baraja aleatoria con todas las canciones
+                    initShuffleOrder(total, -1);
+                    shufflePointer = 0;
+                    nextIndex = shuffleOrder.get(0);
+                }
+            }
+        } else {
+            nextIndex = currentQueueIndex + 1;
+            if (nextIndex >= total) {
+                if ("off".equalsIgnoreCase(currentRepeatMode)) {
+                    Log.d(TAG, "Fin de la cola y repeatMode en off -> Deteniendo reproducción");
+                    if (player != null) {
+                        player.stop();
+                    }
+                    isPlaying = false;
+                    manageWakeLock(false);
+                    updateMediaSessionState();
+                    updateNotification();
+                    MusicPlaybackPlugin.sendMediaAction("pause");
+                    return true;
+                } else {
+                    nextIndex = 0; // 'all' o repetir
+                }
+            }
+        }
+
+        if (nextIndex < 0 || nextIndex >= total) {
+            return false;
+        }
+
+        QueueItem nextItem = currentQueue.get(nextIndex);
+        String audioSource = resolveTrackAudioSource(nextItem);
+        if (audioSource == null || audioSource.trim().isEmpty()) {
+            Log.w(TAG, "playNextNatively: no se encontró audioSource para: " + nextItem.title);
+            return false;
+        }
+
+        Log.i(TAG, "playNextNatively -> avanzando automáticamente a [" + nextIndex + "]: " + nextItem.title);
+        currentQueueIndex = nextIndex;
+        currentTrackId = nextItem.id != null ? nextItem.id : "";
+        currentTitle = nextItem.title != null ? nextItem.title : "TeamG Music";
+        currentArtist = nextItem.artist != null ? nextItem.artist : "Reproduciendo";
+        currentCoverUrl = nextItem.coverUrl != null ? nextItem.coverUrl : "";
+        currentAudioUrl = audioSource;
+        currentDuration = nextItem.duration;
+        currentPosition = 0L;
+        isPlaying = true;
+
+        if (player != null) {
+            try {
+                MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(audioSource);
+                if (audioSource.endsWith(".mp3") || audioSource.contains(".mp3")) {
+                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_MPEG);
+                } else if (audioSource.contains("icecast") || audioSource.contains(".aac")) {
+                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_AAC);
+                }
+                player.setMediaItem(mediaItemBuilder.build());
+                player.prepare();
+                player.play();
+            } catch (Exception e) {
+                Log.e(TAG, "Error en playNextNatively al preparar ExoPlayer", e);
+                return false;
+            }
+        }
+
+        manageWakeLock(true);
+        loadCoverBitmap(currentCoverUrl);
+        updateMediaSessionState();
+        updateNotification();
+
+        MusicPlaybackPlugin.sendTrackChanged(
+            currentQueueIndex,
+            currentTrackId,
+            currentTitle,
+            currentArtist,
+            currentCoverUrl,
+            currentAudioUrl,
+            currentDuration
+        );
+
+        return true;
+    }
+
+    public synchronized boolean playPreviousNatively() {
+        if (player != null && player.getCurrentPosition() > 3000L) {
+            player.seekTo(0);
+            currentPosition = 0L;
+            updateMediaSessionState();
+            updateNotification();
+            return true;
+        }
+
+        if (currentQueue == null || currentQueue.isEmpty()) {
+            return false;
+        }
+
+        int total = currentQueue.size();
+        int prevIndex = -1;
+
+        if (isShuffle && !shuffleOrder.isEmpty()) {
+            if (shufflePointer > 0) {
+                shufflePointer--;
+                prevIndex = shuffleOrder.get(shufflePointer);
+            } else {
+                if ("all".equalsIgnoreCase(currentRepeatMode)) {
+                    shufflePointer = shuffleOrder.size() - 1;
+                    prevIndex = shuffleOrder.get(shufflePointer);
+                } else {
+                    shufflePointer = 0;
+                    prevIndex = shuffleOrder.get(0);
+                }
+            }
+        } else {
+            prevIndex = currentQueueIndex - 1;
+            if (prevIndex < 0) {
+                if ("all".equalsIgnoreCase(currentRepeatMode)) {
+                    prevIndex = total - 1;
+                } else {
+                    prevIndex = 0;
+                }
+            }
+        }
+
+        if (prevIndex < 0 || prevIndex >= total) {
+            return false;
+        }
+
+        QueueItem prevItem = currentQueue.get(prevIndex);
+        String audioSource = resolveTrackAudioSource(prevItem);
+        if (audioSource == null || audioSource.trim().isEmpty()) {
+            return false;
+        }
+
+        Log.i(TAG, "playPreviousNatively -> retrocediendo a [" + prevIndex + "]: " + prevItem.title);
+        currentQueueIndex = prevIndex;
+        currentTrackId = prevItem.id != null ? prevItem.id : "";
+        currentTitle = prevItem.title != null ? prevItem.title : "TeamG Music";
+        currentArtist = prevItem.artist != null ? prevItem.artist : "Reproduciendo";
+        currentCoverUrl = prevItem.coverUrl != null ? prevItem.coverUrl : "";
+        currentAudioUrl = audioSource;
+        currentDuration = prevItem.duration;
+        currentPosition = 0L;
+        isPlaying = true;
+
+        if (player != null) {
+            try {
+                MediaItem.Builder mediaItemBuilder = new MediaItem.Builder().setUri(audioSource);
+                if (audioSource.endsWith(".mp3") || audioSource.contains(".mp3")) {
+                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_MPEG);
+                } else if (audioSource.contains("icecast") || audioSource.contains(".aac")) {
+                    mediaItemBuilder.setMimeType(MimeTypes.AUDIO_AAC);
+                }
+                player.setMediaItem(mediaItemBuilder.build());
+                player.prepare();
+                player.play();
+            } catch (Exception e) {
+                Log.e(TAG, "Error en playPreviousNatively al preparar ExoPlayer", e);
+                return false;
+            }
+        }
+
+        manageWakeLock(true);
+        loadCoverBitmap(currentCoverUrl);
+        updateMediaSessionState();
+        updateNotification();
+
+        MusicPlaybackPlugin.sendTrackChanged(
+            currentQueueIndex,
+            currentTrackId,
+            currentTitle,
+            currentArtist,
+            currentCoverUrl,
+            currentAudioUrl,
+            currentDuration
+        );
+
+        return true;
     }
 
     private void manageWakeLock(boolean acquire) {

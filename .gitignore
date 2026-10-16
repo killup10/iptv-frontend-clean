@@ -10,8 +10,11 @@ node_modules/
 dist/
 dist-*/
 build/
-release_electron/
-release_distribution/
+release_electron*/
+release_distribution*/
+release-*/
+release_*/
+distribution/
 dist-tv/
 dist-tv-package/
 

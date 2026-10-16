@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(VideoPlayerPlugin.class);
+    registerPlugin(HomeLivePlayerPlugin.class);
     registerPlugin(PermissionManager.class);
     registerPlugin(AppUpdatePlugin.class);
     registerPlugin(MusicPlaybackPlugin.class);
@@ -140,6 +141,10 @@ public class MainActivity extends BridgeActivity {
 
   @Override
   public void onBackPressed() {
+    if (bridge != null && bridge.getPlugin("HomeLivePlayer") != null) {
+      HomeLivePlayerPlugin homePlayer = (HomeLivePlayerPlugin) bridge.getPlugin("HomeLivePlayer").getInstance();
+      if (homePlayer.exitFullscreen()) return;
+    }
     android.util.Log.d("TeamG", "MainActivity onBackPressed called");
     if (customView != null) {
       if (bridge != null && bridge.getWebView() != null && bridge.getWebView().getWebChromeClient() != null) {

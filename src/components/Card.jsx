@@ -80,9 +80,9 @@ function Card({
         : null;
   const displayThumbnail = rewriteImageUrl(customThumb) || '/img/placeholder-thumbnail.png';
 
-  const rawRating = (
-    item?.ratingDisplay ??
+  const rawRating = item?.tmdbId && item.tmdbRating == null ? null : (
     item?.tmdbRating ??
+    item?.ratingDisplay ??
     item?.rating ??
     item?.vote_average ??
     item?.ranking ??

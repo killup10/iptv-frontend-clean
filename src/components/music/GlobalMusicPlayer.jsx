@@ -509,6 +509,7 @@ export default function GlobalMusicPlayer() {
               <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-fuchsia-400 transition">
                 {currentTrack.title}
               </h4>
+              {audioQuality === 'unavailable' && <p role="status" className="text-[10px] text-amber-300">No se pudo cargar el audio. Pulsa reproducir para reintentar.</p>}
               {currentTrack.isRadio ? (
                 <p className="text-[11px] text-gray-400 truncate">
                   {currentTrack.artist}

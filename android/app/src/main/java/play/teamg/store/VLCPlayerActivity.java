@@ -236,10 +236,19 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
     public static java.lang.ref.WeakReference<VLCPlayerActivity> activeInstance = null;
 
     public static void stopAndFinishCurrent() {
+        stopAndFinishCurrent("");
+    }
+
+    public static void stopAndFinishCurrent(String targetSessionId) {
         if (activeInstance != null) {
             VLCPlayerActivity activity = activeInstance.get();
             if (activity != null && !activity.isFinishing()) {
                 activity.runOnUiThread(() -> {
+                    if (targetSessionId != null && !targetSessionId.isEmpty()
+                            && !targetSessionId.equals(activity.playbackSessionId)) {
+                        Log.d(TAG, "Ignoring direct stop for a stale playback session");
+                        return;
+                    }
                     try {
                         Log.d(TAG, "stopAndFinishCurrent called on activeInstance");
                         activity.isBackPressed = true;
@@ -1052,6 +1061,7 @@ public class VLCPlayerActivity extends AppCompatActivity implements GestureDetec
         try {
             Intent closedIntent = new Intent("VIDEO_PLAYER_CLOSED");
             closedIntent.putExtra("reason", reason != null ? reason : "unknown");
+            closedIntent.putExtra("session_id", playbackSessionId);
             closedIntent.setPackage(getPackageName());
             sendBroadcast(closedIntent);
             Log.d(TAG, "Player closed event sent. Reason: " + reason);

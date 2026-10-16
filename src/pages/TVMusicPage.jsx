@@ -84,6 +84,7 @@ export default function TVMusicPage() {
   const [focusZone, setFocusZone] = useState('tabs'); // 'tabs' | 'search_btn' | 'grid' | 'artist_detail' | 'album_detail' | 'playlist_detail' | 'player' | 'search_modal'
   const [focusedTabIndex, setFocusedTabIndex] = useState(0);
   const [focusedGridIndex, setFocusedGridIndex] = useState(0);
+  const lastNavigationAtRef = useRef(0);
   const [focusedPlayerIndex, setFocusedPlayerIndex] = useState(1); // 1 = play/pause button
 
   // Data states
@@ -400,6 +401,14 @@ export default function TVMusicPage() {
 
       const action = getTVKeyName(e);
       const isBack = isTVBackKey(e, action);
+      if (action?.startsWith('Arrow')) {
+        const now = performance.now();
+        if (e.repeat && now - lastNavigationAtRef.current < 80) {
+          e.preventDefault();
+          return;
+        }
+        lastNavigationAtRef.current = now;
+      }
 
       // 1. Remote Media Hardware Keys (Work in all zones)
       if (e.keyCode === 85 || action === 'MediaPlayPause') {
@@ -1108,7 +1117,7 @@ export default function TVMusicPage() {
 
           {/* Artist Banner */}
           <div className="p-8 rounded-3xl bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-black/60 border border-white/10 flex items-center gap-8 mb-8">
-            <img
+            <img loading="lazy" decoding="async"
               src={artistDetails?.picture || selectedArtist.picture || selectedArtist.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600'}
               alt={selectedArtist.name}
               className="w-40 h-40 rounded-full object-cover shadow-2xl border-4 border-cyan-400/40"
@@ -1209,7 +1218,7 @@ export default function TVMusicPage() {
                         onClick={() => handleOpenAlbum(album, selectedArtist)}
                         className="tv-focus-glow p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer flex flex-col items-center text-center"
                       >
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600'}
                           alt={album.title}
                           className="w-full aspect-square rounded-xl object-cover shadow-lg mb-3"
@@ -1252,7 +1261,7 @@ export default function TVMusicPage() {
 
           {/* Album Banner */}
           <div className="p-8 rounded-3xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-black/60 border border-white/10 flex items-center gap-8 mb-8">
-            <img
+            <img loading="lazy" decoding="async"
               src={selectedAlbum.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600'}
               alt={selectedAlbum.title}
               className="w-44 h-44 rounded-2xl object-cover shadow-2xl border-2 border-white/10"
@@ -1375,7 +1384,7 @@ export default function TVMusicPage() {
 
           {/* Playlist Banner */}
           <div className="p-8 rounded-3xl bg-gradient-to-r from-cyan-950/40 via-blue-950/30 to-black/60 border border-white/10 flex items-center gap-8 mb-8">
-            <img
+            <img loading="lazy" decoding="async"
               src={selectedPlaylist.cover || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600'}
               alt={selectedPlaylist.name}
               className="w-44 h-44 rounded-2xl object-cover shadow-2xl border-2 border-white/10"
@@ -1490,7 +1499,7 @@ export default function TVMusicPage() {
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="relative flex-shrink-0">
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={track.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600'}
                           alt={track.title}
                           className="w-16 h-16 rounded-2xl object-cover shadow-md"
@@ -1534,7 +1543,7 @@ export default function TVMusicPage() {
                     onClick={() => handleOpenArtist(artist)}
                     className="tv-focus-glow p-6 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer flex flex-col items-center text-center"
                   >
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={artist.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600'}
                       alt={artist.name}
                       className="w-36 h-36 rounded-full object-cover shadow-2xl border-2 border-white/10 mb-4"
@@ -1563,7 +1572,7 @@ export default function TVMusicPage() {
                     onClick={() => handleOpenAlbum(album)}
                     className="tv-focus-glow p-5 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer flex flex-col"
                   >
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600'}
                       alt={album.title}
                       className="w-full aspect-square rounded-2xl object-cover shadow-xl mb-3"
@@ -1598,7 +1607,7 @@ export default function TVMusicPage() {
                     }`}
                   >
                     <div className="relative">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={radioItem.cover}
                         alt={radioItem.title}
                         className="w-20 h-20 rounded-2xl object-cover shadow-lg"
@@ -1636,7 +1645,7 @@ export default function TVMusicPage() {
                     onClick={() => handleOpenPlaylist(playlist)}
                     className="tv-focus-glow p-6 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer flex items-center gap-5"
                   >
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={playlist.cover || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600'}
                       alt={playlist.name}
                       className="w-20 h-20 rounded-2xl object-cover shadow-lg flex-shrink-0"
@@ -1709,7 +1718,7 @@ export default function TVMusicPage() {
                         }}
                         className="tv-focus-glow flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 cursor-pointer min-w-[220px]"
                       >
-                        <img
+                        <img loading="lazy" decoding="async"
                           src={artist.picture || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600'}
                           alt={artist.name}
                           className="w-12 h-12 rounded-full object-cover"
@@ -1769,7 +1778,7 @@ export default function TVMusicPage() {
           {/* Track Info */}
           <div className="flex items-center gap-5 min-w-0 max-w-md">
             <div className="relative">
-              <img
+              <img loading="lazy" decoding="async"
                 src={currentTrack.cover || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600'}
                 alt={currentTrack.title}
                 className={`w-16 h-16 rounded-2xl object-cover shadow-2xl border border-white/10 ${

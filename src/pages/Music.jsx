@@ -41,6 +41,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusicLibrary } from '../context/MusicContext.jsx';
+import ImportPlaylistForm from '../components/music/ImportPlaylistForm.jsx';
+import { PlaylistSongView, PlaylistTrackRow } from '../components/music/PlaylistSongView.jsx';
 import { musicService, parseArtists, LIVE_RADIOS, GENRES, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
 import { getTrackLicenseInfo, renewAllMusicOfflineLicenses } from '../services/musicOfflineService.js';
@@ -127,6 +129,14 @@ export default function Music() {
   const [activeTab, setActiveTab] = useState('top'); // 'top' | 'fresh' | 'community' | 'indie' | 'genres' | 'radios' | 'favorites' | 'playlists' | 'offline'
   const [tabHistory, setTabHistory] = useState([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
+  const [playlistSongView, setPlaylistSongView] = useState(() => {
+    try { return localStorage.getItem('teamg_music_playlist_view') === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
+  });
+  const changePlaylistSongView = (value) => {
+    setPlaylistSongView(value);
+    try { localStorage.setItem('teamg_music_playlist_view', value); } catch { /* View still works without storage. */ }
+  };
+  const PlaylistTrack = playlistSongView === 'list' ? PlaylistTrackRow : TrackCard;
   const [playlistSubTab, setPlaylistSubTab] = useState('custom'); // 'custom' | 'community' | 'queue'
   const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
@@ -2187,9 +2197,9 @@ export default function Music() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <PlaylistSongView mode={playlistSongView} onModeChange={changePlaylistSongView}>
                     {curatedPlaylistTracks.map((track, idx) => (
-                      <TrackCard
+                      <PlaylistTrack
                         key={`curated-track-${track.id}-${idx}`}
                         track={track}
                         queue={curatedPlaylistTracks}
@@ -2206,7 +2216,7 @@ export default function Music() {
                         onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
-                  </div>
+                  </PlaylistSongView>
                 )}
               </div>
             ) : (
@@ -2887,9 +2897,9 @@ export default function Music() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <PlaylistSongView mode={playlistSongView} onModeChange={changePlaylistSongView}>
                     {curatedPlaylistTracks.map((track, idx) => (
-                      <TrackCard
+                      <PlaylistTrack
                         key={`${track.id}-${idx}`}
                         track={track}
                         queue={curatedPlaylistTracks}
@@ -2906,7 +2916,7 @@ export default function Music() {
                         onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
-                  </div>
+                  </PlaylistSongView>
                 )}
               </div>
             ) : selectedPlaylist ? (
@@ -3080,9 +3090,9 @@ export default function Music() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <PlaylistSongView mode={playlistSongView} onModeChange={changePlaylistSongView}>
                     {selectedPlaylist.tracks.map((track, idx) => (
-                      <TrackCard
+                      <PlaylistTrack
                         key={`${track.id}-${idx}`}
                         track={track}
                         queue={selectedPlaylist.tracks}
@@ -3100,7 +3110,7 @@ export default function Music() {
                         onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
                       />
                     ))}
-                  </div>
+                  </PlaylistSongView>
                 )}
               </div>
             ) : (
@@ -3158,6 +3168,7 @@ export default function Music() {
                 {/* SUB-PESTAÑA 1: MIS PLAYLISTS PERSONALIZADAS */}
                 {playlistSubTab === 'custom' && (
                   <div className="space-y-6">
+                    <ImportPlaylistForm createPlaylist={createPlaylist} />
                     {/* Formulario para crear nueva lista */}
                     {isCreatingPlaylist && (
                       <div className="p-4 rounded-2xl bg-fuchsia-950/30 border border-fuchsia-500/30 flex flex-col gap-3 animate-in fade-in">

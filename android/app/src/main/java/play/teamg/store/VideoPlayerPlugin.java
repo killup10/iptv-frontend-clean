@@ -318,7 +318,7 @@ public class VideoPlayerPlugin extends Plugin {
 
         // Detener inmediatamente la instancia activa si existe
         try {
-            VLCPlayerActivity.stopAndFinishCurrent();
+            VLCPlayerActivity.stopAndFinishCurrent(targetSessionId);
         } catch (Exception e) {
             Log.e(TAG, "Error stopping active VLC instance directly", e);
         }
@@ -498,6 +498,7 @@ public class VideoPlayerPlugin extends Plugin {
 
                         JSObject data = new JSObject();
                         data.put("reason", reason);
+                        data.put("sessionId", intent.getStringExtra("session_id"));
                         notifyListeners("playerClosed", data);
                     }
                 }

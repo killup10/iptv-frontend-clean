@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -64,6 +65,43 @@ public class MusicPlaybackPlugin extends Plugin {
         }
     }
 
+    public static void sendTrackChanged(int index, String trackId, String title, String artist, String coverUrl, String audioUrl, long duration) {
+        if (instance != null) {
+            JSObject ret = new JSObject();
+            ret.put("index", index);
+            ret.put("trackId", trackId);
+            ret.put("title", title);
+            ret.put("artist", artist);
+            ret.put("coverUrl", coverUrl);
+            ret.put("audioUrl", audioUrl);
+            ret.put("duration", duration);
+            try {
+                instance.notifyListeners("onTrackChanged", ret);
+            } catch (Exception ignored) {}
+
+            try {
+                if (instance.getActivity() != null) {
+                    instance.getActivity().runOnUiThread(() -> {
+                        try {
+                            if (instance.getBridge() != null && instance.getBridge().getWebView() != null) {
+                                instance.getBridge().getWebView().resumeTimers();
+                                String safeTrackId = trackId != null ? trackId.replace("'", "\\'") : "";
+                                String safeAudioUrl = audioUrl != null ? audioUrl.replace("'", "\\'") : "";
+                                String script = "try { window.dispatchEvent(new CustomEvent('backgroundPlayback:trackChanged', { detail: { index: "
+                                    + index + ", trackId: '" + safeTrackId + "', audioUrl: '" + safeAudioUrl + "', duration: " + duration + " } })); } catch(e){}";
+                                instance.getBridge().getWebView().evaluateJavascript(script, null);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error enviando JS onTrackChanged a WebView", e);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error en sendTrackChanged", e);
+            }
+        }
+    }
+
     @PluginMethod
     public void updatePlayback(PluginCall call) {
         try {
@@ -75,6 +113,14 @@ public class MusicPlaybackPlugin extends Plugin {
             long duration = Math.round(call.getDouble("duration", 0.0));
             long position = Math.round(call.getDouble("position", 0.0));
 
+            String trackId = call.getString("trackId", "");
+            String filePath = call.getString("filePath", "");
+            int queueIndex = call.getInt("queueIndex", -1);
+            String repeatMode = call.getString("repeatMode", "all");
+            boolean isShuffle = call.getBoolean("isShuffle", false);
+            JSArray queueArr = call.getArray("queue");
+            String queueJson = queueArr != null ? queueArr.toString() : call.getString("queueJson", null);
+
             Context context = getContext();
             Intent intent = new Intent(context, MusicPlaybackService.class);
             intent.setAction(MusicPlaybackService.ACTION_UPDATE);
@@ -85,6 +131,14 @@ public class MusicPlaybackPlugin extends Plugin {
             intent.putExtra("isPlaying", isPlaying);
             intent.putExtra("duration", duration);
             intent.putExtra("position", position);
+            intent.putExtra("trackId", trackId);
+            intent.putExtra("filePath", filePath);
+            intent.putExtra("queueIndex", queueIndex);
+            intent.putExtra("repeatMode", repeatMode);
+            intent.putExtra("isShuffle", isShuffle);
+            if (queueJson != null && !queueJson.trim().isEmpty()) {
+                intent.putExtra("queueJson", queueJson);
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent);
@@ -139,6 +193,8 @@ public class MusicPlaybackPlugin extends Plugin {
                 ret.put("duration", durSec);
                 ret.put("isPlaying", playing);
                 ret.put("audioUrl", MusicPlaybackService.currentAudioUrl);
+                ret.put("trackId", MusicPlaybackService.currentTrackId);
+                ret.put("queueIndex", MusicPlaybackService.currentQueueIndex);
                 call.resolve(ret);
             } catch (Exception e) {
                 Log.e(TAG, "Error en getPosition", e);

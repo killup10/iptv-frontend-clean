@@ -106,11 +106,12 @@ function App() {
     // Si el backend devuelve 426 en cualquier llamada, forzar modal bloqueante
     const onForceUpdate = (e) => {
       const d = e?.detail || {};
+      const isElectron = typeof window !== 'undefined' && window.electronMPV;
       setUpdateInfo((prev) => ({
         isOpen: true,
         latestVersion: d.latestVersion || prev.latestVersion || '1.5.11',
         notes: d.error || prev.notes || 'Tu versión ya no es compatible. Actualiza para continuar.',
-        downloadUrl: prev.downloadUrl || d.url || 'https://teamg.store/teamgplay.apk',
+        downloadUrl: prev.downloadUrl || (isElectron ? (d.desktopUrl || 'https://teamg.store/teamgplay-desktop.exe') : (d.url || 'https://teamg.store/teamgplay.apk')),
         force: true,
       }));
     };

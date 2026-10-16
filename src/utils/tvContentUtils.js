@@ -107,9 +107,10 @@ export function getTVItemGenre(item) {
 }
 
 export function getTVItemRating(item) {
+  if (item?.tmdbId && item.tmdbRating == null) return '';
   const rawValue =
-    item?.ratingDisplay ??
     item?.tmdbRating ??
+    item?.ratingDisplay ??
     item?.rating ??
     item?.vote_average ??
     item?.ranking ??
@@ -130,6 +131,7 @@ export function getTVItemRating(item) {
 }
 
 export function getTVItemUserScore(item) {
+  if (item?.tmdbId && item.tmdbRating == null) return null;
   if (typeof item?.userScore === 'number' && item.userScore > 0) {
     return Math.round(item.userScore);
   }

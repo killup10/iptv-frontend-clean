@@ -1058,6 +1058,18 @@ export function parseArtists(artistStr) {
 }
 
 export const musicService = {
+  async getImportedTrackCovers(ids) {
+    const response = await axiosInstance.post('/api/music/playlists/artwork', { ids }, { timeout: 20000 });
+    return response.data.covers;
+  },
+  async importPlaylist(url) {
+    try {
+      const response = await axiosInstance.post('/api/music/playlists/import', { url }, { timeout: 35000 });
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'No se pudo importar la playlist. Comprueba tu conexión e inténtalo otra vez.');
+    }
+  },
   parseArtists,
   /**
    * Top de éxitos frescos (vía backend; sin el RSS deprecado de Apple).
@@ -1851,12 +1863,12 @@ export const musicService = {
     try {
       let res = await axiosInstance.get('/api/music/resolve', {
         params: { artist: cleanArtist, title: cleanTitle },
-        timeout: 4000
+        timeout: 15000
       });
       if (!res.data?.youtubeId && altQuery) {
         res = await axiosInstance.get('/api/music/resolve', {
           params: { artist: primaryArtist, title: cleanTitle },
-          timeout: 4000
+          timeout: 15000
         });
       }
       if (res.data?.youtubeId) {
@@ -1994,12 +2006,17 @@ export const musicService = {
         timeout: 6000
       });
       if (res.data?.url) {
+        // Local testing only: production audio must not consume Render bandwidth.
+        const localBackend = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(API_BASE);
+        const streamUrl = localBackend
+          ? `${API_BASE}/api/music/audio-stream?youtubeId=${encodeURIComponent(yid)}`
+          : res.data.url;
         if (fullAudioCache.size > 200) {
           const oldest = fullAudioCache.keys().next().value;
           fullAudioCache.delete(oldest);
         }
-        fullAudioCache.set(yid, { ts: Date.now(), url: res.data.url });
-        return res.data.url;
+        fullAudioCache.set(yid, { ts: Date.now(), url: streamUrl });
+        return streamUrl;
       }
     } catch (err) {
       console.warn('[MusicService] Backend stream directo no disponible:', err?.message);

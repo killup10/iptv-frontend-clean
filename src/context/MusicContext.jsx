@@ -327,6 +327,34 @@ export function MusicProvider({ children }) {
     cloudPlaylistsRef.current?.update(next,dirtyIds,deletedIds);
   }, []);
 
+  const artworkAttempts = useRef(new Set());
+  const [artworkPass, setArtworkPass] = useState(0);
+  useEffect(() => {
+    artworkAttempts.current.clear();
+  }, [accountUser?._id]);
+  useEffect(() => {
+    const needsCover = t => /^spotify_[a-zA-Z0-9]{22}$/.test(String(t.id)) && (!t.cover || t.cover.includes('mosaic.scdn.co'));
+    const ids = [...new Set(customPlaylists.flatMap(p => p.tracks || []).filter(t => needsCover(t) && !artworkAttempts.current.has(t.id)).map(t => t.id))].slice(0, 10);
+    if (!ids.length || !accountUser) return;
+    let cancelled = false;
+    musicService.getImportedTrackCovers(ids).then(covers => {
+      if (cancelled) return;
+      ids.forEach(id => artworkAttempts.current.add(id));
+      const changed = customPlaylistsRef.current.filter(p => (p.tracks || []).some(t => ids.includes(t.id) && needsCover(t))).map(p => p.id);
+      if (changed.length) commitPlaylists(list => list.map(p => changed.includes(p.id) ? {
+        ...p, updatedAt: Date.now(), tracks: p.tracks.map(t => ids.includes(t.id) && needsCover(t) ? { ...t, cover: covers[t.id] || '' } : t),
+      } : p), changed);
+      setCurrentTrack(t => t && covers[t.id] ? { ...t, cover: covers[t.id] } : t);
+      setQueue(list => list.map(t => covers[t.id] ? { ...t, cover: covers[t.id] } : t));
+      setArtworkPass(pass => pass + 1);
+    }).catch(() => {
+      if (cancelled) return;
+      ids.forEach(id => artworkAttempts.current.add(id));
+      setArtworkPass(pass => pass + 1);
+    });
+    return () => { cancelled = true; };
+  }, [customPlaylists, accountUser?._id, artworkPass, commitPlaylists]);
+
   const buildNativeQueuePayload = useCallback((curQueue, activeTrackId, effectiveAudioUrl = null) => {
     if (!Array.isArray(curQueue) || curQueue.length === 0) return [];
     return curQueue.map((t, idx) => {
@@ -654,23 +682,33 @@ export function MusicProvider({ children }) {
     }
   }, []);
 
-  const handlePlaybackError = useCallback(() => {
+  const fallbackAttemptRef = useRef(-1);
+  const handlePlaybackError = useCallback(async () => {
+    const generation = playbackGenerationRef.current;
+    const track = currentTrackRef.current;
+    if (track?.youtubeId && !track.isRadio && fallbackAttemptRef.current !== generation) {
+      fallbackAttemptRef.current = generation;
+      setIsLoadingAudio(true);
+      try {
+        const video = await musicService.getOfficialVideo(track.artist, track.title);
+        if (generation !== playbackGenerationRef.current) return;
+        if (video?.id && video.id !== track.youtubeId) {
+          const alternative = { ...track, youtubeId: video.id, audioUrl: '', streamUrl: '' };
+          currentTrackRef.current = alternative;
+          setCurrentTrack(alternative);
+          setPlaybackMode('youtube');
+          setAudioQuality('full');
+          setIsLoadingAudio(false);
+          return;
+        }
+      } catch { /* Show a retry when both sources fail. */ }
+      if (generation !== playbackGenerationRef.current) return;
+    }
     transitionRef.current = false;
     setIsLoadingAudio(false);
     setAudioQuality('unavailable');
 
-    const curQueue = queueRef.current.length > 0 ? queueRef.current : queue;
-    if (playIntentRef.current && curQueue.length > 1) {
-      if (consecutiveErrorsRef.current < Math.min(curQueue.length, 5)) {
-        consecutiveErrorsRef.current += 1;
-        console.warn(`[MusicContext] Canción no disponible (#${consecutiveErrorsRef.current}), avanzando automáticamente para mantener reproducción continua...`);
-        setTimeout(() => {
-          handleNextRef.current?.();
-        }, 400);
-        return;
-      }
-    }
-
+    // A failed source is not the end of a song. Keep the selected track for retry.
     consecutiveErrorsRef.current = 0;
     setIsPlaying(false);
     audioRef.current?.pause();
@@ -923,6 +961,10 @@ export function MusicProvider({ children }) {
     if (videoPlaybackActiveRef.current) { setIsPlaying(prev => !prev); return; }
 
     const audio = audioRef.current;
+    if (audioQuality === 'unavailable') {
+      playTrack({ ...currentTrack, youtubeId: null, audioUrl: '', streamUrl: '' }, queueRef.current);
+      return;
+    }
     const useYouTube = currentTrack.youtubeId && playbackMode === 'youtube';
 
     if (useYouTube) {
@@ -946,7 +988,7 @@ export function MusicProvider({ children }) {
       setIsPlaying(true);
       backgroundPlaybackService.resumePlayback();
     }
-  }, [isPlaying, currentTrack, playbackMode]);
+  }, [isPlaying, currentTrack, playbackMode, audioQuality, playTrack]);
   togglePlayRef.current = togglePlay;
 
   // Siguiente pista
