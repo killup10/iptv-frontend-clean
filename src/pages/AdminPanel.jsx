@@ -7,6 +7,8 @@ import {
   deleteAdminChannel, processM3UForAdmin,
   createAdminVideo, updateAdminVideo, deleteAdminVideo,
   fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser,
+  createAdminCodeUser, updateAdminUserActivationCode, updateAdminUserMaxDevices,
+  activateAdminDeviceCode, fetchAdminPendingDeviceCodes,
   checkAdminChannelsStatus,
   getClientRequests, fulfillClientRequest, deleteClientRequest
 } from "@/utils/api.js";
@@ -1939,6 +1941,139 @@ export default function AdminPanel() {
     } catch (err) { setErrorMsg(err.message || "Error al eliminar el usuario.");
     } finally { setIsSubmitting(false); }
   };
+
+  // --- CÓDIGOS DE ACTIVACIÓN (PLAN 1 DISPOSITIVO) ---
+  const [clientCodeToActivate, setClientCodeToActivate] = useState("");
+  const [clientNameToActivate, setClientNameToActivate] = useState("");
+  const [planToActivate, setPlanToActivate] = useState("premium");
+  const [expiresAtToActivate, setExpiresAtToActivate] = useState("");
+  const [observationsToActivate, setObservationsToActivate] = useState("");
+  const [existingUserToActivate, setExistingUserToActivate] = useState("");
+  const [pendingDeviceCodes, setPendingDeviceCodes] = useState([]);
+  const [isLoadingPendingCodes, setIsLoadingPendingCodes] = useState(false);
+
+  const loadPendingDeviceCodes = useCallback(async () => {
+    setIsLoadingPendingCodes(true);
+    try {
+      const list = await fetchAdminPendingDeviceCodes();
+      setPendingDeviceCodes(list || []);
+    } catch (err) {
+      console.warn("No se pudieron cargar códigos pendientes:", err);
+    } finally {
+      setIsLoadingPendingCodes(false);
+    }
+  }, []);
+
+  const handleActivateClientCode = async (e) => {
+    if (e) e.preventDefault();
+    const clean = String(clientCodeToActivate || "").trim().toUpperCase();
+    if (!clean || clean.length < 4) {
+      setErrorMsg("Por favor ingresa el código de activación que te dio el cliente.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    clearMessages();
+    try {
+      const res = await activateAdminDeviceCode({
+        code: clean,
+        clientName: clientNameToActivate.trim(),
+        plan: planToActivate,
+        expiresAt: expiresAtToActivate || null,
+        observations: observationsToActivate.trim(),
+        existingUserId: existingUserToActivate || null,
+      });
+
+      setSuccessMsg(res.message || `¡Dispositivo activado con éxito para el código ${clean}!`);
+      setClientCodeToActivate("");
+      setClientNameToActivate("");
+      setExistingUserToActivate("");
+      setObservationsToActivate("");
+      fetchAdminUsersList();
+      loadPendingDeviceCodes();
+    } catch (err) {
+      setErrorMsg(err.message || "Error al activar el dispositivo por código.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const [newCodeForm, setNewCodeForm] = useState({
+    clientName: "",
+    plan: "premium",
+    expiresAt: "",
+    customCode: "",
+    observations: "",
+  });
+  const [lastCreatedCode, setLastCreatedCode] = useState("");
+
+  const handleCopyCode = async (codeText) => {
+    if (!codeText) return;
+    try {
+      await navigator.clipboard.writeText(codeText);
+      setSuccessMsg(`Código "${codeText}" copiado al portapapeles.`);
+    } catch {
+      setSuccessMsg(`Código: ${codeText}`);
+    }
+  };
+
+  const handleCreateCodeUser = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    clearMessages();
+    try {
+      const res = await createAdminCodeUser({
+        clientName: newCodeForm.clientName.trim(),
+        plan: newCodeForm.plan,
+        expiresAt: newCodeForm.expiresAt || null,
+        customCode: newCodeForm.customCode.trim() || undefined,
+        observations: newCodeForm.observations.trim() || undefined,
+      });
+      const createdCode = res?.activationCode || res?.user?.activationCode || "";
+      setLastCreatedCode(createdCode);
+      setSuccessMsg(res?.message || `Código de activación creado: ${createdCode}`);
+      setNewCodeForm({
+        clientName: "",
+        plan: "premium",
+        expiresAt: "",
+        customCode: "",
+        observations: "",
+      });
+      fetchAdminUsersList();
+    } catch (err) {
+      setErrorMsg(err.message || "Error al crear código de activación.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUserCodeAction = async (userId, action) => {
+    setIsSubmitting(true);
+    clearMessages();
+    try {
+      const res = await updateAdminUserActivationCode(userId, action);
+      setSuccessMsg(res?.message || "Acción de código realizada.");
+      fetchAdminUsersList();
+    } catch (err) {
+      setErrorMsg(err.message || "Error al gestionar el código de activación.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUserMaxDevicesChange = async (userId, maxDevicesVal) => {
+    setIsSubmitting(true);
+    clearMessages();
+    try {
+      const res = await updateAdminUserMaxDevices(userId, Number(maxDevicesVal));
+      setSuccessMsg(res?.message || `Límite actualizado a ${maxDevicesVal} dispositivo(s).`);
+      fetchAdminUsersList();
+    } catch (err) {
+      setErrorMsg(err.message || "Error al actualizar límite de dispositivos.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   // --- FIN LÓGICA USUARIOS ---
 
  useEffect(() => {
@@ -1957,6 +2092,7 @@ export default function AdminPanel() {
             }
         } else if (activeTab === "manage_users") {
             fetchAdminUsersList();
+            loadPendingDeviceCodes();
         } else if (activeTab === "manage_requests") {
             fetchRequestsList();
         }
@@ -1964,7 +2100,7 @@ export default function AdminPanel() {
         if (activeTab === "add_channel" && !channelId) clearChannelForm();
         if (activeTab === "add_vod" && !vodId && !fulfillingRequest) clearVodForm();
     }
-}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, loadMundialMatches, clearChannelForm, clearVodForm, vodSearchTerm, fetchRequestsList, fulfillingRequest]);
+}, [activeTab, user?.token, user?.role, fetchVideosList, fetchChannelsList, fetchAdminUsersList, loadPendingDeviceCodes, loadMundialMatches, clearChannelForm, clearVodForm, vodSearchTerm, fetchRequestsList, fulfillingRequest]);
 
 
 
@@ -2851,6 +2987,123 @@ export default function AdminPanel() {
       {activeTab === "manage_users" && (
         <section className="p-1 sm:p-6 bg-gray-800 rounded-lg shadow-xl">
           <h2 className="text-2xl font-semibold mb-6 text-center sm:text-left">Gestionar Usuarios</h2>
+
+          {/* Activar Dispositivo por Código proporcionado por el Cliente */}
+          <div className="mb-8 p-4 sm:p-5 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border-2 border-cyan-500/50 rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.15)]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-cyan-400 flex items-center gap-2">
+                  ⚡ Activar Dispositivo con Código de Cliente (1 Dispositivo)
+                </h3>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  El cliente abre la app en su TV, Celular, PC o Web, te da su código que le sale en pantalla (ej: <span className="font-mono text-cyan-300 font-bold">849201</span>) y lo activas aquí con su plan.
+                </p>
+              </div>
+
+              {pendingDeviceCodes && pendingDeviceCodes.length > 0 && (
+                <div className="flex items-center gap-2 bg-cyan-950/90 border border-cyan-400/40 px-3 py-1.5 rounded-lg">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="text-xs text-cyan-200 font-medium">
+                    {pendingDeviceCodes.length} equipo(s) esperando activación ahora
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Lista rápida de dispositivos esperando activación ahora */}
+            {pendingDeviceCodes && pendingDeviceCodes.length > 0 && (
+              <div className="mb-4 p-3 bg-gray-950/70 border border-cyan-500/20 rounded-lg">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                  Equipos en espera detectados (clic para autocompletar código):
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {pendingDeviceCodes.map((p) => (
+                    <button
+                      key={p._id || p.code}
+                      type="button"
+                      onClick={() => {
+                        setClientCodeToActivate(p.code);
+                        if (!clientNameToActivate) {
+                          setClientNameToActivate(`Cliente ${p.deviceType || "TV"} ${p.code.slice(-3)}`);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-300 border border-cyan-500/40 flex items-center gap-2 transition cursor-pointer"
+                    >
+                      <span>📺 {p.deviceType || "Dispositivo"}</span>
+                      <span className="text-white font-black">{p.code}</span>
+                      <span className="text-[10px] text-cyan-400">({new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleActivateClientCode} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+              <div>
+                <label className="block text-cyan-300 text-xs font-bold mb-1">
+                  Código dado por el Cliente *
+                </label>
+                <input
+                  type="text"
+                  value={clientCodeToActivate}
+                  onChange={(e) => setClientCodeToActivate(e.target.value.toUpperCase())}
+                  placeholder="Ej: 849201"
+                  maxLength={12}
+                  className="w-full px-3 py-2 text-sm font-mono font-black text-cyan-300 tracking-wider bg-gray-950 rounded border-2 border-cyan-500/50 focus:border-cyan-400 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-xs font-medium mb-1">
+                  Nombre Cliente / Referencia
+                </label>
+                <input
+                  type="text"
+                  value={clientNameToActivate}
+                  onChange={(e) => setClientNameToActivate(e.target.value)}
+                  placeholder="Ej: Carlos Gómez TV Sala"
+                  className="w-full px-3 py-2 text-xs bg-gray-700 text-white rounded border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-xs font-medium mb-1">Plan</label>
+                <select
+                  value={planToActivate}
+                  onChange={(e) => setPlanToActivate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-gray-700 text-white rounded border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                >
+                  {ALL_AVAILABLE_PLANS.map((plan) => (
+                    <option key={plan.key} value={plan.key}>
+                      {plan.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-xs font-medium mb-1">Fecha de Expiración</label>
+                <input
+                  type="date"
+                  value={expiresAtToActivate}
+                  onChange={(e) => setExpiresAtToActivate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-gray-700 text-white rounded border border-gray-600 focus:border-cyan-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <Button
+                  type="submit"
+                  isLoading={isSubmitting}
+                  className="w-full py-2.5 px-4 text-xs font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white rounded shadow-[0_0_15px_rgba(16,185,129,0.3)] transition"
+                >
+                  ✅ Activar Dispositivo
+                </Button>
+              </div>
+            </form>
+          </div>
+
           {isLoading.users ? (
             <div className="text-center py-10 text-gray-400">Cargando usuarios...</div>
           ) : (adminUsers && adminUsers.length > 0) ? (
@@ -2859,18 +3112,115 @@ export default function AdminPanel() {
                 <div key={usr._id} className="bg-gray-700 rounded-lg p-4">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                     <div className="flex-1">
-                      <p className="text-white font-semibold text-lg">{usr.username} ({usr.role})</p>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <p className="text-white font-semibold text-lg">{usr.username} ({usr.role})</p>
+                        <span className={`px-2.5 py-0.5 text-[11px] rounded-full font-bold ${
+                          (usr.maxDevices || 2) === 1
+                            ? "bg-cyan-900/80 text-cyan-200 border border-cyan-500/40"
+                            : "bg-indigo-900/80 text-indigo-200 border border-indigo-500/40"
+                        }`}>
+                          {(usr.maxDevices || 2) === 1 ? "1 Dispositivo (Código)" : `${usr.maxDevices || 2} Dispositivos (Usuario/Clave)`}
+                        </span>
+                      </div>
                       <p className="text-gray-400 text-sm mb-2">Plan actual: {ALL_AVAILABLE_PLANS.find(p => p.key === (usr.plan === "basico" ? "gplay" : usr.plan))?.displayName || usr.plan}</p>
-                      <Select
-                        value={usr.plan === "basico" ? "gplay" : usr.plan}
-                        onChange={(e) => handleUserPlanChange(usr._id, e.target.value)}
-                        disabled={isSubmitting}
-                        className="text-xs py-1.5 bg-gray-700 mb-3"
-                      >
-                        {ALL_AVAILABLE_PLANS.map(plan => (
-                          <option key={plan.key} value={plan.key}>{plan.displayName}</option>
-                        ))}
-                      </Select>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="block text-gray-300 text-xs font-medium mb-1">Plan de Contenido</label>
+                          <Select
+                            value={usr.plan === "basico" ? "gplay" : usr.plan}
+                            onChange={(e) => handleUserPlanChange(usr._id, e.target.value)}
+                            disabled={isSubmitting}
+                            className="text-xs py-1.5 bg-gray-700"
+                          >
+                            {ALL_AVAILABLE_PLANS.map(plan => (
+                              <option key={plan.key} value={plan.key}>{plan.displayName}</option>
+                            ))}
+                          </Select>
+                        </div>
+
+                        <div>
+                          <label className="block text-gray-300 text-xs font-medium mb-1">Modalidad / Límite de Equipos</label>
+                          <Select
+                            value={String(usr.maxDevices || 2)}
+                            onChange={(e) => handleUserMaxDevicesChange(usr._id, Number(e.target.value))}
+                            disabled={isSubmitting}
+                            className="text-xs py-1.5 bg-gray-700"
+                          >
+                            <option value="1">1 Dispositivo (Solo 1 equipo)</option>
+                            <option value="2">2 Dispositivos (Plan Dúo / Usuario y Clave)</option>
+                            <option value="3">3 Dispositivos</option>
+                            <option value="4">4 Dispositivos</option>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Panel de Código de Activación del Usuario */}
+                      <div className="mt-3 p-3 rounded-lg bg-gray-800/90 border border-gray-600">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs text-gray-300 font-semibold block">
+                              ⚡ Código de Activación (1 Dispositivo):
+                            </span>
+                            {usr.activationCode ? (
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="font-mono font-black text-sm text-cyan-300 bg-gray-900 px-2.5 py-1 rounded border border-cyan-500/40 tracking-wider">
+                                  {usr.activationCode}
+                                </span>
+                                <span className={`text-[11px] px-2 py-0.5 rounded font-semibold ${
+                                  usr.activatedDeviceId
+                                    ? "bg-amber-900/70 text-amber-200 border border-amber-500/40"
+                                    : "bg-emerald-900/70 text-emerald-200 border border-emerald-500/40"
+                                }`}>
+                                  {usr.activatedDeviceId ? "🔒 Vinculado a 1 equipo" : "🟢 Libre (Esperando activación)"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">Sin código asignado (usa usuario y contraseña)</span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {usr.activationCode && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCode(usr.activationCode)}
+                                className="px-2.5 py-1.5 text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded transition"
+                              >
+                                Copiar Código
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleUserCodeAction(usr._id, "generate")}
+                              className="px-2.5 py-1.5 text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-cyan-300 border border-cyan-500/40 rounded transition"
+                            >
+                              {usr.activationCode ? "Nuevo Código" : "Generar Código (1 Disp.)"}
+                            </button>
+                            {usr.activatedDeviceId && (
+                              <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => handleUserCodeAction(usr._id, "unlink_device")}
+                                className="px-2.5 py-1.5 text-xs font-semibold bg-amber-700 hover:bg-amber-600 text-white rounded transition"
+                                title="Libera el código para que el cliente pueda activarlo en otro televisor o celular"
+                              >
+                                Liberar Equipo
+                              </button>
+                            )}
+                            {usr.activationCode && (
+                              <button
+                                type="button"
+                                disabled={isSubmitting}
+                                onClick={() => handleUserCodeAction(usr._id, "clear")}
+                                className="px-2.5 py-1.5 text-xs font-semibold bg-red-900/70 hover:bg-red-800 text-red-200 rounded transition"
+                              >
+                                Quitar Código
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       
                       <div className="mt-3">
                         <label className="block text-gray-300 text-xs font-medium mb-1">Fecha de Expiración</label>
@@ -2956,9 +3306,8 @@ export default function AdminPanel() {
                   <div className="mt-4">
                     {expandedDevices[usr._id] && (
                       <AdminUserDevices userId={usr._id} username={usr.username} />
-              )}
-            </div>
-            <p className="text-xs text-gray-400">🎃 marcado → Películas/Series del especial · Tipo Halloween → Especiales · 👻 marcado → solo Kids.</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

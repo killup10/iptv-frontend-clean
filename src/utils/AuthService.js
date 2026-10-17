@@ -80,6 +80,141 @@ export const login = async (username, password, unlinkDeviceId = null) => {
   }
 };
 
+export const loginWithCode = async (code) => {
+  const deviceId = await getOrCreateDeviceId();
+  const loginCodePath = "/api/auth/login-code";
+
+  try {
+    const requestPayload = {
+      code: String(code || "").trim().toUpperCase(),
+      deviceId,
+    };
+    let response;
+
+    try {
+      response = await axiosInstance.post(loginCodePath, requestPayload);
+    } catch (axiosError) {
+      const shouldTryNativeFallback =
+        Capacitor.isNativePlatform() &&
+        (!axiosError.response || axiosError.code === "ECONNABORTED" || /network error/i.test(axiosError.message || ""));
+
+      if (!shouldTryNativeFallback) {
+        throw axiosError;
+      }
+
+      response = await CapacitorHttp.post({
+        url: `${apiBaseURL}${loginCodePath}`,
+        headers: {
+          "Content-Type": "application/json",
+          "x-device-id": deviceId,
+          "x-app-version": APP_VERSION,
+          "x-teamg-client": getPlatformName() || "tv",
+        },
+        data: requestPayload,
+        connectTimeout: 20000,
+        readTimeout: 20000,
+      });
+    }
+
+    const status = response?.status ?? 200;
+    const responseData = response?.data ?? response;
+
+    if (status >= 400) {
+      const nativeError = new Error(
+        responseData?.error || responseData?.message || "Código de activación inválido."
+      );
+      nativeError.response = { status, data: responseData };
+      throw nativeError;
+    }
+
+    await storage.setItem("deviceId", deviceId);
+    return responseData;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      error.message ||
+      "Error al activar con código.";
+
+    const formattedError = new Error(errorMessage);
+    if (error.response) {
+      formattedError.response = error.response;
+    }
+    throw formattedError;
+  }
+};
+
+export const requestDeviceCode = async () => {
+  const deviceId = await getOrCreateDeviceId();
+  const deviceType = getPlatformName() || "web";
+  const requestPath = "/api/auth/device-code/request";
+
+  try {
+    const payload = { deviceId, deviceType };
+    let response;
+    try {
+      response = await axiosInstance.post(requestPath, payload);
+    } catch (axiosError) {
+      if (Capacitor.isNativePlatform()) {
+        response = await CapacitorHttp.post({
+          url: `${apiBaseURL}${requestPath}`,
+          headers: {
+            "Content-Type": "application/json",
+            "x-device-id": deviceId,
+            "x-app-version": APP_VERSION,
+            "x-teamg-client": deviceType,
+          },
+          data: payload,
+          connectTimeout: 15000,
+          readTimeout: 15000,
+        });
+      } else {
+        throw axiosError;
+      }
+    }
+
+    const data = response?.data ?? response;
+    await storage.setItem("deviceId", deviceId);
+    return data;
+  } catch (error) {
+    console.error("Error al solicitar código de dispositivo:", error);
+    throw error.response?.data || new Error(error.message || "Error al solicitar código de activación.");
+  }
+};
+
+export const checkDeviceCode = async (code) => {
+  const deviceId = await getOrCreateDeviceId();
+  const checkPath = `/api/auth/device-code/check?code=${encodeURIComponent(code)}&deviceId=${encodeURIComponent(deviceId)}`;
+
+  try {
+    let response;
+    try {
+      response = await axiosInstance.get(checkPath);
+    } catch (axiosError) {
+      if (Capacitor.isNativePlatform()) {
+        response = await CapacitorHttp.get({
+          url: `${apiBaseURL}${checkPath}`,
+          headers: {
+            "x-device-id": deviceId,
+            "x-app-version": APP_VERSION,
+            "x-teamg-client": getPlatformName() || "web",
+          },
+          connectTimeout: 10000,
+          readTimeout: 10000,
+        });
+      } else {
+        throw axiosError;
+      }
+    }
+
+    const data = response?.data ?? response;
+    return data;
+  } catch (error) {
+    return { status: "pending" };
+  }
+};
+
+
 export const register = async (username, password) => {
   const registerPath = "/api/auth/register";
   try {

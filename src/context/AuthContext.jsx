@@ -127,6 +127,46 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginWithCode = async (code) => {
+    try {
+      const { loginWithCode: loginWithCodeService } = await import("../utils/AuthService.js");
+      const userDataFromBackend = await loginWithCodeService(code);
+
+      if (!userDataFromBackend?.token || !userDataFromBackend?.user?.username) {
+        throw new Error("Error de activación: datos de respuesta inválidos");
+      }
+
+      const userToStore = buildStoredUserPayload(userDataFromBackend.user);
+
+      await storage.setItem("token", userDataFromBackend.token);
+      await storage.setItem("user", JSON.stringify(userToStore));
+
+      const userForState = buildUserState(userDataFromBackend.user, userDataFromBackend.token);
+      setUser(userForState);
+      return userForState;
+    } catch (error) {
+      console.error("AuthContext: Error en loginWithCode:", error);
+      throw error;
+    }
+  };
+
+  const loginWithSession = async (token, rawUser) => {
+    try {
+      if (!token || !rawUser?.username) {
+        throw new Error("Datos de sesión inválidos.");
+      }
+      const userToStore = buildStoredUserPayload(rawUser);
+      await storage.setItem("token", token);
+      await storage.setItem("user", JSON.stringify(userToStore));
+      const userForState = buildUserState(rawUser, token);
+      setUser(userForState);
+      return userForState;
+    } catch (error) {
+      console.error("AuthContext: Error en loginWithSession:", error);
+      throw error;
+    }
+  };
+
   const logout = async (allDevices = false) => {
     try {
       const { logout: logoutService } = await import("../utils/AuthService.js");
@@ -184,6 +224,8 @@ export function AuthProvider({ children }) {
     selectProfile,
     clearActiveProfile,
     login,
+    loginWithCode,
+    loginWithSession,
     logout,
     register: registerUser,
     isLoadingAuth,

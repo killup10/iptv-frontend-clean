@@ -171,6 +171,17 @@ public class HomeLivePlayerPlugin extends Plugin {
         getActivity().runOnUiThread(() -> { release(); call.resolve(); });
     }
 
+    @PluginMethod
+    public void exitApp(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            release();
+            call.resolve();
+            if (getActivity() != null) {
+                getActivity().finishAffinity();
+            }
+        });
+    }
+
     private void release() {
         mainHandler.removeCallbacksAndMessages(null);
         generation.incrementAndGet();

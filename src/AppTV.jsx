@@ -6,13 +6,19 @@ import TVSearch from "./components/TVSearch.jsx";
 import { fetchUserChannels, fetchUserMovies, fetchVideosByType } from "./utils/api.js";
 import { TV_OPEN_SEARCH_EVENT } from "./utils/tvSearchEvents.js";
 import { getTVItemId, resolveTVItemType, unwrapTVItems } from "./utils/tvContentUtils.js";
-import { focusTVContent, focusTVNav, getTVFocusZone, TV_FOCUS_ZONE_MODAL, TV_FOCUS_ZONE_NAV } from "./utils/tvFocusZone.js";
-import { isTVBackKey } from "./utils/tvRemote.js";
+import { focusTVContent, focusTVNav, getTVFocusZone, setTVFocusZone, TV_FOCUS_ZONE_MODAL, TV_FOCUS_ZONE_NAV } from "./utils/tvFocusZone.js";
+import { getTVKeyName, isTVBackKey } from "./utils/tvRemote.js";
 import { getCachedTVSeriesItems, setCachedTVSeriesItems } from "./utils/tvBrowseCache.js";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import UpdateModal from "./components/UpdateModal.jsx";
 import packageJson from "../package.json";
 import axiosInstance from "./utils/axiosInstance.js";
 import { useMusic } from "./context/MusicContext.jsx";
+
+const HomeLivePlayer = Capacitor.isNativePlatform()
+  ? registerPlugin("HomeLivePlayer")
+  : null;
 
 const HOME_BACK_ROUTES = new Set([
   '/live-tv',
@@ -46,7 +52,35 @@ function AppTV() {
   const navigate = useNavigate();
   const isWatchPage = location.pathname.startsWith('/watch');
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [exitModalFocusIndex, setExitModalFocusIndex] = useState(0); // 0 = Seguir viendo, 1 = Salir
   const { isPlaying, togglePlay } = useMusic();
+
+  const closeExitConfirm = useCallback(() => {
+    setShowExitConfirm(false);
+    setExitModalFocusIndex(0);
+    focusTVNav();
+  }, []);
+
+  const confirmExitApp = useCallback(async () => {
+    setShowExitConfirm(false);
+    try {
+      if (HomeLivePlayer && typeof HomeLivePlayer.exitApp === "function") {
+        await HomeLivePlayer.exitApp();
+        return;
+      }
+      if (HomeLivePlayer && typeof HomeLivePlayer.stop === "function") {
+        await HomeLivePlayer.stop();
+      }
+    } catch {}
+    try {
+      await CapacitorApp.exitApp();
+    } catch {
+      try {
+        window.close();
+      } catch {}
+    }
+  }, []);
 
   const isForcedTV = typeof window !== 'undefined' && (
     localStorage.getItem('FORCE_TV_MODE') === 'true' ||
@@ -130,23 +164,6 @@ function AppTV() {
   const [globalSearchItems, setGlobalSearchItems] = useState([]);
   const globalSearchLoadedRef = useRef(false);
   const globalSearchLoadingRef = useRef(false);
-  const seriesPrefetchLoadingRef = useRef(false);
-
-  const warmSeriesBrowseCache = useCallback(async () => {
-    if (seriesPrefetchLoadingRef.current || getCachedTVSeriesItems()?.length) {
-      return;
-    }
-
-    seriesPrefetchLoadingRef.current = true;
-    try {
-      const response = await fetchVideosByType('serie', 1, 500);
-      setCachedTVSeriesItems(normalizeGlobalSearchItems(response, 'serie'));
-    } catch (error) {
-      console.warn('[AppTV] No se pudo precargar cache de series TV:', error?.message || error);
-    } finally {
-      seriesPrefetchLoadingRef.current = false;
-    }
-  }, []);
 
   const loadGlobalSearchIndex = useCallback(async () => {
     if (globalSearchLoadedRef.current || globalSearchLoadingRef.current) {
@@ -196,7 +213,7 @@ function AppTV() {
       ).values());
 
       setGlobalSearchItems(uniqueItems);
-      if (seriesResult.status === 'fulfilled') {
+      if (seriesResult.status === 'fulfilled' && !getCachedTVSeriesItems()?.length) {
         setCachedTVSeriesItems(normalizeGlobalSearchItems(seriesResult.value, 'serie'));
       }
       globalSearchLoadedRef.current = true;
@@ -209,12 +226,15 @@ function AppTV() {
 
   useEffect(() => {
     if (!user?.token || isWatchPage) {
-      return;
+      return undefined;
     }
 
-    warmSeriesBrowseCache();
-    loadGlobalSearchIndex();
-  }, [isWatchPage, loadGlobalSearchIndex, user?.token, warmSeriesBrowseCache]);
+    // Diferir la indexación global 2.5s para dar prioridad absoluta al video "AHORA EN VIVO" del Home
+    const timer = window.setTimeout(() => {
+      loadGlobalSearchIndex();
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [isWatchPage, loadGlobalSearchIndex, user?.token]);
 
   useEffect(() => {
     const handleOpenGlobalSearch = (event) => {
@@ -265,8 +285,46 @@ function AppTV() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
+    if (!showExitConfirm) return undefined;
+
+    const handleExitModalKeyDown = (e) => {
+      const keyName = getTVKeyName(e);
+      if (isTVBackKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeExitConfirm();
+        return;
+      }
+      if (keyName === 'ArrowLeft' || keyName === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        setExitModalFocusIndex(0);
+        return;
+      }
+      if (keyName === 'ArrowRight' || keyName === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        setExitModalFocusIndex(1);
+        return;
+      }
+      if (keyName === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (exitModalFocusIndex === 1) {
+          confirmExitApp();
+        } else {
+          closeExitConfirm();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleExitModalKeyDown, true);
+    return () => window.removeEventListener('keydown', handleExitModalKeyDown, true);
+  }, [closeExitConfirm, confirmExitApp, exitModalFocusIndex, showExitConfirm]);
+
+  useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.defaultPrevented || getTVFocusZone() === TV_FOCUS_ZONE_MODAL) {
+      if (showExitConfirm || e.defaultPrevented || getTVFocusZone() === TV_FOCUS_ZONE_MODAL) {
         return;
       }
 
@@ -291,6 +349,9 @@ function AppTV() {
 
       if (location.pathname === '/') {
         if (getTVFocusZone() === TV_FOCUS_ZONE_NAV) {
+          setExitModalFocusIndex(0);
+          setShowExitConfirm(true);
+          setTVFocusZone(TV_FOCUS_ZONE_MODAL);
           return;
         }
         focusTVNav();
@@ -316,7 +377,7 @@ function AppTV() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isWatchPage, location.pathname, navigate, showGlobalSearch]);
+  }, [isWatchPage, location.pathname, navigate, showExitConfirm, showGlobalSearch]);
 
   useEffect(() => {
     if (isWatchPage) return undefined;
@@ -340,7 +401,7 @@ function AppTV() {
           background:
             radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 28%),
             radial-gradient(circle at top right, rgba(244, 63, 94, 0.08), transparent 24%),
-            linear-gradient(180deg, #050816 0%, #0a1023 45%, #03060f 100%);
+          linear-gradient(180deg, #050816 0%, #0a1023 45%, #03060f 100%);
           min-height: 100vh;
           color: #fff;
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -350,7 +411,6 @@ function AppTV() {
           min-height: 100vh;
           padding-left: ${isWatchPage ? '0' : '80px'};
           padding-top: 0;
-          transition: padding-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .tv-footer {
@@ -359,7 +419,6 @@ function AppTV() {
           font-size: 11px;
           color: #94a3b8;
           margin-left: ${isWatchPage ? '0' : '80px'};
-          transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .tv-interface {
@@ -401,6 +460,48 @@ function AppTV() {
               focusTVContent();
             }}
           />
+        )}
+
+        {showExitConfirm && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-6">
+            <div className="w-full max-w-md rounded-3xl border border-cyan-500/30 bg-[#070b18] p-7 text-center shadow-[0_24px_70px_rgba(0,0,0,0.92)]">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/10 text-2xl">
+                📺
+              </div>
+              <h3 className="text-xl font-black tracking-tight text-white">
+                ¿Deseas salir de TeamG Play?
+              </h3>
+              <p className="mt-2 text-sm text-slate-300">
+                Puedes continuar disfrutando de la programación en vivo o cerrar la aplicación.
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={closeExitConfirm}
+                  onMouseEnter={() => setExitModalFocusIndex(0)}
+                  className={`flex-1 rounded-xl px-5 py-3 text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    exitModalFocusIndex === 0
+                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white ring-4 ring-cyan-300/70 scale-105 shadow-[0_0_25px_rgba(34,211,238,0.5)]"
+                      : "border border-white/15 bg-white/5 text-slate-300"
+                  }`}
+                >
+                  Seguir viendo
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmExitApp}
+                  onMouseEnter={() => setExitModalFocusIndex(1)}
+                  className={`flex-1 rounded-xl px-5 py-3 text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    exitModalFocusIndex === 1
+                      ? "bg-gradient-to-r from-rose-600 to-red-600 text-white ring-4 ring-rose-400/70 scale-105 shadow-[0_0_25px_rgba(244,63,94,0.5)]"
+                      : "border border-white/15 bg-white/5 text-slate-300"
+                  }`}
+                >
+                  Salir
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {!isWatchPage && (

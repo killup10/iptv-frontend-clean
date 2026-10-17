@@ -42,31 +42,44 @@ export default function TVLiveTV() {
       try {
         setLoading(true);
 
-        const cats = await fetchChannelFilterSections();
+        const [cats, rawAllChannels] = await Promise.all([
+          fetchChannelFilterSections().catch(() => ['Todos']),
+          fetchUserChannels('Todos'),
+        ]);
+        const allList = Array.isArray(rawAllChannels) ? rawAllChannels : [];
         const sortedCats = sortLiveTVCategories(Array.isArray(cats) && cats.length ? cats : ['Todos']);
         setCategories(sortedCats);
 
-        const channelPromises = sortedCats.map((cat) => (
-          fetchUserChannels(cat)
-            .then((channels) => ({ category: cat, channels: channels || [] }))
-            .catch(() => ({ category: cat, channels: [] }))
-        ));
-
-        const results = await Promise.all(channelPromises);
         const channelsMap = {};
+        sortedCats.forEach((cat) => {
+          if (String(cat).toLowerCase() === 'todos') {
+            channelsMap[cat] = allList;
+          } else {
+            channelsMap[cat] = [];
+          }
+        });
+
         const flattened = [];
         const seenIds = new Set();
 
-        results.forEach(({ category, channels }) => {
-          channelsMap[category] = channels;
-          channels.forEach(ch => {
-            const id = ch._id || ch.id;
-            if (id && !seenIds.has(id)) {
-              seenIds.add(id);
-              flattened.push(ch);
+        allList.forEach((ch) => {
+          const id = ch._id || ch.id;
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            flattened.push(ch);
+          }
+          const sec = ch.section || ch.category || ch.group;
+          if (sec) {
+            if (!channelsMap[sec]) {
+              channelsMap[sec] = [];
             }
-          });
+            channelsMap[sec].push(ch);
+          }
         });
+
+        if (!channelsMap['Todos']) {
+          channelsMap['Todos'] = flattened;
+        }
 
         liveTvCache = {
           categories: sortedCats,

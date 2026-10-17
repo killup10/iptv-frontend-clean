@@ -711,7 +711,68 @@ export async function deleteAdminUser(userId) {
     console.error(`API Error (deleteAdminUser - axios): ${errorMsg}`, error.response?.data);
     throw new Error(errorMsg);
   }
-}/* =================== COLLECTIONS =================== */
+}
+
+export async function createAdminCodeUser(payload) {
+  const relativePath = "/api/admin/users/create-code";
+  try {
+    const response = await axiosInstance.post(relativePath, payload);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al crear código de activación.";
+    console.error(`API Error (createAdminCodeUser - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function updateAdminUserActivationCode(userId, action = "generate", customCode = "") {
+  const relativePath = `/api/admin/users/${userId}/activation-code`;
+  try {
+    const response = await axiosInstance.put(relativePath, { action, customCode });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al gestionar código de activación.";
+    console.error(`API Error (updateAdminUserActivationCode - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function updateAdminUserMaxDevices(userId, maxDevices) {
+  const relativePath = `/api/admin/users/${userId}/max-devices`;
+  try {
+    const response = await axiosInstance.put(relativePath, { maxDevices });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al actualizar límite de dispositivos.";
+    console.error(`API Error (updateAdminUserMaxDevices - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function activateAdminDeviceCode(payload) {
+  const relativePath = "/api/admin/device-code/activate";
+  try {
+    const response = await axiosInstance.post(relativePath, payload);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al activar dispositivo por código.";
+    console.error(`API Error (activateAdminDeviceCode - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
+export async function fetchAdminPendingDeviceCodes() {
+  const relativePath = "/api/admin/device-codes/pending";
+  try {
+    const response = await axiosInstance.get(relativePath);
+    return response.data || [];
+  } catch (error) {
+    console.warn(`API Warning (fetchAdminPendingDeviceCodes): ${error.message}`);
+    return [];
+  }
+}
+
+/* =================== COLLECTIONS =================== */
 export async function getCollections() {
   const relativePath = "/api/collections";
   console.log(`API (getCollections - axios): GET ${relativePath}`);

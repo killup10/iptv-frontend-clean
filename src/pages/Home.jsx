@@ -739,8 +739,8 @@ export function Home() {
         }
 
         // 🔥 EN BACKGROUND: Cargar TODO el contenido (sin bloquear UI) para completar el índice de búsqueda
-        // Phase 2: Diferido inteligentemente para no competir con el renderizado inicial y el scroll en móviles
-        if (!searchDataLoadedRef.current && !staleCachedData?.allSearchItems?.length) {
+        // Phase 2: Diferido inteligentemente (solo en Web/Móvil/PC; en Android TV ya lo gestiona AppTV/TVSearch)
+        if (!isTV && !searchDataLoadedRef.current && !staleCachedData?.allSearchItems?.length) {
           searchDataLoadedRef.current = true;
           const searchSetter = setAllSearchItems;
 

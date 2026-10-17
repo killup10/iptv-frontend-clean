@@ -760,10 +760,175 @@ async function fetchInnerTubeAudioFormat(cleanId) {
   return null;
 }
 
+const crypto = require('crypto');
+const VAULT_MAGIC = Buffer.from('TGVAULT1', 'ascii'); // 8 bytes
+const VAULT_HEADER_SIZE = 32; // 8 magic + 16 IV + 8 size
+const VAULT_KEY = crypto.scryptSync('TeamG-Play-Desktop-Vault-Key-v1-2026', 'tg-vault-salt-9981', 32);
+const vaultStreamTokens = new Map(); // token -> { filePath, mimeType, createdAt }
+
+function getVaultDirectory() {
+  const dir = path.join(app.getPath('userData'), '.sys_vault');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    if (process.platform === 'win32') {
+      try {
+        spawn('attrib', ['+h', '+s', dir], { windowsHide: true });
+      } catch {}
+    }
+  }
+  return dir;
+}
+
+function getVaultFilePath(itemId) {
+  const hash = crypto
+    .createHash('sha256')
+    .update(`tg-item:${String(itemId)}:v1`)
+    .digest('hex')
+    .slice(0, 32);
+  return path.join(getVaultDirectory(), `${hash}.tgv`);
+}
+
+function incrementCounterIv(baseIv, blockOffset) {
+  const ivBuf = Buffer.from(baseIv);
+  let carry = BigInt(blockOffset);
+  for (let i = 15; i >= 0 && carry > 0n; i--) {
+    const sum = BigInt(ivBuf[i]) + (carry & 0xffn);
+    ivBuf[i] = Number(sum & 0xffn);
+    carry = (carry >> 8n) + (sum >> 8n);
+  }
+  return ivBuf;
+}
+
 let musicProxyPort = 0;
 const musicProxyServer = http.createServer(async (req, res) => {
   try {
     const reqUrl = new URL(req.url, `http://127.0.0.1:${musicProxyPort || 54000}`);
+
+    if (reqUrl.pathname === '/vault-stream') {
+      const token = reqUrl.searchParams.get('token');
+      const entry = token ? vaultStreamTokens.get(token) : null;
+      if (!entry || !entry.filePath || !fs.existsSync(entry.filePath)) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+
+      const stat = fs.statSync(entry.filePath);
+      if (stat.size <= VAULT_HEADER_SIZE) {
+        res.writeHead(416);
+        res.end();
+        return;
+      }
+
+      const fd = fs.openSync(entry.filePath, 'r');
+      const headerBuf = Buffer.alloc(VAULT_HEADER_SIZE);
+      fs.readSync(fd, headerBuf, 0, VAULT_HEADER_SIZE, 0);
+      fs.closeSync(fd);
+
+      if (!headerBuf.subarray(0, 8).equals(VAULT_MAGIC)) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+
+      const baseIv = headerBuf.subarray(8, 24);
+      const mediaTotalLength = stat.size - VAULT_HEADER_SIZE;
+      const mimeType = entry.mimeType || 'video/mp4';
+
+      const rangeHeader = req.headers.range;
+      let start = 0;
+      let actualEnd = mediaTotalLength - 1;
+      let statusCode = 200;
+
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          start = parseInt(match[1], 10);
+          const requestedEnd = match[2] ? parseInt(match[2], 10) : mediaTotalLength - 1;
+          actualEnd = Math.min(requestedEnd, mediaTotalLength - 1);
+          statusCode = 206;
+        }
+      }
+
+      if (start < 0 || start >= mediaTotalLength || start > actualEnd) {
+        res.writeHead(416, { 'Content-Range': `bytes */${mediaTotalLength}` });
+        res.end();
+        return;
+      }
+
+      const totalToServe = actualEnd - start + 1;
+      const headers = {
+        'Content-Type': mimeType,
+        'Content-Length': totalToServe,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Access-Control-Allow-Origin': '*',
+      };
+      if (statusCode === 206) {
+        headers['Content-Range'] = `bytes ${start}-${actualEnd}/${mediaTotalLength}`;
+      }
+
+      res.writeHead(statusCode, headers);
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+
+      const blockIndex = Math.floor(start / 16);
+      const skipBytes = start % 16;
+      const alignedStart = blockIndex * 16;
+      const counterIv = incrementCounterIv(baseIv, blockIndex);
+      const decipher = crypto.createDecipheriv('aes-256-ctr', VAULT_KEY, counterIv);
+
+      const fileStream = fs.createReadStream(entry.filePath, {
+        start: VAULT_HEADER_SIZE + alignedStart,
+        end: VAULT_HEADER_SIZE + actualEnd,
+        highWaterMark: 256 * 1024,
+      });
+
+      let bytesToSkip = skipBytes;
+      decipher.on('data', (chunk) => {
+        if (bytesToSkip > 0) {
+          if (chunk.length <= bytesToSkip) {
+            bytesToSkip -= chunk.length;
+            return;
+          }
+          chunk = chunk.subarray(bytesToSkip);
+          bytesToSkip = 0;
+        }
+        if (!res.writableEnded) {
+          const canContinue = res.write(chunk);
+          if (!canContinue) {
+            fileStream.pause();
+          }
+        }
+      });
+
+      res.on('drain', () => {
+        fileStream.resume();
+      });
+
+      decipher.on('end', () => {
+        if (!res.writableEnded) res.end();
+      });
+
+      decipher.on('error', () => {
+        if (!res.writableEnded) res.end();
+      });
+
+      fileStream.on('error', () => {
+        if (!res.writableEnded) res.end();
+      });
+
+      req.on('close', () => {
+        fileStream.destroy();
+        decipher.destroy();
+      });
+
+      fileStream.pipe(decipher);
+      return;
+    }
+
     if (reqUrl.pathname !== '/music-stream') {
       res.writeHead(404);
       res.end();
@@ -837,7 +1002,7 @@ const musicProxyServer = http.createServer(async (req, res) => {
 
 musicProxyServer.listen(0, '127.0.0.1', () => {
   musicProxyPort = musicProxyServer.address().port;
-  console.log(`[Electron Main] ✓ Proxy de audio local activo en http://127.0.0.1:${musicProxyPort}`);
+  console.log(`[Electron Main] ✓ Proxy local (Audio + Vault Cifrado) activo en http://127.0.0.1:${musicProxyPort}`);
 });
 
 ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
@@ -851,6 +1016,138 @@ ipcMain.handle('music-get-direct-audio', async (_event, youtubeId) => {
   const streamUrl = `http://127.0.0.1:${musicProxyPort}/music-stream?id=${cleanId}`;
   console.log('[Electron Main] ✓ Stream local listo para Chromium:', streamUrl);
   return streamUrl;
+});
+
+ipcMain.handle('vault-download', async (event, { id, url, headers = {}, minBytes = 20480 }) => {
+  if (!id || !url) {
+    throw new Error('Parámetros inválidos para la bóveda offline.');
+  }
+  const targetPath = getVaultFilePath(id);
+  const tempPath = `${targetPath}.part`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Accept': '*/*',
+        ...headers,
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Error HTTP al descargar contenido: ${res.status}`);
+    }
+
+    const contentLength = Number(res.headers.get('content-length')) || 0;
+    const mimeType = res.headers.get('content-type') || 'video/mp4';
+    if (/text\/html|application\/json/i.test(mimeType)) {
+      throw new Error('El servidor no devolvió un flujo multimedia válido.');
+    }
+
+    const baseIv = crypto.randomBytes(16);
+    const headerBuf = Buffer.alloc(VAULT_HEADER_SIZE);
+    VAULT_MAGIC.copy(headerBuf, 0);
+    baseIv.copy(headerBuf, 8);
+    headerBuf.writeBigUInt64BE(BigInt(contentLength), 24);
+
+    const cipher = crypto.createCipheriv('aes-256-ctr', VAULT_KEY, baseIv);
+    const writeStream = fs.createWriteStream(tempPath);
+    writeStream.write(headerBuf);
+
+    const reader = res.body.getReader();
+    let receivedBytes = 0;
+    let lastProgressAt = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      receivedBytes += chunk.length;
+      const encryptedChunk = cipher.update(chunk);
+      if (encryptedChunk.length > 0) {
+        if (!writeStream.write(encryptedChunk)) {
+          await new Promise((resolve) => writeStream.once('drain', resolve));
+        }
+      }
+
+      const now = Date.now();
+      if (now - lastProgressAt >= 400) {
+        lastProgressAt = now;
+        const progress = contentLength > 0 ? Math.min(99, Math.round((receivedBytes / contentLength) * 100)) : 50;
+        try {
+          event.sender.send('vault-download-progress', {
+            id: String(id),
+            bytes: receivedBytes,
+            total: contentLength,
+            progress,
+          });
+        } catch {}
+      }
+    }
+
+    const finalEncrypted = cipher.final();
+    if (finalEncrypted.length > 0) {
+      writeStream.write(finalEncrypted);
+    }
+
+    await new Promise((resolve, reject) => {
+      writeStream.end((err) => (err ? reject(err) : resolve()));
+    });
+
+    if (receivedBytes < minBytes || (contentLength > 0 && receivedBytes !== contentLength)) {
+      try { fs.unlinkSync(tempPath); } catch {}
+      throw new Error('La descarga se interrumpió antes de completarse.');
+    }
+
+    if (fs.existsSync(targetPath)) {
+      try { fs.unlinkSync(targetPath); } catch {}
+    }
+    fs.renameSync(tempPath, targetPath);
+
+    return {
+      success: true,
+      vaultId: String(id),
+      sizeBytes: receivedBytes,
+      mimeType,
+    };
+  } catch (err) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    throw err;
+  }
+});
+
+ipcMain.handle('vault-get-playback-url', async (_event, { id, mimeType = 'video/mp4' }) => {
+  if (!id) throw new Error('ID de contenido requerido.');
+  const targetPath = getVaultFilePath(id);
+  if (!fs.existsSync(targetPath)) {
+    throw new Error('El contenido descargado ya no se encuentra en la bóveda local.');
+  }
+  const token = crypto.randomBytes(20).toString('hex');
+  vaultStreamTokens.set(token, {
+    filePath: targetPath,
+    mimeType,
+    createdAt: Date.now(),
+  });
+  return `http://127.0.0.1:${musicProxyPort}/vault-stream?token=${token}`;
+});
+
+ipcMain.handle('vault-delete', async (_event, { id }) => {
+  if (!id) return false;
+  const targetPath = getVaultFilePath(id);
+  for (const [token, info] of vaultStreamTokens.entries()) {
+    if (info.filePath === targetPath) {
+      vaultStreamTokens.delete(token);
+    }
+  }
+  if (fs.existsSync(targetPath)) {
+    try {
+      fs.unlinkSync(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 });
 
 app.on('before-quit', (event) => {

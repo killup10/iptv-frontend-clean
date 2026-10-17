@@ -109,6 +109,24 @@ try {
     },
 
     /**
+     * Bóveda Cifrada Offline (AES-256-CTR) para PC
+     */
+    vaultDownload: (payload) => {
+      return ipcRenderer.invoke('vault-download', payload);
+    },
+    vaultGetPlaybackUrl: (payload) => {
+      return ipcRenderer.invoke('vault-get-playback-url', payload);
+    },
+    vaultDelete: (payload) => {
+      return ipcRenderer.invoke('vault-delete', payload);
+    },
+    onVaultDownloadProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('vault-download-progress', handler);
+      return () => ipcRenderer.removeListener('vault-download-progress', handler);
+    },
+
+    /**
      * Suscribirse a errores de MPV
      */
     on: (channel, callback) => {

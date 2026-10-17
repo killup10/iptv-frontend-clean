@@ -456,8 +456,64 @@ async function performDownload(mediaItem) {
       const currentList = getDownloads();
       saveDownloads([downloadRecord, ...currentList]);
 
+    } else if (typeof window !== 'undefined' && window.electronAPI?.vaultDownload) {
+      // === ALMACENAMIENTO CIFRADO EN PC / ELECTRON (AES-256-CTR VAULT) ===
+      console.log(`[offlineStorage] Guardando en Bóveda Cifrada de PC: ${mediaItem.title}`);
+      let unsubscribe = null;
+      if (typeof window.electronAPI.onVaultDownloadProgress === 'function') {
+        unsubscribe = window.electronAPI.onVaultDownloadProgress((evt) => {
+          if (String(evt?.id) === itemId) {
+            publishDownload(itemId, {
+              status: 'downloading',
+              bytes: evt.bytes || 0,
+              total: evt.total || 0,
+              progress: evt.progress || 0,
+            });
+          }
+        });
+      }
+
+      let vaultRes;
+      try {
+        vaultRes = await window.electronAPI.vaultDownload({
+          id: itemId,
+          url: directVideoUrl,
+          minBytes: 102400,
+        });
+      } finally {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      }
+
+      const receivedBytes = Number(vaultRes?.sizeBytes || 0);
+      const downloadRecord = {
+        id: itemId,
+        videoId: mediaItem.videoId || itemId,
+        title: mediaItem.title || 'Contenido',
+        tipo: mediaItem.tipo || 'pelicula',
+        poster: mediaItem.poster || '',
+        backdrop: mediaItem.backdrop || '',
+        year: mediaItem.year || '',
+        duration: mediaItem.duration || '',
+        seasonNumber: mediaItem.seasonNumber || null,
+        episodeNumber: mediaItem.episodeNumber || null,
+        episodeTitle: mediaItem.episodeTitle || null,
+        filePath: `vault://${itemId}`,
+        fileName: `${itemId}.tgv`,
+        mimeType: vaultRes?.mimeType || 'video/mp4',
+        sizeBytes: receivedBytes,
+        sizeFormatted: formatBytes(receivedBytes),
+        downloadedAt: Date.now(),
+        licenseExpiresAt: Date.now() + OFFLINE_LICENSE_DURATION_MS,
+        lastOnlineValidation: Date.now(),
+        isEncrypted: true,
+        storageType: 'electron_vault',
+      };
+
+      const currentList = getDownloads();
+      saveDownloads([downloadRecord, ...currentList]);
+
     } else {
-      // === ALMACENAMIENTO WEB / DESKTOP (INDEXEDDB / CACHE API) ===
+      // === ALMACENAMIENTO WEB (INDEXEDDB / CACHE API) ===
       console.log(`[offlineStorage] Descargando video mediante Cache API / Blob: ${mediaItem.title}`);
       
       const response = await fetch(directVideoUrl);
@@ -538,6 +594,9 @@ export async function deleteDownload(id) {
         directory: Directory.Data,
       });
       console.log('[offlineStorage] Archivo físico eliminado de sandbox:', item.filePath);
+    } else if (item.storageType === 'electron_vault' && window?.electronAPI?.vaultDelete) {
+      await window.electronAPI.vaultDelete({ id: itemId });
+      console.log('[offlineStorage] Archivo cifrado eliminado de la bóveda de PC:', itemId);
     } else if (item.storageType === 'cache_api' && item.filePath) {
       const cache = await caches.open('teamg-offline-vod-v1');
       await cache.delete(item.filePath);
@@ -592,6 +651,11 @@ export async function getOfflinePlaybackUrl(id) {
     });
     // Retorna uri nativo local (file:///data/user/0/play.teamg.store/files/teamg_offline_vod/...)
     return uriResult.uri;
+  } else if (item.storageType === 'electron_vault' && window?.electronAPI?.vaultGetPlaybackUrl) {
+    return await window.electronAPI.vaultGetPlaybackUrl({
+      id: String(item.id),
+      mimeType: item.mimeType || 'video/mp4',
+    });
   } else if (item.storageType === 'cache_api') {
     const cache = await caches.open('teamg-offline-vod-v1');
     const cachedResponse = await cache.match(item.filePath);

@@ -732,8 +732,66 @@ export async function downloadTrackOffline(track, onProgress = null) {
       }
       localFilePath = relativeFilePath;
 
+    } else if (typeof window !== 'undefined' && window.electronAPI?.vaultDownload) {
+      // === ALMACENAMIENTO CIFRADO EN PC / ELECTRON (AES-256-CTR VAULT) ===
+      storageType = 'electron_vault';
+      const vaultKeyId = `music_${trackId}`;
+      const isYtStream = /googlevideo\.com|youtube\.com/i.test(audioDownloadUrl);
+      const downloadHeaders = isYtStream ? {
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
+        'Accept': '*/*'
+      } : {
+        'Accept': '*/*'
+      };
+
+      let unsubscribe = null;
+      if (typeof window.electronAPI.onVaultDownloadProgress === 'function') {
+        unsubscribe = window.electronAPI.onVaultDownloadProgress((evt) => {
+          if (String(evt?.id) === vaultKeyId) {
+            const pct = Math.min(98, Math.max(25, Math.round(25 + ((evt.progress || 0) * 0.73))));
+            notifyProgress({
+              id: trackId,
+              progress: pct,
+              status: 'downloading',
+              bytes: evt.bytes || 0,
+              total: evt.total || 0,
+            });
+          }
+        });
+      }
+
+      let vaultRes;
+      try {
+        try {
+          vaultRes = await window.electronAPI.vaultDownload({
+            id: vaultKeyId,
+            url: audioDownloadUrl,
+            headers: downloadHeaders,
+            minBytes: 20480,
+          });
+        } catch (primaryErr) {
+          const altCdn = await resolveFallbackCdnAudio(track);
+          if (altCdn && altCdn !== audioDownloadUrl) {
+            vaultRes = await window.electronAPI.vaultDownload({
+              id: vaultKeyId,
+              url: altCdn,
+              headers: { 'Accept': '*/*' },
+              minBytes: 20480,
+            });
+          } else {
+            throw primaryErr;
+          }
+        }
+      } finally {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      }
+
+      finalSizeBytes = Number(vaultRes?.sizeBytes || 0);
+      localFilePath = `vault://${vaultKeyId}`;
+      track._vaultMimeType = vaultRes?.mimeType || 'audio/mp4';
+
     } else {
-      // === ALMACENAMIENTO WEB / DESKTOP (CACHE API / BLOB) ===
+      // === ALMACENAMIENTO WEB (CACHE API / BLOB) ===
       storageType = 'cache_api';
       let targetWebUrl = audioDownloadUrl;
       // En Web los navegadores bloquean CORS a googlevideo. Usamos CDN directa (Apple/Deezer).
@@ -808,6 +866,7 @@ export async function downloadTrackOffline(track, onProgress = null) {
       releaseDate: track.releaseDate || '',
       filePath: localFilePath,
       fileName: safeFileName,
+      mimeType: track._vaultMimeType || 'audio/mp4',
       sizeBytes: finalSizeBytes,
       sizeFormatted: formatBytes(finalSizeBytes),
       storageType: storageType,
@@ -1058,6 +1117,9 @@ export async function deleteOfflineTrack(trackId) {
         directory: Directory.Data
       });
       console.log('[musicOfflineService] Archivo físico eliminado:', track.filePath);
+    } else if (track.storageType === 'electron_vault' && window?.electronAPI?.vaultDelete) {
+      await window.electronAPI.vaultDelete({ id: `music_${idStr}` });
+      console.log('[musicOfflineService] Canción cifrada eliminada de bóveda de PC:', idStr);
     } else if (track.storageType === 'cache_api' && track.filePath) {
       const cache = await caches.open(CACHE_NAME);
       await cache.delete(track.filePath);
@@ -1185,6 +1247,15 @@ export async function getOfflinePlaybackUrls(trackId) {
     return {
       nativeUrl: nativeUri, // Aceptado directamente por ExoPlayer nativo en Android
       webUrl: webUri       // Aceptado por elementos <audio> en el WebView
+    };
+  } else if (track.storageType === 'electron_vault' && window?.electronAPI?.vaultGetPlaybackUrl) {
+    const vaultUrl = await window.electronAPI.vaultGetPlaybackUrl({
+      id: `music_${String(track.id)}`,
+      mimeType: track.mimeType || 'audio/mp4',
+    });
+    return {
+      nativeUrl: vaultUrl,
+      webUrl: vaultUrl,
     };
   } else if (track.storageType === 'cache_api') {
     const cache = await caches.open(CACHE_NAME);

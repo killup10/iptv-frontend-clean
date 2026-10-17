@@ -81,11 +81,11 @@ export default function TVEpgGuide({
     return () => clearInterval(timer);
   }, []);
 
+  const halfHourBucket = Math.floor(now.getTime() / (30 * 60 * 1000));
+
   // Timeline bounds: 1h in the past, 7h in future (total 8h)
   const { timelineStart, timelineEnd, timeTicks } = useMemo(() => {
-    const start = new Date(now);
-    start.setSeconds(0, 0);
-    start.setMinutes(start.getMinutes() >= 30 ? 30 : 0);
+    const start = new Date(halfHourBucket * 30 * 60 * 1000);
 
     const tStart = new Date(start.getTime() - 1 * 60 * 60 * 1000);
     const tEnd = new Date(tStart.getTime() + 8 * 60 * 60 * 1000);
@@ -98,7 +98,7 @@ export default function TVEpgGuide({
     }
 
     return { timelineStart: tStart, timelineEnd: tEnd, timeTicks: ticks };
-  }, [now]);
+  }, [halfHourBucket]);
 
   const GRID_WIDTH = 8 * 60 * PIXELS_PER_MINUTE; // 1440px
 
@@ -113,6 +113,7 @@ export default function TVEpgGuide({
     const map = new Map();
     const tStartTime = timelineStart.getTime();
     const tEndTime = timelineEnd.getTime();
+    const referenceNow = new Date(halfHourBucket * 30 * 60 * 1000);
 
     channels.forEach((channel, idx) => {
       const realNow = (channel.epg || channel.currentProgram) ? {
@@ -128,7 +129,7 @@ export default function TVEpgGuide({
         stop: channel.nextProgramStop,
       } : null;
 
-      const allPrograms = getEPGForChannel(channel.name, channel.id || channel._id || idx, now, realNow, realNext);
+      const allPrograms = getEPGForChannel(channel.name, channel.id || channel._id || idx, referenceNow, realNow, realNext);
 
       const visible = allPrograms.filter((p) => {
         const pEnd = new Date(p.end).getTime();
@@ -139,7 +140,7 @@ export default function TVEpgGuide({
       map.set(idx, visible.length ? visible : allPrograms);
     });
     return map;
-  }, [channels, now, timelineStart, timelineEnd]);
+  }, [channels, halfHourBucket, timelineStart, timelineEnd]);
 
   // Update map in ref
   useEffect(() => {
