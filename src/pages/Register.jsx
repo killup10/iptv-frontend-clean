@@ -8,11 +8,13 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting || success) return;
     setError(null);
     setSuccess(false);
 
@@ -21,8 +23,9 @@ function Register() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      await register({ username, password });
+      await register({ username: username.trim(), password });
       setSuccess(true);
       // Opcional: Redirigir al usuario a la página de login o a la Home después de un registro exitoso
       setTimeout(() => {
@@ -31,6 +34,8 @@ function Register() {
     } catch (err) {
       console.error("Error de registro:", err);
       setError(err.message || "Error al registrar el usuario. Inténtalo de nuevo.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -40,13 +45,13 @@ function Register() {
         <h2 className="text-3xl font-bold text-white text-center mb-6">Registrarse en TeamG Play</h2>
         
         {error && (
-          <div className="bg-red-500 text-white p-3 rounded mb-4 text-center">
+          <div className="bg-red-500 text-white p-3 rounded mb-4 text-center" role="alert">
             {error}
           </div>
         )}
         {success && (
           <div className="bg-green-500 text-white p-3 rounded mb-4 text-center">
-            ¡Registro exitoso! Redirigiendo...
+            ¡Registro exitoso! Tu cuenta está pendiente de aprobación. Redirigiendo al inicio de sesión...
           </div>
         )}
 
@@ -68,6 +73,8 @@ function Register() {
               type="password"
               id="password"
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-800 border-gray-700 text-white"
+              minLength={6}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -87,9 +94,10 @@ function Register() {
           <div className="flex items-center justify-between">
             <button
               type="submit"
+              disabled={isSubmitting || success}
               className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
             >
-              Registrarse
+              {isSubmitting ? "Registrando..." : "Registrarse"}
             </button>
           </div>
         </form>

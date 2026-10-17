@@ -221,7 +221,17 @@ export const register = async (username, password) => {
     const response = await axiosInstance.post(registerPath, { username, password });
     return response.data;
   } catch (error) {
-    throw error.response?.data || new Error(error.message || "Error desconocido en el servicio de registro.");
+    const message =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      (error.response?.status === 409 ? "El nombre de usuario ya está en uso." : null) ||
+      error.message ||
+      "Error desconocido en el servicio de registro.";
+    const registrationError = new Error(message);
+    if (error.response) {
+      registrationError.response = error.response;
+    }
+    throw registrationError;
   }
 };
 
