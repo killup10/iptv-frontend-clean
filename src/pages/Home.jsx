@@ -6,6 +6,7 @@ import Carousel from '../components/Carousel.jsx';
 import TVHome from '../components/TVHome.jsx';
 import { supportsHomeLivePlayer } from '../hooks/useHomeLivePlayer.js';
 import { isAndroidMobile, isAndroidTV } from '../utils/platformUtils.js';
+import { playLiveChannel } from '../utils/playerUtils.js';
 import axiosInstance from '../utils/axiosInstance.js';
 import useDataCache from '../hooks/useDataCache.js';
 import Toast from '../components/Toast.jsx';
@@ -740,7 +741,7 @@ export function Home() {
 
         // 🔥 EN BACKGROUND: Cargar TODO el contenido (sin bloquear UI) para completar el índice de búsqueda
         // Phase 2: Diferido inteligentemente (solo en Web/Móvil/PC; en Android TV ya lo gestiona AppTV/TVSearch)
-        if (!isTV && !searchDataLoadedRef.current && !staleCachedData?.allSearchItems?.length) {
+        if (!isTVMode && !searchDataLoadedRef.current && !staleCachedData?.allSearchItems?.length) {
           searchDataLoadedRef.current = true;
           const searchSetter = setAllSearchItems;
 
@@ -894,7 +895,23 @@ export function Home() {
       : (itemType || item?.itemType || item?.tipo || 'movie');
     const resolvedType = resolveTVItemType(item, fallbackType);
 
-    if (isTVMode || resolvedType === 'channel') {
+    if (resolvedType === 'channel') {
+      if (isAndroidMobileUI) {
+        checkContentAccess(item, async () => {
+          try {
+            await playLiveChannel(item, featuredChannels);
+          } catch (err) {
+            console.warn('[Home.jsx] Error playing channel directly:', err);
+            navigateToItem(item, itemType);
+          }
+        });
+        return;
+      }
+      navigateToItem(item, itemType);
+      return;
+    }
+
+    if (isTVMode) {
       navigateToItem(item, itemType);
       return;
     }

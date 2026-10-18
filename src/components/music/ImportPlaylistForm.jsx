@@ -32,7 +32,7 @@ export default function ImportPlaylistForm({ createPlaylist }) {
     <section className="p-4 rounded-2xl bg-white/5 border border-white/10">
       <button type="button" onClick={() => setExpanded(v => !v)} aria-expanded={expanded} aria-controls="playlist-import-form"
         className="min-h-11 flex items-center gap-2 text-sm font-bold text-fuchsia-300">
-        <DownloadCloud className="w-5 h-5" aria-hidden="true" /> Traer mi playlist
+        <DownloadCloud className="w-5 h-5" aria-hidden="true" /> <span>Traer mi playlist</span>
       </button>
       {expanded && (
         <div id="playlist-import-form" className="mt-3 space-y-3">
@@ -46,7 +46,7 @@ export default function ImportPlaylistForm({ createPlaylist }) {
             <button type="submit" disabled={loading || !url.trim()}
               className="min-h-11 px-5 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-sm font-bold disabled:opacity-40 flex items-center gap-2">
               {loading && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
-              {loading ? 'Leyendo playlist…' : 'Leer enlace'}
+              <span>{loading ? 'Leyendo playlist…' : 'Leer enlace'}</span>
             </button>
           </form>
           {error && <p role="alert" className="text-sm text-red-300">{error}</p>}

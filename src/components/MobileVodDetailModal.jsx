@@ -326,10 +326,6 @@ export default function MobileVodDetailModal({
     return () => window.clearTimeout(timer);
   }, [myListFeedback.message]);
 
-  if (!isOpen || !modalItem) {
-    return null;
-  }
-
   const title = getTVItemTitle(modalItem);
   const description = getTVItemDescription(modalItem);
   const backdropImage = getTVItemBackdrop(modalItem);
@@ -555,6 +551,24 @@ export default function MobileVodDetailModal({
     const failures=results.filter(result=>result.status==='rejected');
     if(failures.length)alert(`${failures.length} episodios no pudieron descargarse. Puedes reintentarlos en Modo Offline.`);
   };
+  const selectedEpisodeCard = currentEpisodeSummary ? (
+    <button type="button" onClick={handlePlaySelection} className="vod-classic-episode" aria-label={`Ver ${currentEpisodeSummary.label}: ${currentEpisodeSummary.title}`}>
+      <div className="vod-classic-episode-art">
+        <img src={selectedEpisode?.backdrop || selectedEpisode?.image || backdropImage || posterImage} alt="" />
+        <span className="vod-classic-episode-play"><Play className="h-5 w-5 fill-current" /></span>
+      </div>
+      <div className="vod-classic-episode-copy">
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">Episodio seleccionado · {currentEpisodeSummary.label}</p>
+        <p className="mt-2 text-sm font-bold leading-5 text-white">{currentEpisodeSummary.title}</p>
+        {currentEpisodeSummary.duration && <p className="mt-1 text-xs text-slate-400">{currentEpisodeSummary.duration}</p>}
+      </div>
+    </button>
+  ) : null;
+
+  if (!isOpen || !modalItem) {
+    return null;
+  }
+
   return (
     <div className="fixed inset-0" style={{ zIndex: 100000 }}>
       <div
@@ -565,11 +579,11 @@ export default function MobileVodDetailModal({
       <div className="absolute inset-0 overflow-y-auto">
         <div className="min-h-full px-4 py-5 sm:px-6">
           <section role="dialog" aria-modal="true" aria-label={title} className="vod-classic relative mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-fuchsia-300/14 bg-[#050816] shadow-[0_28px_90px_rgba(2,6,23,0.78)]">
-            <div className="absolute inset-0 overflow-hidden">
+            <div className="vod-classic-backdrop absolute inset-0 overflow-hidden" aria-hidden="true">
               <img
                 src={backdropImage}
                 alt={title}
-                className="h-full w-full object-cover opacity-28 blur-[3px] scale-105"
+                className="h-full w-full object-cover opacity-[0.28] blur-[3px] scale-105"
               />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(217,70,239,0.24),transparent_24%),radial-gradient(circle_at_82%_14%,rgba(34,211,238,0.18),transparent_24%)]" />
               <div className="absolute inset-0 bg-gradient-to-b from-[#090214]/48 via-[#050816]/92 to-[#030712]" />
@@ -606,19 +620,7 @@ export default function MobileVodDetailModal({
                       className="vod-classic-poster-image"
                     />
                   </div>
-                  {currentEpisodeSummary && (
-                    <button type="button" onClick={handlePlaySelection} className="vod-classic-episode" aria-label={`Ver ${currentEpisodeSummary.label}: ${currentEpisodeSummary.title}`}>
-                      <div className="vod-classic-episode-art">
-                        <img src={selectedEpisode?.backdrop || selectedEpisode?.image || backdropImage || posterImage} alt="" />
-                        <span className="vod-classic-episode-play"><Play className="h-5 w-5 fill-current" /></span>
-                      </div>
-                      <div className="vod-classic-episode-copy">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">Episodio seleccionado · {currentEpisodeSummary.label}</p>
-                        <p className="mt-2 text-sm font-bold leading-5 text-white">{currentEpisodeSummary.title}</p>
-                        {currentEpisodeSummary.duration && <p className="mt-1 text-xs text-slate-400">{currentEpisodeSummary.duration}</p>}
-                      </div>
-                    </button>
-                  )}
+                  <div className="vod-classic-selected-desktop">{selectedEpisodeCard}</div>
                 </div>
 
                 <div className="min-w-0">
@@ -859,6 +861,8 @@ export default function MobileVodDetailModal({
                 </div>
               </div>
 
+              <div className="vod-classic-selected-mobile">{selectedEpisodeCard}</div>
+
               {hasEpisodesContent && (
                 <div className="mt-6 space-y-4">
                   <div className="rounded-[24px] border border-white/10 bg-slate-950/42 p-4">
@@ -918,7 +922,7 @@ export default function MobileVodDetailModal({
                       </div>
                     </div>
 
-                    <div className="space-y-2.5">
+                    <div className="vod-classic-episode-list space-y-2.5" role="region" aria-label={`Episodios de la temporada ${selectedSeasonNumber}`} tabIndex={0}>
                       {selectedSeasonEpisodes.map((episode, index) => {
                         if (!episode) {
                           return null;
@@ -933,6 +937,7 @@ export default function MobileVodDetailModal({
                             key={`${selectedSeasonNumber}-${episodeNumber}-${index}`}
                             type="button"
                             onClick={() => setSelectedEpisodeIndex(index)}
+                            aria-pressed={isSelected}
                             className={`w-full rounded-[18px] border px-4 py-3 text-left transition-all duration-200 ${
                               isSelected
                                 ? 'border-cyan-300 bg-cyan-400/12 shadow-[0_0_0_1px_rgba(103,232,249,0.32)]'
@@ -961,6 +966,7 @@ export default function MobileVodDetailModal({
                         );
                       })}
                     </div>
+
                   </div>
                 </div>
               )}

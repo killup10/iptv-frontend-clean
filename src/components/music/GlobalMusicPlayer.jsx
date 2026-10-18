@@ -193,6 +193,8 @@ export default function GlobalMusicPlayer() {
   const [videoError, setVideoError] = useState('');
   const [videoLoading, setVideoLoading] = useState(false);
   const [largeVideo, setLargeVideo] = useState(false);
+  const [dragOffsetX, setDragOffsetX] = useState(0);
+  const [isDraggingCover, setIsDraggingCover] = useState(false);
   const requestedVideoTrackRef = useRef(null);
   const playbackTimeRef = useRef(currentTime);
   playbackTimeRef.current = currentTime;
@@ -208,6 +210,8 @@ export default function GlobalMusicPlayer() {
     setVideoError('');
     setLargeVideo(false);
     setShowArtistPickerModal(false);
+    setDragOffsetX(0);
+    setIsDraggingCover(false);
   }, [currentTrack?.id]);
 
   // Efecto: Cargar letra oficial cuando cambia la canción (0% consumo en Render)
@@ -275,6 +279,29 @@ export default function GlobalMusicPlayer() {
     return parseArtists(currentTrack.artist);
   }, [currentTrack?.artist, currentTrack?.isRadio]);
 
+  // Pistas adyacentes (anterior y siguiente) para el carrusel tipo "Peek"
+  const { prevTrackItem, nextTrackItem } = useMemo(() => {
+    if (!currentTrack || currentTrack.isRadio || !Array.isArray(queue) || queue.length <= 1) {
+      return { prevTrackItem: null, nextTrackItem: null };
+    }
+    const activeIdx = (queueIndex >= 0 && queue[queueIndex]?.id === currentTrack.id)
+      ? queueIndex
+      : queue.findIndex(t => t.id === currentTrack.id);
+    if (activeIdx === -1) return { prevTrackItem: null, nextTrackItem: null };
+
+    const prevIdx = activeIdx > 0
+      ? activeIdx - 1
+      : queue.length - 1;
+    const nextIdx = activeIdx < queue.length - 1
+      ? activeIdx + 1
+      : 0;
+
+    return {
+      prevTrackItem: prevIdx >= 0 && prevIdx !== activeIdx ? queue[prevIdx] : null,
+      nextTrackItem: nextIdx >= 0 && nextIdx !== activeIdx ? queue[nextIdx] : null
+    };
+  }, [currentTrack, queue, queueIndex]);
+
   // Referencia táctil para gestos móviles fluidos (Previo, Siguiente, Letra, Minimizar)
   const touchStartRef = useRef(null);
 
@@ -295,44 +322,77 @@ export default function GlobalMusicPlayer() {
     touchStartRef.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
-      time: Date.now()
+      time: Date.now(),
+      axis: null
     };
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartRef.current || !e.touches || e.touches.length === 0) return;
+    if (isVideoMode || showLyrics || currentTrack?.isRadio) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+
+    if (!touchStartRef.current.axis && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+      touchStartRef.current.axis = Math.abs(deltaX) >= Math.abs(deltaY) * 0.8 ? 'x' : 'y';
+    }
+
+    if (touchStartRef.current.axis === 'x') {
+      const hasTarget = (deltaX < 0 && nextTrackItem) || (deltaX > 0 && prevTrackItem) || (Array.isArray(queue) && queue.length > 1);
+      const factor = hasTarget ? 0.85 : 0.28;
+      const clamped = Math.max(-180, Math.min(180, deltaX * factor));
+      setIsDraggingCover(true);
+      setDragOffsetX(clamped);
+    }
   };
 
   const handleTouchCancel = () => {
     touchStartRef.current = null;
+    setIsDraggingCover(false);
+    setDragOffsetX(0);
   };
 
   const handleTouchEnd = (e) => {
-    if (!touchStartRef.current) return;
-    const touch = e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0] : null;
-    if (!touch) {
-      touchStartRef.current = null;
+    if (!touchStartRef.current) {
+      setIsDraggingCover(false);
+      setDragOffsetX(0);
       return;
     }
-    const deltaX = touch.clientX - touchStartRef.current.x;
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    const elapsed = Date.now() - touchStartRef.current.time;
+    const touch = e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0] : null;
+    const lockedAxis = touchStartRef.current.axis;
+    const startX = touchStartRef.current.x;
+    const startY = touchStartRef.current.y;
+    const startTime = touchStartRef.current.time;
     touchStartRef.current = null;
+    setIsDraggingCover(false);
+    setDragOffsetX(0);
 
-    if (elapsed > 1000) return; // Ignorar toques prolongados
+    if (!touch) return;
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const elapsed = Date.now() - startTime;
+
+    if (elapsed > 1200) return; // Ignorar toques prolongados
 
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
     // 1. GESTO HORIZONTAL PREDOMINANTE: Izquierda = Siguiente canción, Derecha = Canción anterior
-    if (absX > 30 && absX > absY * 0.7) {
+    if ((lockedAxis === 'x' && absX > 38) || (absX > 42 && absX > absY * 0.7)) {
       if (deltaX < 0) {
         // Deslizar izquierda (←) -> Siguiente pista
         if (!currentTrack?.isRadio) {
-          showStatusMessage('⏭ Siguiente canción');
+          showStatusMessage(nextTrackItem ? `⏭ ${nextTrackItem.title}` : '⏭ Siguiente canción');
           nextTrack();
         }
       } else {
-        // Deslizar derecha (→) -> Canción anterior
+        // Deslizar derecha (→) -> Canción anterior inmediata (skipRestart = true)
         if (!currentTrack?.isRadio) {
-          showStatusMessage('⏮ Canción anterior');
-          prevTrack();
+          showStatusMessage(prevTrackItem ? `⏮ ${prevTrackItem.title}` : '⏮ Canción anterior');
+          prevTrack(true);
         }
       }
       return;
@@ -868,6 +928,7 @@ export default function GlobalMusicPlayer() {
             {/* Visualizador Central con soporte de gestos táctiles directos */}
             <div
               onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onTouchCancel={handleTouchCancel}
               style={{ touchAction: 'none' }}
@@ -876,7 +937,7 @@ export default function GlobalMusicPlayer() {
               {/* VISTA 1: MODO VIDEO MUSICAL OFICIAL */}
               {isVideoMode && officialVideo ? (
                 <div id="teamg-music-video-player" className={largeVideo ? "teamg-music-video-container fixed inset-0 z-[100001] bg-black flex items-center justify-center" : "teamg-music-video-container relative w-full aspect-video max-h-[34vh] rounded-2xl overflow-hidden border border-white/15 bg-black"}>
-                  <div className="absolute inset-0 pointer-events-none">
+                  <div key={`yt-video-${officialVideo.id}`} className="absolute inset-0 pointer-events-none">
                   <ReactPlayer
                     key={officialVideo.id}
                     ref={videoPlayerRef}
@@ -908,14 +969,101 @@ export default function GlobalMusicPlayer() {
               ) : showLyrics ? (
                 <LyricsPanel data={lyricsData} loading={isLoadingLyrics} currentTime={currentTime} duration={duration} trackKey={currentTrack?.id || `${currentTrack?.artist}-${currentTrack?.title}`} onSeek={seekTo} onClose={() => setShowLyrics(false)} />
               ) : (
-                /* VISTA: CARÁTULA HD CON GLOW AMBIENTAL */
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute -inset-2 bg-gradient-to-r from-fuchsia-600/30 via-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl opacity-60 animate-pulse pointer-events-none" />
-                  <img
-                    src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'}
-                    alt={currentTrack.title}
-                    className="relative w-64 h-64 max-h-[34vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-2xl border border-white/15 transition-transform duration-500 hover:scale-[1.02] pointer-events-none"
-                  />
+                /* VISTA: CARRUSEL DE PORTADAS CON VISTA PREVIA LATERAL ("PEEK COVER CAROUSEL") */
+                <div
+                  className="relative w-full flex items-center justify-center overflow-hidden py-3 select-none"
+                >
+                  {/* Portada Izquierda (Canción Anterior) */}
+                  {prevTrackItem && !currentTrack.isRadio && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showStatusMessage(`⏮ ${prevTrackItem.title}`);
+                        prevTrack(true);
+                      }}
+                      aria-label={`Canción anterior: ${prevTrackItem.title}`}
+                      title={`Anterior: ${prevTrackItem.title}`}
+                      style={{
+                        transform: `translate3d(calc(-100% - 16px + ${dragOffsetX}px), 0, 0) scale(${0.88 + Math.min(Math.max(0, dragOffsetX) / 200, 1) * 0.12})`,
+                        opacity: 0.55 + Math.min(Math.max(0, dragOffsetX) / 160, 1) * 0.45,
+                        transition: isDraggingCover ? 'none' : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 380ms ease'
+                      }}
+                      className="absolute z-10 w-60 h-60 max-h-[33vh] aspect-square sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/60 cursor-pointer focus:outline-none active:scale-95"
+                    >
+                      <img
+                        src={prevTrackItem.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'}
+                        alt={prevTrackItem.title}
+                        className="w-full h-full object-cover brightness-75 pointer-events-none"
+                      />
+                    </button>
+                  )}
+
+                  {/* Portada Central Activa con seguimiento táctil 1:1 */}
+                  <div
+                    key={currentTrack.id}
+                    style={{
+                      transform: `translate3d(${dragOffsetX}px, 0, 0) scale(${1 - Math.min(Math.abs(dragOffsetX) / 950, 0.08)})`,
+                      transition: isDraggingCover ? 'none' : 'transform 400ms cubic-bezier(0.22, 1, 0.36, 1)'
+                    }}
+                    className="relative z-20 flex items-center justify-center animate-in fade-in zoom-in-95 duration-300"
+                  >
+                    <div className="absolute -inset-2 bg-gradient-to-r from-fuchsia-600/35 via-purple-600/35 to-pink-600/35 rounded-3xl blur-2xl opacity-70 animate-pulse pointer-events-none" />
+                    <img
+                      src={currentTrack.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'}
+                      alt={currentTrack.title}
+                      className="relative w-60 h-60 max-h-[33vh] aspect-square sm:w-72 sm:h-72 md:w-80 md:h-80 rounded-3xl object-cover shadow-[0_20px_50px_rgba(0,0,0,0.75)] border border-white/20 pointer-events-none"
+                    />
+
+                    {/* Indicador visual flotante al arrastrar hacia izquierda o derecha */}
+                    {Math.abs(dragOffsetX) > 24 && !currentTrack.isRadio && (
+                      <div className="absolute inset-x-3 bottom-3 flex items-center justify-center pointer-events-none">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-fuchsia-400/40 text-white text-xs font-bold shadow-lg max-w-full">
+                          {dragOffsetX < 0 ? (
+                            <>
+                              <SkipForward className="w-3.5 h-3.5 text-fuchsia-400 shrink-0" />
+                              <span className="truncate">
+                                {nextTrackItem ? `Siguiente: ${nextTrackItem.title}` : 'Siguiente canción'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <SkipBack className="w-3.5 h-3.5 text-fuchsia-400 shrink-0" />
+                              <span className="truncate">
+                                {prevTrackItem ? `Anterior: ${prevTrackItem.title}` : 'Canción anterior'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Portada Derecha (Siguiente Canción) */}
+                  {nextTrackItem && !currentTrack.isRadio && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showStatusMessage(`⏭ ${nextTrackItem.title}`);
+                        nextTrack();
+                      }}
+                      aria-label={`Siguiente canción: ${nextTrackItem.title}`}
+                      title={`Siguiente: ${nextTrackItem.title}`}
+                      style={{
+                        transform: `translate3d(calc(100% + 16px + ${dragOffsetX}px), 0, 0) scale(${0.88 + Math.min(Math.max(0, -dragOffsetX) / 200, 1) * 0.12})`,
+                        opacity: 0.55 + Math.min(Math.max(0, -dragOffsetX) / 160, 1) * 0.45,
+                        transition: isDraggingCover ? 'none' : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 380ms ease'
+                      }}
+                      className="absolute z-10 w-60 h-60 max-h-[33vh] aspect-square sm:w-72 sm:h-72 rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-black/60 cursor-pointer focus:outline-none active:scale-95"
+                    >
+                      <img
+                        src={nextTrackItem.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&auto=format&fit=crop&q=80'}
+                        alt={nextTrackItem.title}
+                        className="w-full h-full object-cover brightness-75 pointer-events-none"
+                      />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1152,11 +1300,12 @@ export default function GlobalMusicPlayer() {
           El motor principal es el <audio> nativo con mp3/m4a directo. */}
       {currentTrack?.youtubeId && playbackMode === 'youtube' && !videoPlaybackActive && (
         <div
+          key={`yt-fallback-${currentTrack.id}-${currentTrack.youtubeId}`}
           className="fixed bottom-0 right-0 w-[300px] h-[200px] overflow-hidden pointer-events-none z-[10] opacity-5"
           aria-hidden="true"
         >
           <ReactPlayer
-            key={currentTrack.id}
+            key={`${currentTrack.id}-${currentTrack.youtubeId}`}
             ref={ytPlayerRef}
             onReady={p => p.seekTo(playbackTimeRef.current, 'seconds')}
             url={`https://www.youtube.com/watch?v=${currentTrack.youtubeId}`}

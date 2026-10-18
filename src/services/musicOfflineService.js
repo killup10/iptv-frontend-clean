@@ -14,6 +14,7 @@ try {
 
 const STORAGE_MUSIC_KEY = 'teamg_music_offline_tracks_v1';
 const STORAGE_OFFLINE_ALBUMS_KEY = 'teamg_music_offline_albums_v1';
+const STORAGE_OFFLINE_PLAYLISTS_KEY = 'teamg_music_offline_playlists_v1';
 const OFFLINE_MUSIC_FOLDER = 'teamg_offline_music';
 const CACHE_NAME = 'teamg-offline-music-v1';
 
@@ -280,6 +281,28 @@ export function saveOfflineAlbums(albums) {
   }
 }
 
+export function getOfflinePlaylists() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_OFFLINE_PLAYLISTS_KEY) || '[]');
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+export function recordPlaylistDownloaded(playlist, tracks) {
+  if (!tracks.length) return;
+  const id = String(playlist.id || playlist.title || playlist.name || 'playlist');
+  const record = {
+    id, title: playlist.title || playlist.name || 'Playlist',
+    artist: playlist.creator || playlist.artist || '',
+    trackIds: tracks.map(track => String(track.id)),
+    trackCount: playlist.tracks.length, downloadedAt: Date.now(),
+  };
+  localStorage.setItem(STORAGE_OFFLINE_PLAYLISTS_KEY, JSON.stringify([
+    record, ...getOfflinePlaylists().filter(item => String(item.id) !== id),
+  ]));
+  window.dispatchEvent(new CustomEvent('teamg:music-offline-update'));
+}
+
 /**
  * Registra un álbum como descargado en el almacenamiento persistente
  */
@@ -296,6 +319,7 @@ export function recordAlbumDownloaded(album, downloadedTracks = []) {
     artist: albumArtist,
     cover: album.cover || '',
     trackCount: (Array.isArray(album.tracks) && album.tracks.length) || downloadedTracks.length || 0,
+    trackIds: downloadedTracks.map(track => String(track.id)),
     downloadedAt: Date.now()
   };
 
@@ -1097,6 +1121,8 @@ export async function downloadPlaylistOffline(playlist, onOverallProgress = null
     }
   }
 
+  recordPlaylistDownloaded(playlist, results);
+
   return results;
 }
 
@@ -1144,6 +1170,9 @@ export async function clearAllOfflineTracks() {
     } catch (_) {}
   }
   saveOfflineTracks([]);
+  saveOfflineAlbums([]);
+  localStorage.removeItem(STORAGE_OFFLINE_PLAYLISTS_KEY);
+  window.dispatchEvent(new CustomEvent('teamg:music-offline-update'));
 }
 
 /**

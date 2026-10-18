@@ -23,7 +23,6 @@ import {
   Check,
   Download,
   DownloadCloud,
-  HardDrive,
   Mic,
   MicOff,
   Globe,
@@ -32,20 +31,18 @@ import {
   Flame,
   Users,
   RefreshCw,
-  ShieldCheck,
   AlertCircle,
-  Folder,
-  FolderDown,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { isPremiumUser, getPlanLabel } from '../utils/planAccess.js';
 import { useMusicLibrary } from '../context/MusicContext.jsx';
+import OfflineMusicLibrary from '../components/music/OfflineMusicLibrary.jsx';
 import ImportPlaylistForm from '../components/music/ImportPlaylistForm.jsx';
 import { PlaylistSongView, PlaylistTrackRow } from '../components/music/PlaylistSongView.jsx';
 import { musicService, parseArtists, LIVE_RADIOS, GENRES, DEFAULT_CURATED_PLAYLISTS, INDEPENDENT_ARTISTS } from '../services/musicService.js';
 import { checkAndRequestMicrophonePermission, supportsSpeechRecognition } from '../utils/microphonePermission.js';
-import { getTrackLicenseInfo, renewAllMusicOfflineLicenses } from '../services/musicOfflineService.js';
+import { getTrackLicenseInfo } from '../services/musicOfflineService.js';
 
 function getLimaMusicCycle(now = new Date()) {
   const lima = new Date(now.getTime() - 5 * 60 * 60 * 1000);
@@ -86,6 +83,7 @@ export default function Music() {
     openAddToPlaylistModal,
     offlineTracks,
     downloadedAlbums,
+    downloadedPlaylists,
     isTrackDownloaded,
     downloadTrack,
     deleteOfflineTrack,
@@ -178,7 +176,6 @@ export default function Music() {
   const [albumDownloadedToast, setAlbumDownloadedToast] = useState(false);
   const [searchResultsArtists, setSearchResultsArtists] = useState([]);
   const [artistActiveTab, setArtistActiveTab] = useState('tracks'); // 'tracks' | 'albums'
-  const [offlineSubView, setOfflineSubView] = useState('albums'); // 'albums' | 'tracks'
   const [selectedOfflineAlbum, setSelectedOfflineAlbum] = useState(null);
 
   // Agrupación de pistas offline por Álbum (Carpetas de Álbumes Offline)
@@ -658,7 +655,7 @@ export default function Music() {
       if (element.scrollTop) element.scrollTop = 0;
     }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [viewNavigation, activeTab, selectedAlbumDetail?.id]);
+  }, [viewNavigation, activeTab, selectedAlbumDetail?.id, selectedOfflineAlbum?.id]);
 
   const handleOpenArtist = useCallback(async (artistName, artistId = null) => {
     if (!artistName) return;
@@ -761,6 +758,10 @@ export default function Music() {
       setIsExpandedPlayer(false);
       return true;
     }
+    if (activeTab === 'offline' && selectedOfflineAlbum) {
+      setSelectedOfflineAlbum(null);
+      return true;
+    }
     // 0.05 Si está viendo un álbum en detalle
     if (selectedAlbumDetail) {
       setSelectedAlbumDetail(null);
@@ -809,7 +810,7 @@ export default function Music() {
     }
     // Si ya está en la vista raíz de Música, permitir que la app retroceda normalmente a Home
     return false;
-  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedAlbumDetail, selectedArtistDetail, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer, closeArtistDetail]);
+  }, [isVoiceListening, stopVoiceSearch, isExpandedPlayer, selectedOfflineAlbum, selectedAlbumDetail, selectedArtistDetail, selectedIndieArtist, selectedCuratedPlaylist, selectedPlaylistId, searchQuery, tabHistory, activeTab, setIsExpandedPlayer, closeArtistDetail]);
 
   useEffect(() => {
     window.__musicBackHandler = handleMusicBack;
@@ -1088,7 +1089,7 @@ export default function Music() {
         )}
 
         {/* Input de Búsqueda */}
-        <div className="max-w-xl relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSearchFocused(false); }}>
+        <div className={`max-w-xl relative ${activeTab === 'offline' ? 'hidden' : ''}`} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSearchFocused(false); }}>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               {isSearching ? (
@@ -1810,7 +1811,6 @@ export default function Music() {
                                       if (match) {
                                         setSelectedOfflineAlbum(match);
                                         setActiveTab('offline');
-                                        setOfflineSubView('albums');
                                         return;
                                       }
                                     }
@@ -3722,323 +3722,19 @@ export default function Music() {
         {/* CASO E: MODO OFFLINE (CANCIONES GUARDADAS EN EL DISPOSITIVO) */}
         {!searchQuery && activeTab === 'offline' && (
           <div className="space-y-6 animate-in fade-in">
-            {/* Cabecera del Modo Offline */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950/60 via-[#0a231c] to-teal-950/40 border border-emerald-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-xl border border-white/20">
-                <DownloadCloud className="w-12 h-12 text-black" />
-              </div>
-
-              <div className="flex-1 min-w-0 text-center md:text-left space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span>Almacenamiento Local en Dispositivo</span>
-                  </div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-gray-200 border border-white/15">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Licencia offline: <strong>30 días válidos</strong> (renovable con internet)</span>
-                  </div>
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-black text-white">
-                  Música Descargada • Modo Offline
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-300 max-w-xl">
-                  Estas canciones están guardadas físicamente en tu teléfono o PC. Se reproducen instantáneamente sin gastar datos móviles y sin requerir señal de internet.
-                </p>
-
-                {/* Info de almacenamiento y botones de acción */}
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs font-mono text-emerald-400">
-                    <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Espacio utilizado: {getOfflineTotalStorage()} ({offlineTracks.length} {offlineTracks.length === 1 ? 'canción' : 'canciones'})</span>
-                  </span>
-
-                  {offlineTracks.length > 0 && (
-                    <>
-                      <button
-                        onClick={() => playTrack(offlineTracks[0], offlineTracks)}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
-                      >
-                        <Play className="w-4 h-4 fill-black" />
-                        <span>Reproducir Todo Offline</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          const shuffled = [...offlineTracks].sort(() => Math.random() - 0.5);
-                          playTrack(shuffled[0], shuffled);
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
-                      >
-                        <Shuffle className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Aleatorio Offline</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          if (window.confirm('¿Seguro que deseas eliminar todas las canciones descargadas para liberar espacio?')) {
-                            clearAllOffline();
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold text-xs border border-red-500/30 transition cursor-pointer md:ml-auto"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Borrar Todas</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-navegación Modo Offline: Carpetas de Álbumes vs Todas las Canciones */}
-            {offlineTracks.length > 0 && !selectedOfflineAlbum && (
-              <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                <button
-                  type="button"
-                  onClick={() => setOfflineSubView('albums')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
-                    offlineSubView === 'albums'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5'
-                  }`}
-                >
-                  <Folder className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Carpetas de Álbumes ({offlineAlbumList.length})</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setOfflineSubView('tracks')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 ${
-                    offlineSubView === 'tracks'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5'
-                  }`}
-                >
-                  <Music2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Todas las Canciones ({offlineTracks.length})</span>
-                </button>
-              </div>
-            )}
-
-            {/* Listado de pistas o Carpetas Offline */}
-            {offlineTracks.length === 0 ? (
-              <div className="text-center py-20 text-gray-400 bg-white/[0.02] border border-dashed border-emerald-500/20 rounded-3xl p-8 space-y-4">
-                <DownloadCloud className="w-14 h-14 mx-auto text-emerald-400/40 animate-pulse" />
-                <div className="space-y-1">
-                  <h3 className="text-lg font-bold text-white">No tienes canciones descargadas todavía</h3>
-                  <p className="text-xs text-gray-400 max-w-md mx-auto">
-                    Toca el icono de descarga <Download className="w-3.5 h-3.5 inline mx-1 text-emerald-400" /> en cualquier canción de Top Éxitos, Géneros, o el botón "Descargar Álbum" para escuchar tu música organizada en carpetas sin conexión a internet.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('top')}
-                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white font-bold text-xs shadow-md transition hover:scale-105"
-                >
-                  Explorar Top Éxitos
-                </button>
-              </div>
-            ) : selectedOfflineAlbum ? (
-              /* VISTA DE DETALLE: CARPETA DE ÁLBUM OFFLINE */
-              <div className="space-y-6 animate-in fade-in">
-                <button
-                  type="button"
-                  onClick={() => setSelectedOfflineAlbum(null)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-xs font-semibold border border-white/10 transition cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Volver a Carpetas Offline</span>
-                </button>
-
-                {/* Banner de la Carpeta de Álbum Offline */}
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950/60 via-[#0a231c] to-teal-950/40 border border-emerald-500/30 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 shadow-2xl">
-                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-2xl overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center flex-shrink-0 shadow-2xl">
-                    <img
-                      src={selectedOfflineAlbum.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
-                      alt={selectedOfflineAlbum.title}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600/90 text-white text-[10px] font-bold flex items-center gap-1 shadow-md">
-                      <Folder className="w-3 h-3" />
-                      <span>Carpeta Álbum</span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[10px] font-bold tracking-wider uppercase">
-                      <HardDrive className="w-3 h-3 text-emerald-400" />
-                      <span>Álbum Guardado en Dispositivo</span>
-                    </span>
-
-                    <h2 className="text-2xl sm:text-4xl font-black text-white truncate">
-                      {selectedOfflineAlbum.title}
-                    </h2>
-
-                    <p className="text-sm font-semibold text-emerald-300">
-                      {selectedOfflineAlbum.artist}
-                    </p>
-
-                    <p className="text-xs text-gray-400">
-                      {selectedOfflineAlbum.tracks.length} canciones descargadas • Organizado en carpeta local
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (selectedOfflineAlbum.tracks.length > 0) {
-                            playTrack(selectedOfflineAlbum.tracks[0], selectedOfflineAlbum.tracks);
-                          }
-                        }}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-black font-bold text-xs shadow-lg transition cursor-pointer hover:scale-105"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-black" />
-                        <span>Reproducir Álbum ({selectedOfflineAlbum.tracks.length})</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (selectedOfflineAlbum.tracks.length > 0) {
-                            const shuffled = [...selectedOfflineAlbum.tracks].sort(() => Math.random() - 0.5);
-                            playTrack(shuffled[0], shuffled);
-                          }
-                        }}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/10 transition cursor-pointer"
-                      >
-                        <Shuffle className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Aleatorio</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`¿Seguro que deseas eliminar el álbum "${selectedOfflineAlbum.title}" del almacenamiento offline?`)) {
-                            deleteOfflineAlbum(selectedOfflineAlbum);
-                            setSelectedOfflineAlbum(null);
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-300 font-semibold text-xs border border-red-500/30 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Eliminar Álbum</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Canciones del Álbum Ordenadas */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {selectedOfflineAlbum.tracks.map((track, idx) => (
-                    <TrackCard
-                      key={`offline-album-track-${track.id}-${idx}`}
-                      track={track}
-                      queue={selectedOfflineAlbum.tracks}
-                      index={track.trackNumber || idx + 1}
-                      isPlaying={isPlaying && currentTrack?.id === track.id}
-                      onPlay={() => playTrack(track, selectedOfflineAlbum.tracks)}
-                      isFav={isFavorite(track.id)}
-                      onToggleFav={() => toggleFavorite(track)}
-                      onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                      isDownloaded={true}
-                      onDeleteOffline={() => deleteOfflineTrack(track.id)}
-                      onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : offlineSubView === 'albums' ? (
-              /* VISTA: CARPETAS DE ÁLBUMES */
-              <div className="space-y-4">
-                {offlineAlbumList.length === 0 ? (
-                  <div className="text-center py-16 bg-white/[0.02] border border-dashed border-white/10 rounded-2xl p-6 text-gray-400">
-                    <Folder className="w-10 h-10 mx-auto mb-2 text-emerald-400/50" />
-                    <p className="text-sm font-semibold text-white">No tienes álbumes completos descargados</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Tus canciones individuales descargadas están en la pestaña <strong>"Todas las Canciones"</strong>.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {offlineAlbumList.map((album) => (
-                      <div
-                        key={`offline-album-card-${album.id}-${album.title}`}
-                        onClick={() => setSelectedOfflineAlbum(album)}
-                        className="group relative overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-emerald-500/40 transition duration-300 flex flex-col cursor-pointer active:scale-[0.98]"
-                      >
-                        <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 bg-black/40 shadow-md">
-                          <img
-                            src={album.cover || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80'}
-                            alt={album.title}
-                            loading="lazy"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            onError={(e) => {
-                              e.target.src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80';
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600/90 text-white text-[10px] font-black flex items-center gap-1 shadow-lg backdrop-blur-sm border border-emerald-400/40 z-10">
-                            <Folder className="w-3 h-3 stroke-[2.5]" />
-                            <span>Carpeta</span>
-                          </div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
-                            <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
-                              <Folder className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Abrir Carpeta</span>
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-emerald-300 truncate transition">
-                            {album.title}
-                          </h4>
-                          <p className="text-[11px] text-gray-400 truncate mt-0.5">
-                            {album.artist}
-                          </p>
-                          <div className="flex items-center justify-between gap-1 mt-1 text-[11px] text-emerald-400">
-                            <span className="font-semibold">{album.tracks.length} {album.tracks.length === 1 ? 'canción' : 'canciones'}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`¿Eliminar el álbum "${album.title}" de las descargas?`)) {
-                                  deleteOfflineAlbum(album);
-                                }
-                              }}
-                              className="p-1 rounded-md bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-300 transition"
-                              title="Eliminar álbum offline"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* VISTA: TODAS LAS CANCIONES INDIVIDUALES */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {offlineTracks.map((track, idx) => (
-                  <TrackCard
-                    key={`offline-${track.id}-${idx}`}
-                    track={track}
-                    queue={offlineTracks}
-                    index={idx + 1}
-                    isPlaying={isPlaying && currentTrack?.id === track.id}
-                    onPlay={() => playTrack(track, offlineTracks)}
-                    isFav={isFavorite(track.id)}
-                    onToggleFav={() => toggleFavorite(track)}
-                    onAddToPlaylist={() => openAddToPlaylistModal(track)}
-                    isDownloaded={true}
-                    onDeleteOffline={() => deleteOfflineTrack(track.id)}
-                    onArtistClick={() => handleOpenArtist(track.artist, track.artistId)}
-                  />
-                ))}
-              </div>
-            )}
+            <OfflineMusicLibrary
+              tracks={offlineTracks}
+              albums={downloadedAlbums}
+              playlists={[...(downloadedPlaylists || []), ...customPlaylists]}
+              storageLabel={getOfflineTotalStorage()}
+              onPlay={playTrack}
+              onDeleteTrack={deleteOfflineTrack}
+              onDeleteAlbum={deleteOfflineAlbum}
+              onClearAll={clearAllOffline}
+              initialCollection={selectedOfflineAlbum}
+              onCollectionChange={setSelectedOfflineAlbum}
+              onCloseCollection={() => setSelectedOfflineAlbum(null)}
+            />
           </div>
         )}
           </>

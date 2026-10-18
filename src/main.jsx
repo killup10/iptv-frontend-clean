@@ -2,6 +2,29 @@
 import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 
+// Protección global contra mutaciones externas del DOM (YouTube IFrame API, traductores del navegador o extensiones)
+// Evita que React lance NotFoundError: Failed to execute 'removeChild' / 'insertBefore' on 'Node'
+if (typeof Node === 'function' && Node.prototype) {
+  const originalRemoveChild = Node.prototype.removeChild;
+  Node.prototype.removeChild = function (child) {
+    if (child && child.parentNode !== this) {
+      if (child.parentNode) {
+        return child.parentNode.removeChild(child);
+      }
+      return child;
+    }
+    return originalRemoveChild.apply(this, arguments);
+  };
+
+  const originalInsertBefore = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function (newNode, referenceNode) {
+    if (referenceNode && referenceNode.parentNode !== this) {
+      return this.appendChild(newNode);
+    }
+    return originalInsertBefore.apply(this, arguments);
+  };
+}
+
 // Auto-recarga en caso de chunk obsoleto por nuevo despliegue
 if (typeof window !== 'undefined') {
   window.addEventListener('vite:preloadError', (event) => {

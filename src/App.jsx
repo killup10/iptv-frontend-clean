@@ -16,6 +16,8 @@ import { renewAllOfflineLicenses } from "./services/offlineStorage.js";
 import { renewAllMusicOfflineLicenses } from "./services/musicOfflineService.js";
 import { storage } from "./utils/storage.js";
 import { isHalloweenSeason } from "./utils/halloweenSeason.js";
+import { isAndroidMobile } from "./utils/platformUtils.js";
+import { playLiveChannel } from "./utils/playerUtils.js";
 
 const SEARCH_SELECTION_TYPE_MAP = {
   pelicula: 'movie',
@@ -414,6 +416,13 @@ function App() {
   const handleSearchSelectItem = (item) => {
     const type = getSearchSelectionType(item);
     closeAllMenus();
+    if (type === 'channel' && isAndroidMobile()) {
+      playLiveChannel(item, []).catch((err) => {
+        console.warn('[App.jsx] Error playing channel natively:', err);
+        navigate(`/watch/${type}/${item._id || item.id}`);
+      });
+      return;
+    }
     if (location.pathname === '/home' && type !== 'channel') {
       window.dispatchEvent(new CustomEvent('teamg:open-vod-detail', {
         detail: {

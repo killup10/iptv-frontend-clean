@@ -46,3 +46,52 @@ export function getPlayableUrl(item, m3u8ProxyBaseUrl) {
   // Devolver siempre la URL original sin procesar para evitar el proxy.
   return item.url.trim();
 }
+
+import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
+import { fetchChannelForPlayback } from './api.js';
+
+export async function playLiveChannel(channel, allChannels = []) {
+  if (!channel) return;
+  const channelId = channel.id || channel._id;
+  let streamUrl = channel.url || channel.streamUrl || channel.stream_url || channel.playbackUrl || channel.videoUrl;
+
+  if (!streamUrl && channelId) {
+    try {
+      const detailed = await fetchChannelForPlayback(channelId);
+      streamUrl = detailed?.url || detailed?.streamUrl || detailed?.stream_url || detailed?.playbackUrl || detailed?.videoUrl;
+    } catch (e) {
+      console.warn('[playLiveChannel] Error fetching channel url:', e);
+    }
+  }
+
+  if (!streamUrl) {
+    throw new Error('No se pudo obtener la señal del canal');
+  }
+
+  const rawList = Array.isArray(allChannels) && allChannels.length > 0 ? allChannels : [channel];
+  const formattedChannels = rawList.map((c) => ({
+    id: c.id || c._id,
+    name: c.name || c.title || 'Canal',
+    url: c.url || c.streamUrl || c.stream_url || c.playbackUrl || c.videoUrl || '',
+    logo: c.logo || c.customThumbnail || c.thumbnail || '',
+    number: c.number || c.channelNumber || '',
+    epg: c.epg || c.currentProgram || c.section || 'En vivo'
+  })).filter((c) => c.url);
+
+  await VideoPlayerPlugin.playVideo({
+    url: streamUrl,
+    title: channel.name || channel.title || 'Canal en vivo',
+    metaLine: channel.epg || channel.currentProgram || channel.section || 'En vivo',
+    isLiveTV: true,
+    channels: formattedChannels.length > 0 ? formattedChannels : [{
+      id: channelId,
+      name: channel.name || channel.title || 'Canal',
+      url: streamUrl,
+      logo: channel.logo || channel.customThumbnail || channel.thumbnail || '',
+      number: channel.number || channel.channelNumber || '',
+      epg: channel.epg || channel.currentProgram || channel.section || 'En vivo'
+    }],
+    contentType: 'channel',
+    startTime: 0
+  });
+}

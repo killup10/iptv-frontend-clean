@@ -94,6 +94,7 @@ export function MusicProvider({ children }) {
   const [playlistModalTrack, setPlaylistModalTrack] = useState(null);
   const [offlineTracks, setOfflineTracks] = useState(() => musicOfflineService.getOfflineTracks());
   const [downloadedAlbums, setDownloadedAlbums] = useState(() => musicOfflineService.getOfflineAlbums());
+  const [downloadedPlaylists, setDownloadedPlaylists] = useState(() => musicOfflineService.getOfflinePlaylists());
   const [activeDownloadsMap, setActiveDownloadsMap] = useState({});
   const [isDownloadingPlaylistId, setIsDownloadingPlaylistId] = useState(null);
   const [playlistDownloadProgress, setPlaylistDownloadProgress] = useState(null);
@@ -103,6 +104,7 @@ export function MusicProvider({ children }) {
   // Escuchar eventos de descargas offline y sincronizar estado reactivo
   useEffect(() => {
     const handleOfflineUpdate = (e) => {
+      setDownloadedPlaylists(musicOfflineService.getOfflinePlaylists());
       setOfflineTracks(e.detail?.tracks || musicOfflineService.getOfflineTracks());
       setDownloadedAlbums(e.detail?.albums || musicOfflineService.getOfflineAlbums());
     };
@@ -1400,6 +1402,7 @@ export function MusicProvider({ children }) {
     playlistModalTrack,
     offlineTracks,
     downloadedAlbums,
+    downloadedPlaylists,
     activeDownloadsMap,
     isDownloadingPlaylistId,
     playlistDownloadProgress,

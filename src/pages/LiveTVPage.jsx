@@ -12,7 +12,8 @@ import Toast from '../components/Toast.jsx';
 import EpgGuide from '../components/EpgGuide.jsx';
 import { addItemToMyList } from '../utils/myListUtils.js';
 import VideoPlayerPlugin from '../plugins/VideoPlayerPlugin.js';
-import { getPlayerType, isAndroidTV } from '../utils/platformUtils.js';
+import { isAndroidMobile } from '../utils/platformUtils.js';
+import { playLiveChannel } from '../utils/playerUtils.js';
 import ThemedLoader from '../components/ThemedLoader.jsx';
 
 
@@ -52,8 +53,7 @@ export default function LiveTVPage() {
 
   // Forzar orientación horizontal (landscape) fluida en Android al estar en Guía TV
   useEffect(() => {
-    const isMobileAndroid = getPlayerType() === 'android' && !isAndroidTV();
-    if (!isMobileAndroid) return;
+    if (!isAndroidMobile()) return;
 
     if (viewMode === 'guide') {
       if (VideoPlayerPlugin && typeof VideoPlayerPlugin.setScreenOrientation === 'function') {
@@ -155,11 +155,21 @@ export default function LiveTVPage() {
     });
   }, [allChannels, searchTerm]);
 
-  const handleChannelClick = (channel) => {
+  const handleChannelClick = async (channel) => {
     const channelId = channel.id || channel._id;
     if (!channelId) {
       console.error('LiveTVPage: channelId no encontrado', channel);
       return;
+    }
+
+    if (isAndroidMobile()) {
+      try {
+        const channelsToUse = (allChannels && allChannels.length > 0 ? allChannels : displayedChannels);
+        await playLiveChannel(channel, channelsToUse);
+        return;
+      } catch (err) {
+        console.warn('[LiveTVPage] Error launching native channel directly, falling back:', err);
+      }
     }
 
     navigate(`/watch/channel/${channelId}`, {

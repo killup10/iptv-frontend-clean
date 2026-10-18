@@ -7,7 +7,7 @@ export function PlaylistSongView({ mode, onModeChange, children }) {
       {[['grid', 'Cuadrícula', LayoutGrid], ['list', 'Lista', ListMusic]].map(([value, label, Icon]) =>
         <button key={value} type="button" aria-pressed={mode === value} onClick={() => onModeChange(value)}
           className={`min-h-11 px-3 rounded-xl flex items-center gap-2 text-xs font-semibold border transition ${mode === value ? 'bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-300' : 'border-white/10 text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-          <Icon className="w-4 h-4" aria-hidden="true" />{label}
+          <Icon className="w-4 h-4" aria-hidden="true" /><span>{label}</span>
         </button>)}
     </div>
     {mode === 'list' && <div className="grid grid-cols-[2rem_minmax(0,1fr)_auto] md:grid-cols-[2rem_minmax(0,1fr)_minmax(0,0.5fr)_4rem_9rem] gap-3 px-2 sm:px-4 py-2 border-b border-white/10 text-xs text-gray-400" aria-hidden="true">

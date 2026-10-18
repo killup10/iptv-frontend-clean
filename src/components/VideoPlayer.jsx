@@ -276,6 +276,13 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     };
   }, [supportsNativeProgress, disableProgressTracking, playerActive, syncNativeProgressSnapshot]);
 
+  // Los metadatos pueden enriquecerse mientras Android abre la actividad.
+  // Solo una nueva fuente/selección debe iniciar otra reproducción.
+  const nativeLaunchOptionsRef = useRef(null);
+  nativeLaunchOptionsRef.current = { title, metaLine, startTime, allChapters };
+  const seasonIndex = currentChapterInfo?.seasonIndex;
+  const chapterIndex = currentChapterInfo?.chapterIndex;
+
   // Main playback logic for Android
   useEffect(() => {
     if (!url || (!isAndroidVlc && !isAndroidExoplayer)) return;
@@ -288,7 +295,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
       return;
     }
 
-    const playbackKey = `${itemId || ''}|${url}|${currentChapterInfo?.seasonIndex ?? ''}|${currentChapterInfo?.chapterIndex ?? ''}`;
+    const playbackKey = `${itemId || ''}|${url}|${seasonIndex ?? ''}|${chapterIndex ?? ''}`;
     if (playbackKeyRef.current === playbackKey && (isPlayingRef.current || isStartingRef.current)) return;
     
     playbackKeyRef.current = playbackKey;
@@ -296,6 +303,7 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     setPlaybackStarting(true);
     setPlaybackError(null);
 
+    let cancelled = false;
     const startPlayback = async () => {
       try {
         const [sessionToken, deviceId] = await Promise.all([
@@ -303,34 +311,38 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
           storage.getItem('deviceId'),
         ]);
 
+        if (cancelled || isUnmountingRef?.current || isNavigatingAwayRef?.current) return;
+        const launchOptions = nativeLaunchOptionsRef.current;
         console.log(`[VideoPlayer] Iniciando reproduccion nativa (${effectivePlayerType}): ${url}`);
         
         await VideoPlayerPlugin.playVideo({
           url: url,
-          title: title || "TeamG Play",
-          metaLine: metaLine || "Cargando contenido...",
+          title: launchOptions.title || "TeamG Play",
+          metaLine: launchOptions.metaLine || "Cargando contenido...",
           sessionId: nativePlaybackSessionIdRef.current,
-          startTime: Math.floor(startTime || 0),
-          chapters: allChapters,
-          channels: channelsRef.current || channels,
+          startTime: Math.floor(launchOptions.startTime || 0),
+          chapters: launchOptions.allChapters,
+          channels: channelsRef.current,
           isLiveTV: isLiveTV,
           contentType: contentType,
           playerType: effectivePlayerType,
-          seasonIndex: currentChapterInfo?.seasonIndex,
-          chapterIndex: currentChapterInfo?.chapterIndex,
+          seasonIndex,
+          chapterIndex,
           sessionToken: sessionToken || "",
           deviceId: deviceId || "",
           apiBaseUrl: apiBaseURL,
         });
 
+        if (cancelled) return;
         isPlayingRef.current = true;
         isStartingRef.current = false;
         setPlayerActive(true);
         
         // Mantener el estado de "Starting" unos segundos extra para evitar parpadeos si la actividad nativa tarda en cubrir la pantalla
-        setTimeout(() => setPlaybackStarting(false), 3000);
+        setTimeout(() => { if (!cancelled) setPlaybackStarting(false); }, 3000);
 
       } catch (err) {
+        if (cancelled) return;
         console.error("Error iniciando reproductor nativo:", err);
         setPlaybackError(err.message || "Error al iniciar el reproductor.");
         setPlaybackStarting(false);
@@ -341,9 +353,10 @@ export default function VideoPlayer({ url, itemId, startTime, initialAutoplay, t
     startPlayback();
 
     return () => {
+      cancelled = true;
       isStartingRef.current = false;
     };
-  }, [url, isAndroidVlc, isAndroidExoplayer, initialAutoplay, itemId, currentChapterInfo, title, metaLine, startTime, allChapters, isLiveTV, contentType, effectivePlayerType, isUnmountingRef, isNavigatingAwayRef]);
+  }, [url, isAndroidVlc, isAndroidExoplayer, initialAutoplay, itemId, seasonIndex, chapterIndex, isLiveTV, contentType, effectivePlayerType, isUnmountingRef, isNavigatingAwayRef]);
 
   // Sincronizar canales en vivo dinámicamente si cambian durante la reproducción
   useEffect(() => {

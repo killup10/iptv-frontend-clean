@@ -13,3 +13,19 @@
 .vod-classic .vod-classic-episode-art img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
 .vod-classic .vod-classic-episode-play { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #22d3ee; color: #0f172a; }
 .vod-classic .vod-classic-episode-copy { padding: 14px; }
+
+.vod-classic .vod-classic-selected-mobile { display: none; }
+@media (max-width: 767px) {
+  /* Una imagen del alto de toda la serie se amplifica al tener muchos episodios. */
+  .vod-classic .vod-classic-backdrop {
+    bottom: auto;
+    height: 480px;
+    max-height: 80vh;
+    opacity: .35;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(#000, transparent);
+    mask-image: linear-gradient(#000, transparent);
+  }
+  .vod-classic .vod-classic-selected-desktop { display: none; }
+  .vod-classic .vod-classic-selected-mobile { display: block; }
+}
