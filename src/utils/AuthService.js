@@ -146,7 +146,16 @@ export const loginWithCode = async (code) => {
 
 export const requestDeviceCode = async () => {
   const deviceId = await getOrCreateDeviceId();
-  const deviceType = getPlatformName() || "web";
+  const rawPlatform = (getPlatformName() || "web").toLowerCase();
+  let deviceType = "web";
+  if (rawPlatform.includes("tv")) {
+    deviceType = "tv";
+  } else if (rawPlatform === "android" || rawPlatform === "ios" || rawPlatform.includes("mobi") || rawPlatform.includes("phone")) {
+    deviceType = "mobile";
+  } else if (rawPlatform === "electron" || rawPlatform.includes("desk")) {
+    deviceType = "desktop";
+  }
+
   const requestPath = "/api/auth/device-code/request";
 
   try {
@@ -184,6 +193,16 @@ export const requestDeviceCode = async () => {
 
 export const checkDeviceCode = async (code) => {
   const deviceId = await getOrCreateDeviceId();
+  const rawPlatform = (getPlatformName() || "web").toLowerCase();
+  let deviceType = "web";
+  if (rawPlatform.includes("tv")) {
+    deviceType = "tv";
+  } else if (rawPlatform === "android" || rawPlatform === "ios" || rawPlatform.includes("mobi") || rawPlatform.includes("phone")) {
+    deviceType = "mobile";
+  } else if (rawPlatform === "electron" || rawPlatform.includes("desk")) {
+    deviceType = "desktop";
+  }
+
   const checkPath = `/api/auth/device-code/check?code=${encodeURIComponent(code)}&deviceId=${encodeURIComponent(deviceId)}`;
 
   try {
@@ -197,7 +216,7 @@ export const checkDeviceCode = async (code) => {
           headers: {
             "x-device-id": deviceId,
             "x-app-version": APP_VERSION,
-            "x-teamg-client": getPlatformName() || "web",
+            "x-teamg-client": deviceType,
           },
           connectTimeout: 10000,
           readTimeout: 10000,

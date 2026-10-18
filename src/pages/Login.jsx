@@ -135,16 +135,28 @@ function Login() {
       if (res?.code) {
         setClientDeviceCode(res.code);
         setClientFormattedCode(res.formattedCode || `${res.code.slice(0, 3)} ${res.code.slice(3)}`);
+      } else if (res?.error || res?.message) {
+        throw new Error(res.error || res.message);
       }
     } catch (err) {
       console.error("Error al obtener código de dispositivo:", err);
-      setLoginError(err.message || "No se pudo obtener el código del dispositivo. Revisa tu conexión a internet.");
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || "No se pudo obtener el código del dispositivo. Revisa tu conexión a internet.";
+      if (authMode === "code") {
+        setLoginError(msg);
+      }
     } finally {
       setIsLoadingDeviceCode(false);
     }
   };
 
-  // Solicitar código del dispositivo automáticamente al entrar al modo "code"
+  // Pre-cargar el código de vinculación en segundo plano desde el montaje
+  useEffect(() => {
+    if (!clientDeviceCode && !isLoadingDeviceCode) {
+      fetchDevicePairCode();
+    }
+  }, []);
+
+  // Solicitar código del dispositivo automáticamente al entrar al modo "code" si aún no se tiene
   useEffect(() => {
     if (authMode === "code" && !clientDeviceCode && !isLoadingDeviceCode && !showManualCodeInput) {
       fetchDevicePairCode();
@@ -511,26 +523,26 @@ function Login() {
       `}</style>
 
       <div 
-        className={`min-h-screen flex ${isTVMode ? 'flex-row' : 'flex-col lg:flex-row'} items-center justify-center p-4 md:p-8 lg:p-12 relative overflow-hidden select-none classic-bg-custom`}
+        className={`min-h-screen flex ${isTVMode ? 'flex-row' : 'flex-col lg:flex-row'} items-center justify-center p-3 sm:p-6 md:p-8 lg:p-12 relative overflow-hidden select-none classic-bg-custom`}
       >
         
-        {/* PANEL IZQUIERDO: LOGO DESTACADO Y BIENVENIDA (SIN ICONOS SECUNDARIOS) */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-4 lg:p-8 max-w-2xl z-10">
+        {/* PANEL IZQUIERDO: LOGO DESTACADO Y BIENVENIDA */}
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-2 sm:p-4 lg:p-8 max-w-2xl z-10">
           
           {/* Logo Principal Gigante de TeamG Play */}
-          <div className="relative flex items-center justify-center h-80 sm:h-[28rem] md:h-[34rem] w-full mb-4 float-logo-animation select-none">
+          <div className="relative flex items-center justify-center h-28 sm:h-48 md:h-72 lg:h-[28rem] w-full mb-2 sm:mb-4 float-logo-animation select-none">
             <img
               src="./logo-teamg.png"
               alt="TeamG Play"
-              className="h-72 sm:h-[26rem] md:h-[32rem] max-h-[70vh] object-contain logo-glow-large transition-transform duration-300 hover:scale-105"
+              className="h-24 sm:h-44 md:h-64 lg:h-[26rem] max-h-[30vh] lg:max-h-[70vh] object-contain logo-glow-large transition-transform duration-300 hover:scale-105"
             />
           </div>
 
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white tracking-tight mb-1 sm:mb-2">
             Bienvenido a <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-pink-500">TeamG Play</span>
           </h1>
 
-          <p className="text-sm md:text-base text-slate-300 max-w-md font-medium leading-relaxed">
+          <p className="text-xs sm:text-sm md:text-base text-slate-300 max-w-md font-medium leading-relaxed">
             Tu plataforma de entretenimiento. Accede a tu cuenta o activa tu dispositivo con código para comenzar.
           </p>
         </div>
