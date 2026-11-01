@@ -175,6 +175,59 @@ export function getTVItemDirector(item) {
   return item?.director || item?.directores || item?.tmdbData?.director || '';
 }
 
+export function normalizeCastMember(member) {
+  if (!member) return null;
+  if (typeof member === 'string') {
+    const trimmed = member.trim();
+    if (!trimmed) return null;
+    return {
+      name: trimmed,
+      character: '',
+      role: 'Reparto principal',
+      profileUrl: '',
+      gender: 0,
+    };
+  }
+  if (typeof member === 'object') {
+    const name = (member.name || member.actor || member.nombre || '').trim();
+    if (!name) return null;
+    const character = (member.character || member.personaje || member.role || '').trim();
+    const rawProfile = member.profileUrl || member.profile_path || member.foto || member.image || '';
+    const profileUrl = rawProfile
+      ? (rawProfile.startsWith('http') ? rawProfile : `https://image.tmdb.org/t/p/w185${rawProfile}`)
+      : '';
+    const gender = Number(member.gender) || 0;
+
+    let role = '';
+    if (character) {
+      if (gender === 1) {
+        role = `Actriz · ${character}`;
+      } else if (gender === 2) {
+        role = `Actor · ${character}`;
+      } else {
+        role = character;
+      }
+    } else {
+      if (gender === 1) {
+        role = 'Actriz principal';
+      } else if (gender === 2) {
+        role = 'Actor principal';
+      } else {
+        role = 'Reparto principal';
+      }
+    }
+
+    return {
+      name,
+      character,
+      role,
+      profileUrl,
+      gender,
+    };
+  }
+  return null;
+}
+
 export function getTVItemCast(item) {
   if (Array.isArray(item?.cast) && item.cast.length > 0) {
     return item.cast.filter(Boolean);

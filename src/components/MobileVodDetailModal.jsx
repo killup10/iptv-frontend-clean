@@ -20,6 +20,7 @@ import {
   getTVItemDuration,
   getTVItemDirector,
   getTVItemCast,
+  normalizeCastMember,
   getTVItemUserScore,
   getTVItemCertification,
   getTVItemTagline,
@@ -713,21 +714,77 @@ export default function MobileVodDetailModal({
                     </div>
                   )}
 
-                  {/* Director y Reparto */}
+                  {/* Director y Reparto con Fotos al estilo TMDb */}
                   {(director || cast.length > 0) && (
-                    <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3 border-t border-white/10 pt-4">
-                      {director && (
-                        <div>
-                          <p className="text-xs font-bold text-white truncate">{director}</p>
-                          <p className="text-[11px] text-slate-400">Director</p>
-                        </div>
-                      )}
-                      {cast.slice(0, 4).map((actor, idx) => (
-                        <div key={idx}>
-                          <p className="text-xs font-bold text-white truncate">{actor}</p>
-                          <p className="text-[11px] text-slate-400">Reparto principal</p>
-                        </div>
-                      ))}
+                    <div className="mt-5 border-t border-white/10 pt-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-200/90 mb-3">
+                        Reparto y Equipo
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {director && (
+                          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0">
+                            <div className="w-10 h-10 shrink-0 rounded-full bg-cyan-950/60 border border-cyan-400/20 flex items-center justify-center text-cyan-300">
+                              <Film className="w-4 h-4 text-cyan-400" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-white truncate" title={director}>
+                                {director}
+                              </p>
+                              <p className="text-[10px] text-cyan-300/80 font-medium truncate">
+                                Director / Creador
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {cast.slice(0, director ? 5 : 6).map((rawMember, idx) => {
+                          const person = normalizeCastMember(rawMember);
+                          if (!person) return null;
+                          const initials = person.name
+                            .split(' ')
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((p) => p[0].toUpperCase())
+                            .join('');
+
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0 hover:bg-white/[0.07] transition-colors"
+                            >
+                              <div className="relative w-10 h-10 shrink-0 rounded-full overflow-hidden bg-slate-800 border border-white/10 flex items-center justify-center text-xs font-semibold text-slate-300">
+                                {person.profileUrl ? (
+                                  <img
+                                    src={person.profileUrl}
+                                    alt={person.name}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      if (e.currentTarget.nextElementSibling) {
+                                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="w-full h-full flex items-center justify-center bg-slate-800 text-[11px] font-bold text-cyan-200/90"
+                                  style={{ display: person.profileUrl ? 'none' : 'flex' }}
+                                >
+                                  {initials || '?'}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-white truncate" title={person.name}>
+                                  {person.name}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5" title={person.role}>
+                                  {person.role}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

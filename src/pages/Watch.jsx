@@ -39,6 +39,7 @@ import {
   getTVItemDuration,
   getTVItemDirector,
   getTVItemCast,
+  normalizeCastMember,
   getTVItemCertification,
   getTVItemTagline,
   getTVItemQualityBadges,
@@ -163,68 +164,6 @@ function buildSeasonEpisodeLabel(seasonNumber, episodeNumber) {
   return '';
 }
 
-async function hydrateChannelsForPlayback(channels, options = {}) {
-  const hydratedChannels = [...channels];
-  const missingUrlIndexes = hydratedChannels
-    .map((channel, index) => ({ channel, index }))
-    .filter(({ channel }) => channel.id && !channel.url)
-    .map(({ index }) => index);
-
-  if (missingUrlIndexes.length === 0) {
-    return hydratedChannels;
-  }
-
-  const preferredChannelId = options?.preferredChannelId ? String(options.preferredChannelId) : null;
-  const preferredIndex = preferredChannelId
-    ? hydratedChannels.findIndex((channel) => String(channel.id) === preferredChannelId)
-    : -1;
-  const prioritizedIndexes = [...missingUrlIndexes].sort((leftIndex, rightIndex) => {
-    if (preferredIndex < 0) {
-      return leftIndex - rightIndex;
-    }
-
-    return Math.abs(leftIndex - preferredIndex) - Math.abs(rightIndex - preferredIndex);
-  });
-
-  // Fluidez: por defecto se hidrata solo lo cercano al canal actual; el resto
-  // se completa en idle o al abrir el selector (ver maxCount).
-  const cappedIndexes = Number.isFinite(options?.maxCount) && options.maxCount > 0
-    ? prioritizedIndexes.slice(0, options.maxCount)
-    : prioritizedIndexes;
-
-  let cursor = 0;
-  let completed = 0;
-  const workerCount = Math.min(12, cappedIndexes.length);
-  const emitProgress = () => {
-    completed += 1;
-    if (
-      typeof options?.onProgress === 'function' &&
-      (completed <= 6 || completed % 12 === 0 || completed === cappedIndexes.length)
-    ) {
-      options.onProgress([...hydratedChannels]);
-    }
-  };
-
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (cursor < cappedIndexes.length) {
-      const targetIndex = cappedIndexes[cursor];
-      cursor += 1;
-
-      const baseChannel = hydratedChannels[targetIndex];
-      try {
-        const detailedChannel = await fetchChannelForPlayback(baseChannel.id);
-        hydratedChannels[targetIndex] = normalizeWatchChannel(detailedChannel, baseChannel);
-      } catch (error) {
-        console.warn('[Watch.jsx] No se pudo hidratar URL de canal:', baseChannel.name, error?.message || error);
-      } finally {
-        emitProgress();
-      }
-    }
-  }));
-
-  return hydratedChannels;
-}
-
 export function Watch() {
   const { itemType, itemId } = useParams();
   const location = useLocation();
@@ -262,7 +201,6 @@ export function Watch() {
   const [isChannelPickerOpen, setIsChannelPickerOpen] = useState(false);
   const [channelSearch, setChannelSearch] = useState('');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-  const channelsHydrationRef = useRef({ phase: 'idle', promise: null });
   const [isMoviePickerOpen, setIsMoviePickerOpen] = useState(false);
   const [movieSearch, setMovieSearch] = useState('');
   const [movieSearchResults, setMovieSearchResults] = useState([]);
@@ -1465,49 +1403,9 @@ export function Watch() {
         setChannelList(normalizedChannels);
         setChannelListReady(true);
 
-        // Fase 1: hidratar solo lo cercano al canal actual (arranque instantáneo)
-        const nearbyChannels = await hydrateChannelsForPlayback(normalizedChannels, {
-          preferredChannelId: itemId,
-          maxCount: 30,
-          onProgress: (partialChannels) => {
-            if (!cancelled) {
-              setChannelList(partialChannels);
-            }
-          },
-        });
-        if (cancelled) return;
-        setChannelList(nearbyChannels);
+        // /list ya entrega las URLs permitidas por el plan. No hacer una
+        // petición por canal ni depender de tareas idle mientras VLC está abierto.
 
-        // Fase 2: completar el resto sin bloquear (idle o al abrir el selector)
-        channelsHydrationRef.current = { phase: 'nearby', base: nearbyChannels, promise: null, hydrateRest: null };
-        const hydrateRest = async () => {
-          const state = channelsHydrationRef.current;
-          if (cancelled || !state || state.phase === 'full' || state.promise) {
-            return state?.promise || null;
-          }
-          const restPromise = hydrateChannelsForPlayback(state.base, {
-            preferredChannelId: itemId,
-          }).then((fullChannels) => {
-            if (!cancelled) {
-              channelsHydrationRef.current.phase = 'full';
-              setChannelList(fullChannels);
-            }
-            return fullChannels;
-          }).catch((err) => {
-            console.warn('[Watch.jsx] Hidratación diferida incompleta:', err?.message || err);
-            return null;
-          }).finally(() => {
-            channelsHydrationRef.current.promise = null;
-          });
-          state.promise = restPromise;
-          return restPromise;
-        };
-        channelsHydrationRef.current.hydrateRest = hydrateRest;
-        if (typeof window.requestIdleCallback === 'function') {
-          window.requestIdleCallback(() => { hydrateRest(); }, { timeout: 5000 });
-        } else {
-          setTimeout(() => { hydrateRest(); }, 3000);
-        }
       } catch (err) {
         if (!cancelled) {
           console.warn('[Watch.jsx] No se pudo cargar lista de canales para zapping:', err?.message || err);
@@ -3407,7 +3305,6 @@ export function Watch() {
     setIsChannelPickerOpen(true);
     // Al abrir el selector, completar URLs faltantes en segundo plano
     try {
-      channelsHydrationRef.current?.hydrateRest?.();
     } catch (_) {}
   }, [filteredChannelList, itemId]);
 
@@ -4234,19 +4131,58 @@ export function Watch() {
                   ) : null}
 
                   {(tvItemDirector || tvItemCast.length > 0) && (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-3">
-                      {tvItemDirector ? (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-200/70">Director</p>
-                          <p className="mt-1 text-xs font-bold text-white truncate">{tvItemDirector}</p>
-                        </div>
-                      ) : null}
-                      {tvItemCast.slice(0, tvItemDirector ? 3 : 4).map((actor, idx) => (
-                        <div key={idx} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Reparto</p>
-                          <p className="mt-1 text-xs font-bold text-white truncate">{actor}</p>
-                        </div>
-                      ))}
+                    <div className="mt-4 border-t border-white/10 pt-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-200/80 mb-2.5">
+                        Reparto y Equipo
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {tvItemDirector ? (
+                          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0">
+                            <div className="w-9 h-9 shrink-0 rounded-full bg-cyan-950/60 border border-cyan-400/20 flex items-center justify-center text-cyan-300">
+                              <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-white truncate" title={tvItemDirector}>{tvItemDirector}</p>
+                              <p className="text-[10px] text-cyan-300/80 font-medium truncate">Director / Creador</p>
+                            </div>
+                          </div>
+                        ) : null}
+                        {tvItemCast.slice(0, tvItemDirector ? 3 : 4).map((rawMember, idx) => {
+                          const person = normalizeCastMember(rawMember);
+                          if (!person) return null;
+                          const initials = person.name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+                          return (
+                            <div key={`tv-cast-${idx}`} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0">
+                              <div className="relative w-9 h-9 shrink-0 rounded-full overflow-hidden bg-slate-800 border border-white/10 flex items-center justify-center text-xs font-semibold text-slate-300">
+                                {person.profileUrl ? (
+                                  <img
+                                    src={person.profileUrl}
+                                    alt={person.name}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      if (e.currentTarget.nextElementSibling) e.currentTarget.nextElementSibling.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="w-full h-full flex items-center justify-center bg-slate-800 text-[10px] font-bold text-cyan-200/90"
+                                  style={{ display: person.profileUrl ? 'none' : 'flex' }}
+                                >
+                                  {initials || '?'}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-white truncate" title={person.name}>{person.name}</p>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5" title={person.role}>{person.role}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -5098,21 +5034,64 @@ export function Watch() {
                   </p>
                 </div>
 
-                {/* Director y Reparto principal */}
+                {/* Director y Reparto con Fotos al estilo TMDb */}
                 {(itemData.director || (Array.isArray(itemData.cast) && itemData.cast.length > 0)) && (
-                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-4">
-                    {itemData.director && (
-                      <div>
-                        <p className="text-xs font-bold text-white truncate">{itemData.director}</p>
-                        <p className="text-[10px] text-gray-400">Director</p>
-                      </div>
-                    )}
-                    {Array.isArray(itemData.cast) && itemData.cast.slice(0, 3).map((actor, idx) => (
-                      <div key={idx}>
-                        <p className="text-xs font-bold text-white truncate">{actor}</p>
-                        <p className="text-[10px] text-gray-400">Reparto principal</p>
-                      </div>
-                    ))}
+                  <div className="mt-5 border-t border-white/10 pt-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-200/80 mb-3">
+                      Reparto y Equipo
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {itemData.director && (
+                        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0">
+                          <div className="w-10 h-10 shrink-0 rounded-full bg-cyan-950/60 border border-cyan-400/20 flex items-center justify-center text-cyan-300">
+                            <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-white truncate" title={itemData.director}>
+                              {itemData.director}
+                            </p>
+                            <p className="text-[10px] text-cyan-300/80 font-medium truncate">
+                              Director / Creador
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {Array.isArray(itemData.cast) && itemData.cast.slice(0, itemData.director ? 5 : 6).map((rawMember, idx) => {
+                        const person = normalizeCastMember(rawMember);
+                        if (!person) return null;
+                        const initials = person.name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+                        return (
+                          <div key={idx} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.04] border border-white/5 min-w-0">
+                            <div className="relative w-10 h-10 shrink-0 rounded-full overflow-hidden bg-slate-800 border border-white/10 flex items-center justify-center text-xs font-semibold text-slate-300">
+                              {person.profileUrl ? (
+                                <img
+                                  src={person.profileUrl}
+                                  alt={person.name}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextElementSibling) e.currentTarget.nextElementSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className="w-full h-full flex items-center justify-center bg-slate-800 text-[11px] font-bold text-cyan-200/90"
+                                style={{ display: person.profileUrl ? 'none' : 'flex' }}
+                              >
+                                {initials || '?'}
+                              </span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-white truncate" title={person.name}>{person.name}</p>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5" title={person.role}>{person.role}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </DynamicCard>
