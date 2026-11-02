@@ -700,6 +700,19 @@ export async function updateAdminUserStatus(userId, isActive, expiresAt = null, 
   }
 }
 
+export async function updateAdminUserPassword(userId, newPassword) {
+  const relativePath = `/api/admin/users/${userId}/password`;
+  console.log(`API (updateAdminUserPassword - axios): PUT ${relativePath}`);
+  try {
+    const response = await axiosInstance.put(relativePath, { newPassword });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || error.message || "Admin: Error al actualizar la contraseña del usuario.";
+    console.error(`API Error (updateAdminUserPassword - axios): ${errorMsg}`, error.response?.data);
+    throw new Error(errorMsg);
+  }
+}
+
 export async function deleteAdminUser(userId) {
   const relativePath = `/api/admin/users/${userId}`;
   console.log(`API (deleteAdminUser - axios): DELETE ${relativePath}`);

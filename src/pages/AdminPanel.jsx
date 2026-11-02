@@ -6,7 +6,7 @@ import {
   fetchAdminChannels, createAdminChannel, updateAdminChannel,
   deleteAdminChannel, processM3UForAdmin,
   createAdminVideo, updateAdminVideo, deleteAdminVideo,
-  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser,
+  fetchAdminUsers, updateAdminUserPlan, updateAdminUserStatus, deleteAdminUser, updateAdminUserPassword,
   createAdminCodeUser, updateAdminUserActivationCode, updateAdminUserMaxDevices,
   activateAdminDeviceCode, fetchAdminPendingDeviceCodes,
   checkAdminChannelsStatus,
@@ -1942,6 +1942,53 @@ export default function AdminPanel() {
     } finally { setIsSubmitting(false); }
   };
 
+  // --- RESTABLECER CONTRASEÑA DE USUARIO (ADMIN) ---
+  const [passwordModalUser, setPasswordModalUser] = useState(null);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [showPasswordText, setShowPasswordText] = useState(true);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
+  const generateRandomPassword = () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const pass = `TG${randomNum}`;
+    setNewPasswordInput(pass);
+    setCopiedPassword(false);
+  };
+
+  const handleOpenPasswordModal = (usr) => {
+    setPasswordModalUser({ _id: usr._id, username: usr.username });
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    setNewPasswordInput(`TG${randomNum}`);
+    setCopiedPassword(false);
+    setShowPasswordText(true);
+  };
+
+  const handleSaveNewPassword = async () => {
+    if (!passwordModalUser || !newPasswordInput || newPasswordInput.trim().length < 4) {
+      setErrorMsg("La contraseña debe tener al menos 4 caracteres.");
+      return;
+    }
+    setIsSubmitting(true);
+    clearMessages();
+    try {
+      await updateAdminUserPassword(passwordModalUser._id, newPasswordInput.trim());
+      setSuccessMsg(`Contraseña de "${passwordModalUser.username}" actualizada a: ${newPasswordInput.trim()}`);
+      setPasswordModalUser(null);
+      setNewPasswordInput("");
+    } catch (err) {
+      setErrorMsg(err.message || "Error al actualizar la contraseña del usuario.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCopyPassword = () => {
+    if (!newPasswordInput) return;
+    navigator.clipboard?.writeText(newPasswordInput);
+    setCopiedPassword(true);
+    setTimeout(() => setCopiedPassword(false), 2500);
+  };
+
   // --- CÓDIGOS DE ACTIVACIÓN (PLAN 1 DISPOSITIVO) ---
   const [clientCodeToActivate, setClientCodeToActivate] = useState("");
   const [clientNameToActivate, setClientNameToActivate] = useState("");
@@ -3300,6 +3347,13 @@ export default function AdminPanel() {
                         >
                           {expandedDevices[usr._id] ? "Ocultar Dispositivos" : "Ver Dispositivos"}
                         </Button>
+                        <Button
+                          onClick={() => handleOpenPasswordModal(usr)}
+                          className="ml-2 text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-medium"
+                          title="Cambiar o restablecer contraseña de este usuario"
+                        >
+                          🔑 Cambiar Clave
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -3313,6 +3367,94 @@ export default function AdminPanel() {
             </div>
           ) : (
             <p className="text-gray-400 text-center py-10">{!errorMsg ? "No hay usuarios para mostrar." : ""}</p>
+          )}
+        
+          {passwordModalUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+              <div className="bg-gray-800 border border-purple-500/40 rounded-xl p-5 max-w-md w-full shadow-2xl relative text-left">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-700">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>🔑</span> Cambiar Contraseña
+                  </h3>
+                  <button
+                    onClick={() => setPasswordModalUser(null)}
+                    className="text-gray-400 hover:text-white text-lg font-bold p-1 leading-none"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-xs text-gray-300">
+                    Usuario: <span className="font-semibold text-purple-300 text-sm">{passwordModalUser.username}</span>
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Escribe una nueva contraseña o genera una clave rápida para entregarle a tu cliente.
+                  </p>
+
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-gray-300 mb-1">Nueva Contraseña</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showPasswordText ? "text" : "password"}
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        placeholder="Mínimo 4 caracteres"
+                        className="w-full bg-gray-900 border border-gray-600 focus:border-purple-500 text-white font-mono text-sm px-3 py-2 pr-10 rounded-lg outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordText(!showPasswordText)}
+                        className="absolute right-2 text-gray-400 hover:text-gray-200 text-xs px-1"
+                        title={showPasswordText ? "Ocultar" : "Mostrar"}
+                      >
+                        {showPasswordText ? "👁️" : "🙈"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={generateRandomPassword}
+                      className="text-xs bg-gray-700 hover:bg-gray-600 text-purple-300 border border-purple-500/30 px-2.5 py-1.5 rounded font-medium transition"
+                    >
+                      🎲 Generar Clave Rápida
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyPassword}
+                      disabled={!newPasswordInput}
+                      className={`text-xs px-2.5 py-1.5 rounded font-medium transition ${
+                        copiedPassword
+                          ? "bg-emerald-600 text-white"
+                          : "bg-gray-700 hover:bg-gray-600 text-cyan-300 border border-cyan-500/30"
+                      }`}
+                    >
+                      {copiedPassword ? "✓ ¡Copiado!" : "📋 Copiar Clave"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end gap-2 border-t border-gray-700 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordModalUser(null)}
+                    disabled={isSubmitting}
+                    className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded font-semibold transition"
+                  >
+                    Cancelar
+                  </button>
+                  <Button
+                    onClick={handleSaveNewPassword}
+                    isLoading={isSubmitting}
+                    className="px-4 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded shadow"
+                  >
+                    Guardar Contraseña
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
         </section>
       )}
