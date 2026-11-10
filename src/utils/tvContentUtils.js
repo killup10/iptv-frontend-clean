@@ -520,7 +520,7 @@ export function getTVItemQualityDisplay(item) {
   const is4k = isTVItem4K(item);
   const is60 = isTVItem60FPS(item);
 
-  const baseQuality = is4k ? '4K' : 'FULLHD';
+  const baseQuality = is4k ? '4K ULTRAHD' : 'FULLHD';
   if (is60) {
     return `${baseQuality} / 60 FPS`;
   }
@@ -531,7 +531,7 @@ export function getTVItemQualityBadges(item) {
   const badges = [];
 
   if (isTVItem4K(item)) {
-    badges.push('4K UHD');
+    badges.push('4K ULTRAHD');
   }
 
   if (isTVItem60FPS(item)) {

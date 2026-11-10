@@ -10,7 +10,7 @@ import {
   getTVItemGenreList,
   getTVItemImage,
   getTVItemQualityBadges,
-  getTVItemQualityDisplay,
+  getTVItemQualityDisplay, isTVItem4K,
   getTVItemRating,
   getTVItemSeasons,
   getTVItemTitle,
@@ -336,7 +336,7 @@ export default function MobileVodDetailModal({
   const year = getTVItemYear(modalItem);
   const genre = getTVItemGenre(modalItem);
   const releaseDate = getTVItemReleaseDate(modalItem);
-  const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
+  const is4KItem = isTVItem4K(modalItem); const qualityBadges = getTVItemQualityBadges(modalItem).slice(0, 2);
   const genreList = getTVItemGenreList(modalItem);
   const duration = getTVItemDuration(modalItem);
   const director = getTVItemDirector(modalItem);
@@ -375,17 +375,17 @@ export default function MobileVodDetailModal({
   }
 
   const metaBadges = [
-    TYPE_LABELS[resolvedType] || 'VOD',
+    TYPE_LABELS[resolvedType] || 'VOD', ...qualityBadges,
     year,
     ...genreList,
     rating ? `TMDb ${rating}` : '',
-    ...qualityBadges,
-  ].filter(Boolean).slice(0, 6);
+
+  ].filter(Boolean).slice(0, 7);
 
   const detailStats = [
     hasEpisodesContent ? { label: 'Temporadas', value: String(totalSeasonCount) } : null,
     hasEpisodesContent ? { label: 'Episodios', value: String(totalEpisodeCount) } : null,
-    { label: 'Calidad', value: getTVItemQualityDisplay(modalItem) },
+    { label: 'Calidad', value: getTVItemQualityDisplay(modalItem), isGolden4K: is4KItem },
     rating ? { label: 'TMDb', value: rating } : null,
   ].filter(Boolean);
 
@@ -629,6 +629,11 @@ export default function MobileVodDetailModal({
                     <span className="rounded-full border border-cyan-300/18 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">
                       Detalle VOD
                     </span>
+                    {is4KItem && (
+                      <span className="inline-flex items-center rounded-full border border-amber-300 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_0_18px_rgba(251,191,36,0.5)]">
+                        4K ULTRAHD
+                      </span>
+                    )}
                     {rating && (
                       <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/18 bg-amber-300/12 px-3 py-1 text-xs font-semibold text-amber-100">
                         <Star className="h-3.5 w-3.5 fill-current" />
@@ -677,7 +682,7 @@ export default function MobileVodDetailModal({
                       {metaBadges.map((badge) => (
                         <span
                           key={badge}
-                          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-slate-100"
+                          className={String(badge).includes('4K') ? 'rounded-full border border-amber-300 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-slate-950 shadow-[0_0_16px_rgba(251,191,36,0.45)]' : String(badge).includes('60 FPS') ? 'rounded-full border border-cyan-400/50 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-white shadow-[0_0_14px_rgba(34,211,238,0.35)]' : 'rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold text-slate-100'}
                         >
                           {badge}
                         </span>
@@ -690,13 +695,13 @@ export default function MobileVodDetailModal({
                       {detailStats.map((detail) => (
                         <div
                           key={`${detail.label}-${detail.value}`}
-                          className="rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-3"
+                          className={detail.isGolden4K ? 'rounded-[18px] border border-amber-400/50 bg-gradient-to-br from-amber-500/20 via-yellow-400/10 to-amber-950/30 px-3 py-3 shadow-[0_0_24px_rgba(245,158,11,0.22)]' : 'rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-3'}
                         >
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100/70">
+                          <p className={detail.isGolden4K ? 'text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300' : 'text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100/70'}>
                             {detail.label}
                           </p>
                           <p className="mt-1 text-sm font-semibold leading-5 text-white">
-                            {detail.value}
+                            {detail.isGolden4K ? <span className="inline-flex items-center rounded-md border border-amber-300 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2 py-0.5 text-xs font-black tracking-wider text-slate-950 shadow-[0_0_14px_rgba(251,191,36,0.45)]">{detail.value}</span> : detail.value}
                           </p>
                         </div>
                       ))}

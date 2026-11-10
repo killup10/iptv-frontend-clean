@@ -4000,7 +4000,7 @@ export function Watch() {
                         {tvItemQualityBadges.map((badge) => (
                           <span
                             key={badge}
-                            className="rounded-full border border-cyan-400/30 bg-cyan-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-cyan-200"
+                            className={String(badge).includes('4K') ? 'rounded-full border border-amber-300 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow-[0_0_16px_rgba(251,191,36,0.45)]' : 'rounded-full border border-cyan-400/30 bg-cyan-500/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-cyan-200'}
                           >
                             {badge}
                           </span>
